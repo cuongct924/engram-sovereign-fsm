@@ -16,7 +16,7 @@ ASSUME QuorumOverlap
 (* ======================== NETWORK CONFIGURATION ========================== *)
 MC_Nodes  == {n1, n2, n3, n4}
 MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
-MC_Byzantine == {}
+MC_Byzantine == {n1}
 MC_Honest   == MC_Nodes \ MC_Byzantine
 
 \* MC_Nodes == {n1, n2, n3, n4, n5, n6, n7}

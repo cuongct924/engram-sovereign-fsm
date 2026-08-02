@@ -49,6 +49,7 @@
   - [References](#references)
   - [Future Work](#future-work)
   - [How to Run the Verification](#how-to-run-the-verification)
+    - [Apalache — Complementary Bounded Safety Checking](#apalache--complementary-bounded-safety-checking)
 
 ## Abstract
 
@@ -1004,12 +1005,12 @@ The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending t
 ### Safety Verification
 
 ```bash
-cd docs/spec
+cd spec
 
 java -cp /path/to/tla2tools.jar tlc2.TLC \
   -workers 8 \
-  -config mc/server/MC_ServerRefinementSafety.cfg \
-  mc/server/MC_ServerRefinementSafety.tla
+  -config core/MC_ServerRefinementSafety.cfg \
+  core/MC_ServerRefinementSafety.tla
 ```
 
 Expected: approximately 100 minutes, 37.7M states generated, no error found.
@@ -1017,12 +1018,12 @@ Expected: approximately 100 minutes, 37.7M states generated, no error found.
 ### Liveness Verification
 
 ```bash
-cd docs/spec
+cd spec
 
 java -cp /path/to/tla2tools.jar tlc2.TLC \
   -workers 8 \
-  -config mc/server/MC_ServerRefinementLiveness.cfg \
-  mc/server/MC_ServerRefinementLiveness.tla
+  -config core/MC_ServerRefinementLiveness.cfg \
+  core/MC_ServerRefinementLiveness.tla
 ```
 
 Expected: approximately 7 minutes, 1.1M states generated, no error found.
@@ -1034,3 +1035,48 @@ Expected: approximately 7 minutes, 1.1M states generated, no error found.
 3. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Linux/Windows).
 4. Select `TLA+: Check model with TLC`.
 5. Choose the corresponding `.cfg` file when prompted.
+
+### Apalache — Complementary Bounded Safety Checking
+
+TLC's explicit-state BFS is the tool of record for **refinement** (`RefinementSafety`/`RefinementLiveness`, checked via the `EngramConsensus` `INSTANCE` in `EngramServerRefinement.tla`) and for every **liveness** property built on `~>` with `WF_vars`/`SF_vars` fairness — Apalache has no equivalent to either: it cannot check "does this concrete spec refine that abstract spec" as a single property (its `check`/`typecheck` commands work over one `Init`/`Next` pair, not a spec embedded inside another via `INSTANCE ... WITH`), and its `--temporal` mode only searches for a counterexample up to a fixed `--length`, not an unbounded fairness proof.
+
+Where Apalache earns its keep is **state-safety invariants** (plain state/action predicates — `FSMTypeOK`, `CircuitBreakerSafety`, `CoreTendermintInvariant`, `HybridTendermintInvariant`, `HysteresisSafety`, `StrictFSMTransitionSafety`, `MonotonicitySafety`), because it explores the state space symbolically via an SMT solver (Z3) instead of enumerating every reachable state — exactly the point where TLC's BFS becomes the bottleneck (checking `FSMTypeOK`/`CircuitBreakerSafety` alone via TLC's full BFS generated hundreds of millions of states within minutes at the default bounds; Apalache checked the same invariants symbolically up to 10 steps in about 7 minutes without ever materializing the state graph).
+
+**Rule of thumb:** run Apalache first to get a fast, deep read on the safety invariants; keep using TLC as the final word on anything involving refinement or liveness.
+
+#### Prerequisites
+
+- Java **JDK 17+** for Apalache specifically (JDK 11 — used for TLC above — cannot run it; Apalache's launch script passes a JVM garbage-collection flag that JDK 11 doesn't recognize). Point `JAVA_HOME` at a JDK 17+ install only for the commands in this section.
+- Apalache itself, native release (no Docker required):
+  ```bash
+  mkdir -p ~/tools/apalache && cd ~/tools/apalache
+  curl -sL -o apalache.tgz https://github.com/apalache-mc/apalache/releases/download/v0.58.3/apalache.tgz
+  tar xzf apalache.tgz
+  ```
+
+#### Directory layout: everything lives in `core/`, no symlinks
+
+`core/*.tla` holds the specs **and** every `MC_*.tla`/`.cfg` driver (TLC and Apalache alike, for every layer) — there is no separate `mc/` directory and no symlinks anywhere in the tree. This isn't just tidiness: both TLC and Apalache resolve `EXTENDS` relative to the directory of the file being checked, and Apalache in particular has **no** `-cp`/search-path flag to point at modules living elsewhere (its launcher runs `java -jar`, which ignores `CLASSPATH` entirely — TLC can work around a multi-directory layout with `-cp jar:core`, Apalache cannot work around it at all). An earlier iteration of this layout kept `core/` and a separate `mc/` with symlinks back into it; that was dropped in favor of one real directory, because a symlink is a standing footgun here — a checkout with `git config core.symlinks false` (common on Windows without developer mode) silently turns each symlink into a plain text file containing its target path, and some editors replace a symlink with a real file on save. Either failure mode makes `core/` and the driver's copy of a module quietly diverge with no error until a parse fails or, worse, a check passes against a stale copy. One real directory removes the entire risk category instead of relying on symlinks staying intact.
+
+- `EngramVars.tla`, `EngramFSM.tla`, `EngramTendermint.tla`, `EngramServer.tla`, `EngramServerRefinement.tla`, `EngramConsensus.tla` are the specs.
+- `MC_<Layer>Safety.tla`/`.cfg` and `MC_<Layer>Liveness.tla`/`.cfg` are the TLC drivers (same content as before this reorg, just no longer nested under a per-layer `mc/<layer>/` subdirectory).
+- `MC_<Layer>Safety_Apalache.tla` are the Apalache-only entry points (additive, not a replacement for the TLC drivers or their `.cfg`), each defining an `ApalacheCInit` operator that mirrors the corresponding `.cfg`'s `CONSTANTS` block by hand — keep the two in sync manually if the `.cfg` changes.
+
+Type annotations for Apalache's typechecker (`@type` comments, ignored entirely by TLC) live directly in the spec files. One constraint worth knowing before adding more: this Apalache release does not unify a named `@typeAlias` record type against a freshly-built literal of the same shape once that literal is constructed in a different module than the one declaring the alias — composite record types (proposals, decisions, receipts, messages, certificates) are written as fully expanded structural types rather than named aliases throughout, so this never comes up in practice.
+
+#### Typecheck and run
+
+```bash
+export JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-21.0.2/Contents/Home  # any JDK 17+
+export PATH="$JAVA_HOME/bin:$PATH"
+cd spec
+
+~/tools/apalache/apalache/bin/apalache-mc typecheck core/MC_FSMSafety_Apalache.tla
+
+~/tools/apalache/apalache/bin/apalache-mc check \
+  --cinit=ApalacheCInit --init=MC_FSMInit --next=MC_FSMNext \
+  --inv=FSMTypeOK,CircuitBreakerSafety --length=10 \
+  core/MC_FSMSafety_Apalache.tla
+```
+
+Expected: typecheck reports "Your types are purrfect!"; the check reports `Checker reports no error up to computation length 10` (took ~7 minutes at this bound on a single M-series MacBook core count). Raise `--length` incrementally rather than jumping straight to a large bound — SMT solve time grows with it.

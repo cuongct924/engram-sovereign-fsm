@@ -299,7 +299,7 @@ IsValidProposal(prop) ==
         /\ VerifySPVProof(prop.btc_receipt)
 
         \* Economic Circuit Breaker: Halt all cross-chain withdrawals during partition
-        \* /\ (prop.fsm_state = "SOVEREIGN") => ~ContainsWithdrawal(prop.value)
+        /\ (prop.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => ~ContainsWithdrawal(prop.value)
         
         \* RE-ANCHORING Logic: Mandatory ZK-Proof when hysteresis wait is met
         \* If not met, strict enforcement that no fake ZK-proof is attached.

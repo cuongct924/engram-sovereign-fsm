@@ -14,24 +14,28 @@ Requires Java JDK 11+ and `tla2tools.jar` (from the [TLA+ releases page](https:/
 
 ```bash
 java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
-  -config mc/server/MC_ServerRefinementSafety.cfg \
-  mc/server/MC_ServerRefinementSafety.tla
+  -config core/MC_ServerRefinementSafety.cfg \
+  core/MC_ServerRefinementSafety.tla
 ```
 
-The four spec layers each have their own `mc/<layer>/` model-checking pair — swap the path above for the layer under test:
+There is no separate `mc/` directory and no symlinks anywhere — specs and every `MC_*` driver (TLC and Apalache alike) all live directly in `core/`. This is deliberate, not just tidiness: TLC and Apalache both resolve `EXTENDS` relative to the directory of the file being checked, and Apalache has no search-path flag to point at modules living elsewhere (its launcher runs `java -jar`, which ignores `CLASSPATH`). An earlier layout kept `core/` and a separate `mc/` bridged by symlinks; that was dropped because a symlink is a standing footgun (a checkout with `git config core.symlinks false`, or certain editors' save behavior, silently turns a symlink into a disconnected copy) — one real directory removes the risk instead of managing it.
+
+The four spec layers each have their own `MC_*` model-checking pair, all living directly in `core/` — swap the filename below for the layer under test:
 
 | Layer | Spec under test | Safety model | Liveness model |
 |---|---|---|---|
-| FSM (sovereign fallback / circuit breaker) | `core/EngramFSM.tla` | `mc/fsm/MC_FSMSafety.{tla,cfg}` | `mc/fsm/MC_FSMLiveness.{tla,cfg}` |
-| Tendermint (consensus engine) | `core/EngramTendermint.tla` | `mc/tendermint/MC_TendermintSafety.{tla,cfg}` | — |
-| Abstract consensus (LiDO ADO model) | `core/EngramConsensus.tla` | `mc/consensus/MC_ConsensusSafety.{tla,cfg}` | `mc/consensus/MC_ConsensusLiveness.{tla,cfg}` |
-| Server (full refinement bridge, all layers integrated) | `core/EngramServer.tla` + `core/EngramServerRefinement.tla` | `mc/server/MC_ServerRefinementSafety.{tla,cfg}` | `mc/server/MC_ServerRefinementLiveness.{tla,cfg}` |
+| FSM (sovereign fallback / circuit breaker) | `core/EngramFSM.tla` | `core/MC_FSMSafety.{tla,cfg}` | `core/MC_FSMLiveness.{tla,cfg}` |
+| Tendermint (consensus engine) | `core/EngramTendermint.tla` | `core/MC_TendermintSafety.{tla,cfg}` | — |
+| Abstract consensus (LiDO ADO model) | `core/EngramConsensus.tla` | `core/MC_ConsensusSafety.{tla,cfg}` | `core/MC_ConsensusLiveness.{tla,cfg}` |
+| Server (full refinement bridge, all layers integrated) | `core/EngramServer.tla` + `core/EngramServerRefinement.tla` | `core/MC_ServerRefinementSafety.{tla,cfg}` | `core/MC_ServerRefinementLiveness.{tla,cfg}` |
 
 Full-server checks are the expensive ones: safety is ~100 minutes / ~37.7M states, liveness ~7 minutes / ~1.1M states, at the parameters currently checked into the `.cfg` files. FSM/consensus/tendermint-layer checks are much cheaper and are the right target when iterating on a single layer instead of the whole hybrid protocol.
 
-To iterate on a single invariant/property without editing the checked-in `.cfg`, comment/uncomment entries under `INVARIANTS` / `PROPERTIES` in the relevant `.cfg` file (see the commented-out `Sanity_*` lines in `mc/server/*.cfg` for the existing pattern) rather than adding a new config file.
+To iterate on a single invariant/property without editing the checked-in `.cfg`, comment/uncomment entries under `INVARIANTS` / `PROPERTIES` in the relevant `.cfg` file (see the commented-out `Sanity_*` lines in `core/MC_ServerRefinementSafety.cfg`/`core/MC_ServerRefinementLiveness.cfg` for the existing pattern) rather than adding a new config file.
 
 VS Code with the TLA+ extension works too: open an `MC_*.tla` file, run "TLA+: Check model with TLC" from the command palette, and select the matching `.cfg`.
+
+**Apalache** is a complementary bounded-safety checker (SMT-based, via Z3) for the same state-safety invariants — it does not replace TLC for refinement (`RefinementSafety`/`RefinementLiveness`) or for `~>`+fairness liveness properties, which remain TLC-only. Each layer's Apalache entry point is `core/MC_<Layer>Safety_Apalache.tla` (e.g. `core/MC_FSMSafety_Apalache.tla`), `EXTENDS`-ing the corresponding TLC driver and defining an `ApalacheCInit` operator that mirrors the `.cfg`'s `CONSTANTS` by hand — keep the two in sync manually. See `README.md`'s "Apalache — Complementary Bounded Safety Checking" section for install steps and example commands.
 
 ## Architecture: the four-layer refinement hierarchy
 
@@ -72,4 +76,4 @@ The three sensor categories (Bitcoin finality gap, DA gap, P2P/tri-interface hea
 
 - Invariants checked by TLC are named `<Noun>Safety` (e.g. `CircuitBreakerSafety`, `HysteresisSafety`, `MonotonicitySafety`); temporal liveness properties use `~>` ("leads to") and are named `<Noun>Liveness` (e.g. `CircuitBreakerLiveness`, `RecoveryAttemptLiveness`).
 - `MC_*` files are TLC-specific instantiations (small constant substitutions like `MC_Nodes`, `MC_Byzantine`, bounded numeric ranges) — never add real protocol logic there; new behavior belongs in `core/`.
-- `Sanity_*` invariants (see `mc/server/*.cfg`, mostly commented out) are meant to fail — they're negative/vacuity checks confirming the model can actually reach the states it's supposed to be verifying (e.g. `Sanity_NeverSovereign` should be violated, proving SOVEREIGN is reachable). Don't treat a `Sanity_*` violation as a bug.
+- `Sanity_*` invariants (see `core/MC_ServerRefinementSafety.cfg`/`core/MC_ServerRefinementLiveness.cfg`, mostly commented out) are meant to fail — they're negative/vacuity checks confirming the model can actually reach the states it's supposed to be verifying (e.g. `Sanity_NeverSovereign` should be violated, proving SOVEREIGN is reachable). Don't treat a `Sanity_*` violation as a bug.

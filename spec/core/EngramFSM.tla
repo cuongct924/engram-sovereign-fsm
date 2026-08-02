@@ -13,16 +13,25 @@ EXTENDS Integers, FiniteSets, EngramVars
 
 (* ======================== CONSTANTS & ASSUMPTIONS ========================= *)
 CONSTANTS
+    \* @type: Int;
     SUSPICIOUS_THRESHOLD,   \* BTC gap threshold for Gray Failure warning
+    \* @type: Int;
     SOVEREIGN_THRESHOLD,    \* BTC gap threshold for Hard Failure (circuit-break)
-    
+
+    \* @type: Int;
     MIN_PEERS,              \* Minimum clean peers required to avoid isolation
+    \* @type: Int;
     MIN_SUBNET_DIVERSITY,   \* Minimum distinct subnets required
+    \* @type: Int;
     MIN_ANCHOR_PEERS,       \* Minimum active anchor/bootstrap peers required
+    \* @type: Int;
     MAX_CHURN_RATE,         \* Maximum allowed peer disconnects/reconnects per epoch
+    \* @type: Int;
     MIN_AVG_TENURE,         \* Minimum average age of connections in the routing table
+    \* @type: Int;
     MAX_PEER_LATENCY,       \* Maximum allowable delay for heartbeat/block propagation
-    
+
+    \* @type: Int;
     MAX_SUSPICIOUS_TIME     \* Maximum ticks/blocks the system tolerates in SUSPICIOUS state before escalating to SOVEREIGN
 
 ASSUME
@@ -39,11 +48,13 @@ ASSUME
     /\ SUSPICIOUS_THRESHOLD < SOVEREIGN_THRESHOLD
 
 \* Helper: returns the smaller of two integers
+\* @type: (Int, Int) => Int;
 MinVal(a, b) == IF a < b THEN a ELSE b
 
 
 (* ======================== P2P HEALTH SENSOR (Tri-interface Profiler) =============================== *)
-SubnetOf(p) == 
+\* @type: (Str) => Str;
+SubnetOf(p) ==
     CASE p = "anchor_n1"                             -> "subnet_A"
       [] p = "anchor_n2"                             -> "subnet_B"
       [] p = "anchor_n3"                             -> "subnet_C"
@@ -274,53 +285,20 @@ UpdateP2PHealthSensor ==
     \* /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
     \* /\ UNCHANGED <<btcGapSensorVars, daGapSensorVars>>
 
-\* \* Non-deterministic environment update that simulates the real network.
-\* UpdateSensors ==
-\*     \* /\ 
-\*     \*     \/ UpdateBTCSensor
-\*     \*     \/ UpdateDASensor
-\*     \*     \/ UpdateP2PHealthSensor
-
-\*     /\ UpdateBTCSensor
-\*     /\ UpdateDASensor
-\*     /\ UpdateP2PHealthSensor
-    
-\*     \* ZK re-anchoring proof validity
-\*     \* Proof becomes valid only once the Bitcoin anchor has caught up to the submission height (i.e., the OP_RETURN tx is confirmed).
-\*     /\ reanchoring_proof_valid' =
-\*            IF state = "RECOVERING"
-\*               /\ h_btc_anchored' >= h_btc_submitted'
-\*               /\ h_btc_submitted' > 0
-\*            THEN TRUE
-\*            ELSE FALSE
-\*     /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
-\*     /\ UNCHANGED <<censorshipVars>>
-
-
-\* TẠM THỜI GHI ĐÈ ĐỂ GIĂNG BẪY LỖI "SUSPICIOUS" (TẤT ĐỊNH 100%)
+\* Non-deterministic environment update that simulates the real network.
 UpdateSensors ==
-    \* 1. Ép BTC đứng im
-    /\ h_btc_current' = h_btc_current
-    /\ h_btc_submitted' = h_btc_submitted
-    /\ is_btc_spv_failed' = FALSE
-    /\ h_btc_anchored' = h_btc_anchored
+    /\ UpdateBTCSensor
+    /\ UpdateDASensor
+    /\ UpdateP2PHealthSensor
 
-    \* 2. Ép DA báo lỗi (CHỈ CẦN GÁN TRUE, KHÔNG ĐƯỢC TĂNG HEIGHT)
-    /\ h_engram_current' = h_engram_current    \* <--- FIX Ở ĐÂY: Xóa bỏ + 1
-    /\ is_attestation_failed' = FALSE
-    /\ is_das_failed' = TRUE
-    /\ h_engram_verified' = h_engram_verified
-
-    \* 3. Ép P2P khỏe mạnh
-    /\ active_peers' = anchor_peers \cup {"honest_node_1"}
-    /\ peer_churn_rate' = 0
-    /\ avg_peer_tenure' = MIN_AVG_TENURE + 10
-    /\ peer_latency' = 0
-    /\ anchor_peers' = anchor_peers
-    /\ blacklisted_peers' = blacklisted_peers
-
-    \* 4. Khóa các biến trạng thái còn lại
-    /\ reanchoring_proof_valid' = FALSE
+    \* ZK re-anchoring proof validity
+    \* Proof becomes valid only once the Bitcoin anchor has caught up to the submission height (i.e., the OP_RETURN tx is confirmed).
+    /\ reanchoring_proof_valid' =
+           IF state = "RECOVERING"
+              /\ h_btc_anchored' >= h_btc_submitted'
+              /\ h_btc_submitted' > 0
+           THEN TRUE
+           ELSE FALSE
     /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
     /\ UNCHANGED <<censorshipVars>>
 
@@ -352,7 +330,8 @@ CalculateNextFSMState ==
 
 
 \* Action: write the FSM transition and update the hysteresis counter.
-ExecuteFSMTransition(target_state) == 
+\* @type: (Str) => Bool;
+ExecuteFSMTransition(target_state) ==
     /\ state' = target_state
     
     /\ suspicious_duration' = 

@@ -228,14 +228,39 @@ ServerInit ==
     /\ quorum_certs = {} 
     /\ timeout_certs = {}
 
-ServerAdvanceRealTime == 
-    /\ AdvanceRealTime 
-    /\ ~\E r \in Rounds :
-           /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller \in ByzantineNodes
-           /\ ~\E mqc \in quorum_certs : mqc.type = "M_QC" /\ mqc.round = r /\ mqc.caller \in ByzantineNodes
-    /\ \/ /\ UpdateSensors
-          /\ UNCHANGED <<certificateVars>>
-       \/ /\ UNCHANGED <<fsmVars, networkSensorVars>>
+\* Pure clock tick: advances real_time/local_clock/local_rem_time only, leaving
+\* every sensor/FSM variable untouched. Split from ServerUpdateEnvironment
+\* below so each concrete step maps to exactly one abstract LiDO action under
+\* the refinement in EngramServerRefinement.tla — a single step doing both
+\* (the original ServerAdvanceRealTime, which optionally ran UpdateSensors in
+\* the same transition as the clock tick) was found via RefinementSafety to
+\* violate [][Next]_vars at depth 2: no single abstract action (Elapse/
+\* TimeoutStartNext vs. UpdateEnv) permits changing both rem_time and
+\* h_btc_current at once, since rem_time <- MIN_REM_TIME tracks the clock
+\* tick and h_btc_current tracks the sensor update.
+\* Guard mirrors the abstract Elapse precondition exactly: block the clock
+\* while an E_QC or M_QC (E-cache/M-cache once mapped, regardless of caller —
+\* Elapse's own guard does not distinguish honest from Byzantine) already
+\* exists for the current round, i.e. Pull or Invoke has started and the
+\* pacemaker must wait for Push before elapsing further. The previous guard
+\* only blocked on a Byzantine E_QC lacking a matching Byzantine M_QC, which
+\* is a strictly narrower (and, per RefinementSafety, incorrect) condition:
+\* it let the clock advance past an honest OR a fully-formed Byzantine E_QC+
+\* M_QC pair at the current round, which Elapse itself forbids.
+ServerAdvanceRealTime ==
+    /\ AdvanceRealTime
+    /\ LET current_max_round == Max({round[p] : p \in HonestNodes}) IN
+       ~\E qc \in quorum_certs : qc.type \in {"E_QC", "M_QC"} /\ qc.round = current_max_round
+    /\ UNCHANGED <<fsmVars, networkSensorVars>>
+
+\* Pure environment/sensor update: leaves the clock (and everything else
+\* AdvanceRealTime would touch) unchanged. See note above ServerAdvanceRealTime.
+ServerUpdateEnvironment ==
+    /\ UpdateSensors
+    /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
+    /\ UNCHANGED <<msgsBroadcastVars, propAuditVars, evidence>>
+    /\ UNCHANGED <<invariantVars, certificateVars, censorshipVars>>
+    /\ action' = "UpdateEnvironment"
 
 ServerByzantinePull == 
     \E r \in Rounds :
@@ -276,6 +301,7 @@ ServerByzantineDataWithholding ==
 
 ServerNext ==
     \/ ServerAdvanceRealTime
+    \/ ServerUpdateEnvironment
     \/ /\ SynchronizedLocalClocks
        /\ \E p \in HonestNodes : ServerMessageProcessing(p)
     \/ ServerByzantinePull
