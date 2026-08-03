@@ -7,7 +7,7 @@
 
 (* ======================== APALACHE TYPING NOTE ==============================
  * Every type tag below is written as a fully expanded structural record
- * rather than a named type alias. Empirically (see mc/fsm/MC_FSMSafety.tla,
+ * rather than a named type alias. Empirically (see core/MC_FSMSafety.tla,
  * and the isolated repro kept out-of-repo during that investigation), this
  * Apalache release does not unify a named-alias record type against a
  * literal of the same shape once the literal is constructed in a different
@@ -16,12 +16,14 @@
  * alias name in a driver file that merely EXTENDS this module) — plain
  * Int/Str/Set/Bool/function-type tags do not have this problem, only named
  * aliases for composite records/messages do. Since every layer's Apalache
- * driver lives in mc/, outside this file, aliases would hit this on every
- * use, so record shapes are inlined everywhere instead. `evidence` is
- * intentionally left with a narrowed placeholder type below (see its own
- * note at the VARIABLES block) — it mixes three distinct message shapes and
- * only becomes load-bearing for Apalache once the Tendermint/Server layers
- * are annotated (Task A3/A4), not for the FSM layer alone.
+ * driver EXTENDS this module from a separate MC_*_Apalache.tla file, aliases
+ * would hit this on every use, so record shapes are inlined everywhere
+ * instead. `evidence` and the 4 msgs_* buffers all share one unified 6-field
+ * message record (type/src/round/proposal/valid_round/id), with Nil
+ * sentinels on the fields a given message kind doesn't use (Task A3, see
+ * EngramTendermint.tla's Broadcast*/Faulty* constructors) — this is what
+ * lets Apalache's Snowcat type-check `\union`s across message kinds without
+ * needing a Variant (sum) type.
  *)
 
 CONSTANTS
@@ -68,31 +70,39 @@ temporalVars == <<local_clock, real_time, local_rem_time>>
 
 (* ======================== BOOKKEEPING VARIABLES ============================ *)
 \* Message buffers and audit log.
+\* Apalache note (resolved Task A3): all 4 message kinds (propose/prevote/
+\* precommit/timeout) are annotated with the SAME 6-field record shape
+\* (type/src/round/proposal/valid_round/id), each message using Nil sentinels
+\* on the fields its own kind doesn't populate (see EngramTendermint.tla's
+\* Broadcast*/Faulty* constructors). This lets Apalache's Snowcat unify sets
+\* built from different message kinds (e.g. msgs_propose[r] \union
+\* msgs_prevote[r] \union msgs_precommit[r] in OnRoundCatchup, or `evidence`
+\* below) without a Variant type.
 VARIABLES
-    \* @type: Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int });
+    \* @type: Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     msgs_propose,               \* Proposal messages indexed by round
-    \* @type: Int -> Set({ type: Str, src: Str, round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
+    \* @type: Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     msgs_prevote,               \* Prevote messages indexed by round
-    \* @type: Int -> Set({ type: Str, src: Str, round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
+    \* @type: Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     msgs_precommit,             \* Precommit messages indexed by round
-    \* @type: Int -> Set({ type: Str, src: Str, round: Int });
+    \* @type: Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     msgs_timeout,               \* Timeout messages indexed by round
-    \* @type: Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int });
-    \* TODO(Apalache, Task A3/A4): `evidence` actually mixes proposal/vote/timeout message
-    \* shapes (see UponQuorumOfPrevotesAny, UponQuorumOfPrecommitsAny, OnRoundCatchup,
-    \* UponfPlusOneTimeoutsAny in EngramTendermint.tla). This narrowed-to-proposal-message
-    \* type is only sound for modules that never exercise those actions (e.g. the FSM-only
-    \* pilot, where `evidence` is mocked to a constant and left UNCHANGED). Revisit with a
-    \* proper variant type when annotating EngramTendermint.tla/EngramServer.tla.
+    \* @type: Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     evidence,                   \* Set of collected evidence (for accountability)
     \* @type: Str;
     action,                     \* String label of last executed action (for TLC tracing)
-    \* @type: Str -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int });
+    \* @type: Str -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
     received_timely_proposal,   \* Per-process set of timely proposal messages
     \* @type: <<Int, Str>> -> Int;
     inspected_proposal          \* Per-(round,process) timestamp of last inspection
 
 \* Small group 1: messsage broadcast
+\* Explicit tuple annotation required: since all 4 grouped variables now share
+\* the same unified message-record type (Task A3), Apalache's Snowcat cannot
+\* tell a 4-tuple `<<a,a,a,a>>` from `Seq(a)` by inference alone here. This is
+\* a nullary operator (no parameters), so the tag is the tuple value type
+\* itself -- not a function signature.
+\* @type: <<Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } }), Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } }), Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } }), Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } })>>;
 msgsBroadcastVars == <<msgs_propose, msgs_prevote, msgs_precommit, msgs_timeout>>
 
 \* Small group 2: Auditing proposal

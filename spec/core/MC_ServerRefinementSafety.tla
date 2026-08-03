@@ -7,17 +7,46 @@
  *)
 EXTENDS EngramServer, EngramServerRefinement, TLC, Sequences
 
-CONSTANTS n1, n2, n3, n4
+CONSTANTS
+    \* @type: Str;
+    n1,
+    \* @type: Str;
+    n2,
+    \* @type: Str;
+    n3,
+    \* @type: Str;
+    n4
 \* CONSTANTS n1, n2, n3, n4, n5, n6, n7
 
 ASSUME QuorumOverlap
 
 
 (* ======================== NETWORK CONFIGURATION ========================== *)
+\* @type: Set(Str);
 MC_Nodes  == {n1, n2, n3, n4}
+\* @type: Set(Str);
 MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
+\* @type: Set(Str);
 MC_Byzantine == {n1}
+\* @type: Set(Str);
 MC_Honest   == MC_Nodes \ MC_Byzantine
+
+\* Symmetry reduction: n2/n3/n4 (the honest nodes) are fully interchangeable
+\* everywhere in this spec -- no invariant, Sanity_* check, or StateSpaceLimit
+\* conjunct below references any of them by identity, only generically via
+\* HonestNodes. MC_NodeSeq/MC_Proposer DO reference them by identity, but
+\* that's still symmetric: TLC re-evaluates these derived expressions under
+\* any candidate permutation of the underlying model values consistently, so
+\* permuting (say) n2<->n3 just relabels which node plays which role at each
+\* round, producing an isomorphic run. n1 (the fixed Byzantine node) is
+\* deliberately excluded from the permutation group -- permuting it would
+\* also change which node is Byzantine relative to the fixed schedule, which
+\* is NOT a relabeling symmetry (it changes observable behavior).
+\* Effect: TLC fingerprints states up to this group action, so up to 3! = 6
+\* concrete states collapse into one for exploration purposes -- this is a
+\* state-space reduction, not a soundness-affecting bound cut like
+\* StateSpaceLimit is.
+SymmetryPerms == Permutations(MC_Honest)
 
 \* MC_Nodes == {n1, n2, n3, n4, n5, n6, n7}
 \* MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
@@ -26,7 +55,9 @@ MC_Honest   == MC_Nodes \ MC_Byzantine
 
 (* ======================== ROTATIONAL LEADER SCHEDULE ===================== *)
 \* Round-robin proposer: node at position (r mod 4) + 1 in the sequence
+\* @type: Seq(Str);
 MC_NodeSeq  == <<n1, n2, n3, n4>>
+\* @type: Int -> Str;
 MC_Proposer == [r \in 0..5 |-> MC_NodeSeq[(r % 4) + 1]]
 
 \* \* Round-robin proposer: node at position (r mod 7) + 1 in the sequence

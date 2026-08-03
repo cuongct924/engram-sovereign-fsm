@@ -364,59 +364,45 @@ All transitions require greater than 2/3 quorum agreement through the consensus 
 
 #### Transition Definitions
 
-* **From ANCHORED:**
+Unlike an earlier draft of this section, the transition logic is not a set of
+separate named operators — it is a single pure function, `CalculateNextFSMState`
+(`EngramFSM.tla`), implemented as one `CASE` expression. This is deliberate:
+keeping every transition guard in one place is what lets `StrictFSMTransitionSafety`
+mechanically confirm that no case admits an illegal direct jump between
+non-adjacent states.
 
 ```tlaplus
-AnchoredToSuspicious == 
-    /\ state = ANCHORED 
-    /\ IsWarningCondition 
-    /\ ~IsCriticalCondition
+CalculateNextFSMState ==
+    CASE state = "ANCHORED"   /\ IsCriticalCondition -> "SOVEREIGN"
+      [] state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition -> "SUSPICIOUS"
+      [] state = "SUSPICIOUS" /\ IsCriticalCondition -> "SOVEREIGN"
 
-AnchoredToSovereign == 
-    /\ state = ANCHORED 
-    /\ IsCriticalCondition
+      \* Gray Failure Timeout. Force circuit-break if system stays suspicious too long.
+      [] state = "SUSPICIOUS" /\ suspicious_duration >= MAX_SUSPICIOUS_TIME -> "SOVEREIGN"
+
+      [] state = "SUSPICIOUS" /\ IsHealthyCondition  -> "ANCHORED"
+      [] state = "SOVEREIGN"  /\ IsHealthyCondition  -> "RECOVERING"
+
+      \* Fallback to SOVEREIGN if network degrades while in RECOVERING
+      [] state = "RECOVERING" /\ ~IsHealthyCondition -> "SOVEREIGN"
+
+      \* Exit condition when hysteresis and ZK proof are both satisfied
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+
+      \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
+      [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
+
+      [] OTHER -> state
 ```
 
-* **From SUSPICIOUS:**
+Read state-by-state:
 
-```tlaplus
-SuspiciousToAnchored == 
-    /\ state = SUSPICIOUS 
-    /\ IsHealthyCondition
+* **From ANCHORED:** `IsCriticalCondition` forces a direct drop to `SOVEREIGN`; short of that, `IsWarningCondition` alone (BTC gap elevated, or DA/P2P degraded) steps down to `SUSPICIOUS` first — `ANCHORED` never jumps straight past `SUSPICIOUS` into `RECOVERING` or vice versa.
+* **From SUSPICIOUS:** escalates to `SOVEREIGN` either on `IsCriticalCondition`, or independently once `suspicious_duration >= MAX_SUSPICIOUS_TIME` (the gray-failure timeout — a lingering-but-never-quite-critical condition still forces a circuit-break instead of stalling in `SUSPICIOUS` indefinitely). Recovers to `ANCHORED` once `IsHealthyCondition` holds again.
+* **From SOVEREIGN:** moves to `RECOVERING` once `IsHealthyCondition` holds — the pure function only ever proposes entering recovery here; it is `ExecuteFSMTransition` (below) that then governs how long the network must stay healthy before `RECOVERING` is allowed to exit.
+* **From RECOVERING:** any deterioration (`~IsHealthyCondition`) drops straight back to `SOVEREIGN`, discarding recovery progress. Exiting to `ANCHORED` requires all three of: `IsHealthyCondition`, the hysteresis counter having reached `HYSTERESIS_WAIT`, and `reanchoring_proof_valid = TRUE` (the ZK re-anchoring proof, §5.2 "Re-anchoring via ZK-Proof of Recovery" below). Short of that it just stays in `RECOVERING`.
 
-SuspiciousToSovereign == 
-    /\ state = SUSPICIOUS 
-    /\ IsCriticalCondition
-```
-
-Note that `suspicious_duration` is incremented each block the system remains in `SUSPICIOUS` and reset to zero upon any state change. This counter feeds into `IsCriticalCondition` via the $\tau_{\text{max}}$ clause.
-
-* **From SOVEREIGN:**
-
-```tlaplus
-SovereignToRecovering == 
-    /\ state = SOVEREIGN 
-    /\ IsHealthyCondition
-```
-
-* **From RECOVERING:**
-
-```tlaplus
-RecoveringProgress == 
-    /\ state = RECOVERING 
-    /\ IsHealthyCondition 
-    /\ safe_blocks < HYSTERESIS_WAIT
-
-RecoveringToAnchored == 
-    /\ state = RECOVERING
-    /\ IsHealthyCondition 
-    /\ safe_blocks = HYSTERESIS_WAIT 
-    /\ PI_RA = TRUE
-
-RecoveringToSovereign == 
-    /\ state = RECOVERING 
-    /\ IsCriticalCondition
-```
+`suspicious_duration` is incremented while the FSM remains in `SUSPICIOUS` and reset to zero on any other transition (see `ExecuteFSMTransition` below) — it feeds the timeout escalation above, not `IsCriticalCondition` directly.
 
 #### Re-anchoring via ZK-Proof of Recovery
 
@@ -520,7 +506,7 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 - `fsm_state` matches `CalculateNextFSMState` evaluated at the validator's local sensor readings (cross-check of agreed peripheral health).
 - The DA receipt is valid and within the allowed DA gap, with round-adaptive tolerance `DATolerance(r)` (required for `ANCHORED` and `RECOVERING` states).
 - `btc_receipt.checkpoint_block_height` satisfies monotonic non-decrease with round-adaptive BTC tolerance `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes the canonical hash check.
-- Withdrawal transactions are blocked when `fsm_state = SOVEREIGN`.
+- Withdrawal transactions are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (the same scope `WithdrawLocked` covers in §8.1's `CircuitBreakerSafety`).
 - A ZK-Proof is mandatory (`VerifyZkProof`) when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
 
 ### 7.3 Consensus State Machine Diagram
@@ -634,7 +620,7 @@ StrictFSMTransitionSafety ==
 
 ```tlaplus
 FSMStateConsistency ==
-    \A p \in Corr:
+    \A p \in HonestNodes:
         decision[p] /= NilDecision => decision[p].prop.fsm_state = state
 ```
 
@@ -659,19 +645,19 @@ Beyond the state invariants, the `IsValidProposal` predicate in `EngramTendermin
 
 ```tlaplus
 DAReceiptConsistency ==
-    \A p \in Corr:
-        (decision[p] /= NilDecision
-         /\ decision[p].prop.fsm_state \in {"ANCHORED", "RECOVERING"})
+    \A p \in HonestNodes:
+        (decision[p] /= NilDecision /\
+        (decision[p].prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsDAHealthy))
         => decision[p].prop.da_receipt.attestation = TRUE
 ```
 
-The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
+The `\/ IsDAHealthy` branch closes a gap the state-only check would otherwise leave: a decided block whose `fsm_state` is `SUSPICIOUS` or `SOVEREIGN` isn't exempted from the attestation requirement just because it's outside `{ANCHORED, RECOVERING}` — if the DA layer is *currently* healthy, the attestation must still be `TRUE` regardless of which state the block claims. The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
 
 **Lemma 8.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
 
 ```tlaplus
 BTCConsistency ==
-    \A p \in Corr:
+    \A p \in HonestNodes:
         decision[p] /= NilDecision
         => decision[p].prop.btc_receipt.checkpoint_block_height = h_btc_anchored
 ```
@@ -681,10 +667,10 @@ The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC
 **Lemma 8.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
 ```tlaplus
-\* Pre-populated at TM_Init — exactly |Faulty| messages per round per type
-FaultyPrevotes(r)   == { [type |-> "PREVOTE",   src |-> f, round |-> r, ...] : f \in Faulty }
-FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f \in Faulty }
-FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in Faulty }
+\* Pre-populated at TendermintInit — exactly |ByzantineNodes| messages per round per type
+FaultyPrevotes(r)   == { [type |-> "PREVOTE",   src |-> f, round |-> r, ...] : f \in ByzantineNodes }
+FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f \in ByzantineNodes }
+FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in ByzantineNodes }
 ```
 
 **Lemma 8.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
@@ -737,8 +723,8 @@ Theorem 9.1 is established by verifying the following temporal leads-to properti
 **Property L1 (Standard Consensus Liveness).** Under repeated GST conditions, honest validators always eventually commit a new block.
 
 ```tlaplus
-EventualDecisionUnderGST ==
-    ([]<> GSTReached) ~> (\E p \in Corr : step[p] = "DECIDED")
+EventualDecisionUnderGSTLiveness ==
+    ([]<> GSTReached) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
 ```
 
 where `GSTReached` requires synchronized clocks, sufficient peers, and `state = ANCHORED`.
@@ -787,9 +773,9 @@ PersistentEclipseResolutionLiveness ==
 ```tlaplus
 ForcedInclusionLiveness ==
     \A tx \in ValidValues :
-        ([]<>(\E r \in Rounds, p \in Corr :
+        ([]<>(\E r \in Rounds, p \in HonestNodes :
                   \E m \in msgs_propose[r] : m.src = p /\ m.proposal.value = tx))
-        => <>(\E p \in Corr :
+        => <>(\E p \in HonestNodes :
                   decision[p] /= NilDecision /\ decision[p].prop.value = tx)
 ```
 
@@ -806,7 +792,7 @@ The verification proceeds in two phases:
 
 The key linking invariant is `QuorumOverlap`:
 
-$$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{Corr} \neq \emptyset$$
+$$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{HonestNodes} \neq \emptyset$$
 
 This ensures that any two quorum decisions share at least one honest node, which is the foundation of both Agreement and Liveness in the LiDO model.
 

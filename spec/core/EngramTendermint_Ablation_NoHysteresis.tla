@@ -1,5 +1,5 @@
--------------------- MODULE EngramTendermint ---------------------------
-EXTENDS Integers, FiniteSets, EngramVars, EngramFSM
+-------------------- MODULE EngramTendermint_Ablation_NoHysteresis ---------------------------
+EXTENDS Integers, FiniteSets, EngramVars, EngramFSM_Ablation_NoHysteresis
 
 (***************************************************************************)
 (* TODO [FUTURE WORK - APPENDIX]: PIPELINED TENDERMINT (PHASE MERGING)     *)

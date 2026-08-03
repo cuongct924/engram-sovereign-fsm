@@ -1,4 +1,4 @@
---------------------------- MODULE EngramServer ---------------------------
+--------------------------- MODULE EngramServer_Ablation_NoP2PGate ---------------------------
 (*
  * EngramServer — Concrete Protocol Integration Layer
  *
@@ -14,7 +14,7 @@
  *
  * Depends on: EngramFSM, EngramTendermint, Naturals, FiniteSets
  *)
-EXTENDS Naturals, FiniteSets, EngramFSM, EngramTendermint
+EXTENDS Naturals, FiniteSets, EngramFSM_Ablation_NoP2PGate, EngramTendermint_Ablation_NoP2PGate
 
 CONSTANTS
     \* @type: Set(Str);
