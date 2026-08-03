@@ -1,4 +1,4 @@
--------------------- MODULE EngramTendermint ---------------------------
+-------------------- MODULE EngramTendermint_Ablation_NoDAConsistency ---------------------------
 EXTENDS Integers, FiniteSets, EngramVars, EngramFSM
 
 (***************************************************************************)
@@ -288,8 +288,11 @@ IsValidProposal(prop) ==
         /\ prop.fsm_state = CalculateNextFSMState   \* Cross-check
         
         \* DA Pipeline Check: Data must be available and within the allowed gap
-        /\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsDAHealthy) => 
-            /\ prop.da_receipt.attestation = TRUE
+        \* ABLATION (Remove DA Consistency): the attestation check has been
+        \* deleted for this experiment -- see core/EngramTendermint.tla's
+        \* real IsValidProposal for the checked-in version.
+        \* Sanity_NeverProposeWithheldData is expected to FAIL.
+        /\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsDAHealthy) =>
             /\ prop.da_receipt.published_block_height <= h_engram_current
             /\ prop.da_receipt.published_block_height >= (h_engram_current - DA_THRESHOLD - da_tol)
 

@@ -1,0 +1,264 @@
+---------------------------- MODULE counterexample ----------------------------
+
+EXTENDS MC_Ablation_NoP2PGateSafety_FSMOnly_Apalache
+
+(* Constant initialization state *)
+ConstInit ==
+  DA_THRESHOLD = 2
+    /\ HYSTERESIS_WAIT = 2
+    /\ MAX_CHURN_RATE = 10
+    /\ MAX_PEER_LATENCY = 50
+    /\ MAX_SUSPICIOUS_TIME = 2
+    /\ MIN_ANCHOR_PEERS = 1
+    /\ MIN_AVG_TENURE = 100
+    /\ MIN_PEERS = 3
+    /\ MIN_SUBNET_DIVERSITY = 2
+    /\ SOVEREIGN_THRESHOLD = 4
+    /\ SUSPICIOUS_THRESHOLD = 2
+
+(* Initial state [_transition(0)] *)
+State0 ==
+  DA_THRESHOLD = 2
+    /\ HYSTERESIS_WAIT = 2
+    /\ MAX_CHURN_RATE = 10
+    /\ MAX_PEER_LATENCY = 50
+    /\ MAX_SUSPICIOUS_TIME = 2
+    /\ MIN_ANCHOR_PEERS = 1
+    /\ MIN_AVG_TENURE = 100
+    /\ MIN_PEERS = 3
+    /\ MIN_SUBNET_DIVERSITY = 2
+    /\ SOVEREIGN_THRESHOLD = 4
+    /\ SUSPICIOUS_THRESHOLD = 2
+    /\ action = "mock"
+    /\ active_peers = { "anchor_n1", "anchor_n2", "anchor_n3" }
+    /\ anchor_peers = { "anchor_n1", "anchor_n2", "anchor_n3" }
+    /\ avg_peer_tenure = 100
+    /\ begin_round = SetAsFun({})
+    /\ blacklisted_peers = {}
+    /\ decision = SetAsFun({})
+    /\ end_consensus = SetAsFun({})
+    /\ evidence = {}
+    /\ forced_tx_queue = {}
+    /\ h_btc_anchored = 0
+    /\ h_btc_current = 0
+    /\ h_btc_submitted = 0
+    /\ h_engram_current = 0
+    /\ h_engram_verified = 0
+    /\ illegal_p2p_recovery = FALSE
+    /\ inspected_proposal = SetAsFun({})
+    /\ is_attestation_failed = FALSE
+    /\ is_btc_spv_failed = FALSE
+    /\ is_das_failed = FALSE
+    /\ last_begin_round = SetAsFun({})
+    /\ local_clock = SetAsFun({})
+    /\ local_rem_time = SetAsFun({})
+    /\ locked_round = SetAsFun({})
+    /\ locked_value = SetAsFun({})
+    /\ msgs_precommit = SetAsFun({})
+    /\ msgs_prevote = SetAsFun({})
+    /\ msgs_propose = SetAsFun({})
+    /\ msgs_timeout = SetAsFun({})
+    /\ peer_churn_rate = 0
+    /\ peer_latency = 0
+    /\ proposal_received_time = SetAsFun({})
+    /\ proposal_time = SetAsFun({})
+    /\ quorum_certs = {}
+    /\ real_time = 0
+    /\ reanchoring_proof_valid = FALSE
+    /\ received_timely_proposal = SetAsFun({})
+    /\ round = SetAsFun({})
+    /\ safe_blocks = 0
+    /\ state = "ANCHORED"
+    /\ step = SetAsFun({})
+    /\ suspicious_duration = 0
+    /\ timeout_certs = {}
+    /\ tx_ignored_rounds = SetAsFun({})
+    /\ valid_round = SetAsFun({})
+    /\ valid_value = SetAsFun({})
+
+(* State1 [_transition(6)] *)
+State1 ==
+  DA_THRESHOLD = 2
+    /\ HYSTERESIS_WAIT = 2
+    /\ MAX_CHURN_RATE = 10
+    /\ MAX_PEER_LATENCY = 50
+    /\ MAX_SUSPICIOUS_TIME = 2
+    /\ MIN_ANCHOR_PEERS = 1
+    /\ MIN_AVG_TENURE = 100
+    /\ MIN_PEERS = 3
+    /\ MIN_SUBNET_DIVERSITY = 2
+    /\ SOVEREIGN_THRESHOLD = 4
+    /\ SUSPICIOUS_THRESHOLD = 2
+    /\ action = "mock"
+    /\ active_peers = { "sybil_n1", "sybil_n2", "sybil_n3" }
+    /\ anchor_peers = { "anchor_n1", "anchor_n2", "anchor_n3" }
+    /\ avg_peer_tenure = 100
+    /\ begin_round = SetAsFun({})
+    /\ blacklisted_peers = {}
+    /\ decision = SetAsFun({})
+    /\ end_consensus = SetAsFun({})
+    /\ evidence = {}
+    /\ forced_tx_queue = {}
+    /\ h_btc_anchored = 0
+    /\ h_btc_current = 1
+    /\ h_btc_submitted = 1
+    /\ h_engram_current = 1
+    /\ h_engram_verified = 1
+    /\ illegal_p2p_recovery = FALSE
+    /\ inspected_proposal = SetAsFun({})
+    /\ is_attestation_failed = FALSE
+    /\ is_btc_spv_failed = TRUE
+    /\ is_das_failed = FALSE
+    /\ last_begin_round = SetAsFun({})
+    /\ local_clock = SetAsFun({})
+    /\ local_rem_time = SetAsFun({})
+    /\ locked_round = SetAsFun({})
+    /\ locked_value = SetAsFun({})
+    /\ msgs_precommit = SetAsFun({})
+    /\ msgs_prevote = SetAsFun({})
+    /\ msgs_propose = SetAsFun({})
+    /\ msgs_timeout = SetAsFun({})
+    /\ peer_churn_rate = 0
+    /\ peer_latency = 0
+    /\ proposal_received_time = SetAsFun({})
+    /\ proposal_time = SetAsFun({})
+    /\ quorum_certs = {}
+    /\ real_time = 0
+    /\ reanchoring_proof_valid = FALSE
+    /\ received_timely_proposal = SetAsFun({})
+    /\ round = SetAsFun({})
+    /\ safe_blocks = 0
+    /\ state = "ANCHORED"
+    /\ step = SetAsFun({})
+    /\ suspicious_duration = 0
+    /\ timeout_certs = {}
+    /\ tx_ignored_rounds = SetAsFun({})
+    /\ valid_round = SetAsFun({})
+    /\ valid_value = SetAsFun({})
+
+(* State2 [_transition(16)] *)
+State2 ==
+  DA_THRESHOLD = 2
+    /\ HYSTERESIS_WAIT = 2
+    /\ MAX_CHURN_RATE = 10
+    /\ MAX_PEER_LATENCY = 50
+    /\ MAX_SUSPICIOUS_TIME = 2
+    /\ MIN_ANCHOR_PEERS = 1
+    /\ MIN_AVG_TENURE = 100
+    /\ MIN_PEERS = 3
+    /\ MIN_SUBNET_DIVERSITY = 2
+    /\ SOVEREIGN_THRESHOLD = 4
+    /\ SUSPICIOUS_THRESHOLD = 2
+    /\ action = "mock"
+    /\ active_peers = { "sybil_n1", "sybil_n2", "sybil_n3" }
+    /\ anchor_peers = { "anchor_n1", "anchor_n2", "anchor_n3" }
+    /\ avg_peer_tenure = 100
+    /\ begin_round = SetAsFun({})
+    /\ blacklisted_peers = {}
+    /\ decision = SetAsFun({})
+    /\ end_consensus = SetAsFun({})
+    /\ evidence = {}
+    /\ forced_tx_queue = {}
+    /\ h_btc_anchored = 0
+    /\ h_btc_current = 1
+    /\ h_btc_submitted = 1
+    /\ h_engram_current = 1
+    /\ h_engram_verified = 1
+    /\ illegal_p2p_recovery = FALSE
+    /\ inspected_proposal = SetAsFun({})
+    /\ is_attestation_failed = FALSE
+    /\ is_btc_spv_failed = TRUE
+    /\ is_das_failed = FALSE
+    /\ last_begin_round = SetAsFun({})
+    /\ local_clock = SetAsFun({})
+    /\ local_rem_time = SetAsFun({})
+    /\ locked_round = SetAsFun({})
+    /\ locked_value = SetAsFun({})
+    /\ msgs_precommit = SetAsFun({})
+    /\ msgs_prevote = SetAsFun({})
+    /\ msgs_propose = SetAsFun({})
+    /\ msgs_timeout = SetAsFun({})
+    /\ peer_churn_rate = 0
+    /\ peer_latency = 0
+    /\ proposal_received_time = SetAsFun({})
+    /\ proposal_time = SetAsFun({})
+    /\ quorum_certs = {}
+    /\ real_time = 0
+    /\ reanchoring_proof_valid = FALSE
+    /\ received_timely_proposal = SetAsFun({})
+    /\ round = SetAsFun({})
+    /\ safe_blocks = 0
+    /\ state = "SOVEREIGN"
+    /\ step = SetAsFun({})
+    /\ suspicious_duration = 0
+    /\ timeout_certs = {}
+    /\ tx_ignored_rounds = SetAsFun({})
+    /\ valid_round = SetAsFun({})
+    /\ valid_value = SetAsFun({})
+
+(* State3 [_transition(16)] *)
+State3 ==
+  DA_THRESHOLD = 2
+    /\ HYSTERESIS_WAIT = 2
+    /\ MAX_CHURN_RATE = 10
+    /\ MAX_PEER_LATENCY = 50
+    /\ MAX_SUSPICIOUS_TIME = 2
+    /\ MIN_ANCHOR_PEERS = 1
+    /\ MIN_AVG_TENURE = 100
+    /\ MIN_PEERS = 3
+    /\ MIN_SUBNET_DIVERSITY = 2
+    /\ SOVEREIGN_THRESHOLD = 4
+    /\ SUSPICIOUS_THRESHOLD = 2
+    /\ action = "mock"
+    /\ active_peers = { "sybil_n1", "sybil_n2", "sybil_n3" }
+    /\ anchor_peers = { "anchor_n1", "anchor_n2", "anchor_n3" }
+    /\ avg_peer_tenure = 100
+    /\ begin_round = SetAsFun({})
+    /\ blacklisted_peers = {}
+    /\ decision = SetAsFun({})
+    /\ end_consensus = SetAsFun({})
+    /\ evidence = {}
+    /\ forced_tx_queue = {}
+    /\ h_btc_anchored = 0
+    /\ h_btc_current = 1
+    /\ h_btc_submitted = 1
+    /\ h_engram_current = 1
+    /\ h_engram_verified = 1
+    /\ illegal_p2p_recovery = TRUE
+    /\ inspected_proposal = SetAsFun({})
+    /\ is_attestation_failed = FALSE
+    /\ is_btc_spv_failed = TRUE
+    /\ is_das_failed = FALSE
+    /\ last_begin_round = SetAsFun({})
+    /\ local_clock = SetAsFun({})
+    /\ local_rem_time = SetAsFun({})
+    /\ locked_round = SetAsFun({})
+    /\ locked_value = SetAsFun({})
+    /\ msgs_precommit = SetAsFun({})
+    /\ msgs_prevote = SetAsFun({})
+    /\ msgs_propose = SetAsFun({})
+    /\ msgs_timeout = SetAsFun({})
+    /\ peer_churn_rate = 0
+    /\ peer_latency = 0
+    /\ proposal_received_time = SetAsFun({})
+    /\ proposal_time = SetAsFun({})
+    /\ quorum_certs = {}
+    /\ real_time = 0
+    /\ reanchoring_proof_valid = FALSE
+    /\ received_timely_proposal = SetAsFun({})
+    /\ round = SetAsFun({})
+    /\ safe_blocks = 0
+    /\ state = "RECOVERING"
+    /\ step = SetAsFun({})
+    /\ suspicious_duration = 0
+    /\ timeout_certs = {}
+    /\ tx_ignored_rounds = SetAsFun({})
+    /\ valid_round = SetAsFun({})
+    /\ valid_value = SetAsFun({})
+
+(* The following formula holds true in the last state and violates the invariant *)
+InvariantViolation == illegal_p2p_recovery
+
+================================================================================
+(* Created by Apalache on Mon Aug 03 15:43:40 ICT 2026 *)
+(* https://github.com/apalache-mc/apalache *)

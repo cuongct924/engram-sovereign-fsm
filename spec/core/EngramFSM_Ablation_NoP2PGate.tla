@@ -1,4 +1,4 @@
---------------------------- MODULE EngramFSM ---------------------------
+--------------------------- MODULE EngramFSM_Ablation_NoP2PGate ---------------------------
 (*
  * EngramFSM — Circuit-Breaker Finite State Machine
  *
@@ -117,12 +117,17 @@ IsWarningCondition ==
     \/ ~IsDAHealthy
     \/ ~IsP2PQualityHealthy
 
+\* ABLATION (Remove P2P Health Gate): the IsP2PQualityHealthy conjunct has
+\* been deleted for this experiment -- see core/EngramFSM.tla's real
+\* IsHealthyCondition for the checked-in version. This is expected to let an
+\* eclipsed node (P2P unhealthy) reach RECOVERING/ANCHORED anyway, as long
+\* as BTC/DA still look fine -- Sanity_NeverRecoverWithBadP2P (this file's
+\* driver) is expected to FAIL.
 \* All sensors are green and thresholds are satisfied
-IsHealthyCondition == 
+IsHealthyCondition ==
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
     /\ IsDAHealthy
-    /\ IsP2PQualityHealthy
 
 
 (* ======================== TYPE INVARIANT & SANITY CHECK ================================== *)

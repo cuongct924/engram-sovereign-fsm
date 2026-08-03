@@ -1,4 +1,4 @@
--------------------- MODULE EngramTendermint ---------------------------
+-------------------- MODULE EngramTendermint_Ablation_NoFastForward ---------------------------
 EXTENDS Integers, FiniteSets, EngramVars, EngramFSM
 
 (***************************************************************************)
@@ -778,21 +778,16 @@ OnRoundCatchup(p) ==
 
 
 \* -- UponfPlusOneTimeoutsAny: f+1 timeout messages from higher round -> advance --
+\* ABLATION (Remove f+1 fast-forward): neutered to FALSE (never enabled)
+\* rather than removed from every call site (EngramServer.tla's
+\* ServerMessageProcessing also references this operator by name) -- see
+\* core/EngramTendermint.tla's real UponfPlusOneTimeoutsAny for the
+\* checked-in version. Expected to weaken EventualDecisionUnderGSTLiveness,
+\* proving the f+1 pacemaker is load-bearing for liveness under partial
+\* synchrony (lagging honest nodes now wait for full local timeouts instead
+\* of fast-forwarding on f+1 observed timeouts from a higher round).
 \* @type: (Str) => Bool;
-UponfPlusOneTimeoutsAny(p) ==
-    \E r \in {rr \in Rounds : rr > round[p]} :
-        LET 
-            timers == { m.src : m \in msgs_timeout[r] }
-        IN 
-            /\ Cardinality(timers) >= THRESHOLD1
-            /\ evidence' = msgs_timeout[r] \union evidence
-            /\ StartRound(p, r)
-            /\ UNCHANGED <<msgsBroadcastVars, propAuditVars>>
-            /\ UNCHANGED <<local_clock, real_time>>
-            /\ UNCHANGED <<end_consensus, proposal_time, proposal_received_time>>
-            /\ UNCHANGED <<decision, locked_value, locked_round, valid_value, valid_round>>
-            /\ UNCHANGED <<forced_tx_queue>>
-            /\ action' = "UponfPlusOneTimeoutsAny"
+UponfPlusOneTimeoutsAny(p) == FALSE
 
 \* -- OnLocalTimerExpire: local countdown reached zero -> broadcast timeout --
 \* @type: (Str) => Bool;

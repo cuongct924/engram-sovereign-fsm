@@ -1,4 +1,4 @@
--------------------- MODULE EngramTendermint ---------------------------
+-------------------- MODULE EngramTendermint_Ablation_NoCircuitBreaker ---------------------------
 EXTENDS Integers, FiniteSets, EngramVars, EngramFSM
 
 (***************************************************************************)
@@ -297,9 +297,14 @@ IsValidProposal(prop) ==
         /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
         /\ VerifySPVProof(prop.btc_receipt)
 
-        \* Economic Circuit Breaker: Halt all cross-chain withdrawals during partition
-        /\ (prop.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => ~ContainsWithdrawal(prop.value)
-        
+        \* ABLATION (Remove Circuit Breaker): the withdrawal-lock conjunct
+        \* that normally lives here has been deleted for this experiment --
+        \* see core/EngramTendermint.tla's IsValidProposal for the real,
+        \* checked-in version. Sanity_NeverAttemptWithdrawalLeakage (an
+        \* invariant designed to hold in the real spec) is expected to FAIL
+        \* here, proving TLC can actually reach a withdrawal-during-SOVEREIGN/
+        \* RECOVERING state once this line is gone.
+
         \* RE-ANCHORING Logic: Mandatory ZK-Proof when hysteresis wait is met
         \* If not met, strict enforcement that no fake ZK-proof is attached.
         /\  IF prop.fsm_state = "RECOVERING" /\ safe_blocks = HYSTERESIS_WAIT 

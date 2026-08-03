@@ -19,6 +19,13 @@ MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
 MC_Byzantine == {n1}
 MC_Honest   == MC_Nodes \ MC_Byzantine
 
+\* Symmetry reduction: see the matching note in MC_ServerRefinementSafety.tla
+\* -- n2/n3/n4 are interchangeable everywhere except MC_NodeSeq/MC_Proposer,
+\* which TLC re-evaluates consistently under any permutation of these model
+\* values, so this is a sound relabeling symmetry. n1 (fixed Byzantine) stays
+\* out of the permutation group.
+SymmetryPerms == Permutations(MC_Honest)
+
 \* MC_Nodes == {n1, n2, n3, n4, n5, n6, n7}
 \* MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
 \* MC_Byzantine == {n6, n7}

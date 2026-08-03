@@ -42,6 +42,9 @@ states/
 *.tla.txt
 *.cfg.txt
 
+# Apalache artifacts (transient run output; curated .itf.json traces kept elsewhere are committed deliberately)
+_apalache-out/
+
 *.dot.dump
 
 # Noir execution artifacts
@@ -72,3 +75,6 @@ docs/spec/core/EngramTypes.tla
 
 
 build/
+
+.claude/worktrees
+spec/.claude

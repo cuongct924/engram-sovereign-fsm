@@ -290,24 +290,24 @@ The boolean `is_das_failed` is set to TRUE if any sampling check fails within th
 
 ### 4.3 P2P Health Sensor (Tri-Interface Profiler)
 
-Unlike the Bitcoin and DA sensors, which measure a single numeric gap, the P2P sensor must defend against Eclipse Attacks that operate simultaneously across multiple TCP/IP layers: routing table poisoning at the application layer, TCP slot exhaustion at the transport layer, and BGP hijacking at the network layer. A single peer count cannot distinguish honest long-lived peers from freshly injected Sybil nodes.
+The Bitcoin and DA sensors each reduce to one numeric gap. P2P health can't: a raw peer count can't tell an honest long-lived peer from a freshly injected Sybil, and Eclipse attacks — surveyed in Rehman et al. (2025) [[8]](#references) — combine node-discovery poisoning, peer-eviction gaming, and network-level routing control to stay hidden from any single metric.
 
-To model this without state space explosion, the specification abstracts the full attack surface into a composite predicate `IsP2PQualityHealthy` governed by six constants across two barrier groups, applied uniformly to all three protected interfaces of an Engram validator: the **Engram P2P layer**, the **Bitcoin SPV Client**, and the **Celestia Light Client**.
+`IsP2PQualityHealthy` covers this with six constants in two groups, applied uniformly to all three protected interfaces (Engram P2P, Bitcoin SPV client, Celestia light client):
 
 ```tlaplus
 IsP2PQualityHealthy ==
-    \* Group 1 — Structural Constraints (defeat topology-based attacks)
+    \* Group 1 — Structural (topology-based attacks)
     /\ SubnetDiversity            >= MIN_SUBNET_DIVERSITY  \* no ASN-level monopoly
     /\ Cardinality(ActiveAnchors) >= MIN_ANCHOR_PEERS      \* anchor nodes reachable
     /\ Cardinality(CleanPeers)    >= MIN_PEERS             \* sufficient honest peers
-    
-    \* Group 2 — Behavioral & Temporal Constraints (defeat identity-rotation and relay attacks)
+
+    \* Group 2 — Behavioral & Temporal (identity-rotation and relay attacks)
     /\ peer_churn_rate            <= MAX_CHURN_RATE        \* no Dynamic Replacement attack
     /\ avg_peer_tenure            >= MIN_AVG_TENURE        \* no fresh Sybil injection
     /\ peer_latency               <= MAX_PEER_LATENCY      \* no relay node interception
 ```
 
-The adversarial action `P2PAdversaryAttack` in `EngramFSM.tla` models the "weakest link" strategy: targeting any one of the three interfaces simultaneously triggers alarms across all six metrics, reflecting the cross-interface propagation of Eclipse symptoms.
+`P2PAdversaryAttack` (`EngramFSM.tla`) models a weakest-link adversary: compromising any one of the three interfaces trips all six metrics at once.
 
 | Constant | Group | Attack Defeated |
 |---|---|---|
@@ -317,6 +317,8 @@ The adversarial action `P2PAdversaryAttack` in `EngramFSM.tla` models the "weake
 | `MAX_CHURN_RATE` | Behavioral | Dynamic Replacement, IP rotation |
 | `MIN_AVG_TENURE` | Behavioral | Fresh Sybil injection detection |
 | `MAX_PEER_LATENCY` | Temporal | Relay node interception, BGP detour |
+
+**Scope limit:** these six constants are static aggregate statistics — none of them authenticate a peer's identity. Rehman et al. note that a patient, well-resourced adversary can game exactly this kind of metric (e.g. keeping Sybil peers artificially "long-lived" by exploiting the eviction policy, per their §III.1), which would satisfy all six thresholds while still controlling the peer set. Defeating that requires cryptographic peer authentication (their §V.B.1), which is out of scope for this FSM-level abstraction.
 
 
 ## 5. State Transition 
@@ -363,59 +365,45 @@ All transitions require greater than 2/3 quorum agreement through the consensus 
 
 #### Transition Definitions
 
-* **From ANCHORED:**
+Unlike an earlier draft of this section, the transition logic is not a set of
+separate named operators — it is a single pure function, `CalculateNextFSMState`
+(`EngramFSM.tla`), implemented as one `CASE` expression. This is deliberate:
+keeping every transition guard in one place is what lets `StrictFSMTransitionSafety`
+mechanically confirm that no case admits an illegal direct jump between
+non-adjacent states.
 
 ```tlaplus
-AnchoredToSuspicious == 
-    /\ state = ANCHORED 
-    /\ IsWarningCondition 
-    /\ ~IsCriticalCondition
+CalculateNextFSMState ==
+    CASE state = "ANCHORED"   /\ IsCriticalCondition -> "SOVEREIGN"
+      [] state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition -> "SUSPICIOUS"
+      [] state = "SUSPICIOUS" /\ IsCriticalCondition -> "SOVEREIGN"
 
-AnchoredToSovereign == 
-    /\ state = ANCHORED 
-    /\ IsCriticalCondition
+      \* Gray Failure Timeout. Force circuit-break if system stays suspicious too long.
+      [] state = "SUSPICIOUS" /\ suspicious_duration >= MAX_SUSPICIOUS_TIME -> "SOVEREIGN"
+
+      [] state = "SUSPICIOUS" /\ IsHealthyCondition  -> "ANCHORED"
+      [] state = "SOVEREIGN"  /\ IsHealthyCondition  -> "RECOVERING"
+
+      \* Fallback to SOVEREIGN if network degrades while in RECOVERING
+      [] state = "RECOVERING" /\ ~IsHealthyCondition -> "SOVEREIGN"
+
+      \* Exit condition when hysteresis and ZK proof are both satisfied
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+
+      \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
+      [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
+
+      [] OTHER -> state
 ```
 
-* **From SUSPICIOUS:**
+Read state-by-state:
 
-```tlaplus
-SuspiciousToAnchored == 
-    /\ state = SUSPICIOUS 
-    /\ IsHealthyCondition
+* **From ANCHORED:** `IsCriticalCondition` forces a direct drop to `SOVEREIGN`; short of that, `IsWarningCondition` alone (BTC gap elevated, or DA/P2P degraded) steps down to `SUSPICIOUS` first — `ANCHORED` never jumps straight past `SUSPICIOUS` into `RECOVERING` or vice versa.
+* **From SUSPICIOUS:** escalates to `SOVEREIGN` either on `IsCriticalCondition`, or independently once `suspicious_duration >= MAX_SUSPICIOUS_TIME` (the gray-failure timeout — a lingering-but-never-quite-critical condition still forces a circuit-break instead of stalling in `SUSPICIOUS` indefinitely). Recovers to `ANCHORED` once `IsHealthyCondition` holds again.
+* **From SOVEREIGN:** moves to `RECOVERING` once `IsHealthyCondition` holds — the pure function only ever proposes entering recovery here; it is `ExecuteFSMTransition` (below) that then governs how long the network must stay healthy before `RECOVERING` is allowed to exit.
+* **From RECOVERING:** any deterioration (`~IsHealthyCondition`) drops straight back to `SOVEREIGN`, discarding recovery progress. Exiting to `ANCHORED` requires all three of: `IsHealthyCondition`, the hysteresis counter having reached `HYSTERESIS_WAIT`, and `reanchoring_proof_valid = TRUE` (the ZK re-anchoring proof, §5.2 "Re-anchoring via ZK-Proof of Recovery" below). Short of that it just stays in `RECOVERING`.
 
-SuspiciousToSovereign == 
-    /\ state = SUSPICIOUS 
-    /\ IsCriticalCondition
-```
-
-Note that `suspicious_duration` is incremented each block the system remains in `SUSPICIOUS` and reset to zero upon any state change. This counter feeds into `IsCriticalCondition` via the $\tau_{\text{max}}$ clause.
-
-* **From SOVEREIGN:**
-
-```tlaplus
-SovereignToRecovering == 
-    /\ state = SOVEREIGN 
-    /\ IsHealthyCondition
-```
-
-* **From RECOVERING:**
-
-```tlaplus
-RecoveringProgress == 
-    /\ state = RECOVERING 
-    /\ IsHealthyCondition 
-    /\ safe_blocks < HYSTERESIS_WAIT
-
-RecoveringToAnchored == 
-    /\ state = RECOVERING
-    /\ IsHealthyCondition 
-    /\ safe_blocks = HYSTERESIS_WAIT 
-    /\ PI_RA = TRUE
-
-RecoveringToSovereign == 
-    /\ state = RECOVERING 
-    /\ IsCriticalCondition
-```
+`suspicious_duration` is incremented while the FSM remains in `SUSPICIOUS` and reset to zero on any other transition (see `ExecuteFSMTransition` below) — it feeds the timeout escalation above, not `IsCriticalCondition` directly.
 
 #### Re-anchoring via ZK-Proof of Recovery
 
@@ -519,7 +507,7 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 - `fsm_state` matches `CalculateNextFSMState` evaluated at the validator's local sensor readings (cross-check of agreed peripheral health).
 - The DA receipt is valid and within the allowed DA gap, with round-adaptive tolerance `DATolerance(r)` (required for `ANCHORED` and `RECOVERING` states).
 - `btc_receipt.checkpoint_block_height` satisfies monotonic non-decrease with round-adaptive BTC tolerance `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes the canonical hash check.
-- Withdrawal transactions are blocked when `fsm_state = SOVEREIGN`.
+- Withdrawal transactions are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (the same scope `WithdrawLocked` covers in §8.1's `CircuitBreakerSafety`).
 - A ZK-Proof is mandatory (`VerifyZkProof`) when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
 
 ### 7.3 Consensus State Machine Diagram
@@ -633,7 +621,7 @@ StrictFSMTransitionSafety ==
 
 ```tlaplus
 FSMStateConsistency ==
-    \A p \in Corr:
+    \A p \in HonestNodes:
         decision[p] /= NilDecision => decision[p].prop.fsm_state = state
 ```
 
@@ -658,19 +646,19 @@ Beyond the state invariants, the `IsValidProposal` predicate in `EngramTendermin
 
 ```tlaplus
 DAReceiptConsistency ==
-    \A p \in Corr:
-        (decision[p] /= NilDecision
-         /\ decision[p].prop.fsm_state \in {"ANCHORED", "RECOVERING"})
+    \A p \in HonestNodes:
+        (decision[p] /= NilDecision /\
+        (decision[p].prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsDAHealthy))
         => decision[p].prop.da_receipt.attestation = TRUE
 ```
 
-The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
+The `\/ IsDAHealthy` branch closes a gap the state-only check would otherwise leave: a decided block whose `fsm_state` is `SUSPICIOUS` or `SOVEREIGN` isn't exempted from the attestation requirement just because it's outside `{ANCHORED, RECOVERING}` — if the DA layer is *currently* healthy, the attestation must still be `TRUE` regardless of which state the block claims. The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
 
 **Lemma 8.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
 
 ```tlaplus
 BTCConsistency ==
-    \A p \in Corr:
+    \A p \in HonestNodes:
         decision[p] /= NilDecision
         => decision[p].prop.btc_receipt.checkpoint_block_height = h_btc_anchored
 ```
@@ -680,10 +668,10 @@ The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC
 **Lemma 8.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
 ```tlaplus
-\* Pre-populated at TM_Init — exactly |Faulty| messages per round per type
-FaultyPrevotes(r)   == { [type |-> "PREVOTE",   src |-> f, round |-> r, ...] : f \in Faulty }
-FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f \in Faulty }
-FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in Faulty }
+\* Pre-populated at TendermintInit — exactly |ByzantineNodes| messages per round per type
+FaultyPrevotes(r)   == { [type |-> "PREVOTE",   src |-> f, round |-> r, ...] : f \in ByzantineNodes }
+FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f \in ByzantineNodes }
+FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in ByzantineNodes }
 ```
 
 **Lemma 8.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
@@ -736,8 +724,8 @@ Theorem 9.1 is established by verifying the following temporal leads-to properti
 **Property L1 (Standard Consensus Liveness).** Under repeated GST conditions, honest validators always eventually commit a new block.
 
 ```tlaplus
-EventualDecisionUnderGST ==
-    ([]<> GSTReached) ~> (\E p \in Corr : step[p] = "DECIDED")
+EventualDecisionUnderGSTLiveness ==
+    ([]<> GSTReached) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
 ```
 
 where `GSTReached` requires synchronized clocks, sufficient peers, and `state = ANCHORED`.
@@ -786,9 +774,9 @@ PersistentEclipseResolutionLiveness ==
 ```tlaplus
 ForcedInclusionLiveness ==
     \A tx \in ValidValues :
-        ([]<>(\E r \in Rounds, p \in Corr :
+        ([]<>(\E r \in Rounds, p \in HonestNodes :
                   \E m \in msgs_propose[r] : m.src = p /\ m.proposal.value = tx))
-        => <>(\E p \in Corr :
+        => <>(\E p \in HonestNodes :
                   decision[p] /= NilDecision /\ decision[p].prop.value = tx)
 ```
 
@@ -805,7 +793,7 @@ The verification proceeds in two phases:
 
 The key linking invariant is `QuorumOverlap`:
 
-$$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{Corr} \neq \emptyset$$
+$$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{HonestNodes} \neq \emptyset$$
 
 This ensures that any two quorum decisions share at least one honest node, which is the foundation of both Agreement and Liveness in the LiDO model.
 
@@ -813,30 +801,32 @@ This ensures that any two quorum decisions share at least one honest node, which
 
 > Parameters $(N, f, \text{MaxRound}, \text{MaxBTCHeight}, \text{MaxEngramHeight}, \text{MaxTimestamp})$
 
+The parameters below are queued for re-run on the current spec (post symmetry-reduction and the `ExecuteFSMTransition` UNCHANGED-contradiction fix); the previous State/Depth/Time figures predate both fixes and are removed rather than shown against parameters that no longer match them.
+
 #### Safety Verification Results
 
 | Config | Parameters | Target Scenario | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| **C1** | 4, 1, 4, 3, 3, 10 | Base topology with adversarial injection | 324,640 | 12,481 | 10 | 49s | 0 |
-| **C2** | 4, 1, 5, 4, 4, 15 | Deep consensus rounds | 1,011,237 | 35,401 | 12 | 03min 01s | 0 |
-| **C3** | 7, 2, 4, 3, 3, 8 | Expanded quorum overlap | 248,222 | 9,921 | 10 | 07min 33s | 0 |
+| **C1** | 4, 1, 2, 2, 2, 6 | Base topology with adversarial injection | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
+| **C2** | 4, 1, 4, 3, 3, 10 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
+| **C3** | 7, 2, 2, 2, 2, 6 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 
 
 #### Liveness Verification Results
 
 | Config | Parameters | Target Scenario | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| **C1** | 4, 1, 3, 2, 2, 6 | Base topology with adversarial injection | 79,300 | 3,313 | 8 | 43s | 0 |
-| **C2** | 4, 1, 4, 3, 3, 12 | Deep consensus rounds | 406,178 | 15,041 | 11 | 05min 16s | 0 |
-| **C3** | 7, 2, 3, 2, 2, 8 | Expanded quorum overlap | 111,270 | 4,465 | 8 | 03min 20s | 0 |
+| **C1** | 4, 1, 2, 2, 2, 4 | Base topology with adversarial injection | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
+| **C2** | 4, 1, 3, 2, 2, 6 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
+| **C3** | 7, 2, 2, 2, 2, 4 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 
 ### 10.3. Ablation study & counterexample traces analysis
 
-To rigorously justify the necessity of the Engram Hybrid FSM architecture, we conducted an ablation study by systematically disabling specific defensive mechanisms within the protocol's TLA+ specification. We preserved the strict mathematical invariants in the configuration files, forcing the TLC model checker to exhaustively search for attack vectors. The resulting counterexamples reveal exactly how the system fails when deprived of its core safeguards.
+To justify each defensive mechanism, we ablate it: a checked-in modified copy of the affected spec file (e.g. `core/EngramTendermint_Ablation_NoCircuitBreaker.tla`), paired with a driver checking a `Sanity_*` property that holds in the real spec and is expected to fail once the mechanism is gone. We check these with Apalache's bounded SMT search rather than TLC's BFS: TLC must fully widen every depth before advancing, which can mean tens of millions of states before a violation that is shallow in step count; Apalache searches depth-by-depth via SMT and finds the same violation in seconds. Refinement and liveness properties stay TLC-only regardless (§10.1).
 
 #### 10.3.1. Summary of Ablation Results
 
-The table below summarizes the breadth of our formal verification stress test. By injecting omissions into the `EngramFSM` and `EngramTendermint` modules, the model checker autonomously synthesized the exact vulnerability traces that exploit the missing logic.  
+Each row removes exactly one defensive mechanism and reports the property that catches its absence.
 
 <table>
   <thead>
@@ -851,106 +841,152 @@ The table below summarizes the breadth of our formal verification stress test. B
     <tr>
       <td>Remove Circuit Breaker</td>
       <td>Withdrawal Leakage</td>
-      <td>[Điền Depth từ TLC]</td>
-      <td><code>CircuitBreakerSafety</code></td>
+      <td>2 (Apalache, 66.7s)</td>
+      <td><code>Sanity_NeverAttemptWithdrawalLeakage</code></td>
     </tr>
     <tr>
       <td>Remove Hysteresis</td>
-      <td>State Oscillation</td>
-      <td>[Điền Depth từ TLC]</td>
-      <td><code>HysteresisSafety</code></td>
+      <td>Premature Re-anchoring</td>
+      <td>6 (Apalache, 117.0s)</td>
+      <td><code>Sanity_NoIllegalHysteresisExit</code></td>
     </tr>
     <tr>
       <td>Remove P2P Health Gate</td>
-      <td>False Recovery</td>
-      <td>[Điền Depth từ TLC]</td>
-      <td><code>StrictFSMTransitionSafety</code></td>
+      <td>False Recovery Under Eclipse</td>
+      <td>3 (Apalache, 24.2s)</td>
+      <td><code>Sanity_NoIllegalP2PRecovery</code></td>
     </tr>
     <tr>
       <td>Remove DA Consistency</td>
       <td>Data Withholding</td>
-      <td>17</td>
-      <td><code>HybridTendermintInvariant</code></td>
+      <td>2 (Apalache, 63.3s)</td>
+      <td><code>Sanity_NeverProposeWithheldData</code></td>
     </tr>
     <tr>
       <td>Remove f+1 fast-forward</td>
       <td>Liveness Deadlock</td>
-      <td>[Điền Depth từ TLC]</td>
-      <td><code>EventualDecisionUnderGST</code></td>
+      <td>4 (TLC, 66s)</td>
+      <td><code>EventualDecisionUnderGSTLiveness</code></td>
     </tr>
   </tbody>
 </table>  
 
-Evaluation Methodology Note: The TLC model checker utilized an exhaustive search to synthesize the exact attack traces that exploit the missing logic, formally proving the necessity of each architectural safeguard.*
+Four of five used Apalache's bounded SMT search; the f+1 fast-forward ablation is liveness-only and stays TLC-only.
 
 #### 10.3.2. Deep-Dive Trace Analysis
 
-In this section, we dissect the state-by-state execution traces generated by the TLC model checker to illustrate the exact attack vectors enabled by each ablation.
+Each diagram is the actual counterexample found for that row of the table above.
 
-##### A. Remove Hysteresis
+##### A. Remove Circuit Breaker
 
-* **Ablated Logic:** Disabled the safe\_blocks \= HYSTERESIS\_WAIT precondition in the ExecuteFSMTransition action.  
-* **TLC Metrics:** Violation found at depth \[Điền Error Depth từ TLC, ví dụ: 12\], after exploring \[Điền số States Generated, ví dụ: 45,210\] states.  
-* **Counterexample Trace (State Flapping):**  
-* *State \[X\] (action \= "\[Tên action\]"):* The network experiences a simulated peripheral outage, pushing the FSM to SOVEREIGN.  
-* *State \[Y\] (action \= "\[Tên action\]"):* Sensors flicker back to healthy. Without hysteresis, the proposer blindly proposes an ANCHORED state block.  
-* *State \[Z\] (action \= "\[Tên action\]"):* The anomaly repeats. The HysteresisSafety property is explicitly violated as the FSM continuously flaps without stabilizing.
-
-##### B. Remove P2P Health Gate
-
-* **Ablated Logic:** Removed the IsP2PQualityHealthy requirement from the IsHealthyCondition predicate.  
-* **TLC Metrics:** Violation found at depth \[Điền Depth\], after exploring \[Điền số States\] states.  
-* **Counterexample Trace (Eclipse-induced False Recovery):**  
-* *State \[X\] (action \= "\[Tên action\]"):* A target validator is perfectly eclipsed by a Sybil adversary.  
-* *State \[Y\] (action \= "\[Tên action\]"):* The adversary feeds the validator forged but structurally valid BTC and DA receipts.  
-* *State \[Z\] (action \= "\[Tên action\]"):* The eclipsed node incorrectly evaluates IsHealthyCondition \= TRUE and attempts a false recovery, violating StrictFSMTransitionSafety.
-
-##### C. Remove f+1 timeout fast-forward
-
-* **Ablated Logic:** Disabled the UponfPlusOneTimeoutsAny pacemaker action, reverting to standard full-timeout waiting.  
-* **TLC Metrics:** Violation found at depth \[Điền Depth\], after exploring \[Điền số States\] states.  
-* **Counterexample Trace (Partial Synchrony Deadlock):**  
-* *State \[X\] (action \= "\[Tên action\]"):* A network partition causes *f* honest nodes to timeout early and move to round *r+1*.  
-* *State \[Y\] (action \= "\[Tên action\]"):* The remaining honest nodes stall, waiting for full local timers to expire.  
-* *State \[Z\] (action \= "\[Tên action\]"):* The TLC model checker flags a violation of EventualDecisionUnderGST, proving a severe liveness delay.
-
-##### D. Remove DA receipt consistency (With Sequence Diagram)
-
-* **Ablated Logic:** Commented out `da_receipt.attestation = TRUE` in the `IsValidProposal` semantic firewall.  
-* **TLC Metrics:** Violation found at depth **17**, after exploring **813** states (via random simulation).  
-* **Counterexample Trace (Data Withholding Attack):**
-
-*Figure X: Sequence diagram synthesized from TLC trace demonstrating a successful Data Withholding Attack when DA validation is ablated.*
+* **Ablated:** the withdrawal-lock conjunct in `IsValidProposal` (`core/EngramTendermint_Ablation_NoCircuitBreaker.tla`).
+* **Result:** violation at depth **2**, in **66.7s** (`apalache-mc check --inv=Sanity_NeverAttemptWithdrawalLeakage --length=12`, `core/MC_Ablation_NoCircuitBreakerSafety_Apalache.tla`). Trace: `spec/traces/ablation_no_circuit_breaker.{itf.json,trace.tla}`.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    
-    participant H as Byzantine Leader (n1)
-    participant V as Honest Validators (n2, n3, n4)
-    participant TLC as TLC Model Checker
+    participant S as BTC Sensor
+    participant N as Honest Node n2
+    participant F as IsValidProposal (ablated)
 
-    H->>V: Broadcast Proposal (value: TX_NORMAL, attestation: FALSE)
-    
-    Note over V: Semantic Firewall Ablated (No DA Check)
-    V->>V: IsValidProposal(prop) == TRUE
-    
-    V->>V: Broadcast PREVOTE
-    
-    V->>V: Receive 2f+1 PREVOTEs (Quorum Reached)
-    V->>V: Lock Value and Broadcast PRECOMMIT
-    
-    V->>V: Receive 2f+1 PRECOMMITs (Commit Quorum)
-    
-    V->>TLC: Trigger Commit (UponProposalInPrecommitNoDecision)
-    
-    Note over TLC: Halted at Depth 17
-    TLC-->>V: INVARIANT VIOLATION: DAReceiptConsistency
+    S->>N: BTC SPV failure detected
+    N->>N: CalculateNextFSMState = SOVEREIGN
+    N->>N: Bundle value = TX_WITHDRAWAL in same proposal
+    N->>F: Submit proposal (fsm_state=SOVEREIGN, value=TX_WITHDRAWAL)
+    Note over F: withdrawal-lock conjunct removed
+    F-->>N: ACCEPTED -- Sanity_NeverAttemptWithdrawalLeakage violated
 ```
 
-* *State 2 (action = "ByzantineDataWithholding"):* A Byzantine leader constructs a block proposal withholding the transaction body from Celestia (attestation = FALSE).  
-* *States 10, 14, 15 (action = "UponProposalInPropose"):* Honest validators miss the consistency check and blindly cast PREVOTE messages.  
-* *State 17 (action = "UponProposalInPrevoteOrCommitAndPrevote"):* The network forms a PRECOMMIT quorum. As the protocol attempts to commit the block, the model checker halts execution, flagging a critical violation of the HybridTendermintInvariant (DAReceiptConsistency).
+* **Why it matters:** the circuit breaker doesn't just stop a malicious proposer — it stops an honest node from ever legally pairing "reporting reduced security" with "here's a withdrawal" in one proposal. No Byzantine behavior needed, just bad timing.
+
+##### B. Remove Hysteresis
+
+* **Ablated:** the `safe_blocks = HYSTERESIS_WAIT` conjunct in `CalculateNextFSMState`'s `RECOVERING -> ANCHORED` branch (`core/EngramFSM_Ablation_NoHysteresis.tla`).
+* **Result:** violation at depth **6**, in **117.0s** (`apalache-mc check --inv=Sanity_NoIllegalHysteresisExit --length=15`, `core/MC_Ablation_NoHysteresisSafety_FSMOnly_Apalache.tla`). Trace: `spec/traces/ablation_no_hysteresis.{itf.json,trace.tla}`.
+* **How it's checked:** `--inv` only sees current-state predicates, but the real `HysteresisSafety` is a next-state property, so the driver latches a ghost variable (`illegal_early_exit`) the instant an illegal `RECOVERING -> ANCHORED` move fires. A control run of the same driver against the non-ablated `EngramFSM.tla` reached depth 8 with no violation, confirming this is a real consequence of the ablation, not a driver artifact.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sensors
+    participant FSM as CalculateNextFSMState (ablated)
+    participant Chk as Ghost check
+
+    Note over FSM: state = RECOVERING, safe_blocks = 0
+    Sensors->>FSM: reanchoring_proof_valid -> TRUE
+    Note over FSM: safe_blocks = HYSTERESIS_WAIT conjunct removed
+    FSM->>FSM: state' = ANCHORED (safe_blocks still 0)
+    FSM->>Chk: illegal_early_exit' = TRUE
+    Chk-->>Chk: Sanity_NoIllegalHysteresisExit violated
+```
+
+* **Why it matters:** the hysteresis counter isn't cosmetic — without it, one favorable instant (proof valid) is enough to re-anchor mid-recovery, even while the network's health is still noisy.
+
+##### C. Remove P2P Health Gate
+
+* **Ablated:** the `IsP2PQualityHealthy` conjunct in `IsHealthyCondition` (`core/EngramFSM_Ablation_NoP2PGate.tla`).
+* **Result:** violation at depth **3**, in **24.2s** (`apalache-mc check --inv=Sanity_NoIllegalP2PRecovery --length=15`, `core/MC_Ablation_NoP2PGateSafety_FSMOnly_Apalache.tla`). Trace: `spec/traces/ablation_no_p2p_gate.{itf.json,trace.tla}`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Adv as Sybil Adversary
+    participant Peers as active_peers
+    participant FSM as CalculateNextFSMState (ablated)
+
+    Adv->>Peers: Replace all peers with sybil_n1..sybil_n3
+    Note over Peers: anchor_peers unreachable -- full eclipse
+    FSM->>FSM: state' = SOVEREIGN (BTC gap critical)
+    Note over FSM: IsP2PQualityHealthy conjunct removed
+    FSM->>FSM: state' = RECOVERING (BTC/DA look fine)
+    FSM-->>FSM: Sanity_NoIllegalP2PRecovery violated -- still eclipsed
+```
+
+* **Why it matters:** `IsHealthyCondition` in the real spec is a plain conjunction that includes `IsP2PQualityHealthy`, so no branch of `CalculateNextFSMState` can produce `RECOVERING` while P2P is unhealthy — a structural guarantee, not just an empirically-unreached case. The ablation is what lets an eclipsed node look "recovered" using only BTC/DA signals.
+
+##### D. Remove f+1 timeout fast-forward
+
+* **Ablated:** neutered `UponfPlusOneTimeoutsAny(p) == FALSE` (`core/EngramTendermint_Ablation_NoFastForward.tla`). Liveness-only — Apalache has no temporal+fairness support, so this ablation is TLC-only.
+* **Result:** `EventualDecisionUnderGSTLiveness` violated at depth **4**, after 227,099 states generated (6,315 distinct), in **66s** (`core/MC_Ablation_NoFastForwardLiveness.{tla,cfg}`). Trace: `spec/traces/ablation_no_fastforward.trace.txt`. TLC reports the counterexample as `State 4: Stuttering`, its notation for "the system can loop here forever."
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Byzantine Proposer n1 (round 0)
+    participant V as Honest Nodes n2, n3, n4
+    participant Clock as real_time / local_clock
+
+    Note over V: step = PROPOSE, round = 0
+    B->>V: ServerByzantinePull / UpdateEnvironment fire instead of a real proposal
+    Note over Clock: real_time and local_clock never advance
+    loop repeats forever
+        B->>V: same enabled actions re-fire, round/step unchanged
+    end
+    Note over V: TLC reports "State 4: Stuttering"
+    V-->>V: EventualDecisionUnderGSTLiveness violated
+```
+
+* **Caveat:** unlike the other four ablations, this one has **not** been cross-checked against the non-ablated spec with the same schedule and fairness formula, so attributing the stall specifically to removing f+1 fast-forward — rather than some other fairness gap this schedule happens to trigger — is not yet independently confirmed.
+
+##### E. Remove DA Consistency
+
+* **Ablated:** the `prop.da_receipt.attestation = TRUE` conjunct in `IsValidProposal`'s DA pipeline check (`core/EngramTendermint_Ablation_NoDAConsistency.tla`).
+* **Result:** violation at depth **2**, in **63.3s** (`apalache-mc check --inv=Sanity_NeverProposeWithheldData --length=12`, `core/MC_Ablation_NoDAConsistencySafety_Apalache.tla`). Trace: `spec/traces/ablation_no_da_consistency.{itf.json,trace.tla}`. Replaces the earlier, unreproducible "813 states via random simulation" claim.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Byzantine Leader n1
+    participant F as IsValidProposal (ablated)
+    participant Q as msgs_propose
+
+    B->>F: Broadcast proposal (da_receipt.attestation = FALSE)
+    Note over F: da_receipt.attestation = TRUE conjunct removed
+    F-->>Q: Proposal accepted, enters msgs_propose unfiltered
+    Q-->>Q: Sanity_NeverProposeWithheldData violated
+```
+
+* **Why it matters:** the DA attestation check is the only thing stopping a withheld-data block from entering the vote pipeline — once it's ablated, a Byzantine leader needs no other cooperation to get a data-withholding proposal broadcast.
 
 ## References
 
@@ -975,7 +1011,7 @@ sequenceDiagram
 7. Tas, E., et al. (2022). *Babylon: Reusing Bitcoin Mining Power for Proof-of-Stake Security*. arXiv.  
    https://arxiv.org/abs/2207.08392
 
-8. Rehman, Z., Gregory, M. A., Gondal, I., Dong, H., & Ge, M. (2024). *Eclipse Attacks in Blockchain Networks: Detection, Prevention, and Future Directions*. **IEEE Access**, 12, 125523–125553.  
+8. Rehman, Z., Gregory, M. A., Gondal, I., Dong, H., & Ge, M. (2025). *Eclipse Attacks in Blockchain Networks: Detection, Prevention, and Future Directions*. **IEEE Access**, 13, 25918–25933. DOI: 10.1109/ACCESS.2025.3538837.  
    https://researchmgt.monash.edu/ws/portalfiles/portal/710203865/710203451-oa.pdf
 
 ## Future Work
@@ -998,39 +1034,47 @@ The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending t
 
 ### Prerequisites
 
-- Java JDK 11 or higher.
-- `tla2tools.jar` from [TLA+ Releases](https://github.com/tlaplus/tlaplus/releases), placed at a known path.
+- Java JDK 11+, `tla2tools.jar` from [TLA+ Releases](https://github.com/tlaplus/tlaplus/releases).
 
-### Safety Verification
+### TLC - TLA+ Model Checker
 
-```bash
-cd docs/spec
-
-java -cp /path/to/tla2tools.jar tlc2.TLC \
-  -workers 8 \
-  -config mc/server/MC_ServerRefinementSafety.cfg \
-  mc/server/MC_ServerRefinementSafety.tla
-```
-
-Expected: approximately 100 minutes, 37.7M states generated, no error found.
-
-### Liveness Verification
+#### Safety
 
 ```bash
-cd docs/spec
-
-java -cp /path/to/tla2tools.jar tlc2.TLC \
-  -workers 8 \
-  -config mc/server/MC_ServerRefinementLiveness.cfg \
-  mc/server/MC_ServerRefinementLiveness.tla
+cd spec
+java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
+  -config core/MC_ServerRefinementSafety.cfg core/MC_ServerRefinementSafety.tla
 ```
 
-Expected: approximately 7 minutes, 1.1M states generated, no error found.
+#### Liveness
 
-### Using VS Code
+```bash
+cd spec
+java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
+  -config core/MC_ServerRefinementLiveness.cfg core/MC_ServerRefinementLiveness.tla
+```
 
-1. Install the TLA+ extension.
-2. Open `MC_ServerRefinementSafety.tla` or `MC_ServerRefinementLiveness.tla`.
-3. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Linux/Windows).
-4. Select `TLA+: Check model with TLC`.
-5. Choose the corresponding `.cfg` file when prompted.
+Expected for both: no error found.
+
+### Apalache (complementary safety-invariant checks only — not refinement or liveness)
+
+```bash
+mkdir -p ~/tools/apalache && cd ~/tools/apalache
+curl -sL -o apalache.tgz https://github.com/apalache-mc/apalache/releases/download/v0.58.3/apalache.tgz
+tar xzf apalache.tgz
+```
+
+```bash
+export JAVA_HOME=<path to JDK 17+>   # required; JDK 11 can't run Apalache
+export PATH="$JAVA_HOME/bin:$PATH"
+cd spec
+
+~/tools/apalache/apalache/bin/apalache-mc typecheck core/MC_FSMSafety_Apalache.tla
+
+~/tools/apalache/apalache/bin/apalache-mc check \
+  --cinit=ApalacheCInit --init=MC_FSMInit --next=MC_FSMNext \
+  --inv=FSMTypeOK,CircuitBreakerSafety --length=10 \
+  core/MC_FSMSafety_Apalache.tla
+```
+
+Expected: typecheck passes; check reports no error up to length 10.

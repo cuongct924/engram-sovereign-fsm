@@ -1,4 +1,4 @@
---------------------------- MODULE EngramFSM ---------------------------
+--------------------------- MODULE EngramFSM_Ablation_NoHysteresis ---------------------------
 (*
  * EngramFSM — Circuit-Breaker Finite State Machine
  *
@@ -320,8 +320,11 @@ CalculateNextFSMState ==
       \* Fallback to SOVEREIGN if network degrades while in RECOVERING
       [] state = "RECOVERING" /\ ~IsHealthyCondition -> "SOVEREIGN"
       
-      \* Exit condition when hysteresis and ZK proof are both satisfied
-      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+      \* ABLATION (Remove Hysteresis): the `safe_blocks = HYSTERESIS_WAIT`
+      \* precondition has been deleted for this experiment -- see
+      \* core/EngramFSM.tla's real CalculateNextFSMState for the checked-in
+      \* version. Sanity_NeverFlapInRecovering is expected to FAIL here.
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
       
       \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
