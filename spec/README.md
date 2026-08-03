@@ -22,7 +22,7 @@
       - [Bitcoin SPV Verification](#bitcoin-spv-verification)
     - [4.2 Data Availability Gap Sensor](#42-data-availability-gap-sensor)
       - [Data Availability Sampling (DAS)](#data-availability-sampling-das)
-    - [4.3 P2P Health Sensor (Tri-interface Profiler)](#43-p2p-health-sensor-tri-interface-profiler)
+    - [4.3 P2P Health Sensor (Tri-Interface Profiler)](#43-p2p-health-sensor-tri-interface-profiler)
   - [5. State Transition](#5-state-transition)
     - [5.1 State Transition Conditions](#51-state-transition-conditions)
       - [Warning Condition](#warning-condition)
@@ -32,20 +32,20 @@
       - [Transition Definitions](#transition-definitions)
       - [Re-anchoring via ZK-Proof of Recovery](#re-anchoring-via-zk-proof-of-recovery)
       - [Hysteresis Mechanism](#hysteresis-mechanism)
-  - [7. Consensus Protocol: Hybrid Adaptive Tendermint with Extended Proposal](#7-consensus-protocol-hybrid-adaptive-tendermint-with-extended-proposal)
-    - [7.1 Extended Proposal Structure](#71-extended-proposal-structure)
-    - [7.2 Proposal Validation](#72-proposal-validation)
-    - [7.3 Consensus State Machine Diagram](#73-consensus-state-machine-diagram)
-  - [8. Security and Safety Analysis](#8-security-and-safety-analysis)
-    - [8.1 State Invariants](#81-state-invariants)
-    - [8.2 Attack Resilience Lemmas](#82-attack-resilience-lemmas)
-  - [9. Liveness Analysis and Autonomous Recovery](#9-liveness-analysis-and-autonomous-recovery)
-    - [9.1 FSM Temporal Properties](#91-fsm-temporal-properties)
-    - [9.2 Transaction-Level Liveness](#92-transaction-level-liveness)
-  - [10. Formal Verfication stress & ablation](#10-formal-verification-stress--ablation)
-    - [10.1 Proof Strategy](#101-proof-strategy)
-    - [10.2 Formal Verification stress test](#102-formal-verification-stress-test)
-    - [10.3 TLC Counterexample traces analysis](#103-tlc-counterexample-traces-analysis)
+  - [6. Consensus Protocol: Hybrid Adaptive Tendermint with Extended Proposal](#6-consensus-protocol-hybrid-adaptive-tendermint-with-extended-proposal)
+    - [6.1 Extended Proposal Structure](#61-extended-proposal-structure)
+    - [6.2 Proposal Validation](#62-proposal-validation)
+    - [6.3 Consensus State Machine Diagram](#63-consensus-state-machine-diagram)
+  - [7. Security and Safety Analysis](#7-security-and-safety-analysis)
+    - [7.1 State Invariants](#71-state-invariants)
+    - [7.2 Attack Resilience Lemmas](#72-attack-resilience-lemmas)
+  - [8. Liveness Analysis and Autonomous Recovery](#8-liveness-analysis-and-autonomous-recovery)
+    - [8.1 FSM Temporal Properties](#81-fsm-temporal-properties)
+    - [8.2 Transaction-Level Liveness](#82-transaction-level-liveness)
+  - [9. Formal Verification stress & ablation](#9-formal-verification-stress--ablation)
+    - [9.1 Proof Strategy](#91-proof-strategy)
+    - [9.2 Formal Verification Stress Test](#92-formal-verification-stress-test)
+    - [9.3 Ablation study & counterexample traces analysis](#93-ablation-study--counterexample-traces-analysis)
   - [References](#references)
   - [Future Work](#future-work)
   - [How to Run the Verification](#how-to-run-the-verification)
@@ -476,9 +476,9 @@ By restricting the circuit to header verification and boolean flag checks, the c
 The `safe_blocks` counter prevents state oscillation. On entry into RECOVERING, the counter is reset to zero. Each block for which `IsHealthyCondition` holds increments the counter by one. The transition to ANCHORED is blocked until `safe_blocks = HYSTERESIS_WAIT`. Any deterioration that triggers `IsCriticalCondition` resets the counter and transitions to SOVEREIGN, restarting the recovery process from the beginning.
 
 
-## 7. Consensus Protocol: Hybrid Adaptive Tendermint with Extended Proposal
+## 6. Consensus Protocol: Hybrid Adaptive Tendermint with Extended Proposal
 
-### 7.1 Extended Proposal Structure
+### 6.1 Extended Proposal Structure
 
 The base consensus engine is CometBFT (Tendermint). The key extension is the **Proposal structure**, which carries additional fields required by the hybrid model:
 
@@ -500,17 +500,17 @@ Proposal := {
 }
 ```
 
-### 7.2 Proposal Validation
+### 6.2 Proposal Validation
 
 A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(proposal)` holds. This predicate enforces:
 
 - `fsm_state` matches `CalculateNextFSMState` evaluated at the validator's local sensor readings (cross-check of agreed peripheral health).
 - The DA receipt is valid and within the allowed DA gap, with round-adaptive tolerance `DATolerance(r)` (required for `ANCHORED` and `RECOVERING` states).
 - `btc_receipt.checkpoint_block_height` satisfies monotonic non-decrease with round-adaptive BTC tolerance `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes the canonical hash check.
-- Withdrawal transactions are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (the same scope `WithdrawLocked` covers in §8.1's `CircuitBreakerSafety`).
+- Withdrawal transactions are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (the same scope `WithdrawLocked` covers in §7.1's `CircuitBreakerSafety`).
 - A ZK-Proof is mandatory (`VerifyZkProof`) when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
 
-### 7.3 Consensus State Machine Diagram
+### 6.3 Consensus State Machine Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -578,13 +578,13 @@ stateDiagram-v2
 ```
 
 
-## 8. Security and Safety Analysis
+## 7. Security and Safety Analysis
 
 The formal correctness of the hybrid consensus protocol is guaranteed across the entire reachable state space. The network is modeled against a Byzantine adversary controlling up to $f$ nodes out of $n = 3f + 1$ total, with adversarial message scheduling and non-deterministic peripheral sensor readings.
 
-**Theorem 8.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes will ever decide on conflicting blocks or conflicting FSM states. Any safety violation mathematically guarantees the extraction of cryptographic double-signing evidence via EOTS.*
+**Theorem 7.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes will ever decide on conflicting blocks or conflicting FSM states. Any safety violation mathematically guarantees the extraction of cryptographic double-signing evidence via EOTS.*
 
-### 8.1 State Invariants
+### 7.1 State Invariants
 
 **Invariant S1 (Circuit Breaker Isolation).** Cross-chain withdrawals are strictly locked if and only if the protocol operates in a fallback state. This prevents fund extraction during any period when Bitcoin finality cannot guarantee the irreversibility of cross-chain transactions.
 
@@ -638,11 +638,11 @@ MonotonicitySafety ==
       ]_serverVars
 ```
 
-### 8.2 Attack Resilience Lemmas
+### 7.2 Attack Resilience Lemmas
 
 Beyond the state invariants, the `IsValidProposal` predicate in `EngramTendermint.tla` serves as a semantic firewall enforcing the following attack-specific lemmas at the consensus layer.
 
-**Lemma 8.2 (Data Withholding Resistance).** A Byzantine leader publishing a block header while withholding the transaction body (`attestation = FALSE`) will have its proposal rejected by all honest validators, who cast PREVOTE NIL and force a round change.
+**Lemma 7.2 (Data Withholding Resistance).** A Byzantine leader publishing a block header while withholding the transaction body (`attestation = FALSE`) will have its proposal rejected by all honest validators, who cast PREVOTE NIL and force a round change.
 
 ```tlaplus
 DAReceiptConsistency ==
@@ -654,7 +654,7 @@ DAReceiptConsistency ==
 
 The `\/ IsDAHealthy` branch closes a gap the state-only check would otherwise leave: a decided block whose `fsm_state` is `SUSPICIOUS` or `SOVEREIGN` isn't exempted from the attestation requirement just because it's outside `{ANCHORED, RECOVERING}` — if the DA layer is *currently* healthy, the attestation must still be `TRUE` regardless of which state the block claims. The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
 
-**Lemma 8.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
+**Lemma 7.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
 
 ```tlaplus
 BTCConsistency ==
@@ -665,7 +665,7 @@ BTCConsistency ==
 
 The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the SPV hash check rejects it at proposal validation.
 
-**Lemma 8.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
+**Lemma 7.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
 ```tlaplus
 \* Pre-populated at TendermintInit — exactly |ByzantineNodes| messages per round per type
@@ -674,7 +674,7 @@ FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f
 FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in ByzantineNodes }
 ```
 
-**Lemma 8.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
+**Lemma 7.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
 
 ```tlaplus
 \* Recovery is gated on full P2P quality — not merely peer count
@@ -691,9 +691,9 @@ IsCriticalCondition ==
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 ```
 
-The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. One open item remains: a dedicated TLC scenario constructing the full execution trace that shows an eclipsed proposer's fabricated `fsm_state` is deterministically rejected via `FSMStateConsistency` combined with `VerifySPVProof` (see Section 11.2).
+The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. One open item remains: a dedicated scenario constructing the full execution trace that shows an eclipsed proposer's fabricated `fsm_state` is deterministically rejected via `FSMStateConsistency` combined with `VerifySPVProof` — tracked as future work (see [Future Work](#future-work)).
 
-**Lemma 8.6 (EOTS Accountability).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, enabling EOTS-based BTC slashing without smart contract execution.
+**Lemma 7.6 (EOTS Accountability).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, enabling EOTS-based BTC slashing without smart contract execution.
 
 ```tlaplus
 DoubleSigningEvidence ==
@@ -711,15 +711,15 @@ Accountability ==
 
 Formally specified in `EngramTendermint.tla` as `Accountability`, part of `CoreTendermintInvariant`.
 
-## 9. Liveness Analysis and Autonomous Recovery
+## 8. Liveness Analysis and Autonomous Recovery
 
 Modular blockchains face critical liveness risks when peripheral layers fail. Through the refinement mapping in `EngramServer.tla`, the concrete implementation mechanically inherits the abstract liveness properties of the LiDO framework.
 
-**Theorem 9.1 (Autonomous Liveness under Degradation).** *The protocol continually processes transactions under normal conditions and autonomously degrades, recovers, and re-anchors its security posture without permanent stalling, even during external modular layer failures.*
+**Theorem 8.1 (Autonomous Liveness under Degradation).** *The protocol continually processes transactions under normal conditions and autonomously degrades, recovers, and re-anchors its security posture without permanent stalling, even during external modular layer failures.*
 
-### 9.1 FSM Temporal Properties
+### 8.1 FSM Temporal Properties
 
-Theorem 9.1 is established by verifying the following temporal leads-to properties under weak fairness assumptions, using TLC's implied-temporal checking across 8 branches.
+Theorem 8.1 is established by verifying the following temporal leads-to properties under weak fairness assumptions, using TLC's implied-temporal checking across 8 branches.
 
 **Property L1 (Standard Consensus Liveness).** Under repeated GST conditions, honest validators always eventually commit a new block.
 
@@ -767,7 +767,7 @@ PersistentEclipseResolutionLiveness ==
     ([]<> ~IsP2PQualityHealthy) ~> (state \in {"SOVEREIGN", "ANCHORED"})
 ```
 
-### 9.2 Transaction-Level Liveness
+### 8.2 Transaction-Level Liveness
 
 **Property L7 (Active Censorship Resistance).** If a Byzantine leader ignores a valid transaction in `forced_tx_queue` for `MAX_IGNORE_ROUNDS` consecutive rounds, `IsCensoring` triggers a TIMEOUT broadcast, forcing a round change and eventually rotating to an honest leader.
 
@@ -782,8 +782,8 @@ ForcedInclusionLiveness ==
 
 Formally specified as `ForcedInclusionLiveness` in `EngramServer.tla`.
 
-## 10. Formal Verification stress & ablation
-### 10.1 Proof Strategy
+## 9. Formal Verification stress & ablation
+### 9.1 Proof Strategy
 
 The verification proceeds in two phases:
 
@@ -797,7 +797,7 @@ $$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{HonestN
 
 This ensures that any two quorum decisions share at least one honest node, which is the foundation of both Agreement and Liveness in the LiDO model.
 
-### 10.2. Formal Verification Stress Test
+### 9.2. Formal Verification Stress Test
 
 > Parameters $(N, f, \text{MaxRound}, \text{MaxBTCHeight}, \text{MaxEngramHeight}, \text{MaxTimestamp})$
 
@@ -820,11 +820,11 @@ The parameters below are queued for re-run on the current spec (post symmetry-re
 | **C2** | 4, 1, 3, 2, 2, 6 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 | **C3** | 7, 2, 2, 2, 2, 4 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 
-### 10.3. Ablation study & counterexample traces analysis
+### 9.3. Ablation study & counterexample traces analysis
 
-To justify each defensive mechanism, we ablate it: a checked-in modified copy of the affected spec file (e.g. `core/EngramTendermint_Ablation_NoCircuitBreaker.tla`), paired with a driver checking a `Sanity_*` property that holds in the real spec and is expected to fail once the mechanism is gone. We check these with Apalache's bounded SMT search rather than TLC's BFS: TLC must fully widen every depth before advancing, which can mean tens of millions of states before a violation that is shallow in step count; Apalache searches depth-by-depth via SMT and finds the same violation in seconds. Refinement and liveness properties stay TLC-only regardless (§10.1).
+To justify each defensive mechanism, we ablate it: a checked-in modified copy of the affected spec file (e.g. `core/EngramTendermint_Ablation_NoCircuitBreaker.tla`), paired with a driver checking a `Sanity_*` property that holds in the real spec and is expected to fail once the mechanism is gone. We check these with Apalache's bounded SMT search rather than TLC's BFS: TLC must fully widen every depth before advancing, which can mean tens of millions of states before a violation that is shallow in step count; Apalache searches depth-by-depth via SMT and finds the same violation in seconds. Refinement and liveness properties stay TLC-only regardless (§9.1).
 
-#### 10.3.1. Summary of Ablation Results
+#### 9.3.1. Summary of Ablation Results
 
 Each row removes exactly one defensive mechanism and reports the property that catches its absence.
 
@@ -873,7 +873,7 @@ Each row removes exactly one defensive mechanism and reports the property that c
 
 Four of five used Apalache's bounded SMT search; the f+1 fast-forward ablation is liveness-only and stays TLC-only.
 
-#### 10.3.2. Deep-Dive Trace Analysis
+#### 9.3.2. Deep-Dive Trace Analysis
 
 Each diagram is the actual counterexample found for that row of the table above.
 
@@ -971,7 +971,7 @@ sequenceDiagram
 ##### E. Remove DA Consistency
 
 * **Ablated:** the `prop.da_receipt.attestation = TRUE` conjunct in `IsValidProposal`'s DA pipeline check (`core/EngramTendermint_Ablation_NoDAConsistency.tla`).
-* **Result:** violation at depth **2**, in **63.3s** (`apalache-mc check --inv=Sanity_NeverProposeWithheldData --length=12`, `core/MC_Ablation_NoDAConsistencySafety_Apalache.tla`). Trace: `spec/traces/ablation_no_da_consistency.{itf.json,trace.tla}`. Replaces the earlier, unreproducible "813 states via random simulation" claim.
+* **Result:** violation at depth **2**, in **63.3s** (`apalache-mc check --inv=Sanity_NeverProposeWithheldData --length=12`, `core/MC_Ablation_NoDAConsistencySafety_Apalache.tla`). Trace: `spec/traces/ablation_no_da_consistency.{itf.json,trace.tla}`.
 
 ```mermaid
 sequenceDiagram
