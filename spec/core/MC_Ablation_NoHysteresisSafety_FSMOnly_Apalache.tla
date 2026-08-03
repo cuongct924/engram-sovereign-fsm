@@ -2,17 +2,17 @@
 (*
  * Apalache ablation driver: "Remove Hysteresis", FSM-layer-only scope.
  *
- * Sanity_NeverFlapInRecovering depends only on state/safe_blocks/
- * IsHealthyCondition -- pure FSM-layer variables. Going through the full
- * Server/Tendermint stack (as MC_Ablation_NoHysteresisSafety_Apalache.tla
- * does) adds ~30-45 irrelevant transitions per step Apalache must still
- * evaluate, most "disabled", which is what made that route slow. This
- * driver mirrors MC_FSMSafety_Apalache.tla's mocking pattern instead,
- * dropping Tendermint/Server entirely.
+ * The checked property depends only on state/safe_blocks/
+ * reanchoring_proof_valid -- pure FSM-layer variables. An earlier attempt
+ * routed the same check through the full Server/Tendermint stack, which
+ * adds ~30-45 irrelevant transitions per step Apalache must still
+ * evaluate, most "disabled" -- too slow to be worth keeping once this
+ * FSM-only driver (mirroring MC_FSMSafety_Apalache.tla's mocking pattern)
+ * proved equivalent and much faster.
  *
  * EXTENDS EngramFSM_Ablation_NoHysteresis (dropped `safe_blocks =
  * HYSTERESIS_WAIT` from CalculateNextFSMState's RECOVERING -> ANCHORED
- * branch). Expected to violate Sanity_NeverFlapInRecovering.
+ * branch). Expected to violate Sanity_NoIllegalHysteresisExit.
  *
  * NOTE on MC_FSMNext: the real FSMNext (EngramFSM.tla) guards its
  * transition branch with `state' /= state`, so it can never fire while

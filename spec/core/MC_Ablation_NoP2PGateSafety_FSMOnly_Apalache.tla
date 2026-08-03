@@ -2,9 +2,10 @@
 (*
  * Apalache ablation driver: "Remove P2P Health Gate", FSM-layer-only scope.
  * Mirrors MC_Ablation_NoHysteresisSafety_FSMOnly_Apalache.tla's pattern:
- * the property under test depends only on FSM-layer variables, so this
- * skips the full Server/Tendermint stack (MC_Ablation_NoP2PGateSafety_
- * Apalache.tla, which routes through it and is much slower).
+ * the property under test depends only on FSM-layer variables. An
+ * earlier attempt routed the same check through the full Server/
+ * Tendermint stack, which was much slower and was dropped once this
+ * FSM-only driver proved equivalent and faster.
  *
  * EXTENDS EngramFSM_Ablation_NoP2PGate (dropped the IsP2PQualityHealthy
  * conjunct from IsHealthyCondition).

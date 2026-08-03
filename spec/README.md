@@ -49,7 +49,6 @@
   - [References](#references)
   - [Future Work](#future-work)
   - [How to Run the Verification](#how-to-run-the-verification)
-    - [Apalache — Complementary Bounded Safety Checking](#apalache--complementary-bounded-safety-checking)
 
 ## Abstract
 
@@ -291,24 +290,24 @@ The boolean `is_das_failed` is set to TRUE if any sampling check fails within th
 
 ### 4.3 P2P Health Sensor (Tri-Interface Profiler)
 
-Unlike the Bitcoin and DA sensors, which measure a single numeric gap, the P2P sensor must defend against Eclipse Attacks that operate simultaneously across multiple TCP/IP layers: routing table poisoning at the application layer, TCP slot exhaustion at the transport layer, and BGP hijacking at the network layer. A single peer count cannot distinguish honest long-lived peers from freshly injected Sybil nodes.
+The Bitcoin and DA sensors each reduce to one numeric gap. P2P health can't: a raw peer count can't tell an honest long-lived peer from a freshly injected Sybil, and Eclipse attacks — surveyed in Rehman et al. (2025) [[8]](#references) — combine node-discovery poisoning, peer-eviction gaming, and network-level routing control to stay hidden from any single metric.
 
-To model this without state space explosion, the specification abstracts the full attack surface into a composite predicate `IsP2PQualityHealthy` governed by six constants across two barrier groups, applied uniformly to all three protected interfaces of an Engram validator: the **Engram P2P layer**, the **Bitcoin SPV Client**, and the **Celestia Light Client**.
+`IsP2PQualityHealthy` covers this with six constants in two groups, applied uniformly to all three protected interfaces (Engram P2P, Bitcoin SPV client, Celestia light client):
 
 ```tlaplus
 IsP2PQualityHealthy ==
-    \* Group 1 — Structural Constraints (defeat topology-based attacks)
+    \* Group 1 — Structural (topology-based attacks)
     /\ SubnetDiversity            >= MIN_SUBNET_DIVERSITY  \* no ASN-level monopoly
     /\ Cardinality(ActiveAnchors) >= MIN_ANCHOR_PEERS      \* anchor nodes reachable
     /\ Cardinality(CleanPeers)    >= MIN_PEERS             \* sufficient honest peers
-    
-    \* Group 2 — Behavioral & Temporal Constraints (defeat identity-rotation and relay attacks)
+
+    \* Group 2 — Behavioral & Temporal (identity-rotation and relay attacks)
     /\ peer_churn_rate            <= MAX_CHURN_RATE        \* no Dynamic Replacement attack
     /\ avg_peer_tenure            >= MIN_AVG_TENURE        \* no fresh Sybil injection
     /\ peer_latency               <= MAX_PEER_LATENCY      \* no relay node interception
 ```
 
-The adversarial action `P2PAdversaryAttack` in `EngramFSM.tla` models the "weakest link" strategy: targeting any one of the three interfaces simultaneously triggers alarms across all six metrics, reflecting the cross-interface propagation of Eclipse symptoms.
+`P2PAdversaryAttack` (`EngramFSM.tla`) models a weakest-link adversary: compromising any one of the three interfaces trips all six metrics at once.
 
 | Constant | Group | Attack Defeated |
 |---|---|---|
@@ -318,6 +317,8 @@ The adversarial action `P2PAdversaryAttack` in `EngramFSM.tla` models the "weake
 | `MAX_CHURN_RATE` | Behavioral | Dynamic Replacement, IP rotation |
 | `MIN_AVG_TENURE` | Behavioral | Fresh Sybil injection detection |
 | `MAX_PEER_LATENCY` | Temporal | Relay node interception, BGP detour |
+
+**Scope limit:** these six constants are static aggregate statistics — none of them authenticate a peer's identity. Rehman et al. note that a patient, well-resourced adversary can game exactly this kind of metric (e.g. keeping Sybil peers artificially "long-lived" by exploiting the eviction policy, per their §III.1), which would satisfy all six thresholds while still controlling the peer set. Defeating that requires cryptographic peer authentication (their §V.B.1), which is out of scope for this FSM-level abstraction.
 
 
 ## 5. State Transition 
@@ -1010,7 +1011,7 @@ sequenceDiagram
 7. Tas, E., et al. (2022). *Babylon: Reusing Bitcoin Mining Power for Proof-of-Stake Security*. arXiv.  
    https://arxiv.org/abs/2207.08392
 
-8. Rehman, Z., Gregory, M. A., Gondal, I., Dong, H., & Ge, M. (2024). *Eclipse Attacks in Blockchain Networks: Detection, Prevention, and Future Directions*. **IEEE Access**, 12, 125523–125553.  
+8. Rehman, Z., Gregory, M. A., Gondal, I., Dong, H., & Ge, M. (2025). *Eclipse Attacks in Blockchain Networks: Detection, Prevention, and Future Directions*. **IEEE Access**, 13, 25918–25933. DOI: 10.1109/ACCESS.2025.3538837.  
    https://researchmgt.monash.edu/ws/portalfiles/portal/710203865/710203451-oa.pdf
 
 ## Future Work
@@ -1035,7 +1036,9 @@ The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending t
 
 - Java JDK 11+, `tla2tools.jar` from [TLA+ Releases](https://github.com/tlaplus/tlaplus/releases).
 
-### Safety
+### TLC - TLA+ Model Checker
+
+#### Safety
 
 ```bash
 cd spec
@@ -1043,7 +1046,7 @@ java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
   -config core/MC_ServerRefinementSafety.cfg core/MC_ServerRefinementSafety.tla
 ```
 
-### Liveness
+#### Liveness
 
 ```bash
 cd spec
