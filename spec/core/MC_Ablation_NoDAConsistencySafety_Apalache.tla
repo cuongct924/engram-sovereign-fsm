@@ -29,7 +29,7 @@ CONSTANTS
     n4
 
 \* @type: Int -> Str;
-MC_Proposer == [r \in 0..2 |-> IF r % 2 = 0 THEN n1 ELSE n2]
+MC_Proposer == [r \in 0..2 |-> IF r % 2 = 0 THEN n2 ELSE n1]
 
 MC_ServerInit == ServerInit
 MC_ServerNext == ServerNext

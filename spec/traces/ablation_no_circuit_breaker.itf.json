@@ -1,0 +1,5164 @@
+{
+  "#meta": {
+    "format": "ITF",
+    "format-description": "https://apalache-mc.org/docs/adr/015adr-trace.html",
+    "description": "Created by Apalache on Mon Aug 03 14:28:39 ICT 2026",
+    "varTypes": {
+      "action": "Str",
+      "proposal_received_time": "(Int -> Int)",
+      "msgs_prevote": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "proposal_time": "(Int -> Int)",
+      "h_btc_anchored": "Int",
+      "peer_churn_rate": "Int",
+      "inspected_proposal": "(<<Int, Str>> -> Int)",
+      "h_btc_current": "Int",
+      "real_time": "Int",
+      "msgs_precommit": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "valid_round": "(Str -> Int)",
+      "anchor_peers": "Set(Str)",
+      "quorum_certs": "Set({ btc_anchored: Int, caller: Str, method: Str, round: Int, type: Str })",
+      "avg_peer_tenure": "Int",
+      "step": "(Str -> Str)",
+      "locked_value": "(Str -> Str)",
+      "reanchoring_proof_valid": "Bool",
+      "is_attestation_failed": "Bool",
+      "round": "(Str -> Int)",
+      "msgs_timeout": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "local_clock": "(Str -> Int)",
+      "safe_blocks": "Int",
+      "tx_ignored_rounds": "(Str -> (Str -> Int))",
+      "blacklisted_peers": "Set(Str)",
+      "is_das_failed": "Bool",
+      "h_engram_current": "Int",
+      "timeout_certs": "Set({ btc_anchored: Int, caller: Str, round: Int, type: Str })",
+      "evidence": "Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int })",
+      "suspicious_duration": "Int",
+      "begin_round": "(Int -> Int)",
+      "local_rem_time": "(Str -> Int)",
+      "decision": "(Str -> { prop: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int })",
+      "msgs_propose": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "valid_value": "(Str -> { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool })",
+      "end_consensus": "(Str -> Int)",
+      "locked_round": "(Str -> Int)",
+      "h_btc_submitted": "Int",
+      "active_peers": "Set(Str)",
+      "last_begin_round": "(Int -> Int)",
+      "state": "Str",
+      "is_btc_spv_failed": "Bool",
+      "peer_latency": "Int",
+      "received_timely_proposal": "(Str -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "h_engram_verified": "Int",
+      "forced_tx_queue": "Set(Str)"
+    }
+  },
+  "params": [
+    "MAX_ENGRAM_HEIGHT",
+    "TIMEOUT_DURATION",
+    "Method",
+    "N",
+    "T",
+    "HonestNodes",
+    "MIN_TIMESTAMP",
+    "Nodes",
+    "MIN_PEERS",
+    "MIN_SUBNET_DIVERSITY",
+    "MAX_SUSPICIOUS_TIME",
+    "Proposer",
+    "MAX_TIMESTAMP",
+    "DA_THRESHOLD",
+    "n1",
+    "n2",
+    "n3",
+    "n4",
+    "SOVEREIGN_THRESHOLD",
+    "DELAY",
+    "MIN_AVG_TENURE",
+    "PRECISION",
+    "MAX_CHURN_RATE",
+    "MAX_ROUND",
+    "MIN_ANCHOR_PEERS",
+    "MAX_IGNORE_ROUNDS",
+    "HYSTERESIS_WAIT",
+    "MAX_PEER_LATENCY",
+    "MAX_BTC_HEIGHT",
+    "ByzantineNodes",
+    "SUSPICIOUS_THRESHOLD",
+    "RESET_TIME"
+  ],
+  "vars": [
+    "action",
+    "proposal_received_time",
+    "msgs_prevote",
+    "proposal_time",
+    "h_btc_anchored",
+    "peer_churn_rate",
+    "inspected_proposal",
+    "h_btc_current",
+    "real_time",
+    "msgs_precommit",
+    "valid_round",
+    "anchor_peers",
+    "quorum_certs",
+    "avg_peer_tenure",
+    "step",
+    "locked_value",
+    "reanchoring_proof_valid",
+    "is_attestation_failed",
+    "round",
+    "msgs_timeout",
+    "local_clock",
+    "safe_blocks",
+    "tx_ignored_rounds",
+    "blacklisted_peers",
+    "is_das_failed",
+    "h_engram_current",
+    "timeout_certs",
+    "evidence",
+    "suspicious_duration",
+    "begin_round",
+    "local_rem_time",
+    "decision",
+    "msgs_propose",
+    "valid_value",
+    "end_consensus",
+    "locked_round",
+    "h_btc_submitted",
+    "active_peers",
+    "last_begin_round",
+    "state",
+    "is_btc_spv_failed",
+    "peer_latency",
+    "received_timely_proposal",
+    "h_engram_verified",
+    "forced_tx_queue"
+  ],
+  "states": [
+    {
+      "#meta": {
+        "index": 0
+      },
+      "ByzantineNodes": {
+        "#set": [
+          "n1"
+        ]
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "DELAY": {
+        "#bigint": "1"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "1"
+      },
+      "HonestNodes": {
+        "#set": [
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "MAX_BTC_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "1"
+      },
+      "MAX_ENGRAM_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_IGNORE_ROUNDS": {
+        "#bigint": "1"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "1"
+      },
+      "MAX_ROUND": {
+        "#bigint": "2"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "1"
+      },
+      "MAX_TIMESTAMP": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "1"
+      },
+      "MIN_PEERS": {
+        "#bigint": "2"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "MIN_TIMESTAMP": {
+        "#bigint": "0"
+      },
+      "Method": {
+        "#set": [
+          "TX_NORMAL",
+          "TX_WITHDRAWAL"
+        ]
+      },
+      "N": {
+        "#bigint": "4"
+      },
+      "Nodes": {
+        "#set": [
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "PRECISION": {
+        "#bigint": "1"
+      },
+      "Proposer": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            "n2"
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            "n1"
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            "n2"
+          ]
+        ]
+      },
+      "RESET_TIME": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "T": {
+        "#bigint": "1"
+      },
+      "TIMEOUT_DURATION": {
+        "#bigint": "2"
+      },
+      "action": "Init",
+      "active_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "1"
+      },
+      "begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": [
+          [
+            "n2",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n3",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n4",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ]
+        ]
+      },
+      "end_consensus": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": [
+          "TX_NORMAL"
+        ]
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "0"
+      },
+      "h_btc_submitted": {
+        "#bigint": "0"
+      },
+      "h_engram_current": {
+        "#bigint": "0"
+      },
+      "h_engram_verified": {
+        "#bigint": "0"
+      },
+      "inspected_proposal": {
+        "#map": [
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": false,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "local_clock": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "1"
+            }
+          ]
+        ]
+      },
+      "local_rem_time": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "locked_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "locked_value": {
+        "#map": [
+          [
+            "n2",
+            "NIL_TX"
+          ],
+          [
+            "n3",
+            "NIL_TX"
+          ],
+          [
+            "n4",
+            "NIL_TX"
+          ]
+        ]
+      },
+      "msgs_precommit": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_prevote": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_propose": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": []
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": []
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "msgs_timeout": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "n1": "n1",
+      "n2": "n2",
+      "n3": "n3",
+      "n4": "n4",
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "proposal_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n3",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n4",
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "0"
+            }
+          ]
+        ]
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "ANCHORED",
+      "step": {
+        "#map": [
+          [
+            "n2",
+            "PROPOSE"
+          ],
+          [
+            "n3",
+            "PROPOSE"
+          ],
+          [
+            "n4",
+            "PROPOSE"
+          ]
+        ]
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n3",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n4",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      },
+      "valid_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "valid_value": {
+        "#map": [
+          [
+            "n2",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n3",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n4",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "#meta": {
+        "index": 1
+      },
+      "ByzantineNodes": {
+        "#set": [
+          "n1"
+        ]
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "DELAY": {
+        "#bigint": "1"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "1"
+      },
+      "HonestNodes": {
+        "#set": [
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "MAX_BTC_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "1"
+      },
+      "MAX_ENGRAM_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_IGNORE_ROUNDS": {
+        "#bigint": "1"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "1"
+      },
+      "MAX_ROUND": {
+        "#bigint": "2"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "1"
+      },
+      "MAX_TIMESTAMP": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "1"
+      },
+      "MIN_PEERS": {
+        "#bigint": "2"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "MIN_TIMESTAMP": {
+        "#bigint": "0"
+      },
+      "Method": {
+        "#set": [
+          "TX_NORMAL",
+          "TX_WITHDRAWAL"
+        ]
+      },
+      "N": {
+        "#bigint": "4"
+      },
+      "Nodes": {
+        "#set": [
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "PRECISION": {
+        "#bigint": "1"
+      },
+      "Proposer": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            "n2"
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            "n1"
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            "n2"
+          ]
+        ]
+      },
+      "RESET_TIME": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "T": {
+        "#bigint": "1"
+      },
+      "TIMEOUT_DURATION": {
+        "#bigint": "2"
+      },
+      "action": "UpdateEnvironment",
+      "active_peers": {
+        "#set": [
+          "sybil_n1",
+          "sybil_n2",
+          "sybil_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "1"
+      },
+      "begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": [
+          [
+            "n2",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n3",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n4",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ]
+        ]
+      },
+      "end_consensus": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": [
+          "TX_NORMAL"
+        ]
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "0"
+      },
+      "h_btc_submitted": {
+        "#bigint": "0"
+      },
+      "h_engram_current": {
+        "#bigint": "1"
+      },
+      "h_engram_verified": {
+        "#bigint": "1"
+      },
+      "inspected_proposal": {
+        "#map": [
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": true,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "local_clock": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "1"
+            }
+          ]
+        ]
+      },
+      "local_rem_time": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "locked_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "locked_value": {
+        "#map": [
+          [
+            "n2",
+            "NIL_TX"
+          ],
+          [
+            "n3",
+            "NIL_TX"
+          ],
+          [
+            "n4",
+            "NIL_TX"
+          ]
+        ]
+      },
+      "msgs_precommit": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_prevote": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_propose": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": []
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": []
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "msgs_timeout": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "n1": "n1",
+      "n2": "n2",
+      "n3": "n3",
+      "n4": "n4",
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "proposal_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n3",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n4",
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "0"
+            }
+          ]
+        ]
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "ANCHORED",
+      "step": {
+        "#map": [
+          [
+            "n2",
+            "PROPOSE"
+          ],
+          [
+            "n3",
+            "PROPOSE"
+          ],
+          [
+            "n4",
+            "PROPOSE"
+          ]
+        ]
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n3",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n4",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      },
+      "valid_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "valid_value": {
+        "#map": [
+          [
+            "n2",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n3",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n4",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "#meta": {
+        "index": 2
+      },
+      "ByzantineNodes": {
+        "#set": [
+          "n1"
+        ]
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "DELAY": {
+        "#bigint": "1"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "1"
+      },
+      "HonestNodes": {
+        "#set": [
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "MAX_BTC_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "1"
+      },
+      "MAX_ENGRAM_HEIGHT": {
+        "#bigint": "1"
+      },
+      "MAX_IGNORE_ROUNDS": {
+        "#bigint": "1"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "1"
+      },
+      "MAX_ROUND": {
+        "#bigint": "2"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "1"
+      },
+      "MAX_TIMESTAMP": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "1"
+      },
+      "MIN_PEERS": {
+        "#bigint": "2"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "MIN_TIMESTAMP": {
+        "#bigint": "0"
+      },
+      "Method": {
+        "#set": [
+          "TX_NORMAL",
+          "TX_WITHDRAWAL"
+        ]
+      },
+      "N": {
+        "#bigint": "4"
+      },
+      "Nodes": {
+        "#set": [
+          "n1",
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "PRECISION": {
+        "#bigint": "1"
+      },
+      "Proposer": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            "n2"
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            "n1"
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            "n2"
+          ]
+        ]
+      },
+      "RESET_TIME": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "1"
+      },
+      "T": {
+        "#bigint": "1"
+      },
+      "TIMEOUT_DURATION": {
+        "#bigint": "2"
+      },
+      "action": "InsertProposal",
+      "active_peers": {
+        "#set": [
+          "sybil_n1",
+          "sybil_n2",
+          "sybil_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "1"
+      },
+      "begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": [
+          [
+            "n2",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n3",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ],
+          [
+            "n4",
+            {
+              "prop": {
+                "btc_receipt": {
+                  "checkpoint_block_hash": {
+                    "#tup": [
+                      "NIL",
+                      {
+                        "#bigint": "-1"
+                      }
+                    ]
+                  },
+                  "checkpoint_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "da_receipt": {
+                  "attestation": false,
+                  "published_block_height": {
+                    "#bigint": "-1"
+                  }
+                },
+                "fsm_state": "NONE",
+                "round": {
+                  "#bigint": "-1"
+                },
+                "timestamp": {
+                  "#bigint": "-1"
+                },
+                "value": "NIL_TX",
+                "zk_proof_ref": false
+              },
+              "round": {
+                "#bigint": "-1"
+              }
+            }
+          ]
+        ]
+      },
+      "end_consensus": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": [
+          "TX_NORMAL"
+        ]
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "0"
+      },
+      "h_btc_submitted": {
+        "#bigint": "0"
+      },
+      "h_engram_current": {
+        "#bigint": "1"
+      },
+      "h_engram_verified": {
+        "#bigint": "1"
+      },
+      "inspected_proposal": {
+        "#map": [
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "0"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "1"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n2"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n3"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#tup": [
+                {
+                  "#bigint": "2"
+                },
+                "n4"
+              ]
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": true,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "local_clock": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "1"
+            }
+          ]
+        ]
+      },
+      "local_rem_time": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "2"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "2"
+            }
+          ]
+        ]
+      },
+      "locked_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "locked_value": {
+        "#map": [
+          [
+            "n2",
+            "NIL_TX"
+          ],
+          [
+            "n3",
+            "NIL_TX"
+          ],
+          [
+            "n4",
+            "NIL_TX"
+          ]
+        ]
+      },
+      "msgs_precommit": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PRECOMMIT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_prevote": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "PREVOTE",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "msgs_propose": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "BTC_BLOCK",
+                          {
+                            "#bigint": "0"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "0"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": true,
+                      "published_block_height": {
+                        "#bigint": "1"
+                      }
+                    },
+                    "fsm_state": "SOVEREIGN",
+                    "round": {
+                      "#bigint": "0"
+                    },
+                    "timestamp": {
+                      "#bigint": "1"
+                    },
+                    "value": "TX_WITHDRAWAL",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n2",
+                  "type": "PROPOSAL",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": []
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "msgs_timeout": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "0"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "1"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#set": [
+                {
+                  "id": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "proposal": {
+                    "btc_receipt": {
+                      "checkpoint_block_hash": {
+                        "#tup": [
+                          "NIL",
+                          {
+                            "#bigint": "-1"
+                          }
+                        ]
+                      },
+                      "checkpoint_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "da_receipt": {
+                      "attestation": false,
+                      "published_block_height": {
+                        "#bigint": "-1"
+                      }
+                    },
+                    "fsm_state": "NONE",
+                    "round": {
+                      "#bigint": "-1"
+                    },
+                    "timestamp": {
+                      "#bigint": "-1"
+                    },
+                    "value": "NIL_TX",
+                    "zk_proof_ref": false
+                  },
+                  "round": {
+                    "#bigint": "2"
+                  },
+                  "src": "n1",
+                  "type": "TIMEOUT",
+                  "valid_round": {
+                    "#bigint": "-1"
+                  }
+                }
+              ]
+            }
+          ]
+        ]
+      },
+      "n1": "n1",
+      "n2": "n2",
+      "n3": "n3",
+      "n4": "n4",
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "proposal_time": {
+        "#map": [
+          [
+            {
+              "#bigint": "0"
+            },
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            {
+              "#bigint": "1"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            {
+              "#bigint": "2"
+            },
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "quorum_certs": {
+        "#set": [
+          {
+            "btc_anchored": {
+              "#bigint": "0"
+            },
+            "caller": "n2",
+            "method": "None",
+            "round": {
+              "#bigint": "0"
+            },
+            "type": "E_QC"
+          }
+        ]
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n3",
+            {
+              "#set": []
+            }
+          ],
+          [
+            "n4",
+            {
+              "#set": []
+            }
+          ]
+        ]
+      },
+      "round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "0"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "0"
+            }
+          ]
+        ]
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "ANCHORED",
+      "step": {
+        "#map": [
+          [
+            "n2",
+            "PROPOSE"
+          ],
+          [
+            "n3",
+            "PROPOSE"
+          ],
+          [
+            "n4",
+            "PROPOSE"
+          ]
+        ]
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n3",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            "n4",
+            {
+              "#map": [
+                [
+                  "TX_NORMAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ],
+                [
+                  "TX_WITHDRAWAL",
+                  {
+                    "#bigint": "0"
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      },
+      "valid_round": {
+        "#map": [
+          [
+            "n2",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n3",
+            {
+              "#bigint": "-1"
+            }
+          ],
+          [
+            "n4",
+            {
+              "#bigint": "-1"
+            }
+          ]
+        ]
+      },
+      "valid_value": {
+        "#map": [
+          [
+            "n2",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n3",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ],
+          [
+            "n4",
+            {
+              "btc_receipt": {
+                "checkpoint_block_hash": {
+                  "#tup": [
+                    "NIL",
+                    {
+                      "#bigint": "-1"
+                    }
+                  ]
+                },
+                "checkpoint_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "da_receipt": {
+                "attestation": false,
+                "published_block_height": {
+                  "#bigint": "-1"
+                }
+              },
+              "fsm_state": "NONE",
+              "round": {
+                "#bigint": "-1"
+              },
+              "timestamp": {
+                "#bigint": "-1"
+              },
+              "value": "NIL_TX",
+              "zk_proof_ref": false
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}
