@@ -1,0 +1,798 @@
+{
+  "#meta": {
+    "format": "ITF",
+    "format-description": "https://apalache-mc.org/docs/adr/015adr-trace.html",
+    "description": "Created by Apalache on Mon Aug 03 15:43:40 ICT 2026",
+    "varTypes": {
+      "peer_churn_rate": "Int",
+      "real_time": "Int",
+      "active_peers": "Set(Str)",
+      "valid_round": "(Str -> Int)",
+      "timeout_certs": "Set({ btc_anchored: Int, caller: Str, round: Int, type: Str })",
+      "is_attestation_failed": "Bool",
+      "locked_round": "(Str -> Int)",
+      "begin_round": "(Int -> Int)",
+      "decision": "(Str -> { prop: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int })",
+      "h_btc_anchored": "Int",
+      "valid_value": "(Str -> { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool })",
+      "blacklisted_peers": "Set(Str)",
+      "locked_value": "(Str -> Str)",
+      "msgs_timeout": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "reanchoring_proof_valid": "Bool",
+      "forced_tx_queue": "Set(Str)",
+      "illegal_p2p_recovery": "Bool",
+      "proposal_received_time": "(Int -> Int)",
+      "state": "Str",
+      "h_engram_current": "Int",
+      "tx_ignored_rounds": "(Str -> (Str -> Int))",
+      "local_rem_time": "(Str -> Int)",
+      "local_clock": "(Str -> Int)",
+      "received_timely_proposal": "(Str -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "safe_blocks": "Int",
+      "quorum_certs": "Set({ btc_anchored: Int, caller: Str, method: Str, round: Int, type: Str })",
+      "action": "Str",
+      "h_btc_submitted": "Int",
+      "anchor_peers": "Set(Str)",
+      "step": "(Str -> Str)",
+      "peer_latency": "Int",
+      "end_consensus": "(Str -> Int)",
+      "avg_peer_tenure": "Int",
+      "proposal_time": "(Int -> Int)",
+      "is_btc_spv_failed": "Bool",
+      "h_engram_verified": "Int",
+      "last_begin_round": "(Int -> Int)",
+      "round": "(Str -> Int)",
+      "evidence": "Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int })",
+      "msgs_prevote": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "is_das_failed": "Bool",
+      "msgs_propose": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "msgs_precommit": "(Int -> Set({ id: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, proposal: { btc_receipt: { checkpoint_block_hash: <<Str, Int>>, checkpoint_block_height: Int }, da_receipt: { attestation: Bool, published_block_height: Int }, fsm_state: Str, round: Int, timestamp: Int, value: Str, zk_proof_ref: Bool }, round: Int, src: Str, type: Str, valid_round: Int }))",
+      "h_btc_current": "Int",
+      "suspicious_duration": "Int",
+      "inspected_proposal": "(<<Int, Str>> -> Int)"
+    }
+  },
+  "params": [
+    "MAX_CHURN_RATE",
+    "SOVEREIGN_THRESHOLD",
+    "MAX_PEER_LATENCY",
+    "MIN_ANCHOR_PEERS",
+    "HYSTERESIS_WAIT",
+    "SUSPICIOUS_THRESHOLD",
+    "MIN_SUBNET_DIVERSITY",
+    "MIN_AVG_TENURE",
+    "MAX_SUSPICIOUS_TIME",
+    "MIN_PEERS",
+    "DA_THRESHOLD"
+  ],
+  "vars": [
+    "peer_churn_rate",
+    "real_time",
+    "active_peers",
+    "valid_round",
+    "timeout_certs",
+    "is_attestation_failed",
+    "locked_round",
+    "begin_round",
+    "decision",
+    "h_btc_anchored",
+    "valid_value",
+    "blacklisted_peers",
+    "locked_value",
+    "msgs_timeout",
+    "reanchoring_proof_valid",
+    "forced_tx_queue",
+    "illegal_p2p_recovery",
+    "proposal_received_time",
+    "state",
+    "h_engram_current",
+    "tx_ignored_rounds",
+    "local_rem_time",
+    "local_clock",
+    "received_timely_proposal",
+    "safe_blocks",
+    "quorum_certs",
+    "action",
+    "h_btc_submitted",
+    "anchor_peers",
+    "step",
+    "peer_latency",
+    "end_consensus",
+    "avg_peer_tenure",
+    "proposal_time",
+    "is_btc_spv_failed",
+    "h_engram_verified",
+    "last_begin_round",
+    "round",
+    "evidence",
+    "msgs_prevote",
+    "is_das_failed",
+    "msgs_propose",
+    "msgs_precommit",
+    "h_btc_current",
+    "suspicious_duration",
+    "inspected_proposal"
+  ],
+  "states": [
+    {
+      "#meta": {
+        "index": 0
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "2"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "10"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "50"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "100"
+      },
+      "MIN_PEERS": {
+        "#bigint": "3"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "4"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "action": "mock",
+      "active_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "100"
+      },
+      "begin_round": {
+        "#map": []
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": []
+      },
+      "end_consensus": {
+        "#map": []
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": []
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "0"
+      },
+      "h_btc_submitted": {
+        "#bigint": "0"
+      },
+      "h_engram_current": {
+        "#bigint": "0"
+      },
+      "h_engram_verified": {
+        "#bigint": "0"
+      },
+      "illegal_p2p_recovery": false,
+      "inspected_proposal": {
+        "#map": []
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": false,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": []
+      },
+      "local_clock": {
+        "#map": []
+      },
+      "local_rem_time": {
+        "#map": []
+      },
+      "locked_round": {
+        "#map": []
+      },
+      "locked_value": {
+        "#map": []
+      },
+      "msgs_precommit": {
+        "#map": []
+      },
+      "msgs_prevote": {
+        "#map": []
+      },
+      "msgs_propose": {
+        "#map": []
+      },
+      "msgs_timeout": {
+        "#map": []
+      },
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": []
+      },
+      "proposal_time": {
+        "#map": []
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": []
+      },
+      "round": {
+        "#map": []
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "ANCHORED",
+      "step": {
+        "#map": []
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": []
+      },
+      "valid_round": {
+        "#map": []
+      },
+      "valid_value": {
+        "#map": []
+      }
+    },
+    {
+      "#meta": {
+        "index": 1
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "2"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "10"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "50"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "100"
+      },
+      "MIN_PEERS": {
+        "#bigint": "3"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "4"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "action": "mock",
+      "active_peers": {
+        "#set": [
+          "sybil_n1",
+          "sybil_n2",
+          "sybil_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "100"
+      },
+      "begin_round": {
+        "#map": []
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": []
+      },
+      "end_consensus": {
+        "#map": []
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": []
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "1"
+      },
+      "h_btc_submitted": {
+        "#bigint": "1"
+      },
+      "h_engram_current": {
+        "#bigint": "1"
+      },
+      "h_engram_verified": {
+        "#bigint": "1"
+      },
+      "illegal_p2p_recovery": false,
+      "inspected_proposal": {
+        "#map": []
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": true,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": []
+      },
+      "local_clock": {
+        "#map": []
+      },
+      "local_rem_time": {
+        "#map": []
+      },
+      "locked_round": {
+        "#map": []
+      },
+      "locked_value": {
+        "#map": []
+      },
+      "msgs_precommit": {
+        "#map": []
+      },
+      "msgs_prevote": {
+        "#map": []
+      },
+      "msgs_propose": {
+        "#map": []
+      },
+      "msgs_timeout": {
+        "#map": []
+      },
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": []
+      },
+      "proposal_time": {
+        "#map": []
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": []
+      },
+      "round": {
+        "#map": []
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "ANCHORED",
+      "step": {
+        "#map": []
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": []
+      },
+      "valid_round": {
+        "#map": []
+      },
+      "valid_value": {
+        "#map": []
+      }
+    },
+    {
+      "#meta": {
+        "index": 2
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "2"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "10"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "50"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "100"
+      },
+      "MIN_PEERS": {
+        "#bigint": "3"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "4"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "action": "mock",
+      "active_peers": {
+        "#set": [
+          "sybil_n1",
+          "sybil_n2",
+          "sybil_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "100"
+      },
+      "begin_round": {
+        "#map": []
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": []
+      },
+      "end_consensus": {
+        "#map": []
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": []
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "1"
+      },
+      "h_btc_submitted": {
+        "#bigint": "1"
+      },
+      "h_engram_current": {
+        "#bigint": "1"
+      },
+      "h_engram_verified": {
+        "#bigint": "1"
+      },
+      "illegal_p2p_recovery": false,
+      "inspected_proposal": {
+        "#map": []
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": true,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": []
+      },
+      "local_clock": {
+        "#map": []
+      },
+      "local_rem_time": {
+        "#map": []
+      },
+      "locked_round": {
+        "#map": []
+      },
+      "locked_value": {
+        "#map": []
+      },
+      "msgs_precommit": {
+        "#map": []
+      },
+      "msgs_prevote": {
+        "#map": []
+      },
+      "msgs_propose": {
+        "#map": []
+      },
+      "msgs_timeout": {
+        "#map": []
+      },
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": []
+      },
+      "proposal_time": {
+        "#map": []
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": []
+      },
+      "round": {
+        "#map": []
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "SOVEREIGN",
+      "step": {
+        "#map": []
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": []
+      },
+      "valid_round": {
+        "#map": []
+      },
+      "valid_value": {
+        "#map": []
+      }
+    },
+    {
+      "#meta": {
+        "index": 3
+      },
+      "DA_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "HYSTERESIS_WAIT": {
+        "#bigint": "2"
+      },
+      "MAX_CHURN_RATE": {
+        "#bigint": "10"
+      },
+      "MAX_PEER_LATENCY": {
+        "#bigint": "50"
+      },
+      "MAX_SUSPICIOUS_TIME": {
+        "#bigint": "2"
+      },
+      "MIN_ANCHOR_PEERS": {
+        "#bigint": "1"
+      },
+      "MIN_AVG_TENURE": {
+        "#bigint": "100"
+      },
+      "MIN_PEERS": {
+        "#bigint": "3"
+      },
+      "MIN_SUBNET_DIVERSITY": {
+        "#bigint": "2"
+      },
+      "SOVEREIGN_THRESHOLD": {
+        "#bigint": "4"
+      },
+      "SUSPICIOUS_THRESHOLD": {
+        "#bigint": "2"
+      },
+      "action": "mock",
+      "active_peers": {
+        "#set": [
+          "sybil_n1",
+          "sybil_n2",
+          "sybil_n3"
+        ]
+      },
+      "anchor_peers": {
+        "#set": [
+          "anchor_n1",
+          "anchor_n2",
+          "anchor_n3"
+        ]
+      },
+      "avg_peer_tenure": {
+        "#bigint": "100"
+      },
+      "begin_round": {
+        "#map": []
+      },
+      "blacklisted_peers": {
+        "#set": []
+      },
+      "decision": {
+        "#map": []
+      },
+      "end_consensus": {
+        "#map": []
+      },
+      "evidence": {
+        "#set": []
+      },
+      "forced_tx_queue": {
+        "#set": []
+      },
+      "h_btc_anchored": {
+        "#bigint": "0"
+      },
+      "h_btc_current": {
+        "#bigint": "1"
+      },
+      "h_btc_submitted": {
+        "#bigint": "1"
+      },
+      "h_engram_current": {
+        "#bigint": "1"
+      },
+      "h_engram_verified": {
+        "#bigint": "1"
+      },
+      "illegal_p2p_recovery": true,
+      "inspected_proposal": {
+        "#map": []
+      },
+      "is_attestation_failed": false,
+      "is_btc_spv_failed": true,
+      "is_das_failed": false,
+      "last_begin_round": {
+        "#map": []
+      },
+      "local_clock": {
+        "#map": []
+      },
+      "local_rem_time": {
+        "#map": []
+      },
+      "locked_round": {
+        "#map": []
+      },
+      "locked_value": {
+        "#map": []
+      },
+      "msgs_precommit": {
+        "#map": []
+      },
+      "msgs_prevote": {
+        "#map": []
+      },
+      "msgs_propose": {
+        "#map": []
+      },
+      "msgs_timeout": {
+        "#map": []
+      },
+      "peer_churn_rate": {
+        "#bigint": "0"
+      },
+      "peer_latency": {
+        "#bigint": "0"
+      },
+      "proposal_received_time": {
+        "#map": []
+      },
+      "proposal_time": {
+        "#map": []
+      },
+      "quorum_certs": {
+        "#set": []
+      },
+      "real_time": {
+        "#bigint": "0"
+      },
+      "reanchoring_proof_valid": false,
+      "received_timely_proposal": {
+        "#map": []
+      },
+      "round": {
+        "#map": []
+      },
+      "safe_blocks": {
+        "#bigint": "0"
+      },
+      "state": "RECOVERING",
+      "step": {
+        "#map": []
+      },
+      "suspicious_duration": {
+        "#bigint": "0"
+      },
+      "timeout_certs": {
+        "#set": []
+      },
+      "tx_ignored_rounds": {
+        "#map": []
+      },
+      "valid_round": {
+        "#map": []
+      },
+      "valid_value": {
+        "#map": []
+      }
+    }
+  ]
+}

@@ -77,3 +77,4 @@ docs/spec/core/EngramTypes.tla
 build/
 
 .claude/worktrees
+spec/.claude
