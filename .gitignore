@@ -28,6 +28,8 @@ go.work.sum
 # env file
 venv/
 .env
+__pycache__/
+*.pyc
 **.DS_Store
 
 # Editor/IDE
@@ -61,6 +63,9 @@ Verifier.toml
 
 # Local bind mound service data
 data/
+
+# Generated multi-node testnet genesis/config/keys (engramd testnet init-files)
+testnet-data/
 
 
 # File backup

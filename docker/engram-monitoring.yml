@@ -1,4 +1,4 @@
-name: stratium-monitoring
+name: engram-monitoring
 
 services:
   # Prometheus - Time-series database for metrics
@@ -8,7 +8,7 @@ services:
     container_name: prometheus
     networks:
       engram-net:
-        ipv4_address: 172.20.0.20
+        ipv4_address: 172.28.0.20
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -44,7 +44,7 @@ services:
     container_name: grafana
     networks:
       engram-net:
-        ipv4_address: 172.20.0.21
+        ipv4_address: 172.28.0.21
     ports:
       - "3000:3000"
     volumes:
@@ -77,15 +77,12 @@ services:
       prometheus:
         condition: service_healthy
 
-networks:
-  engram-net:
-    name: engram-net
-    external: true
-
-volumes:
-  prometheus-data:
-    name: prometheus-data
-    external: true
-  grafana-data:
-    name: grafana-data
-    external: true
+# engram-net / prometheus-data / grafana-data are declared once in the root
+# compose.yml, which owns them. Services above reference engram-net by name
+# directly; redeclaring it here at all (even as `external: true`) makes
+# `docker compose config` fail with "conflicts with imported resource" once
+# this file is actually resolved via compose.yml's `include:` (see M6) --
+# `docker compose -f compose-test-minimal.yml config` was used to confirm
+# this empirically before settling on "don't redeclare it here at all" as
+# the fix, rather than the `external: true` pattern used elsewhere in this
+# repo before M6.

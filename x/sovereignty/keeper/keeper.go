@@ -38,6 +38,14 @@ type Keeper struct {
 	HEngramCurrent  collections.Item[uint64]
 	HEngramVerified collections.Item[uint64]
 
+	// Censorship-resistance state, mirroring spec/core/EngramTendermint.tla's
+	// forced_tx_queue / tx_ignored_rounds[self][tx] (M0d). Keys are raw tx
+	// byte content, matching x/sovereignty/proposal.go's containsWithdrawal
+	// raw-byte-marker convention. See x/sovereignty/types/censorship.go for
+	// the pure IsCensoring/NextIgnoredRounds functions that consume these.
+	ForcedTxQueue   collections.KeySet[string]
+	TxIgnoredRounds collections.Map[string, uint64]
+
 	// SMT Tree
 	Tree *merkletree.MerkleTree
 }
@@ -59,6 +67,8 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merk
 		HBtcSubmitted:         collections.NewItem(sb, collections.NewPrefix(8), "h_btc_submitted", collections.Uint64Value),
 		HEngramCurrent:        collections.NewItem(sb, collections.NewPrefix(9), "h_engram_current", collections.Uint64Value),
 		HEngramVerified:       collections.NewItem(sb, collections.NewPrefix(10), "h_engram_verified", collections.Uint64Value),
+		ForcedTxQueue:         collections.NewKeySet(sb, collections.NewPrefix(11), "forced_tx_queue", collections.StringKey),
+		TxIgnoredRounds:       collections.NewMap(sb, collections.NewPrefix(12), "tx_ignored_rounds", collections.StringKey, collections.Uint64Value),
 	}
 
 	// Khởi tạo SMT với storage adapter được inject vào

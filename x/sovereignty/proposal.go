@@ -164,6 +164,32 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 			return reject, nil
 		}
 
+		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315), evaluated
+		// before IsValidProposal per UponProposalInPropose's IF/ELSE branch order
+		// (EngramTendermint.tla:579-590): a proposal that still omits a forced tx
+		// past its ignore-round threshold is rejected regardless of everything else.
+		//
+		// Gap vs. spec: the spec's censoring branch also forces an immediate round
+		// advance (StartRound(p, r+1)) alongside the reject. Vanilla ABCI 2.0 gives
+		// ProcessProposal no lever to shorten CometBFT's round timer -- REJECT here
+		// only causes a nil prevote, so the round still advances on the existing
+		// local timeout rather than immediately. Closing this gap needs the M0b
+		// fork-level round-skip work (see CLAUDE.md's "Not yet done" section).
+		forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
+		if err != nil {
+			return reject, nil
+		}
+		if len(forcedTxQueue) > 0 {
+			ignoredRounds := k.IgnoredRoundsMap(ctx, forcedTxQueue)
+			included := make(map[string]bool, len(req.Txs)-1)
+			for _, tx := range req.Txs[1:] {
+				included[string(tx)] = true
+			}
+			if types.IsCensoring(forcedTxQueue, ignoredRounds, included, k.Params.MaxIgnoreRounds) {
+				return reject, nil
+			}
+		}
+
 		currState, in := currentFSMInput(ctx, k)
 
 		// 1. fsm_state cross-check (IsValidProposal:288 -- prop.fsm_state = CalculateNextFSMState).

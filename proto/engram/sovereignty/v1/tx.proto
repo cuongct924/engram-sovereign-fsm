@@ -17,6 +17,12 @@ service Msg {
 
   // Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
   rpc InjectFault(MsgInjectFaultRequest) returns (MsgInjectFaultResponse);
+
+  // Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
+  // (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
+  // này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
+  // sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+  rpc SubmitForcedTx(MsgSubmitForcedTxRequest) returns (MsgSubmitForcedTxResponse);
 }
 
 message MsgSubmitRecoveryProofRequest {
@@ -35,3 +41,11 @@ message MsgInjectFaultRequest {
 }
 
 message MsgInjectFaultResponse {}
+
+message MsgSubmitForcedTxRequest {
+  option (cosmos.msg.v1.signer) = "sender";
+  string sender = 1; // Tài khoản gửi yêu cầu buộc bao gồm tx
+  bytes  tx     = 2; // Nội dung thô của tx cần được buộc đưa vào block
+}
+
+message MsgSubmitForcedTxResponse {}

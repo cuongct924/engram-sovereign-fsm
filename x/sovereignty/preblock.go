@@ -18,6 +18,9 @@ import (
 // only builds the handler.
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
+		if err := updateForcedTxTracking(ctx, k, req.Txs); err != nil {
+			return nil, err
+		}
 		if len(req.Txs) == 0 {
 			return &sdk.ResponsePreBlock{}, nil
 		}
@@ -30,6 +33,29 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 		}
 		return &sdk.ResponsePreBlock{}, nil
 	}
+}
+
+// updateForcedTxTracking ports UpdateIgnoredRounds (spec/core/EngramTendermint.tla:493-503),
+// run once per finalized block -- the natural real-chain analogue of "once
+// per round transition" the spec uses, since vanilla ABCI 2.0 doesn't expose
+// round number to app hooks (see NewProcessProposalHandler's censorship-check
+// comment for the same gap). No-ops when forced_tx_queue is empty.
+func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) error {
+	forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
+	if err != nil || len(forcedTxQueue) == 0 {
+		return err
+	}
+	included := make(map[string]bool, len(txs))
+	for _, tx := range txs {
+		included[string(tx)] = true
+	}
+	next := types.NextIgnoredRounds(forcedTxQueue, k.IgnoredRoundsMap(ctx, forcedTxQueue), included, k.Params.MaxIgnoreRounds)
+	for tx, count := range next {
+		if err := k.TxIgnoredRounds.Set(ctx, tx, count); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CommitFSMTransition ports ServerUponProposalInPrecommitNoDecision's state

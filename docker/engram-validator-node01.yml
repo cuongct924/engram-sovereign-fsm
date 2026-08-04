@@ -1,17 +1,17 @@
 name: engram-validator-node01
 
 services:
-  stratium-node01:
+  engram-node01:
     build: 
       context: ..
       dockerfile: Dockerfile
-    hostname: stratium-node01
-    container_name: stratium-node01
+    hostname: engram-node01
+    container_name: engram-node01
     networks:
       engram-net:
-        ipv4_address: 172.20.0.100
+        ipv4_address: 172.28.0.100
     volumes:
-      - stratium-node01-data:/root/.stratium
+      - ../testnet-data/engram-node01:/root/.engramd
     ports:
       # Only expose RPC, REST for external access
       - "26657:26657"   # Tendermint RPC (exposed)
@@ -19,10 +19,10 @@ services:
       - "26660:26660"   # Prometheus Metrics (exposed)
     environment:
       - DA_ENDPOINT=http://celestia-light01:26658
-      - MINIMUM_GAS_PRICES=0strat
-      - MONIKER=stratium-node01
+      - MINIMUM_GAS_PRICES=0uengram
+      - MONIKER=engram-node01
       - NODE_ID=0
-    command: ["stratiumd", "start", "--prometheus"]
+    command: ["start"]
     restart: unless-stopped
     depends_on:
       celestia-light01:
@@ -50,20 +50,20 @@ services:
     container_name: vigilante-submitter01
     networks:
       engram-net:
-        ipv4_address: 172.20.0.101
+        ipv4_address: 172.28.0.101
       bitcoin-net:
         ipv4_address: 172.21.0.100
     volumes:
       - ../config/submitter.toml:/home/babylon/config/submitter.toml:ro
-      - vigilante-submitter-0-data:/home/babylon/.babylon
+      - vigilante-submitter01-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node01:26657
+      - NODE_ADDR=http://engram-node01:26657
       - BITCOIN_HOST=bitcoin-node01
       - BITCOIN_RPC_PORT=18443
       - NODE_ID=0
     restart: unless-stopped
     depends_on:
-      stratium-node01:
+      engram-node01:
         condition: service_healthy
     deploy:
       resources:
@@ -85,19 +85,19 @@ services:
     container_name: vigilante-reporter01
     networks:
       engram-net:
-        ipv4_address: 172.20.0.102
+        ipv4_address: 172.28.0.102
       bitcoin-net:
         ipv4_address: 172.21.0.101
     volumes:
       - ../config/reporter.toml:/home/babylon/config/reporter.toml:ro
       - vigilante-reporter01-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node01:26657
+      - NODE_ADDR=http://engram-node01:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=0
     restart: unless-stopped
     depends_on:
-      stratium-node01:
+      engram-node01:
         condition: service_healthy
     deploy:
       resources:
@@ -119,19 +119,19 @@ services:
     container_name: checkpointing-monitor01
     networks:
       engram-net:
-        ipv4_address: 172.20.0.103
+        ipv4_address: 172.28.0.103
       bitcoin-net:
         ipv4_address: 172.21.0.102
     volumes:
       - ../config/monitor.toml:/home/babylon/config/monitor.toml:ro
-      - checkpointing-monitor-0-data:/home/babylon/.babylon
+      - checkpointing-monitor01-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node01:26657
+      - NODE_ADDR=http://engram-node01:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=0
     restart: unless-stopped
     depends_on:
-      stratium-node01:
+      engram-node01:
         condition: service_healthy
     deploy:
       resources:
@@ -154,7 +154,7 @@ services:
     container_name: celestia-light01
     networks:
       engram-net:
-        ipv4_address: 172.20.0.104
+        ipv4_address: 172.28.0.104
       celestia-net:
         ipv4_address: 172.22.0.100
     volumes:
@@ -191,44 +191,13 @@ services:
       celestia light start --core.ip celestia-bridge --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658
       "
 
-networks:
-  # Main validator network (shared across all nodes)
-  engram-net:
-    name: engram-net
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: "br-engram"
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
-          gateway: 172.20.0.1
-
-  # Bitcoin network (isolated, services from different validators can connect)
-  bitcoin-net:
-    name: bitcoin-net
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: "br-bitcoin"
-    ipam:
-      config:
-        - subnet: 172.21.0.0/24
-          gateway: 172.21.0.1
-
-  # Celestia network (isolated, for DA layer)
-  celestia-net:
-    name: celestia-net
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: "br-celestia"
-    ipam:
-      config:
-        - subnet: 172.22.0.0/24
-          gateway: 172.22.0.1
+# engram-net/bitcoin-net/celestia-net are declared once in the root
+# compose.yml, which owns them; services above reference them by name
+# directly. Redeclaring them here (even as `external: true`) makes
+# `docker compose config` fail with "conflicts with imported resource"
+# once this file is resolved via compose.yml's `include:` (see M6).
 
 volumes:
-  stratium-node01-data:
-    name: stratium-node01-data
-    driver: local
   vigilante-submitter01-data:
     name: vigilante-submitter01-data
     driver: local

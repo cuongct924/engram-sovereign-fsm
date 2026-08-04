@@ -7,7 +7,8 @@
 export BITCOIN_RPC_USER=
 export BITCOIN_RPC_PASSWORD=
 
-# Run Bitcoin Regtest Cluster
+# Run Bitcoin Regtest Cluster (relative paths below assume cwd = docker/)
+cd docker
 docker compose --env-file ../.env -f bitcoin-regtest-cluster.yml up -d
 
 # Setup CLI

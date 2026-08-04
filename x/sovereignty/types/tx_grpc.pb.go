@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Msg_SubmitRecoveryProof_FullMethodName = "/engram.sovereignty.v1.Msg/SubmitRecoveryProof"
 	Msg_InjectFault_FullMethodName         = "/engram.sovereignty.v1.Msg/InjectFault"
+	Msg_SubmitForcedTx_FullMethodName      = "/engram.sovereignty.v1.Msg/SubmitForcedTx"
 )
 
 // MsgClient is the client API for Msg service.
@@ -33,6 +34,11 @@ type MsgClient interface {
 	SubmitRecoveryProof(ctx context.Context, in *MsgSubmitRecoveryProofRequest, opts ...grpc.CallOption) (*MsgSubmitRecoveryProofResponse, error)
 	// Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
 	InjectFault(ctx context.Context, in *MsgInjectFaultRequest, opts ...grpc.CallOption) (*MsgInjectFaultResponse, error)
+	// Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
+	// (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
+	// này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
+	// sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+	SubmitForcedTx(ctx context.Context, in *MsgSubmitForcedTxRequest, opts ...grpc.CallOption) (*MsgSubmitForcedTxResponse, error)
 }
 
 type msgClient struct {
@@ -63,6 +69,16 @@ func (c *msgClient) InjectFault(ctx context.Context, in *MsgInjectFaultRequest, 
 	return out, nil
 }
 
+func (c *msgClient) SubmitForcedTx(ctx context.Context, in *MsgSubmitForcedTxRequest, opts ...grpc.CallOption) (*MsgSubmitForcedTxResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MsgSubmitForcedTxResponse)
+	err := c.cc.Invoke(ctx, Msg_SubmitForcedTx_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MsgServer is the server API for Msg service.
 // All implementations should embed UnimplementedMsgServer
 // for forward compatibility.
@@ -73,6 +89,11 @@ type MsgServer interface {
 	SubmitRecoveryProof(context.Context, *MsgSubmitRecoveryProofRequest) (*MsgSubmitRecoveryProofResponse, error)
 	// Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
 	InjectFault(context.Context, *MsgInjectFaultRequest) (*MsgInjectFaultResponse, error)
+	// Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
+	// (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
+	// này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
+	// sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+	SubmitForcedTx(context.Context, *MsgSubmitForcedTxRequest) (*MsgSubmitForcedTxResponse, error)
 }
 
 // UnimplementedMsgServer should be embedded to have
@@ -87,6 +108,9 @@ func (UnimplementedMsgServer) SubmitRecoveryProof(context.Context, *MsgSubmitRec
 }
 func (UnimplementedMsgServer) InjectFault(context.Context, *MsgInjectFaultRequest) (*MsgInjectFaultResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InjectFault not implemented")
+}
+func (UnimplementedMsgServer) SubmitForcedTx(context.Context, *MsgSubmitForcedTxRequest) (*MsgSubmitForcedTxResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitForcedTx not implemented")
 }
 func (UnimplementedMsgServer) testEmbeddedByValue() {}
 
@@ -144,6 +168,24 @@ func _Msg_InjectFault_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Msg_SubmitForcedTx_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgSubmitForcedTxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).SubmitForcedTx(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Msg_SubmitForcedTx_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).SubmitForcedTx(ctx, req.(*MsgSubmitForcedTxRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Msg_ServiceDesc is the grpc.ServiceDesc for Msg service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -158,6 +200,10 @@ var Msg_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InjectFault",
 			Handler:    _Msg_InjectFault_Handler,
+		},
+		{
+			MethodName: "SubmitForcedTx",
+			Handler:    _Msg_SubmitForcedTx_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

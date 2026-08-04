@@ -13,6 +13,7 @@ type Params struct {
 	MinAvgTenure        uint64 // minimum average peer tenure
 	MaxPeerLatency      uint64 // maximum allowed peer latency
 	MaxSuspiciousTime   uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
+	MaxIgnoreRounds     uint64 // rounds a forced tx can be ignored before IsCensoring trips
 }
 
 // DefaultParams returns the exact FSM THRESHOLDS block from
@@ -34,5 +35,6 @@ func DefaultParams() Params {
 		MinAvgTenure:        1,
 		MaxPeerLatency:      1,
 		MaxSuspiciousTime:   1,
+		MaxIgnoreRounds:     1,
 	}
 }

@@ -101,13 +101,8 @@ services:
           memory: 256M
 
 
-networks:
-  bitcoin-net:
-    name: bitcoin-net
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: "br-bitcoin"
-    ipam:
-      config:
-        - subnet: 172.21.0.0/24
-          gateway: 172.21.0.1
+# bitcoin-net is declared once in the root compose.yml, which owns it;
+# services above reference it by name directly. Redeclaring it here (even as
+# `external: true`) makes `docker compose config` fail with "conflicts with
+# imported resource" once this file is resolved via compose.yml's `include:`
+# (see M6).

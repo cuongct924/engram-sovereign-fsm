@@ -151,6 +151,60 @@ func TestProcessProposal_RejectsPrematureZKProofClaim(t *testing.T) {
 	require.False(t, resp.IsAccepted(), "zk_proof_ref must be false outside a hysteresis-satisfied RECOVERING state")
 }
 
+func TestProcessProposal_RejectsCensoringProposal(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
+	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds)) // already at threshold
+
+	ext := healthyExtendedProposal(k, ctx)
+	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	require.NoError(t, err)
+
+	// Proposal is otherwise well-formed but omits the forced tx.
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	require.NoError(t, err)
+	require.False(t, resp.IsAccepted(), "a proposal that keeps omitting a forced tx past MaxIgnoreRounds must be rejected")
+}
+
+func TestProcessProposal_AcceptsCensoredTxOnceIncluded(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
+	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds))
+
+	ext := healthyExtendedProposal(k, ctx)
+	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	require.NoError(t, err)
+
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs: [][]byte{tx, []byte("FORCED_TX_1")},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsAccepted(), "including the forced tx must clear the censorship rejection")
+}
+
+func TestPreBlocker_TracksForcedTxIgnoredRounds(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
+
+	ext := healthyExtendedProposal(k, ctx)
+	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	require.NoError(t, err)
+
+	// Block 1: forced tx absent -> counter increments to 1.
+	_, err = sovereignty.NewPreBlocker(k)(ctx, &abci.RequestFinalizeBlock{Txs: [][]byte{tx}})
+	require.NoError(t, err)
+	count, err := k.TxIgnoredRounds.Get(ctx, "FORCED_TX_1")
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), count)
+
+	// Block 2: forced tx included -> counter resets to 0.
+	_, err = sovereignty.NewPreBlocker(k)(ctx, &abci.RequestFinalizeBlock{Txs: [][]byte{tx, []byte("FORCED_TX_1")}})
+	require.NoError(t, err)
+	count, err = k.TxIgnoredRounds.Get(ctx, "FORCED_TX_1")
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), count)
+}
+
 func TestCommitFSMTransition_WritesAgreedStateAndHeights(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 

@@ -206,6 +206,94 @@ func (*MsgInjectFaultResponse) Descriptor() ([]byte, []int) {
 	return file_engram_sovereignty_v1_tx_proto_rawDescGZIP(), []int{3}
 }
 
+type MsgSubmitForcedTxRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sender        string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"` // Tài khoản gửi yêu cầu buộc bao gồm tx
+	Tx            []byte                 `protobuf:"bytes,2,opt,name=tx,proto3" json:"tx,omitempty"`         // Nội dung thô của tx cần được buộc đưa vào block
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MsgSubmitForcedTxRequest) Reset() {
+	*x = MsgSubmitForcedTxRequest{}
+	mi := &file_engram_sovereignty_v1_tx_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MsgSubmitForcedTxRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MsgSubmitForcedTxRequest) ProtoMessage() {}
+
+func (x *MsgSubmitForcedTxRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_tx_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MsgSubmitForcedTxRequest.ProtoReflect.Descriptor instead.
+func (*MsgSubmitForcedTxRequest) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_tx_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MsgSubmitForcedTxRequest) GetSender() string {
+	if x != nil {
+		return x.Sender
+	}
+	return ""
+}
+
+func (x *MsgSubmitForcedTxRequest) GetTx() []byte {
+	if x != nil {
+		return x.Tx
+	}
+	return nil
+}
+
+type MsgSubmitForcedTxResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MsgSubmitForcedTxResponse) Reset() {
+	*x = MsgSubmitForcedTxResponse{}
+	mi := &file_engram_sovereignty_v1_tx_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MsgSubmitForcedTxResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MsgSubmitForcedTxResponse) ProtoMessage() {}
+
+func (x *MsgSubmitForcedTxResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_tx_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MsgSubmitForcedTxResponse.ProtoReflect.Descriptor instead.
+func (*MsgSubmitForcedTxResponse) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_tx_proto_rawDescGZIP(), []int{5}
+}
+
 var File_engram_sovereignty_v1_tx_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_tx_proto_rawDesc = "" +
@@ -219,10 +307,15 @@ const file_engram_sovereignty_v1_tx_proto_rawDesc = "" +
 	"\x15MsgInjectFaultRequest\x12\x16\n" +
 	"\x06sender\x18\x01 \x01(\tR\x06sender\x12K\n" +
 	"\ffault_inputs\x18\x02 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\vfaultInputs:\v\x82\xe7\xb0*\x06sender\"\x18\n" +
-	"\x16MsgInjectFaultResponse2\xfd\x01\n" +
+	"\x16MsgInjectFaultResponse\"O\n" +
+	"\x18MsgSubmitForcedTxRequest\x12\x16\n" +
+	"\x06sender\x18\x01 \x01(\tR\x06sender\x12\x0e\n" +
+	"\x02tx\x18\x02 \x01(\fR\x02tx:\v\x82\xe7\xb0*\x06sender\"\x1b\n" +
+	"\x19MsgSubmitForcedTxResponse2\xf2\x02\n" +
 	"\x03Msg\x12\x82\x01\n" +
 	"\x13SubmitRecoveryProof\x124.engram.sovereignty.v1.MsgSubmitRecoveryProofRequest\x1a5.engram.sovereignty.v1.MsgSubmitRecoveryProofResponse\x12j\n" +
-	"\vInjectFault\x12,.engram.sovereignty.v1.MsgInjectFaultRequest\x1a-.engram.sovereignty.v1.MsgInjectFaultResponse\x1a\x05\x80\xe7\xb0*\x01BCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\vInjectFault\x12,.engram.sovereignty.v1.MsgInjectFaultRequest\x1a-.engram.sovereignty.v1.MsgInjectFaultResponse\x12s\n" +
+	"\x0eSubmitForcedTx\x12/.engram.sovereignty.v1.MsgSubmitForcedTxRequest\x1a0.engram.sovereignty.v1.MsgSubmitForcedTxResponse\x1a\x05\x80\xe7\xb0*\x01BCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_tx_proto_rawDescOnce sync.Once
@@ -236,22 +329,26 @@ func file_engram_sovereignty_v1_tx_proto_rawDescGZIP() []byte {
 	return file_engram_sovereignty_v1_tx_proto_rawDescData
 }
 
-var file_engram_sovereignty_v1_tx_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_engram_sovereignty_v1_tx_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_engram_sovereignty_v1_tx_proto_goTypes = []any{
 	(*MsgSubmitRecoveryProofRequest)(nil),  // 0: engram.sovereignty.v1.MsgSubmitRecoveryProofRequest
 	(*MsgSubmitRecoveryProofResponse)(nil), // 1: engram.sovereignty.v1.MsgSubmitRecoveryProofResponse
 	(*MsgInjectFaultRequest)(nil),          // 2: engram.sovereignty.v1.MsgInjectFaultRequest
 	(*MsgInjectFaultResponse)(nil),         // 3: engram.sovereignty.v1.MsgInjectFaultResponse
-	(*PeripheralMetrics)(nil),              // 4: engram.sovereignty.v1.PeripheralMetrics
+	(*MsgSubmitForcedTxRequest)(nil),       // 4: engram.sovereignty.v1.MsgSubmitForcedTxRequest
+	(*MsgSubmitForcedTxResponse)(nil),      // 5: engram.sovereignty.v1.MsgSubmitForcedTxResponse
+	(*PeripheralMetrics)(nil),              // 6: engram.sovereignty.v1.PeripheralMetrics
 }
 var file_engram_sovereignty_v1_tx_proto_depIdxs = []int32{
-	4, // 0: engram.sovereignty.v1.MsgInjectFaultRequest.fault_inputs:type_name -> engram.sovereignty.v1.PeripheralMetrics
+	6, // 0: engram.sovereignty.v1.MsgInjectFaultRequest.fault_inputs:type_name -> engram.sovereignty.v1.PeripheralMetrics
 	0, // 1: engram.sovereignty.v1.Msg.SubmitRecoveryProof:input_type -> engram.sovereignty.v1.MsgSubmitRecoveryProofRequest
 	2, // 2: engram.sovereignty.v1.Msg.InjectFault:input_type -> engram.sovereignty.v1.MsgInjectFaultRequest
-	1, // 3: engram.sovereignty.v1.Msg.SubmitRecoveryProof:output_type -> engram.sovereignty.v1.MsgSubmitRecoveryProofResponse
-	3, // 4: engram.sovereignty.v1.Msg.InjectFault:output_type -> engram.sovereignty.v1.MsgInjectFaultResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
+	4, // 3: engram.sovereignty.v1.Msg.SubmitForcedTx:input_type -> engram.sovereignty.v1.MsgSubmitForcedTxRequest
+	1, // 4: engram.sovereignty.v1.Msg.SubmitRecoveryProof:output_type -> engram.sovereignty.v1.MsgSubmitRecoveryProofResponse
+	3, // 5: engram.sovereignty.v1.Msg.InjectFault:output_type -> engram.sovereignty.v1.MsgInjectFaultResponse
+	5, // 6: engram.sovereignty.v1.Msg.SubmitForcedTx:output_type -> engram.sovereignty.v1.MsgSubmitForcedTxResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -269,7 +366,7 @@ func file_engram_sovereignty_v1_tx_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engram_sovereignty_v1_tx_proto_rawDesc), len(file_engram_sovereignty_v1_tx_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
