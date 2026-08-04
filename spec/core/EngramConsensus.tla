@@ -93,10 +93,26 @@ TimeoutStartNext ==
     /\ UNCHANGED <<tree, local_times>>
     /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
 
-EarlyStartNext == 
-    /\ \E c \in tree : c.type = "C" /\ c.cert_round = round 
-    /\ round' = round + 1 
-    /\ rem_time' = RESET_TIME 
+EarlyStartNext ==
+    /\ \E c \in tree : c.type = "C" /\ c.cert_round = round
+    /\ round' = round + 1
+    /\ rem_time' = RESET_TIME
+    /\ UNCHANGED <<tree, local_times>>
+    /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
+
+\* Round advances once f+1 honest nodes give up on it (a T-cache exists),
+\* independent of whether the leader (honest or Byzantine) ever completes
+\* Push. Without this, Elapse's block on a pending Pull/Invoke has no
+\* escape valve other than Push -- meaning WF_vars(Push(n)) for EVERY node
+\* (Byzantine included) becomes a load-bearing liveness assumption, which
+\* is incompatible with a leader that Pulls and then stays silent forever
+\* (see LIVENESS_DEADLOCK_FINDING.md). This operator gives the abstract
+\* model a formal counterpart to the concrete f+1 fast-forward mechanism
+\* (UponfPlusOneTimeoutsAny / ServerUponTimeoutCert -> T_QC).
+TimeoutSkipNext ==
+    /\ \E c \in tree : c.type = "T" /\ c.cert_round = round
+    /\ round' = round + 1
+    /\ rem_time' = RESET_TIME
     /\ UNCHANGED <<tree, local_times>>
     /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
 
@@ -257,10 +273,11 @@ BitcoinReorg ==
     /\ UNCHANGED <<tree, local_times, round, rem_time>>
 
 (********************* NEXT STATE  ****************)
-Next == 
-    \/ Elapse 
-    \/ TimeoutStartNext 
-    \/ EarlyStartNext 
+Next ==
+    \/ Elapse
+    \/ TimeoutStartNext
+    \/ EarlyStartNext
+    \/ TimeoutSkipNext
     \/ \E n \in Nodes : Pull(n)
     \/ \E n \in Nodes, m \in Method : Invoke(n, m)
     \/ \E n \in Nodes : Push(n)
@@ -273,11 +290,12 @@ Next ==
 Safety == Init /\ [][Next]_vars
 
 
-Liveness == 
+Liveness ==
     /\ WF_vars(TimeoutStartNext)
     /\ WF_vars(EarlyStartNext)
+    /\ WF_vars(TimeoutSkipNext)
     /\ WF_vars(UpdateEnv)
-    /\ \A n \in Nodes : 
+    /\ \A n \in Nodes :
         /\ WF_vars(Pull(n))
         /\ WF_vars(Push(n))
     /\ \A n \in Nodes, m \in Method : WF_vars(Invoke(n, m))
