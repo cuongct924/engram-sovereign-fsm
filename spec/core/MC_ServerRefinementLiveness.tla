@@ -70,6 +70,8 @@ Sanity_NeverForceTx ==
 MC_ServerFairness ==
     /\ WF_serverVars(ServerAdvanceRealTime)
     /\ \A p \in MC_Honest : WF_serverVars(ServerMessageProcessing(p))
+    /\ WF_serverVars(ServerHonestTimeout)
+    /\ \A p \in MC_Honest : WF_serverVars(ServerHonestRoundSkip(p))
 
 \* Full liveness specification: safety behaviour + fairness assumptions
 MC_ServerSpec ==

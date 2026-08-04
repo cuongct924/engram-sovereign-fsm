@@ -29,7 +29,7 @@ The four spec layers each have their own `MC_*` model-checking pair, all living 
 | Abstract consensus (LiDO ADO model) | `core/EngramConsensus.tla` | `core/MC_ConsensusSafety.{tla,cfg}` | `core/MC_ConsensusLiveness.{tla,cfg}` |
 | Server (full refinement bridge, all layers integrated) | `core/EngramServer.tla` + `core/EngramServerRefinement.tla` | `core/MC_ServerRefinementSafety.{tla,cfg}` | `core/MC_ServerRefinementLiveness.{tla,cfg}` |
 
-Full-server checks are the expensive ones — historically ~100 minutes / ~37.7M states for safety, ~7 minutes / ~1.1M states for liveness, at the parameters checked into the `.cfg` files, though these figures predate the refinement-mapping fixes described below and should be treated as stale until re-measured. FSM/consensus/tendermint-layer checks are much cheaper and are the right target when iterating on a single layer instead of the whole hybrid protocol.
+Full-server checks are the expensive ones; FSM/consensus/tendermint-layer checks are much cheaper and are the right target when iterating on a single layer instead of the whole hybrid protocol. For current benchmark numbers (states generated, depth, time) across several parameter scales, see `README.md`'s §9.2 Formal Verification Stress Test table — that table is the single source of truth for these figures, so they aren't duplicated here.
 
 To iterate on a single invariant/property without editing the checked-in `.cfg`, comment/uncomment entries under `INVARIANTS` / `PROPERTIES` in the relevant `.cfg` file (see the commented-out `Sanity_*` lines in `core/MC_ServerRefinementSafety.cfg`/`core/MC_ServerRefinementLiveness.cfg` for the existing pattern) rather than adding a new config file.
 
