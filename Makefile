@@ -19,20 +19,28 @@ build-linux:
 	@echo "--> Building engramd for Linux..."
 	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux ./cmd/engramd
 
-# 3. Chạy tất cả các test (bao gồm keeper tests, abci tests)
+# 3. Chạy tất cả các test (bao gồm keeper tests, abci tests, x/da, x/vigilante, tests/e2e)
 test:
 	@echo "--> Running tests..."
-	go test -v ./x/sovereignty/... ./app/...
+	go test -v ./...
 
 # 4. Kiểm tra code (Linting)
 lint:
 	@echo "--> Running golangci-lint..."
 	golangci-lint run
 
-# 5. Sinh mã Protobuf (Cần cài đặt buf)
+# 5. Sinh mã Protobuf (Cần cài đặt buf + protoc-gen-go + protoc-gen-go-grpc)
+# buf.gen.yaml generates with paths=source_relative into .tmp-proto-gen/
+# (mirroring the proto package path engram/sovereignty/v1/), since the proto
+# package (engram.sovereignty.v1) and the Go package (x/sovereignty/types)
+# intentionally differ -- this recipe copies the generated files into place
+# and removes the staging directory.
 proto-gen:
 	@echo "--> Generating protobuf code..."
+	rm -rf .tmp-proto-gen
 	buf generate
+	cp .tmp-proto-gen/engram/sovereignty/v1/*.go x/sovereignty/types/
+	rm -rf .tmp-proto-gen
 
 # 6. Biên dịch ZK Circuit (Noir)
 zk-compile:

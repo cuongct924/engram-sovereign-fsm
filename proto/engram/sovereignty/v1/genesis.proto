@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package engram.sovereignty.v1;
+
+option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types";
+
+import "engram/sovereignty/v1/state.proto";
+
+// Cấu trúc khởi tạo máy trạng thái Engram FSM. fsm_state là string (không phải
+// enum) để khớp đúng biểu diễn "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING"
+// trong spec/core/EngramFSM.tla (state \in {"ANCHORED", ...}) và trong
+// x/sovereignty/types/state.go's StateAnchored/... constants.
+message GenesisState {
+  string            fsm_state             = 1; // Thường khởi tạo là "ANCHORED"
+  uint64            safe_blocks_counter   = 2; // Bộ đếm biến `safe_blocks` trong TLA+
+  uint64            suspicious_duration   = 3; // Bộ đếm biến `suspicious_duration` trong TLA+
+  bool              reanchoring_proof_valid = 4; // Biến `reanchoring_proof_valid` trong TLA+
+  uint64            hysteresis_wait_limit = 5; // Tham số hệ thống giới hạn HYSTERESIS_WAIT
+  PeripheralMetrics initial_metrics       = 6; // Trạng thái sensor lúc khởi tạo
+}

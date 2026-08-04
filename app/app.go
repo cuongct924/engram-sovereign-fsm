@@ -2,42 +2,32 @@ package app
 
 import (
 	"github.com/cosmos/cosmos-sdk/baseapp"
-	"github.com/cosmos/cosmos-sdk/types/module"
 
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
+	sovereigntykeeper "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 )
 
-// EngramApp extends the BaseApp of Cosmos SDK
+// EngramApp extends the BaseApp of Cosmos SDK.
 type EngramApp struct {
 	*baseapp.BaseApp
 
-	// Declare Keepers for core modules
-	// (BankKeeper, AuthKeeper, StakingKeeper... will be here)
+	// TODO(Phase 5): BankKeeper, AuthKeeper, StakingKeeper, DAKeeper,
+	// VigilanteKeeper (x/da, x/vigilante modules don't exist yet), real
+	// module manager + genesis wiring, ABCI++ vote extensions per
+	// docs/ARCHITECTURE.md.
 
-	// Keepers for the logic of the Research Paper
-	FsmKeeper         fsm.Keeper
+	// Keeper for the Sovereign FSM (the logic under test in the paper).
+	SovereigntyKeeper *sovereigntykeeper.Keeper
 }
 
-// NewStriatumApp initializes the entire network
-func NewEngramApp(...) *EngramApp {
-	app := &EngramApp{
-		BaseApp: baseapp.NewBaseApp(...),
+// NewEngramApp wires the minimal set of keepers that exist today.
+// TODO(Phase 5): full BaseApp construction (codec, store keys, module
+// manager order, InitChain/genesis, ABCI++ vote extensions). Phase 0-4
+// exercise SovereigntyKeeper directly in-process (see tests/e2e/), not
+// through a running EngramApp/BaseApp — this constructor is a placeholder
+// for when that real wiring is built.
+func NewEngramApp(bApp *baseapp.BaseApp, sovereigntyKeeper *sovereigntykeeper.Keeper) *EngramApp {
+	return &EngramApp{
+		BaseApp:           bApp,
+		SovereigntyKeeper: sovereigntyKeeper,
 	}
-
-	// 1. Initialize Keepers (Modules)
-	smtPath := filepath.Join(cast.ToString(appOpts.Get("home")), "data", "sovereign_smt")
-
-	app.SovereigntyKeeper = sovereigntykeeper.NewKeeper(
-		appCodec,
-		keys[sovereigntytypes.StoreKey],
-		app.DAKeeper,
-		app.VigilanteKeeper,
-		smtPath,
-	)
-
-	// 2. Register modules into the Basic Manager of Cosmos
-	// 3. Register BeginBlocker functions (important to activate FSM Sensors every block) [3, 4]
-	// app.ModuleManager.SetOrderBeginBlockers(fsm.ModuleName, ...)
-
-	return app
 }

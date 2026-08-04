@@ -21,8 +21,9 @@ service Msg {
 
 message MsgSubmitRecoveryProofRequest {
   option (cosmos.msg.v1.signer) = "authority";
-  string authority = 1; // Validator hoặc rpc node gửi chứng chỉ
-  bytes  zk_proof  = 2; // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
+  string authority      = 1; // Validator hoặc rpc node gửi chứng chỉ
+  bytes  zk_proof       = 2; // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
+  bytes  public_inputs  = 3; // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
 }
 
 message MsgSubmitRecoveryProofResponse {} // Trả về trống nếu ZK Verify thành công

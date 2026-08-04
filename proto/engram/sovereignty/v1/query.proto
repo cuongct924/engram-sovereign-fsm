@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package engram.sovereignty.v1;
+
+option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types";
+
+import "engram/sovereignty/v1/state.proto";
+
+// Dịch vụ truy vấn trạng thái FSM hiện tại của node (phục vụ E9 trace-driven
+// stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
+service Query {
+  rpc State(QueryStateRequest) returns (QueryStateResponse);
+}
+
+message QueryStateRequest {}
+
+message QueryStateResponse {
+  string            fsm_state               = 1;
+  uint64            safe_blocks             = 2;
+  uint64            suspicious_duration     = 3;
+  bool              reanchoring_proof_valid = 4;
+  PeripheralMetrics metrics                 = 5;
+}

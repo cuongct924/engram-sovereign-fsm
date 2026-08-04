@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
@@ -14,19 +15,25 @@ func NewMsgServerImpl(k *Keeper) types.MsgServer {
 }
 
 // InjectFault: Dành cho test/thực nghiệm
-func (k *MsgServerImpl) InjectFault(ctx context.Context, msg *types.MsgInjectFault) (*types.MsgInjectFaultResponse, error) {
-	k.Metrics.Set(ctx, msg.FaultInputs)
+func (k *MsgServerImpl) InjectFault(ctx context.Context, msg *types.MsgInjectFaultRequest) (*types.MsgInjectFaultResponse, error) {
+	if msg.FaultInputs != nil {
+		if err := k.Metrics.Set(ctx, msg.FaultInputs); err != nil {
+			return nil, err
+		}
+	}
 	return &types.MsgInjectFaultResponse{}, nil
 }
 
 // SubmitRecoveryProof: Gắn kết mạch Noir với hệ thống
-func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProof) (*types.MsgSubmitRecoveryProofResponse, error) {
+func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProofRequest) (*types.MsgSubmitRecoveryProofResponse, error) {
 	// 1. Verify ZK Proof
-	if !k.VerifyZKProof(msg.Proof, msg.PublicInputs) {
+	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
 		return nil, types.ErrInvalidZKProof
 	}
 
 	// 2. Chuyển FSM về ANCHORED (Hoàn tất phục hồi)
-	k.FSMState.Set(ctx, types.StateAnchored)
+	if err := k.FSMState.Set(ctx, types.StateAnchored); err != nil {
+		return nil, err
+	}
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
 }
