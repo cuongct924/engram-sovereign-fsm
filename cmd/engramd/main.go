@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/app"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
@@ -355,6 +356,7 @@ func runStart(home string, vanilla bool) error {
 
 	wireP2PSensor(engramApp, n)
 	wireBTCSensor(engramApp)
+	wireDASensor(engramApp)
 
 	if err := n.Start(); err != nil {
 		return fmt.Errorf("start node: %w", err)
@@ -444,6 +446,43 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 	client := vigilante.NewRPCClient(fmt.Sprintf("http://%s:%s", host, port), user, pass)
 	engramApp.Sensors.BTC.SetSource(client)
 	engramApp.Sensors.Anchor = vigilante.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
+}
+
+// wireDASensor upgrades engramApp's DA sensor from its static
+// SetAvailable-based mock to a real celestia-bridge JSON-RPC connection
+// (x/da/rpc.go, Phase 7), and wires a Publisher against the same connection
+// (x/da/publisher.go) so h_engram_verified has a real submission-and-
+// retrieval pipeline behind it instead of a value that never advances (the
+// exact same liveness-bug class wireBTCSensor's AnchorTracker closes for
+// h_btc_anchored) -- when CELESTIA_BRIDGE_URL is set (e.g.
+// docker/celestia-local-cluster.yml's celestia-bridge, http://127.0.0.1:26658).
+// Left unwired (silent no-op) when unset -- DASensor just stays on its
+// static mock reading.
+//
+// CELESTIA_BRIDGE_AUTH_TOKEN must be the bridge's admin/write JWT
+// (celestia bridge auth admin --p2p.network private inside the container,
+// docker/celestia-local-cluster.yml writes it to /home/celestia/bridge_auth.txt)
+// -- blob.Submit is a write call celestia-node rejects unauthenticated.
+func wireDASensor(engramApp *app.EngramApp) {
+	url := os.Getenv("CELESTIA_BRIDGE_URL")
+	if url == "" {
+		return
+	}
+	authToken := os.Getenv("CELESTIA_BRIDGE_AUTH_TOKEN")
+	namespaceID := os.Getenv("CELESTIA_NAMESPACE_ID")
+	if namespaceID == "" {
+		namespaceID = "engramda01"
+	}
+
+	ns, err := da.NewNamespace(namespaceID)
+	if err != nil {
+		fmt.Println("engramd: skipping DA sensor wiring, invalid CELESTIA_NAMESPACE_ID:", err)
+		return
+	}
+
+	client := da.NewRPCClient(url, authToken)
+	engramApp.Sensors.DAPublisher = da.NewPublisher(client, ns)
+	engramApp.Sensors.DA.SetSource(engramApp.Sensors.DAPublisher)
 }
 
 // demoSMTCmd is the original SMT proof-of-concept (unrelated to the

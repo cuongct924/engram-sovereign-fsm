@@ -87,7 +87,7 @@ networks:
         - subnet: 172.28.0.0/24
           gateway: 172.28.0.1
 
-  # Bitcoin network: Isolated environment for Bitcoin RPC and vigilante services
+  # Bitcoin network: Isolated environment for the Bitcoin regtest RPC cluster
   bitcoin-net:
     name: bitcoin-net
     driver: bridge

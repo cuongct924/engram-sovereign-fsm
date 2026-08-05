@@ -42,109 +42,6 @@ services:
           cpus: '0.2'
           memory: 256M
 
-  # VIGILANTE SUBMITTER 
-  vigilante-submitter04:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: vigilante-submitter04
-    hostname: vigilante-submitter04
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.131
-      bitcoin-net:
-        ipv4_address: 172.21.0.130
-    volumes:
-      - ../config/submitter.toml:/home/babylon/config/submitter.toml:ro
-      - vigilante-submitter04-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node04:26657
-      - BITCOIN_HOST=bitcoin-node01
-      - BITCOIN_RPC_PORT=18443
-      - NODE_ID=3
-    restart: unless-stopped
-    depends_on:
-      engram-node04:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.15'
-          memory: 128M
-        reservations:
-          cpus: '0.05'
-          memory: 64M
-    command:
-      - vigilante
-      - submitter
-      - --config=/home/babylon/config/submitter.toml
-
-  #  VIGILANTE REPORTER 
-  vigilante-reporter04:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: vigilante-reporter04
-    hostname: vigilante-reporter04
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.132
-      bitcoin-net:
-        ipv4_address: 172.21.0.131
-    volumes:
-      - ../config/reporter.toml:/home/babylon/config/reporter.toml:ro
-      - vigilante-reporter04-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node04:26657
-      - BITCOIN_HOST=bitcoin-node01
-      - NODE_ID=3
-    restart: unless-stopped
-    depends_on:
-      engram-node04:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.15'
-          memory: 128M
-        reservations:
-          cpus: '0.05'
-          memory: 64M
-    command:
-      - vigilante
-      - reporter
-      - --config=/home/babylon/config/reporter.toml
-
-  #  VIGILANTE MONITOR 
-  checkpointing-monitor04:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: checkpointing-monitor04
-    hostname: checkpointing-monitor04
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.133
-      bitcoin-net:
-        ipv4_address: 172.21.0.132
-    volumes:
-      - ../config/monitor.toml:/home/babylon/config/monitor.toml:ro
-      - checkpointing-monitor04-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node04:26657
-      - BITCOIN_HOST=bitcoin-node01
-      - NODE_ID=3
-    restart: unless-stopped
-    depends_on:
-      engram-node04:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.1'
-          memory: 100M
-        reservations:
-          cpus: '0.05'
-          memory: 50M
-    command:
-      - vigilante
-      - monitor
-      - --config=/home/babylon/config/monitor.toml
-
   # ==================== CELESTIA LIGHT NODE ====================
   celestia-light04:
     image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
@@ -196,15 +93,6 @@ services:
 # once this file is resolved via compose.yml's `include:` (see M6).
 
 volumes:
-  vigilante-submitter04-data:
-    name: vigilante-submitter04-data
-    driver: local
-  vigilante-reporter04-data:
-    name: vigilante-reporter04-data
-    driver: local
-  checkpointing-monitor04-data:
-    name: checkpointing-monitor04-data
-    driver: local
   celestia-light04-data:
     name: celestia-light04-data
     driver: local

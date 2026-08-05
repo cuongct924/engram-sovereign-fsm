@@ -3,6 +3,7 @@ package sovereignty
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
@@ -19,11 +20,11 @@ import (
 // read whatever PeripheralMetrics happened to already be sitting in keeper
 // state, e.g. from genesis or MsgInjectFaultRequest, never refreshed live).
 //
-// DA still reads from DASensor's static, test-controlled fields -- real
-// Celestia light-node wiring is a follow-up. BTC and P2P's Source can be
-// (and now are) wired to real observers: BTC to vigilante.RPCClient's real
-// bitcoind getblockcount (x/vigilante/rpc.go, Phase 7), P2P to the CometBFT
-// fork's live lp2p.Switch.PeerHealthSnapshot() (cmd/engramd/main.go, Phase 7).
+// BTC, DA and P2P's Source can all be wired to real observers: BTC to
+// vigilante.RPCClient's real bitcoind getblockcount (x/vigilante/rpc.go,
+// Phase 7), DA to da.Publisher's real celestia-bridge blob.Submit/GetAll
+// round-trip (x/da/rpc.go+publisher.go, Phase 7), P2P to the CometBFT fork's
+// live lp2p.Switch.PeerHealthSnapshot() (cmd/engramd/main.go, Phase 7).
 //
 // Anchor, when set, is this node's own vigilante.AnchorTracker -- the real
 // checkpoint-submission-and-confirmation pipeline that gives h_btc_anchored
@@ -33,11 +34,17 @@ import (
 // rejects every proposal). nil means h_btc_anchored stays static, matching
 // pre-Phase-7 behavior (fine for tests/fault-injection that don't wire BTC's
 // live Source either).
+//
+// DAPublisher, when set, is this node's own da.Publisher -- the same class
+// of fix for h_engram_verified, which had the identical liveness bug (see
+// daGapMetric's doc). nil means h_engram_verified stays static, matching
+// pre-Phase-7 behavior.
 type Sensors struct {
-	BTC    *sensors.BTCSensor
-	DA     *sensors.DASensor
-	P2P    *sensors.P2PSensor
-	Anchor *vigilante.AnchorTracker
+	BTC         *sensors.BTCSensor
+	DA          *sensors.DASensor
+	P2P         *sensors.P2PSensor
+	Anchor      *vigilante.AnchorTracker
+	DAPublisher *da.Publisher
 }
 
 // RefreshMetrics snapshots s's sensors and writes the result into k.Metrics,
@@ -67,7 +74,18 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 			return err
 		}
 	}
-	daHealthy := s.DA.IsHealthy()
+	if s.DAPublisher != nil {
+		// Idempotent per pending submission, same as Anchor.MaybeSubmit above --
+		// calling this from both PrepareProposal and ProcessProposal in the same
+		// block never double-submits (see da.Publisher.MaybePublish's doc).
+		if err := s.DAPublisher.MaybePublish(ctx, uint64(ctx.BlockHeight()), da.HeightMarker(uint64(ctx.BlockHeight()))); err != nil {
+			return err
+		}
+	}
+	daGap, dasFailed, attestationFailed, err := daGapMetric(ctx, k, s.DA)
+	if err != nil {
+		return err
+	}
 	p2pSnap, err := s.P2P.GetSnapshot(ctx)
 	if err != nil {
 		return err
@@ -75,9 +93,9 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 
 	metrics := &types.PeripheralMetrics{
 		BtcGap:              btcGap,
-		DaGap:                daGapMetric(daHealthy, k.Params.DAThreshold),
-		IsDasFailed:         false,
-		IsAttestationFailed: false,
+		DaGap:                daGap,
+		IsDasFailed:         dasFailed,
+		IsAttestationFailed: attestationFailed,
 		SubnetDiversity:     p2pSnap.SubnetDiversity,
 		ActiveAnchors:       p2pSnap.ActiveAnchors,
 		CleanPeers:          p2pSnap.CleanPeers,
@@ -88,15 +106,44 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 	return k.Metrics.Set(ctx, metrics)
 }
 
-// daGapMetric converts DASensor's coarse healthy/unhealthy reading into the
-// raw da_gap scalar CalculateNextState's predicates expect, mirroring
-// tests/e2e/harness.go's daGapMetric but against the keeper's actually
-// configured DAThreshold rather than a hardcoded default.
-func daGapMetric(healthy bool, daThreshold uint64) uint64 {
-	if healthy {
-		return 0
+// daGapMetric computes da_gap (spec/core/EngramFSM.tla:87:
+// h_engram_current - h_engram_verified) and the is_das_failed/
+// is_attestation_failed flags. With no live Source wired, mirrors
+// DASensor's static SetAvailable/SetFailureFlags-injected reading
+// (fault-injection tests, unchanged -- and now actually reads the failure
+// flags DASensor tracks, previously silently dropped as a hardcoded false
+// regardless of what SetFailureFlags had set). With a live Source
+// (da.Publisher, Phase 7), computes the real gap from the Source's live
+// VerifiedHeight reading against this validator's own current chain height,
+// also persisting the latter to k.HEngramCurrent (mirrors btcGapMetric's
+// k.HBtcCurrent persistence). Source.Failed() stands in for BOTH
+// is_das_failed and is_attestation_failed -- da.Publisher does not
+// distinguish "sampling failed" from "attestation failed" the way the
+// abstract spec's two separate booleans do, a documented simplification
+// (same class as vigilante.AnchorTracker's collapsed checkpoint content).
+func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (gap uint64, dasFailed, attestationFailed bool, err error) {
+	src := sensor.Source()
+	if src == nil {
+		if sensor.IsHealthy() {
+			return 0, sensor.DasFailed(), sensor.AttestationFailed(), nil
+		}
+		return k.Params.DAThreshold, sensor.DasFailed(), sensor.AttestationFailed(), nil
 	}
-	return daThreshold // >= DAThreshold => not healthy
+
+	hCurrent := uint64(ctx.BlockHeight())
+	if err := k.HEngramCurrent.Set(ctx, hCurrent); err != nil {
+		return 0, false, false, err
+	}
+
+	failed := src.Failed()
+	hVerified, ok := src.VerifiedHeight()
+	if !ok {
+		hVerified = 0 // nothing confirmed yet -- full gap since genesis
+	}
+	if hCurrent <= hVerified {
+		return 0, failed, failed, nil
+	}
+	return hCurrent - hVerified, failed, failed, nil
 }
 
 // btcGapMetric computes btc_gap. With no live Source wired, it's exactly

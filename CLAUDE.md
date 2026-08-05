@@ -192,9 +192,11 @@ and watching it commit real blocks, not just unit tests:
   `TxConfirmation` (gettransaction), `BlockContainsTag` (getblock verbosity=2 script scan).
 - `x/vigilante/anchor.go`'s `AnchorTracker` is this repo's minimal stand-in for Babylon's real
   Vigilante Submitter+Reporter daemons (`github.com/babylonlabs-io/vigilante`) -- deliberately
-  **not** the real `babylonlabs/babylond` vigilante images already scaffolded in
-  `docker/engram-validator-node0N.yml` (`vigilante-submitter0N`/`reporter0N`/
-  `checkpointing-monitor0N`), because those expect a real Babylon chain's
+  **not** the real `babylonlabs/babylond` vigilante images. `docker/engram-validator-node0N.yml`
+  previously scaffolded these as `vigilante-submitter0N`/`reporter0N`/`checkpointing-monitor0N`
+  services (plus the `config/{submitter,reporter,monitor}.toml` files backing them, and
+  `BABYLOND_VERSION` in `.env`/`.env.example`) -- removed at the repo owner's request to keep the
+  prototype minimal, since those daemons expect a real Babylon chain's
   `x/checkpointing`/`x/btccheckpoint`/`x/btclightclient` modules to source a BLS-aggregated
   epoch checkpoint from, which `engram-node` (only `x/sovereignty` mounted, see `app/app.go`'s
   TODO on staking) does not have and would not function against. `AnchorTracker` instead submits
@@ -261,12 +263,51 @@ and watching it commit real blocks, not just unit tests:
   mapped bridge's `26658`) and a relative-volume-path inconsistency (`./data/...` in this file
   resolves relative to `docker/celestia-local-cluster.yml`'s own location, landing in
   `docker/data/`, unlike `bitcoin-regtest-cluster.yml`'s `../data/...` which correctly reaches the
-  gitignored repo-root `data/`; aligned both to `../data/...`).
-- **Not yet done**: none of the above is wired into `x/da` yet -- `DASensor` is still on its static
-  mock (no live source), and there is no Go client analogous to `x/vigilante/rpc.go`/`anchor.go` for
-  submitting blobs to celestia-app or querying DAS-style availability from celestia-bridge. That
-  wiring (plus a genuine celestia-light node sampling from the bridge, per the repo owner's
-  preference over trusting the bridge's full data directly) is the next piece of work.
+  gitignored repo-root `data/`; aligned both to `../data/...`). One more found later, while wiring
+  up real blob submission: `celestia-appd init` writes `config.toml` with `[tx_index] indexer =
+  "null"` (indexing disabled) by default, and there's no `start`-time CLI flag for it -- `blob.Submit`
+  needs tx indexing and fails with "transaction indexing is disabled" without it, so the bootstrap
+  script now `sed`s `indexer = "kv"` in right after `init`.
+- **`x/da`'s real celestia-bridge wiring is now done**, confirmed end-to-end via `engramd start`
+  against the real `celestia-app`/`celestia-bridge` pair above (not just unit tests): `x/da/rpc.go`'s
+  `RPCClient` is a minimal stdlib-only celestia-node JSON-RPC 2.0 client (`Submit` = `blob.Submit`,
+  `Available` = `blob.GetAll`-backed retrievability check); `x/da/publisher.go`'s `Publisher` is the
+  DA-side counterpart of `AnchorTracker` -- **deliberately no K-deep-style confirmation depth**
+  (unlike BTC): `DANormalUpdate`/`DAFailure` (`spec/core/EngramFSM.tla:196-212`) have no depth term,
+  so once a submission is confirmed retrievable, `h_engram_verified` is set EQUAL to that height
+  immediately, not just advanced past it. Wired into `Sensors.DAPublisher` / `DASensor.SetSource`
+  (mirrors `BTCSensor`'s pattern) and `cmd/engramd/main.go`'s `wireDASensor` (reads
+  `CELESTIA_BRIDGE_URL`/`CELESTIA_BRIDGE_AUTH_TOKEN`/`CELESTIA_NAMESPACE_ID`). Also fixed the same
+  liveness-bug class as BTC's: `h_engram_verified` was frozen at its last-committed value in
+  `PrepareProposal` with no path to advance -- same fix, adopt `Publisher.VerifiedHeight()` when
+  ahead. Separately, `RefreshMetrics` was silently hardcoding `IsDasFailed`/`IsAttestationFailed` to
+  `false` regardless of what `DASensor.SetFailureFlags` had set (pre-existing bug, unrelated to this
+  wiring but found and fixed while touching the same function).
+  - **Real liveness bug found and fixed by actually running this against a real celestia-bridge**
+    (not visible in any unit test, since blob submission was never live before this wiring): a real
+    celestia-node's `blob.Submit` blocks until the blob is actually **included in a Celestia block**
+    (~12s at default block time) before returning -- calling it synchronously from `RefreshMetrics`
+    (invoked by both `PrepareProposal` and `ProcessProposal`, both on the hot consensus path) made
+    every `PrepareProposal` call take ~9-12s against CometBFT round timeouts of only 3-4.5s, so the
+    leader's own proposal was never ready before M0b's f+1-timeout quorum round-skipped -- confirmed
+    by running a live node and watching it round-skip forever at height 1 despite being the sole
+    validator (100% of the stake), with `signed proposal` consistently landing 9-12s after `entering
+    propose step` in the logs. Fixed by running `Publisher`'s `Submit` call in a background
+    goroutine (mutex-protected, at most one in-flight submission at a time) so `MaybePublish` always
+    returns near-instantly regardless of Celestia's block time -- `AnchorTracker`'s `SubmitOpReturn`
+    never had this problem since bitcoind's RPC returns as soon as a tx is broadcast, not confirmed.
+    Confirmed via `engramd start` reaching height 14+ with real, sustained block production, and via
+    direct `blob.GetAll` queries against celestia-bridge showing the exact `HeightMarker(height)`
+    payload landing at increasing Celestia heights as Engram height advanced.
+  - **Documented simplification**: the blob payload is `HeightMarker(engramHeight)` (an 8-byte tag +
+    height marker, mirroring `AnchorTracker`'s `AnchorTag + height`), not the block's actual
+    transaction data -- `RefreshMetrics` (where `MaybePublish` is called) only has `sdk.Context`, not
+    `req.Txs`; publishing the real block data needs wiring at `PrepareProposal` itself, where `Txs`
+    are available. The availability MECHANISM being exercised (a real `blob.Submit`/`blob.GetAll`
+    round-trip against live Celestia) is real; only the blob's CONTENT is currently a placeholder.
+  - **Not yet done**: a genuine `celestia-light` node service sampling from `celestia-bridge` (per
+    the repo owner's preference over trusting the bridge's full data directly) is not in
+    `docker/celestia-local-cluster.yml` yet -- `Publisher`/`RPCClient` talk to the bridge directly.
 
 **Not yet done**, tracked as later milestones (ask the repo owner for the current plan file if
 picking this up cold):
