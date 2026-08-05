@@ -14,6 +14,13 @@ type Params struct {
 	MaxPeerLatency      uint64 // maximum allowed peer latency
 	MaxSuspiciousTime   uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
 	MaxIgnoreRounds     uint64 // rounds a forced tx can be ignored before IsCensoring trips
+
+	// KDeepFinality is K_DEEP_FINALITY (spec/core/EngramConsensus.tla's
+	// IsKDeep): Bitcoin confirmations required before a submitted checkpoint
+	// counts as anchored (x/vigilante.AnchorTracker, Phase 7). Not part of
+	// the FSM THRESHOLDS block below -- it governs the anchor-submission
+	// mechanism, not the FSM's warning/critical predicates.
+	KDeepFinality uint64
 }
 
 // DefaultParams returns the exact FSM THRESHOLDS block from
@@ -36,5 +43,10 @@ func DefaultParams() Params {
 		MaxPeerLatency:      1,
 		MaxSuspiciousTime:   1,
 		MaxIgnoreRounds:     1,
+		// Not part of MC_StressC1Safety.cfg's THRESHOLDS block (K_DEEP_FINALITY
+		// isn't an FSM constant) -- 2 is a small, regtest-appropriate default
+		// for fast local testing; production/mainnet deployments should
+		// override this to a real security margin via genesis.
+		KDeepFinality: 2,
 	}
 }

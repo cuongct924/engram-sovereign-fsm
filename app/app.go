@@ -22,6 +22,7 @@ import (
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	sovereigntykeeper "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
@@ -46,6 +47,15 @@ type EngramApp struct {
 	interfaceRegistry codectypes.InterfaceRegistry
 
 	SovereigntyKeeper *sovereigntykeeper.Keeper
+
+	// Sensors backs PrepareProposal/ProcessProposal's live sensor refresh
+	// (x/sovereignty/sensors_refresh.go, Phase 7). P2P is exported so
+	// cmd/engramd/main.go can wire it to the CometBFT fork's real
+	// lp2p.Switch.PeerHealthSnapshot() once node.NewNode() constructs the
+	// Switch -- NewEngramApp runs before that, so this starts on the static
+	// SetSnapshot-based mock reading and gets upgraded via SetSource
+	// shortly after, before the node starts handling any real proposals.
+	Sensors *sovereignty.Sensors
 }
 
 // NewEngramApp constructs a real, runnable EngramApp: BaseApp + codec +
@@ -87,12 +97,18 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *E
 
 	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc, memoryzk.NewMemoryStorage())
 
+	sensorBundle := &sovereignty.Sensors{
+		BTC: sensors.NewBTCSensor(),
+		DA:  sensors.NewDASensor(),
+		P2P: sensors.NewP2PSensor(),
+	}
+
 	anteHandler := sdk.ChainAnteDecorators(NewCircuitBreakerDecorator(sovKeeper))
 	bApp.SetAnteHandler(anteHandler)
 
 	if !vanilla {
-		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper))
-		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper))
+		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, sensorBundle))
+		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper, sensorBundle))
 		bApp.SetPreBlocker(sovereignty.NewPreBlocker(sovKeeper))
 	}
 	bApp.SetInitChainer(newInitChainer(sovKeeper))
@@ -106,6 +122,7 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *E
 		cdc:               cdc,
 		interfaceRegistry: interfaceRegistry,
 		SovereigntyKeeper: sovKeeper,
+		Sensors:           sensorBundle,
 	}
 }
 

@@ -56,21 +56,21 @@ func TestProcessProposal_AcceptsWellFormedProposal(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsEmptyTxs(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: nil})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: nil})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsUndecodableFirstTx(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{[]byte("not an extended proposal")}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{[]byte("not an extended proposal")}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
@@ -82,7 +82,7 @@ func TestProcessProposal_RejectsFSMStateMismatch(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "a proposal claiming a fsm_state that doesn't match CalculateNextState must be rejected")
 }
@@ -94,7 +94,7 @@ func TestProcessProposal_RejectsMissingDAAttestation(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
@@ -106,7 +106,7 @@ func TestProcessProposal_RejectsForgedBTCHash(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
@@ -132,7 +132,7 @@ func TestProcessProposal_RejectsWithdrawalWhileSovereign(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
 		Txs: [][]byte{tx, []byte("TX_WITHDRAWAL")},
 	})
 	require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestProcessProposal_RejectsPrematureZKProofClaim(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "zk_proof_ref must be false outside a hysteresis-satisfied RECOVERING state")
 }
@@ -161,7 +161,7 @@ func TestProcessProposal_RejectsCensoringProposal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Proposal is otherwise well-formed but omits the forced tx.
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "a proposal that keeps omitting a forced tx past MaxIgnoreRounds must be rejected")
 }
@@ -175,7 +175,7 @@ func TestProcessProposal_AcceptsCensoredTxOnceIncluded(t *testing.T) {
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
 		Txs: [][]byte{tx, []byte("FORCED_TX_1")},
 	})
 	require.NoError(t, err)

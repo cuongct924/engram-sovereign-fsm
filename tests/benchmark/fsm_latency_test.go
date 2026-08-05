@@ -150,7 +150,7 @@ func BenchmarkProcessProposal(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	handler := sovereignty.NewProcessProposalHandler(k)
+	handler := sovereignty.NewProcessProposalHandler(k, nil)
 	req := &abci.RequestProcessProposal{Txs: [][]byte{tx}}
 
 	b.ResetTimer()
@@ -197,6 +197,6 @@ func BenchmarkBTCVerifyReceipt(b *testing.B) {
 	receipt := vigilante.Receipt{CheckpointBlockHeight: 100, CheckpointBlockHash: vigilante.ExpectedBlockHash(100)}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = vigilante.VerifyReceipt(receipt, 100, 100, 0)
+		_ = vigilante.VerifyReceipt(receipt, 100, 100, 0, 2)
 	}
 }

@@ -82,18 +82,36 @@ func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in ke
 
 // NewPrepareProposalHandler builds the sdk.PrepareProposalHandler for this
 // module, mirroring ServerInsertProposal (spec/core/EngramServer.tla:52-102):
-// the leader computes target_state via CalculateNextState (reused verbatim
-// from Phase 1, not reimplemented), builds da_receipt/btc_receipt from the
-// tracked heights, and only attempts zk_proof_ref once hysteresis is
-// satisfied. Wiring this onto a real BaseApp via SetPrepareProposal is M5's
-// job -- this function only builds the handler.
-func NewPrepareProposalHandler(k *keeper.Keeper) sdk.PrepareProposalHandler {
+// first refreshes k.Metrics from this node's own live sensors (RefreshMetrics,
+// Phase 7 -- previously missing, so target_state was always computed from
+// stale keeper state), then the leader computes target_state via
+// CalculateNextState (reused verbatim from Phase 1, not reimplemented),
+// builds da_receipt/btc_receipt from the tracked heights, and only attempts
+// zk_proof_ref once hysteresis is satisfied. Wiring this onto a real BaseApp
+// via SetPrepareProposal is M5's job -- this function only builds the handler.
+func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors) sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
+		if err := RefreshMetrics(ctx, k, s); err != nil {
+			return nil, err
+		}
 		currState, in := currentFSMInput(ctx, k)
 		targetState := keeper.CalculateNextState(currState, in, k.Params)
 
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
+		// Adopt our own AnchorTracker's confirmed height if it has advanced
+		// past what's already committed -- this is the ONLY place
+		// h_btc_anchored gets a chance to move forward at all (PreBlocker's
+		// CommitFSMTransition just re-persists whatever height ends up in
+		// the winning proposal's btc_receipt); without this, hBtcAnchored
+		// above is always just an echo of the last-committed value and can
+		// never advance (see sensors_refresh.go's btcGapMetric doc for the
+		// liveness bug this closes).
+		if s != nil && s.Anchor != nil {
+			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored {
+				hBtcAnchored = confirmed
+			}
+		}
 
 		daReceipt := da.Receipt{
 			PublishedBlockHeight: hEngramVerified,
@@ -150,8 +168,12 @@ func containsWithdrawal(tx []byte) bool {
 
 // NewProcessProposalHandler builds the sdk.ProcessProposalHandler for this
 // module, porting IsValidProposal (spec/core/EngramTendermint.tla:281-307)
-// branch-for-branch against the ExtendedProposal decoded from Txs[0].
-func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
+// branch-for-branch against the ExtendedProposal decoded from Txs[0]. Like
+// PrepareProposal, it refreshes k.Metrics from this node's own live sensors
+// (RefreshMetrics, Phase 7) before computing expectedState -- each validator
+// cross-checks the proposal against ITS OWN current readings, never the
+// leader's, matching "sensors propose, consensus decides."
+func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	accept := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}
 
@@ -162,6 +184,9 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		ext, ok, err := DecodeExtendedProposal(req.Txs[0])
 		if err != nil || !ok {
 			return reject, nil
+		}
+		if err := RefreshMetrics(ctx, k, s); err != nil {
+			return nil, err
 		}
 
 		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315), evaluated
@@ -199,21 +224,48 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		}
 
 		// 2. DA pipeline check (IsValidProposal:290-294). Round-based tolerance
-		// widening (DATolerance) is not applied here -- vanilla ABCI 2.0 does
-		// not expose the consensus round to PrepareProposal/ProcessProposal, so
-		// round=0 (no widening) is used, which is the strictest case and never
-		// less safe than the spec's tolerance-widened acceptance.
+		// widening (DATolerance) now uses the real consensus round (Phase 7):
+		// req.Round, a fork-level addition to RequestProcessProposal (vanilla
+		// ABCI 2.0 does not expose this -- see the fork's
+		// proto/tendermint/abci/types.proto and consensus/state.go's
+		// CreateProposalBlock/ProcessProposal callers, which now thread
+		// cs.Round through). Previously hardcoded to 0 (no widening, the
+		// strictest case) -- harmless for DA (whose freshness window was
+		// static anyway pre-Phase-7) but load-bearing for BTC below, where a
+		// real, continuously-advancing chain height combined with a
+		// K-deep-confirmed (hence inherently lagging) anchor made round=0's
+		// zero tolerance permanently unsatisfiable (see
+		// x/vigilante/verify.go's Tolerance doc).
+		round := uint64(req.Round)
 		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
 		isDAHealthy := types.IsDAHealthy(in.Metrics, k.Params)
-		if !da.VerifyReceipt(ext.DAReceipt, ext.FSMState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold, 0) {
+		if !da.VerifyReceipt(ext.DAReceipt, ext.FSMState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold, round) {
 			return reject, nil
 		}
 
 		// 3. Settlement monotonicity & BTC light-client hash check (IsValidProposal:296-298).
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		if !vigilante.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, 0) {
+		if !vigilante.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
 			return reject, nil
+		}
+
+		// 3b. Real anchor advance verification (Phase 7, no spec line -- this
+		// repo's concrete addition, not present in the abstract model since
+		// EngramConsensus.tla's CanElect/IsKDeep are refinement-proof-only,
+		// never called by the concrete layer; see vigilante.VerifySPVProof's
+		// doc). If the leader's btc_receipt claims h_btc_anchored has moved
+		// forward, don't just trust it (check #3 above only bounds it near
+		// h_btc_current and checks the spec-abstracted hash) -- independently
+		// confirm, via OUR OWN bitcoind connection, that a real,
+		// kDeepFinality-confirmed checkpoint transaction actually exists at
+		// that height. Matches "sensors propose, consensus decides": this
+		// validator never accepts another node's word for what Bitcoin says.
+		if s != nil && s.Anchor != nil && ext.BTCReceipt.CheckpointBlockHeight > hBtcAnchored {
+			verified, verr := s.Anchor.VerifyAnchor(ctx, ext.BTCReceipt.CheckpointBlockHeight)
+			if verr != nil || !verified {
+				return reject, nil
+			}
 		}
 
 		// 4. Circuit breaker: no withdrawal while SOVEREIGN/RECOVERING (IsValidProposal:300-301).

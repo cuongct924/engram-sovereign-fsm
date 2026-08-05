@@ -16,6 +16,7 @@ import (
 	cmtcfg "github.com/cometbft/cometbft/config"
 	cmtcrypto "github.com/cometbft/cometbft/crypto"
 	cmtlog "github.com/cometbft/cometbft/libs/log"
+	"github.com/cometbft/cometbft/lp2p"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
 	"github.com/cometbft/cometbft/privval"
@@ -27,7 +28,9 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/app"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 )
 
 func defaultHome() string {
@@ -350,6 +353,9 @@ func runStart(home string, vanilla bool) error {
 		return fmt.Errorf("construct node: %w", err)
 	}
 
+	wireP2PSensor(engramApp, n)
+	wireBTCSensor(engramApp)
+
 	if err := n.Start(); err != nil {
 		return fmt.Errorf("start node: %w", err)
 	}
@@ -360,6 +366,84 @@ func runStart(home string, vanilla bool) error {
 	<-sigCh
 
 	return n.Stop()
+}
+
+// lp2pHealthAdapter converts the CometBFT fork's raw lp2p.HealthSnapshot
+// (github.com/cuongct090_04/engram-consensus-core, M0a) into the
+// field-compatible sensors.P2PSnapshot shape x/sovereignty expects --
+// implements sensors.P2PHealthSource. Lives here, not in x/sovereignty,
+// because this is the only layer that imports both the fork's lp2p package
+// and x/sovereignty's sensors package (see P2PHealthSource's doc).
+type lp2pHealthAdapter struct {
+	sw *lp2p.Switch
+}
+
+func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
+	snap := a.sw.PeerHealthSnapshot()
+	return sensors.P2PSnapshot{
+		SubnetDiversity: snap.SubnetDiversity,
+		ActiveAnchors:   snap.ActiveAnchors,
+		CleanPeers:      snap.CleanPeers,
+		ChurnRate:       snap.PeerChurnRate,
+		AvgTenure:       snap.AvgPeerTenure,
+		Latency:         snap.PeerLatencyMs,
+	}
+}
+
+// wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot-
+// based mock to the fork's live lp2p.Switch (Phase 7). n.Switch() only
+// exists after node.NewNode() returns -- NewEngramApp runs before that, so
+// this late-binds the real source in rather than passing it at construction
+// time. Runs before n.Start(), so no real proposal is ever processed with
+// the mock source still active. If the fork isn't in use (n.Switch() isn't
+// a *lp2p.Switch, e.g. a vanilla CometBFT build), this is a silent no-op --
+// the sensor just stays on its static mock reading.
+func wireP2PSensor(engramApp *app.EngramApp, n *node.Node) {
+	sw, ok := n.Switch().(*lp2p.Switch)
+	if !ok {
+		return
+	}
+	engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: sw})
+}
+
+// wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap-based
+// mock to a real bitcoind JSON-RPC connection (x/vigilante/rpc.go, Phase 7),
+// and wires an AnchorTracker against the same connection (x/vigilante/
+// anchor.go) so h_btc_anchored has a real submission-and-confirmation
+// pipeline behind it instead of a value that never advances -- both when
+// BITCOIN_HOST is set (e.g. docker/bitcoin-regtest-cluster.yml's
+// bitcoin-node01). Left unwired (silent no-op) when unset, e.g. local dev
+// with no Bitcoin node running -- BTCSensor just stays on its static mock
+// reading, and no checkpoints get submitted.
+//
+// Requires a wallet with spendable funds already loaded on the connected
+// bitcoind (AnchorTracker.MaybeSubmit's OP_RETURN broadcasts need to pay a
+// fee) -- regtest: `bitcoin-cli createwallet <name>` + mine some blocks to
+// one of its addresses first. This repo does not run the real
+// babylonlabs/babylond vigilante images (docker/engram-validator-node0N.yml
+// previously scaffolded vigilante-submitter0N/reporter0N/
+// checkpointing-monitor0N) -- those daemons expect a real Babylon chain's
+// x/checkpointing/x/btccheckpoint/x/btclightclient modules to pull a
+// BLS-aggregated epoch checkpoint from, which engram-node (x/sovereignty
+// only, see app/app.go's TODO on staking) does not have, so they would not
+// actually function against this app; AnchorTracker is a minimal in-process
+// stand-in achieving the same submit-and-confirm goal without that
+// dependency.
+func wireBTCSensor(engramApp *app.EngramApp) {
+	host := os.Getenv("BITCOIN_HOST")
+	if host == "" {
+		return
+	}
+	port := os.Getenv("BITCOIN_RPC_PORT")
+	if port == "" {
+		port = "18443"
+	}
+	user := os.Getenv("BITCOIN_RPC_USER")
+	pass := os.Getenv("BITCOIN_RPC_PASSWORD")
+
+	client := vigilante.NewRPCClient(fmt.Sprintf("http://%s:%s", host, port), user, pass)
+	engramApp.Sensors.BTC.SetSource(client)
+	engramApp.Sensors.Anchor = vigilante.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
 }
 
 // demoSMTCmd is the original SMT proof-of-concept (unrelated to the
