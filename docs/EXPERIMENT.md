@@ -97,6 +97,18 @@ Thay vì chỉ báo cáo "no error", biến phần này thành một **verificat
 
 **Baselines:** vanilla CometBFT với strict external validity; static circuit breaker; FSM without hysteresis; FSM với peer-count-only P2P sensor.
 
+**Đã đo thật:** `go test ./tests/e2e/...` chạy 7 kịch bản S1-S7 thật qua `x/sovereignty`'s `BeginBlocker` thật (không mock FSM logic, chỉ mock input sensor),
+kết quả ở `tests/e2e/results/s*.csv` + `e2_summary.md`. `scripts/e2_fault_injection/simulate_network_jitter.py` dựng Figure 3 (state timeline 7 kịch bản +
+withdrawal-lock shading) từ đúng dữ liệu đó.
+
+**Baseline vanilla CometBFT (đã đo thật):** `engramd start --vanilla` (cờ mới, `app/app.go`) chạy đúng binary/module nhưng bỏ qua
+`SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` -- BaseApp dùng handler mặc định, không có `ExtendedProposal`. Chạy 2 node thật song song
+(`scripts/e7_consensus_overhead/vanilla_comparison.sh`) xác nhận: node thường luôn có marker `ENGRAM_EXTENDED_PROPOSAL_V1|...` 228 byte ở `Txs[0]` mọi
+block; node vanilla có 0 tx. **Phát hiện phụ khi xây baseline này:** `cmd/engramd/main.go`'s `runStart` trước đây dùng thẳng `cmtcfg.DefaultConfig()` mà
+KHÔNG đọc `config.toml` từ đĩa (bug thật, phát hiện khi 2 node cùng chạy tranh cổng RPC mặc định dù đã sửa `config.toml`) -- đã sửa bằng
+`viper`-based config loader (`loadConfig` trong `main.go`), quan trọng cho cả Phase 3 (multi-node Docker) vì trước đó cấu hình per-node (ports, peers) bị
+bỏ qua hoàn toàn ở `start` time.
+
 ---
 
 ### E3 — Failure Matrix
@@ -112,6 +124,11 @@ Chỉ rõ hệ thống **biết khi nào** được phép tiếp tục commit lo
 | healthy | healthy | eclipsed | SUSPICIOUS/SOVEREIGN | locked nếu critical | depends |
 | critical | failed | eclipsed | SOVEREIGN | locked | local |
 | recovered | recovered | healthy | RECOVERING → ANCHORED | locked until anchored | full |
+
+**Đã đo thật:** `scripts/e3_failure_matrix/measure_latency.py` xây lại bảng trên bằng dữ liệu thật (không phải tay viết như bảng aspirational ở trên) --
+đọc trạng thái ổn định (steady-state) cuối mỗi kịch bản S1-S7 trong `tests/e2e/results/s*.csv`, kết quả ở
+`scripts/e3_failure_matrix/results/table2_failure_matrix.md`. "Block production" luôn là "continuous" vì `Harness.Advance()` chưa từng dừng/lỗi qua bất kỳ
+kịch bản nào -- đó cũng là một phần kết quả đo được, không phải giả định.
 
 ---
 
@@ -152,6 +169,15 @@ P2P health profiler là điểm **novelty** vì sensor output không chỉ dùng
 | Relay Node Attack | Peer-count | 0.5% | 100.0% | N/A |
 | | **Tri-interface** | **0.2%** | **0.0%** | **250 ms** |
 
+**Đã đo thật (nhưng SYNTHETIC, không phải live-network -- xem lưu ý dưới):** bảng trên là số mục tiêu chưa đo. Docker daemon không chạy trong môi trường
+này nên không có Pumba chaos injection thật; `scripts/e4_p2p_eclipse_detection/simulate_eclipse_attack.py` thay vào đó chạy Monte Carlo tổng hợp qua
+`go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`: hàm detector thật (`types.IsP2PQualityHealthy`) và baseline peer-count-only được kiểm tra
+trên các peer-snapshot ngẫu nhiên dựng tay mô phỏng đặc trưng từng attack (2000 trial/ô, seed cố định), ở cả `DefaultParams()` (ngưỡng nhỏ dùng để verify
+TLC) và một bộ ngưỡng "production_scale" thực tế hơn. Kết quả thật: FPR=0% cho cả hai detector, FNR=100% cho peer-count-only ở CẢ 4 attack (vì các attack
+được thiết kế để giữ nguyên clean-peer count trong khi phá các tín hiệu khác), FNR=0% cho tri-interface, detection delay 1.0–2.7 snapshot tùy attack/ngưỡng
+-- xem `scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`. Đây là bằng chứng thật về hàm detector thật, nhưng trên input tổng hợp,
+KHÔNG tương đương với đo trên mạng thật.
+
 ---
 
 ### E5 — Hysteresis Sensitivity
@@ -163,6 +189,20 @@ Chạy `HYSTERESIS_WAIT` ∈ {0, 1, 3, 5, 10, 20} trong các môi trường: sta
 **Metrics:** flapping count, recovery latency, block throughput trong RECOVERING, false recovery rate, thời gian withdrawal bị khóa.
 
 > **Kết quả mong muốn:** `HYSTERESIS_WAIT = 3–5` là sweet spot; giá trị 0 hoặc 1 dễ flapping; giá trị quá cao làm recovery chậm và khóa withdrawal lâu.
+
+**Đã đo thật (5/5 môi trường):** `go test ./tests/e2e/... -run TestE5_HysteresisSweep` sét thật `HYSTERESIS_WAIT` qua {0,1,3,5,10,20} trên
+Harness/BeginBlocker thật, dưới 5 môi trường: "stable" (không nhiễu, nhóm đối chứng) và 4 môi trường nhiễu liên tục (`noisy_btc`, `noisy_da`,
+`noisy_p2p`, `combined_adversarial`) -- mỗi block có 20% xác suất độc lập bị nhiễu 1 block (khác bản trước: 1 cú đánh sập đơn lẻ không tạo được flapping
+ở giá trị nào). Cùng seed RNG cố định cho mọi giá trị HYSTERESIS_WAIT trong cùng môi trường để so sánh công bằng. Kết quả ở
+`tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4 (3 panel: stability/flapping/time-to-first-recovery) ở
+`scripts/e5_hysteresis_flapping/results/figure4_hysteresis.{png,pdf}`.
+
+**Phát hiện thật (khác "kết quả mong muốn" ở trên, không chỉnh để khớp):** dưới nhiễu liên tục, `anchored_uptime` (tỷ lệ thời gian ở ANCHORED trong cửa
+sổ 100 block) **giảm đơn điệu** khi HYSTERESIS_WAIT tăng (vd. `noisy_btc`: 59.8% ở HW=0 → 0.0% ở HW=20) -- **không có sweet spot nội suy**. Lý do là kiến
+trúc, không phải lỗi thực nghiệm: `HYSTERESIS_WAIT` chỉ gác cổng transition RECOVERING→ANCHORED; một khi đã ở ANCHORED, một lần đọc xấu là rớt ngay
+(ANCHORED không có bảo vệ hysteresis cho chính nó), và SUSPICIOUS→ANCHORED hoàn toàn không có cổng hysteresis nào (`CalculateNextState`'s nhánh
+SUSPICIOUS: `if healthy { return ANCHORED }`, vô điều kiện). Vì vậy HYSTERESIS_WAIT lớn chỉ trì hoãn việc đạt ANCHORED mà không làm nó ổn định hơn khi đã
+đạt được -- đây là một tính chất thiết kế thật đáng nêu rõ trong bài, không phải lỗi.
 
 ---
 
@@ -222,6 +262,15 @@ Chạy `HYSTERESIS_WAIT` ∈ {0, 1, 3, 5, 10, 20} trong các môi trường: sta
 - **Figure 6** — Recovery Proof Scaling: 4 panel gồm (A) Constraint Count, (B) Proving Time — cả hai tuyến tính; (C) Verification Time — gần phẳng; (D) Proof Size — gần hằng số.
 - **Figure 7** *(tùy chọn)* — Backend Trade-off: radar chart hoặc grouped bar chart so sánh Noir+Honk vs Plonky3 trên 6 tiêu chí.
 
+**Đã đo thật (real measurements, không phải số mục tiêu ở trên):** `scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh` chạy toàn bộ pipeline
+`nargo compile` → `bb gates` → `nargo execute` → `bb prove` → `bb verify` thật (Noir 1.0.0-beta.22 + Barretenberg 5.0.0-nightly.20260522, UltraHonk) trên
+`circuit/reanchoring/src/main.nr` ở N = 4..256 headers, kết quả thô ở `scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`, bảng/biểu đồ dựng
+bởi `stats_collector.py` vào `results/table6a_6b.md` + `results/figure6_scaling.{png,pdf}`. Circuit thật đơn giản hơn Table 6A/6B ở trên (chain
+continuity qua Pedersen hash thay vì SMT inclusion/update proof thật -- xem comment ở đầu `main.nr`), nên số liệu đo được KHÔNG nhằm khớp với các con số
+mục tiêu phía trên, mà xác nhận đúng shape khoa học mà E6 muốn chứng minh: constraint count tăng tuyến tính hoàn hảo (42 ACIR opcodes/header thêm, R²=1.0),
+proving time tăng gần tuyến tính (0.38s → 4.14s từ N=4 → 256), verification time phẳng (20–26ms, không phụ thuộc N), proof size hằng số tuyệt đối (14,656 B
+ở mọi N). Table 6C/Figure 7 (Plonky3 backend so sánh) chưa thực hiện -- đúng như mức ưu tiên "tùy chọn" ở trên.
+
 > **Scientific claim:** Recovery proofs scale linearly in prover cost while preserving constant-size proofs and constant-time verification — reanchoring is practical, scalable, and incurs bounded overhead.
 
 **Ưu tiên thực hiện:**
@@ -250,6 +299,16 @@ Extended proposal thêm các trường `fsm_state`, `da_receipt`, `btc_receipt`,
 
 > **Kết quả mong muốn:** overhead bình thường thấp; overhead tăng chủ yếu khi receipt verification hoặc sensor mismatch xảy ra.
 
+**Đã đo thật:** `go test ./tests/benchmark/... -bench=. -benchmem` (thật, không mock) đo kích thước JSON thật của từng payload V0-V5 tích lũy và chi phí
+CPU thật của từng bước validate (`CalculateNextState`, `da.VerifyReceipt`, `vigilante.VerifyReceipt`) cộng dồn, cộng chi phí `ProcessProposal` đầy đủ
+(V5 thật, chạy end-to-end). `scripts/e7_consensus_overhead/measure_overhead.py` dựng Table 4 từ đó -- kết quả ở
+`scripts/e7_consensus_overhead/results/table4_overhead.md`. Lưu ý: V4 (P2P digest) chỉ là ước lượng kích thước vì trường này chưa thực sự nằm trong
+wire format thật (P2P health được validate từ `keeper.Metrics` cục bộ của leader, không nằm trong proposal) -- xem comment đầu
+`tests/benchmark/fsm_latency_test.go`. Bảng còn có phần **baseline vanilla CometBFT thật** (2 node `engramd` chạy song song, 1 thường 1 `--vanilla`) --
+xem chi tiết ở ghi chú "Đã đo thật" của E2 phía trên (cùng một baseline dùng chung cho E2/E3/E7). Overhead đo được: **+228 byte/block** cho marker
+`ENGRAM_EXTENDED_PROPOSAL_V1` trên 100% block; block interval không khác biệt có ý nghĩa ở trạng thái idle (do CometBFT's `timeout_commit` mặc định chi
+phối cả hai, không phải do ExtendedProposal).
+
 ---
 
 ### E8 — Attack-Resilience Test Suite
@@ -268,6 +327,12 @@ Chuyển các lemma an toàn thành integration tests hoặc simulation traces.
 
 **Ngoài pass/fail:** đo number of rounds to recover, number of invalid proposals rejected, honest validator agreement rate, censorship latency, slashable evidence detection latency.
 
+**Đã đo thật (6/8 dòng, xem giới hạn):** `scripts/e8_attack_resilience/trigger_disconnect.py` chạy thật `go test -json` trên các test an toàn thật trong
+`x/sovereignty/proposal_test.go` (đúng code path `ProcessProposal`/`IsValidProposal` một node thật sẽ dùng), map kết quả pass/fail thật vào bảng trên --
+kết quả ở `scripts/e8_attack_resilience/results/table3_attack_resilience.md`, tất cả PASS. 2 dòng "Timeout flooding" và "Double-signing" **không đo được**
+bằng harness in-process này -- cần consensus engine nhiều node thật (M0b) và CometBFT evidence module trên node thật (M7), đã ghi rõ "NOT COVERED" trong
+bảng, không giả lập số liệu.
+
 ---
 
 ### E9 — Trace-Driven Stress Test
@@ -281,6 +346,11 @@ Kết quả biểu diễn bằng **timeline** ANCHORED → SUSPICIOUS → SOVERE
 - Block commit rate
 - Withdrawal lock status
 - Proof generation status
+
+**Đã đo thật:** `go test ./tests/e2e/... -run TestE9_TraceDrivenCombinedFailure` replay một trace liên tục thật (không phải 7 kịch bản riêng lẻ như E2) qua
+Harness/BeginBlocker thật: BTC congestion tăng dần → chồng thêm DA outage khi vẫn đang SOVEREIGN → chồng thêm P2P churn spike (combined 3 lỗi cùng lúc) →
+lần lượt hồi phục → RECOVERING → ANCHORED. Dữ liệu thật ở `tests/e2e/results/e9_trace_driven.csv` (48 block), Figure 2 6-panel ở
+`scripts/e9_trace_driven/results/figure2_trace_timeline.{png,pdf}` -- xác nhận chain không dừng commit block dù cả 3 lỗi chồng nhau cùng lúc.
 
 ---
 

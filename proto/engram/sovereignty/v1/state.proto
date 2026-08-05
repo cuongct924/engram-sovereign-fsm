@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package engram.sovereignty.v1;
+
+// Đường dẫn sinh mã nguồn Go sẽ hướng thẳng vào types của module execution layer
+option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types";
+
+// Snapshot ngoại vi thô, khớp 1:1 với các biến sensor trong spec/core/EngramFSM.tla
+// (btc_gap, da_gap/is_das_failed/is_attestation_failed, 6 chỉ số P2P tri-interface
+// profiler dùng bởi IsP2PQualityHealthy). Đây là struct được MsgInjectFault và
+// PrepareProposal dùng trực tiếp -- không đổi tên field nếu không port lại toàn bộ
+// x/sovereignty/types/predicates.go.
+message PeripheralMetrics {
+  // Bitcoin settlement sensor.
+  uint64 btc_gap = 1;
+
+  // Celestia DA sensor.
+  uint64 da_gap = 2;
+  bool   is_das_failed = 3;
+  bool   is_attestation_failed = 4;
+
+  // P2P tri-interface sensor.
+  uint64 subnet_diversity = 5;
+  uint64 active_anchors = 6;
+  uint64 clean_peers = 7;
+  uint64 peer_churn_rate = 8;
+  uint64 avg_peer_tenure = 9;
+  uint64 peer_latency = 10;
+}

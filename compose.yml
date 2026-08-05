@@ -1,7 +1,7 @@
 name: engram-validator-cluster
 
 include:
-  - ./docker/monitoring-services.yml
+  - ./docker/engram-monitoring.yml
   - ./docker/bitcoin-regtest-cluster.yml
   - ./docker/celestia-local-cluster.yml
   - ./docker/engram-validator-node01.yml
@@ -21,14 +21,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock # Mount Docker socket for container manipulation
     profiles:
       - chaos-delay
-    # SCENARIO: Inject 100ms latency (±20ms jitter) for 5m to all stratium-node containers
+    # SCENARIO: Inject 100ms latency (±20ms jitter) for 5m to all engram-node containers
     command: 
       - "netem"
       - "--duration=5m"
       - "delay"
       - "--time=100"
       - "--jitter=20"
-      - "re2:^stratium-node-.*"
+      - "re2:^engram-node.*"
 
   pumba-loss:
     image: gaiaadm/pumba:latest
@@ -43,8 +43,8 @@ services:
       - "--duration=2m"
       - "loss"
       - "--percent=5"
-      - "stratium-node-01"
-      - "stratium-node-02"
+      - "engram-node01"
+      - "engram-node02"
 
   pumba-kill:
     image: gaiaadm/pumba:latest
@@ -57,7 +57,7 @@ services:
     command: 
       - "kill"
       - "--signal=SIGKILL"
-      - "stratium-node-04"
+      - "engram-node04"
 
   pumba-eclipse:
     image: gaiaadm/pumba:latest
@@ -72,7 +72,7 @@ services:
       - "--duration=3m"
       - "loss"
       - "--percent=100"
-      - "stratium-node-01"
+      - "engram-node01"
 
 networks:
   # Main validator network: All validators and monitoring tools communicate here
@@ -84,8 +84,8 @@ networks:
       com.docker.network.driver.mtu: "1500"
     ipam:
       config:
-        - subnet: 172.20.0.0/24
-          gateway: 172.20.0.1
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
 
   # Bitcoin network: Isolated environment for Bitcoin RPC and vigilante services
   bitcoin-net:

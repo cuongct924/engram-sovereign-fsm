@@ -1,54 +1,94 @@
 #!/usr/bin/env python3
+"""
+E3 -- External-Dependency Failure Matrix (docs/EXPERIMENT.md's E3, Table 2).
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import requests
+Builds Table 2 (BTC/DA/P2P condition -> observed FSM state/withdrawal
+policy/block production) from REAL data in tests/e2e/results/s*.csv, instead
+of the hand-written aspirational table in the design doc. Each scenario's
+final (steady-state) row is taken as the settled outcome for its input
+condition. "Block production" is reported as continuous for every row here
+because tests/e2e/harness.go's Advance() never blocked or errored across any
+scenario -- that is itself part of the real result, not an assumption.
 
-# 1. Academic Style
-sns.set_theme(style="whitegrid")
-plt.rcParams.update({
-    "font.family": "serif",
-    "font.size": 12,
-    "axes.labelsize": 14,
-    "axes.titlesize": 16,
-    "legend.fontsize": 12,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "pdf.fonttype": 42
-})
+Usage:
+    go test ./tests/e2e/...          # regenerate tests/e2e/results/*.csv
+    python3 scripts/e3_failure_matrix/measure_latency.py
+"""
 
-def plot_latency_chart():
-    # 2. (Giả lập) Lấy dữ liệu từ Prometheus thông qua requests & pandas
-    # response = requests.get('http://localhost:9090/api/v1/query', params={'query': 'engram_latency'})
-    # df = pd.DataFrame(...)
-    
-    # Dữ liệu giả lập cho Thử nghiệm 1 (The Great Disconnect)
-    data = {
-        'Time (s)': [1-6],
-        'Latency (ms)': [7-11] # Đỉnh 520ms là lúc đứt mạng -> chuyển Sovereign
-    }
-    df = pd.DataFrame(data)
+import csv
+import glob
+import os
+import sys
 
-    # 3. Vẽ biểu đồ bằng Seaborn
-    plt.figure(figsize=(8, 5)) # Kích thước chuẩn cho 1 cột trong bài báo 2 cột
-    ax = sns.lineplot(data=df, x='Time (s)', y='Latency (ms)', 
-                      linewidth=2.5, color='#1f77b4', marker='o')
+E2E_RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "e2e", "results")
+OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
+TABLE_OUT = os.path.join(OUT_DIR, "table2_failure_matrix.md")
 
-    # Thêm đường đánh dấu (Annotation) khoảnh khắc Ngắt mạch (Circuit Breaker)
-    plt.axvline(x=25, color='red', linestyle='--', linewidth=1.5, label='Network Partition')
-    plt.text(26, 400, 'Sovereign Fallback Triggered', color='red', fontsize=11)
+# DefaultParams() (x/sovereignty/types/params.go): SuspiciousThreshold=1, SovereignThreshold=2.
+BTC_SUSPICIOUS_THRESHOLD = 1
+BTC_SOVEREIGN_THRESHOLD = 2
 
-    # 4. Tinh chỉnh trục và xuất file
-    plt.title('FSM Detection Latency during Network Partition', pad=15)
-    plt.xlabel('Time (Seconds)')
-    plt.ylabel('End-to-End Latency (ms)')
-    plt.legend(loc='upper right')
-    plt.tight_layout()
+SCENARIO_LABELS = {
+    "s1_normal": "S1 Normal",
+    "s2_btc_congestion": "S2 BTC congestion (settled)",
+    "s3_da_unavailable": "S3 DA unavailable (settled)",
+    "s4_p2p_eclipse_partial": "S4 P2P eclipse partial (settled)",
+    "s5_anchor_isolation": "S5 Anchor isolation (settled)",
+    "s6_combined_btc_da_failure": "S6 Combined BTC+DA failure (settled)",
+    "s7_recovery": "S7 Recovery (settled)",
+}
 
-    # XUẤT RA FILE PDF VECTOR (KHÔNG BỊ VỠ NÉT)
-    plt.savefig('figure_detection_latency.pdf', format='pdf', dpi=300)
-    print("Đã xuất biểu đồ ra file figure_detection_latency.pdf thành công!")
+
+def btc_condition(gap):
+    if gap == 0:
+        return "healthy"
+    if gap < BTC_SOVEREIGN_THRESHOLD:
+        return "warning"
+    return "critical"
+
+
+def load_last_row(path):
+    with open(path, newline="") as f:
+        rows = list(csv.DictReader(f))
+    return rows[-1] if rows else None
+
+
+def build_table():
+    csv_paths = sorted(glob.glob(os.path.join(E2E_RESULTS_DIR, "s*.csv")))
+    if not csv_paths:
+        print(f"No CSVs found in {E2E_RESULTS_DIR} -- run 'go test ./tests/e2e/...' first.", file=sys.stderr)
+        sys.exit(1)
+
+    lines = [
+        "**Table 2 -- Failure Matrix (measured, real tests/e2e data, DefaultParams thresholds):**",
+        "",
+        "| Scenario | BTC | DA | P2P | Observed FSM state | Withdrawals | Block production |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for p in csv_paths:
+        name = os.path.splitext(os.path.basename(p))[0]
+        row = load_last_row(p)
+        if row is None:
+            continue
+        btc = btc_condition(int(row["btc_gap"]))
+        da = "healthy" if row["da_healthy"].lower() == "true" else "failed"
+        p2p = "healthy" if row["p2p_healthy"].lower() == "true" else "unhealthy"
+        withdrawals = "locked" if row["withdraw_locked"].lower() == "true" else "enabled"
+        lines.append(
+            f"| {SCENARIO_LABELS.get(name, name)} | {btc} | {da} | {p2p} | {row['state']} "
+            f"| {withdrawals} | continuous ({row['height']} blocks, 0 halts) |"
+        )
+    return "\n".join(lines)
+
+
+def main():
+    table = build_table()
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with open(TABLE_OUT, "w") as f:
+        f.write(table + "\n")
+    print(table)
+    print(f"\nTable written to {TABLE_OUT}")
+
 
 if __name__ == "__main__":
-    plot_latency_chart()
+    main()

@@ -1,0 +1,3 @@
+height,state,btc_gap,da_healthy,p2p_healthy,safe_blocks,suspicious_duration,withdraw_locked
+1,ANCHORED,0,true,true,0,0,false
+2,SOVEREIGN,0,true,false,0,0,true

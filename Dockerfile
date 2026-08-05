@@ -1,5 +1,5 @@
-# Multi-stage build for Stratium Node
-FROM golang:1.21-alpine AS builder
+# Multi-stage build for the Engram Sovereign FSM node
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -15,8 +15,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the stratiumd binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o stratiumd ./cmd/stratiumd/main.go
+# Build the engramd binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o engramd ./cmd/engramd
 
 # Runtime stage
 FROM alpine:latest
@@ -27,12 +27,12 @@ WORKDIR /root
 RUN apk add --no-cache ca-certificates bash curl jq
 
 # Copy binary from builder
-COPY --from=builder /app/stratiumd /usr/local/bin/stratiumd
+COPY --from=builder /app/engramd /usr/local/bin/engramd
 
-# Create stratium home directory
-RUN mkdir -p .stratium
+# Create node home directory (matches cmd/engramd's defaultHome())
+RUN mkdir -p .engramd
 
 # Expose ports
 EXPOSE 26656 26657 26660 1317
 
-ENTRYPOINT ["stratiumd"]
+ENTRYPOINT ["engramd"]

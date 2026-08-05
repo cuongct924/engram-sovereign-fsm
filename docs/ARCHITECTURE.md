@@ -30,12 +30,15 @@ Network: 172.21.0.0/24 (bitcoin-net) - Bitcoin Network [ISOLATED]
 
 Network: 172.22.0.0/24 (celestia-net) - Celestia DA Layer [ISOLATED]
 ├── Gateway: 172.22.0.1
-├── celestia-app: 172.22.0.10
+├── celestia-app: 172.22.0.50
+├── celestia-bridge: 172.22.0.51
 ├── celestia-light-0: 172.22.0.100
 ├── celestia-light-1: 172.22.0.101
 ├── celestia-light-2: 172.22.0.102
 └── celestia-light-3: 172.22.0.103
 ```
+
+*(IP addressing verified against `docker/celestia-local-cluster.yml`/`docker/engram-validator-node0{1-4}.yml` -- celestia-app/celestia-bridge corrected from an earlier stale draft; `celestia-light-N` and the validator ranges were already accurate.)*
 
 ### Port Allocation
 
@@ -43,25 +46,25 @@ Each validator uses offset ports to avoid conflicts:
 
 ```
 Validator 0:  (engram-validator-node01.yml)
-├── Stratium RPC:      26657  (exposed)
+├── Engram RPC:      26657  (exposed)
 ├── Cosmos REST API:   1317   (exposed)
 ├── Prometheus:        26660  (exposed)
 └── Celestia Light RPC: 26658 (exposed)
 
 Validator 1:  (engram-validator-node02.yml)  [Offset +100]
-├── Stratium RPC:      26757  (exposed)
+├── Engram RPC:      26757  (exposed)
 ├── Cosmos REST API:   1417   (exposed)
 ├── Prometheus:        26760  (exposed)
 └── Celestia Light RPC: 26758 (exposed)
 
 Validator 2:  (engram-validator-node03.yml)  [Offset +200]
-├── Stratium RPC:      26857  (exposed)
+├── Engram RPC:      26857  (exposed)
 ├── Cosmos REST API:   1517   (exposed)
 ├── Prometheus:        26860  (exposed)
 └── Celestia Light RPC: 26759 (exposed)
 
 Validator 3:  (engram-validator-node04.yml)  [Offset +300]
-├── Stratium RPC:      26957  (exposed)
+├── Engram RPC:      26957  (exposed)
 ├── Cosmos REST API:   1617   (exposed)
 ├── Prometheus:        26960  (exposed)
 └── Celestia Light RPC: 26760 (exposed)
@@ -81,17 +84,22 @@ Here is the concise summary of the Engram Protocol's modular architecture and Fi
 # Engram Protocol: Sovereign FSM and Modular Architecture
 
 ## 1. The Tripartite Sensor Architecture
-To achieve external state objectivity without cluttering the consensus engine, Engram divides its sensing mechanisms into three distinct layers:
 
-* **External Infrastructure (Docker Containers):** The `celestia-light-client` and `vigilante-reporter` act as network interfaces. They perform Data Availability Sampling (DAS) and query Bitcoin RPCs to fetch raw cryptographic proofs. They do not compute blockchain logic.
-* **Application Layer (`x/` Modules):** The `x/da` and `x/vigilante` modules act as cryptographic validators. They receive raw proofs, verify Ed25519 signatures, Merkle paths, and Bitcoin SPV proofs. They guarantee mathematical correctness and update the internal KVStore.
-* **Consensus Core (Sensors via ABCI++):** The DA Sensor and Settlement Sensor are embedded directly into the custom CometBFT core. They enforce that no block is voted upon unless it contains valid external proofs, blocking malicious data before the consensus phase begins.
+*(Status as actually implemented through M4 -- see `CLAUDE.md`'s "Current status" for what's still pending.)*
 
-## 2. ABCI++ Vote Extensions Integration
-The system achieves consensus on external events (Time-Mismatch resolution) using ABCI++ Vote Extensions:
-* **ExtendVote:** Before sending a Pre-commit, each validator queries the external containers and attaches the latest valid DA Proof and Bitcoin Proof to their vote payload.
-* **VerifyVoteExtension:** Upon receiving a vote, validators route the payload to `x/da` and `x/vigilante` for cryptographic verification. Invalid proofs result in immediate vote rejection.
-* **PrepareProposal:** The block proposer aggregates these validated extensions, establishing a globally agreed-upon `H_anchored` and `H_submitted` for the entire network.
+* **External Infrastructure (Docker Containers):** `celestia-light-client` and the `vigilante-*` containers act as network interfaces (see `docker/engram-validator-node0{1-4}.yml`). They are not yet wired to feed real data into `x/sovereignty`'s sensors -- today's sensors (`x/sovereignty/keeper/sensors/`) are mock-controlled for testing (see M0a in `CLAUDE.md` for the P2P-telemetry gap specifically).
+* **Verification Layer (`x/da`, `x/vigilante`):** these are **stateless verification packages**, not full Cosmos SDK modules with their own keeper/KVStore. `x/da.VerifyReceipt`/`x/vigilante.VerifyReceipt` port `IsValidProposal`'s DA-pipeline and BTC-settlement checks (`spec/core/EngramTendermint.tla:290-298`) directly; they're called from `x/sovereignty/proposal.go`'s `ProcessProposal` handler, not from an independent module pipeline.
+* **Consensus Core (`x/sovereignty`'s ABCI++ hooks):** see §2 below for the actual mechanism -- it is deliberately simpler than full ABCI++ Vote Extensions.
+
+## 2. Consensus-Layer Integration (as implemented -- NOT ABCI++ Vote Extensions)
+
+An earlier draft of this document described `ExtendVote`/`VerifyVoteExtension` wiring. **That was never built and is not the current design.** The actual mechanism (`x/sovereignty/proposal.go`, `preblock.go`):
+
+* **`PrepareProposal`:** the leader computes `target_state` via `keeper.CalculateNextState` (mirrors `ServerInsertProposal`, `spec/core/EngramServer.tla:52-102`), builds `da_receipt`/`btc_receipt`/`zk_proof_ref`, JSON-encodes them as an `ExtendedProposal`, and prepends it as `Txs[0]` of the block -- a leading pseudo-transaction, not a vote extension.
+* **`ProcessProposal`:** every validator decodes `Txs[0]` and re-validates it against its own local `CalculateNextState` + `x/da.VerifyReceipt` + `x/vigilante.VerifyReceipt` + the withdrawal circuit breaker (mirrors `IsValidProposal`, `spec/core/EngramTendermint.tla:281-307`), rejecting the whole proposal on any mismatch.
+* **`PreBlocker`:** once the block is decided, this is the only place `FSMState`/`safe_blocks`/`suspicious_duration`/the tracked heights are actually written, using the *agreed-upon* `Txs[0]` (mirrors `ServerUponProposalInPrecommitNoDecision`, `spec/core/EngramServer.tla:135-189`) -- never recomputed locally at this point.
+
+This was a deliberate simplification to avoid needing a full TxConfig/signing pipeline for leader-computed system data. See `x/sovereignty/proposal.go`'s package comment for the tradeoff and what would be needed to move to real Vote Extensions.
 
 ## Architecture Flow Diagram
 
@@ -107,30 +115,32 @@ graph TD
         B[Bitcoin P2P] --> VSR[Vigilante Submitter/Reporter]
     end
 
-    subgraph Consensus Core
-        CLC -->|Raw Inclusion Proof| VE[Vote Extension: \n DA & Settlement Sensors]
-        VSR -->|Raw BTC Header| VE
+    subgraph "Leader: PrepareProposal (x/sovereignty)"
+        CLC -->|Raw Inclusion Proof| PP[PrepareProposal: \n builds da_receipt/btc_receipt/zk_proof_ref,\n prepends as ExtendedProposal Txs 0]
+        VSR -->|Raw BTC Header| PP
     end
 
-    subgraph Application Layer
-        VE -->|ABCI++ VerifyVote| XDA[x/da Module \n Cryptographic Verification]
-        VE -->|ABCI++ VerifyVote| XVIG[x/vigilante Module \n SPV Verification]
+    subgraph "Every Validator: ProcessProposal (x/sovereignty)"
+        PP -->|Txs 0 decoded| XDA[x/da.VerifyReceipt \n DA pipeline check]
+        PP -->|Txs 0 decoded| XVIG[x/vigilante.VerifyReceipt \n BTC SPV check]
 
-        XDA -->|DA Status| XSOV[x/sovereignty Module \n FSM Engine]
-        XVIG -->|H_submitted, H_anchored| XSOV
+        XDA -->|attestation OK?| XSOV[x/sovereignty \n CalculateNextState cross-check]
+        XVIG -->|hash/height OK?| XSOV
     end
 
-    subgraph FSM States
+    subgraph "PreBlocker: commit agreed fsm_state"
         XSOV --> S1((ANCHORED))
         XSOV --> S2((SUSPICIOUS))
         XSOV --> S3((SOVEREIGN))
     end
 
     class CLC,VSR external;
-    class VE core;
+    class PP core;
     class XDA,XVIG app;
     class XSOV,S1,S2,S3 fsm;
 ```
+
+*(This diagram was corrected to match the actual `PrepareProposal`/`ProcessProposal`/`PreBlocker` mechanism -- see §2 above. The class names `core`/`app`/`fsm` are pre-existing style hooks in this file's `classDef`s, not references to Vote Extensions.)*
 
 
 ```mermaid

@@ -1,17 +1,17 @@
 name: engram-validator-node04
 
 services:
-  stratium-node04:
+  engram-node04:
     build: 
       context: ..
       dockerfile: Dockerfile
-    hostname: stratium-node04
-    container_name: stratium-node04
+    hostname: engram-node04
+    container_name: engram-node04
     networks:
       engram-net:
-        ipv4_address: 172.20.0.130
+        ipv4_address: 172.28.0.130
     volumes:
-      - stratium-node04-data:/root/.stratium
+      - ../testnet-data/engram-node04:/root/.engramd
     ports:
       # Offset ports by 300 to avoid conflicts
       - "26957:26657"   # Tendermint RPC (exposed)
@@ -19,10 +19,10 @@ services:
       - "26960:26660"   # Prometheus Metrics (exposed)
     environment:
       - DA_ENDPOINT=http://celestia-light04:26658
-      - MINIMUM_GAS_PRICES=0strat
-      - MONIKER=stratium-node04
+      - MINIMUM_GAS_PRICES=0uengram
+      - MONIKER=engram-node04
       - NODE_ID=3
-    command: ["stratiumd", "start", "--prometheus"]
+    command: ["start"]
     restart: unless-stopped
     depends_on:
       celestia-light04:
@@ -49,20 +49,20 @@ services:
     hostname: vigilante-submitter04
     networks:
       engram-net:
-        ipv4_address: 172.20.0.131
+        ipv4_address: 172.28.0.131
       bitcoin-net:
         ipv4_address: 172.21.0.130
     volumes:
       - ../config/submitter.toml:/home/babylon/config/submitter.toml:ro
       - vigilante-submitter04-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node04:26657
+      - NODE_ADDR=http://engram-node04:26657
       - BITCOIN_HOST=bitcoin-node01
       - BITCOIN_RPC_PORT=18443
       - NODE_ID=3
     restart: unless-stopped
     depends_on:
-      stratium-node04:
+      engram-node04:
         condition: service_healthy
     deploy:
       resources:
@@ -84,19 +84,19 @@ services:
     hostname: vigilante-reporter04
     networks:
       engram-net:
-        ipv4_address: 172.20.0.132
+        ipv4_address: 172.28.0.132
       bitcoin-net:
         ipv4_address: 172.21.0.131
     volumes:
       - ../config/reporter.toml:/home/babylon/config/reporter.toml:ro
       - vigilante-reporter04-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node04:26657
+      - NODE_ADDR=http://engram-node04:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=3
     restart: unless-stopped
     depends_on:
-      stratium-node04:
+      engram-node04:
         condition: service_healthy
     deploy:
       resources:
@@ -118,19 +118,19 @@ services:
     hostname: checkpointing-monitor04
     networks:
       engram-net:
-        ipv4_address: 172.20.0.133
+        ipv4_address: 172.28.0.133
       bitcoin-net:
         ipv4_address: 172.21.0.132
     volumes:
       - ../config/monitor.toml:/home/babylon/config/monitor.toml:ro
       - checkpointing-monitor04-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node04:26657
+      - NODE_ADDR=http://engram-node04:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=3
     restart: unless-stopped
     depends_on:
-      stratium-node-3:
+      engram-node04:
         condition: service_healthy
     deploy:
       resources:
@@ -152,11 +152,11 @@ services:
     hostname: celestia-light04
     networks:
       engram-net:
-        ipv4_address: 172.20.0.134
+        ipv4_address: 172.28.0.134
       celestia-net:
         ipv4_address: 172.22.0.103
     volumes:
-      - celestia-light--data:/home/celestia
+      - celestia-light04-data:/home/celestia
     ports:
       - "26760:26658"   # RPC (exposed, offset by 300)
     restart: unless-stopped
@@ -189,21 +189,13 @@ services:
       celestia light start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658
       "
 
-networks:
-  engram-net:
-    name: engram-net
-    external: true
-  bitcoin-net:
-    name: bitcoin-net
-    external: true
-  celestia-net:
-    name: celestia-net
-    external: true
+# engram-net/bitcoin-net/celestia-net are declared once in the root
+# compose.yml, which owns them; services above reference them by name
+# directly. Redeclaring them here (even as `external: true`) makes
+# `docker compose config` fail with "conflicts with imported resource"
+# once this file is resolved via compose.yml's `include:` (see M6).
 
 volumes:
-  stratium-node04-data:
-    name: stratium-node04-data
-    driver: local
   vigilante-submitter04-data:
     name: vigilante-submitter04-data
     driver: local

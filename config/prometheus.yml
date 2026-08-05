@@ -2,7 +2,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'stratium-cluster'
+    monitor: 'engram-cluster'
     cluster: 'engram-bft'
 
 alerting:
@@ -18,42 +18,42 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Stratium Node 1
-  - job_name: 'stratium-node-01'
+  # Engram Node 1
+  - job_name: 'engram-node01'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['stratium-node-01:26660']
+      - targets: ['engram-node01:26660']
         labels:
-          instance: 'stratium-node-01'
+          instance: 'engram-node01'
           node_id: '1'
           validator: 'true'
 
-  # Stratium Node 2
-  - job_name: 'stratium-node-02'
+  # Engram Node 2
+  - job_name: 'engram-node02'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['stratium-node-02:26660']
+      - targets: ['engram-node02:26660']
         labels:
-          instance: 'stratium-node-02'
+          instance: 'engram-node02'
           node_id: '2'
           validator: 'true'
 
-  # Stratium Node 3
-  - job_name: 'stratium-node-03'
+  # Engram Node 3
+  - job_name: 'engram-node03'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['stratium-node-03:26660']
+      - targets: ['engram-node03:26660']
         labels:
-          instance: 'stratium-node-03'
+          instance: 'engram-node03'
           node_id: '3'
           validator: 'true'
 
-  # Stratium Node 4
-  - job_name: 'stratium-node-04'
+  # Engram Node 4
+  - job_name: 'engram-node04'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['stratium-node-04:26660']
+      - targets: ['engram-node04:26660']
         labels:
-          instance: 'stratium-node-04'
+          instance: 'engram-node04'
           node_id: '4'
           validator: 'true'

@@ -15,8 +15,8 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	// 1. Lấy dữ liệu ngoại vi hiện tại từ Storage (đã đồng thuận qua các block trước)
 	metrics, err := k.Metrics.Get(ctx)
 	if err != nil {
-		// Nếu chưa có dữ liệu, coi như ANCHORED
-		metrics = types.PeripheralMetrics{BitcoinFinalityGap: 0, DaReceiptValid: true, P2PQualityHealthy: true}
+		// Nếu chưa có dữ liệu, coi như healthy (khớp FSMInit trong spec: mọi gap = 0)
+		metrics = &types.PeripheralMetrics{}
 	}
 
 	currState, err := k.FSMState.Get(ctx)
@@ -24,13 +24,31 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		currState = types.StateAnchored // Default State
 	}
 
+	safeBlocks, err := k.SafeBlocks.Get(ctx)
+	if err != nil {
+		safeBlocks = 0
+	}
+	suspiciousDuration, err := k.SuspiciousDuration.Get(ctx)
+	if err != nil {
+		suspiciousDuration = 0
+	}
+	proofValid, err := k.ReanchoringProofValid.Get(ctx)
+	if err != nil {
+		proofValid = false
+	}
+
 	// 2. Tính toán trạng thái tiếp theo dựa trên logic FSM (TLA+ Refinement)
-	nextState := keeper.CalculateNextState(currState, metrics)
+	in := keeper.FSMInput{
+		Metrics:               metrics,
+		SafeBlocks:            safeBlocks,
+		SuspiciousDuration:    suspiciousDuration,
+		ReanchoringProofValid: proofValid,
+	}
+	nextState := keeper.CalculateNextState(currState, in, k.Params)
 
 	// 3. Nếu có sự thay đổi trạng thái, thực hiện cập nhật và emit event
 	if nextState != currState {
-		err := k.FSMState.Set(ctx, nextState)
-		if err != nil {
+		if err := k.FSMState.Set(ctx, nextState); err != nil {
 			return err
 		}
 
@@ -40,7 +58,7 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 				types.EventTypeFSMTransition,
 				sdk.NewAttribute(types.AttributeKeyOldState, currState),
 				sdk.NewAttribute(types.AttributeKeyNewState, nextState),
-				sdk.NewAttribute(types.AttributeKeyBTCGap, fmt.Sprintf("%d", metrics.BitcoinFinalityGap)),
+				sdk.NewAttribute(types.AttributeKeyBTCGap, fmt.Sprintf("%d", metrics.BtcGap)),
 			),
 		)
 
@@ -52,13 +70,12 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		)
 	}
 
-	// 4. Nếu đang ở trạng thái RECOVERING, tăng bộ đếm SafeBlocks để chuẩn bị Re-anchoring
-	if nextState == types.StateRecovering {
-		currentSafeBlocks, _ := k.SafeBlocks.Get(ctx)
-		k.SafeBlocks.Set(ctx, currentSafeBlocks+1)
-	} else {
-		// Reset nếu không ở trạng thái RECOVERING
-		k.SafeBlocks.Set(ctx, 0)
+	// 4. Cập nhật hai bộ đếm hysteresis/gray-failure-timeout (spec/core/EngramFSM.tla:337-346)
+	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, nextState, safeBlocks, k.Params)); err != nil {
+		return err
+	}
+	if err := k.SuspiciousDuration.Set(ctx, keeper.NextSuspiciousDuration(currState, nextState, suspiciousDuration, k.Params)); err != nil {
+		return err
 	}
 
 	return nil

@@ -1,17 +1,17 @@
 name: engram-validator-node02
 
 services:
-  stratium-node02:
+  engram-node02:
     build: 
       context: ..
       dockerfile: Dockerfile
-    hostname: stratium-node02
-    container_name: stratium-node02
+    hostname: engram-node02
+    container_name: engram-node02
     networks:
       engram-net:
-        ipv4_address: 172.20.0.110
+        ipv4_address: 172.28.0.110
     volumes:
-      - stratium-node02-data:/root/.stratium
+      - ../testnet-data/engram-node02:/root/.engramd
     ports:
       # Offset ports by 100 to avoid conflicts
       - "26757:26657"   # Tendermint RPC (exposed)
@@ -19,10 +19,10 @@ services:
       - "26760:26660"   # Prometheus Metrics (exposed)
     environment:
       - DA_ENDPOINT=http://celestia-light02:26658
-      - MINIMUM_GAS_PRICES=0strat
-      - MONIKER=stratium-node02
+      - MINIMUM_GAS_PRICES=0uengram
+      - MONIKER=engram-node02
       - NODE_ID=1
-    command: ["stratiumd", "start", "--prometheus"]
+    command: ["start"]
     restart: unless-stopped
     depends_on:
       celestia-light02:
@@ -49,20 +49,20 @@ services:
     hostname: vigilante-submitter02
     networks:
       engram-net:
-        ipv4_address: 172.20.0.111
+        ipv4_address: 172.28.0.111
       bitcoin-net:
         ipv4_address: 172.21.0.110
     volumes:
       - ../config/submitter.toml:/home/babylon/config/submitter.toml:ro
       - vigilante-submitter02-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node02:26657
+      - NODE_ADDR=http://engram-node02:26657
       - BITCOIN_HOST=bitcoin-node01
       - BITCOIN_RPC_PORT=18443
       - NODE_ID=1
     restart: unless-stopped
     depends_on:
-      stratium-node02:
+      engram-node02:
         condition: service_healthy
     deploy:
       resources:
@@ -84,19 +84,19 @@ services:
     hostname: vigilante-reporter02
     networks:
       engram-net:
-        ipv4_address: 172.20.0.112
+        ipv4_address: 172.28.0.112
       bitcoin-net:
         ipv4_address: 172.21.0.111
     volumes:
       - ../config/reporter.toml:/home/babylon/config/reporter.toml:ro
-      - vigilante-reporter-1-data:/home/babylon/.babylon
+      - vigilante-reporter02-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node02:26657
+      - NODE_ADDR=http://engram-node02:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=1
     restart: unless-stopped
     depends_on:
-      stratium-node02:
+      engram-node02:
         condition: service_healthy
     deploy:
       resources:
@@ -118,19 +118,19 @@ services:
     hostname: checkpointing-monitor02
     networks:
       engram-net:
-        ipv4_address: 172.20.0.113
+        ipv4_address: 172.28.0.113
       bitcoin-net:
         ipv4_address: 172.21.0.112
     volumes:
       - ../config/monitor.toml:/home/babylon/config/monitor.toml:ro
       - checkpointing-monitor02-data:/home/babylon/.babylon
     environment:
-      - NODE_ADDR=http://stratium-node-1:26657
+      - NODE_ADDR=http://engram-node02:26657
       - BITCOIN_HOST=bitcoin-node01
       - NODE_ID=1
     restart: unless-stopped
     depends_on:
-      stratium-node02:
+      engram-node02:
         condition: service_healthy
     deploy:
       resources:
@@ -152,7 +152,7 @@ services:
     hostname: celestia-light02
     networks:
       engram-net:
-        ipv4_address: 172.20.0.114
+        ipv4_address: 172.28.0.114
       celestia-net:
         ipv4_address: 172.22.0.110
     volumes:
@@ -189,36 +189,13 @@ services:
       celestia light start --core.ip celestia-bridge --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658
       "
 
-networks:
-  engram-net:
-    name: engram-net
-    external: true
-  bitcoin-net:
-    name: bitcoin-net
-    external: true
-  celestia-net:
-    name: celestia-net
-    external: true
+# engram-net/bitcoin-net/celestia-net are declared once in the root
+# compose.yml, which owns them; services above reference them by name
+# directly. Redeclaring them here (even as `external: true`) makes
+# `docker compose config` fail with "conflicts with imported resource"
+# once this file is resolved via compose.yml's `include:` (see M6).
 
 volumes:
-  stratium-node02-data:
-    name: stratium-node02-data
-    driver: local
-  vigilante-submitter02-data:
-    name: vigilante-submitter02-data
-    driver: local
-  vigilante-reporter02-data:
-    name: vigilante-reporter02-data
-    driver: local
-  checkpointing-monitor02-data:
-    name: checkpointing-monitor02-data
-    driver: local
-
-
-volumes:
-  stratium-node02-data:
-    name: stratium-node02-data
-    driver: local
   vigilante-submitter02-data:
     name: vigilante-submitter02-data
     driver: local

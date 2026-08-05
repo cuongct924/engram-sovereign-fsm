@@ -1,0 +1,88 @@
+name: engram-monitoring
+
+services:
+  # Prometheus - Time-series database for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    container_name: prometheus
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.20
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=24h'
+      - '--query.timeout=2m'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 512M
+    environment:
+      - TZ=UTC
+
+  # Grafana - Visualization and dashboarding
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    container_name: grafana
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.21
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ALLOW_EMBED_FRAMES=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_DEFAULT_LOCALE=en_US
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - TZ=UTC
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 512M
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+# engram-net / prometheus-data / grafana-data are declared once in the root
+# compose.yml, which owns them. Services above reference engram-net by name
+# directly; redeclaring it here at all (even as `external: true`) makes
+# `docker compose config` fail with "conflicts with imported resource" once
+# this file is actually resolved via compose.yml's `include:` (see M6) --
+# `docker compose -f compose-test-minimal.yml config` was used to confirm
+# this empirically before settling on "don't redeclare it here at all" as
+# the fix, rather than the `external: true` pattern used elsewhere in this
+# repo before M6.
