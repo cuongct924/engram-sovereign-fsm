@@ -112,6 +112,15 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors) sdk.PrepareProposal
 				hBtcAnchored = confirmed
 			}
 		}
+		// Same liveness fix, same reason, for DA: without this, hEngramVerified
+		// above is always just an echo of the last-committed value and can
+		// never advance (see sensors_refresh.go's daGapMetric doc -- this is
+		// the exact same bug class the BTC fix above closes).
+		if s != nil && s.DAPublisher != nil {
+			if verified, ok := s.DAPublisher.VerifiedHeight(); ok && verified > hEngramVerified {
+				hEngramVerified = verified
+			}
+		}
 
 		daReceipt := da.Receipt{
 			PublishedBlockHeight: hEngramVerified,

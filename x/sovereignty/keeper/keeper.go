@@ -46,6 +46,29 @@ type Keeper struct {
 	ForcedTxQueue   collections.KeySet[string]
 	TxIgnoredRounds collections.Map[string, uint64]
 
+	// Re-anchoring ZK proof state, mirroring spec/README.md's §Re-anchoring
+	// via ZK-Proof of Recovery: HeaderHistory tracks the witness headers
+	// (types.RecoveryHeader) for the CURRENT SOVEREIGN/RECOVERING interval
+	// only (populated/pruned by preblock.go's CommitFSMTransition);
+	// LastAnchoredRoot is rt_last, captured when the interval starts.
+	// RealProofSubmittedHeight is set by keeper.MsgServerImpl.SubmitRecoveryProof
+	// once a real proof verifies AND its public inputs match on-chain state, to
+	// the HEIGHT of the header it proved up to (0 = no real proof submitted
+	// for the current interval) -- storing the height, not just a bool, is
+	// load-bearing: the interval can keep growing (new headers appended)
+	// after a proof is submitted but before RECOVERING is reached, and a
+	// proof only covers headers up to the height it was built against, so a
+	// flat bool would stay stale-true even once newer, never-proven headers
+	// have been appended (confirmed by actually running this pipeline: a
+	// proof submitted while 4 headers were tracked must NOT still read as
+	// valid once a 5th has been appended). Consumed (and reset to 0) by
+	// sensors_refresh.go's refreshReanchoringProofValid, which requires this
+	// to equal the CURRENT latest tracked header's height, not just be
+	// nonzero.
+	HeaderHistory            collections.Map[uint64, types.RecoveryHeader]
+	LastAnchoredRoot         collections.Item[[]byte]
+	RealProofSubmittedHeight collections.Item[uint64]
+
 	// SMT Tree
 	Tree *merkletree.MerkleTree
 }
@@ -69,6 +92,9 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merk
 		HEngramVerified:       collections.NewItem(sb, collections.NewPrefix(10), "h_engram_verified", collections.Uint64Value),
 		ForcedTxQueue:         collections.NewKeySet(sb, collections.NewPrefix(11), "forced_tx_queue", collections.StringKey),
 		TxIgnoredRounds:       collections.NewMap(sb, collections.NewPrefix(12), "tx_ignored_rounds", collections.StringKey, collections.Uint64Value),
+		HeaderHistory:            collections.NewMap(sb, collections.NewPrefix(13), "header_history", collections.Uint64Key, collections.NewJSONValueCodec[types.RecoveryHeader]()),
+		LastAnchoredRoot:         collections.NewItem(sb, collections.NewPrefix(14), "last_anchored_root", collections.BytesValue),
+		RealProofSubmittedHeight: collections.NewItem(sb, collections.NewPrefix(15), "real_proof_submitted_height", collections.Uint64Value),
 	}
 
 	// Khởi tạo SMT với storage adapter được inject vào

@@ -133,6 +133,167 @@ func (x *QueryStateResponse) GetMetrics() *PeripheralMetrics {
 	return nil
 }
 
+type QueryRecoveryHeadersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryRecoveryHeadersRequest) Reset() {
+	*x = QueryRecoveryHeadersRequest{}
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRecoveryHeadersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRecoveryHeadersRequest) ProtoMessage() {}
+
+func (x *QueryRecoveryHeadersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRecoveryHeadersRequest.ProtoReflect.Descriptor instead.
+func (*QueryRecoveryHeadersRequest) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{2}
+}
+
+// QueryRecoveryHeader is the wire representation of a single tracked
+// header -- distinct from the Go keeper's internal types.RecoveryHeader
+// (which this mirrors field-for-field) to avoid a generated-type name clash.
+type QueryRecoveryHeader struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Height           uint64                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
+	FsmState         string                 `protobuf:"bytes,2,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`
+	WithdrawalLocked bool                   `protobuf:"varint,3,opt,name=withdrawal_locked,json=withdrawalLocked,proto3" json:"withdrawal_locked,omitempty"`
+	StateRoot        []byte                 `protobuf:"bytes,4,opt,name=state_root,json=stateRoot,proto3" json:"state_root,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *QueryRecoveryHeader) Reset() {
+	*x = QueryRecoveryHeader{}
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRecoveryHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRecoveryHeader) ProtoMessage() {}
+
+func (x *QueryRecoveryHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRecoveryHeader.ProtoReflect.Descriptor instead.
+func (*QueryRecoveryHeader) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *QueryRecoveryHeader) GetHeight() uint64 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *QueryRecoveryHeader) GetFsmState() string {
+	if x != nil {
+		return x.FsmState
+	}
+	return ""
+}
+
+func (x *QueryRecoveryHeader) GetWithdrawalLocked() bool {
+	if x != nil {
+		return x.WithdrawalLocked
+	}
+	return false
+}
+
+func (x *QueryRecoveryHeader) GetStateRoot() []byte {
+	if x != nil {
+		return x.StateRoot
+	}
+	return nil
+}
+
+type QueryRecoveryHeadersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// rt_last: state root of the last ANCHORED block before this interval
+	// started (empty if no interval is currently tracked).
+	LastAnchoredRoot []byte                 `protobuf:"bytes,1,opt,name=last_anchored_root,json=lastAnchoredRoot,proto3" json:"last_anchored_root,omitempty"`
+	Headers          []*QueryRecoveryHeader `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *QueryRecoveryHeadersResponse) Reset() {
+	*x = QueryRecoveryHeadersResponse{}
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRecoveryHeadersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRecoveryHeadersResponse) ProtoMessage() {}
+
+func (x *QueryRecoveryHeadersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRecoveryHeadersResponse.ProtoReflect.Descriptor instead.
+func (*QueryRecoveryHeadersResponse) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *QueryRecoveryHeadersResponse) GetLastAnchoredRoot() []byte {
+	if x != nil {
+		return x.LastAnchoredRoot
+	}
+	return nil
+}
+
+func (x *QueryRecoveryHeadersResponse) GetHeaders() []*QueryRecoveryHeader {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
 var File_engram_sovereignty_v1_query_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_query_proto_rawDesc = "" +
@@ -145,9 +306,20 @@ const file_engram_sovereignty_v1_query_proto_rawDesc = "" +
 	"safeBlocks\x12/\n" +
 	"\x13suspicious_duration\x18\x03 \x01(\x04R\x12suspiciousDuration\x126\n" +
 	"\x17reanchoring_proof_valid\x18\x04 \x01(\bR\x15reanchoringProofValid\x12B\n" +
-	"\ametrics\x18\x05 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\ametrics2e\n" +
+	"\ametrics\x18\x05 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\ametrics\"\x1d\n" +
+	"\x1bQueryRecoveryHeadersRequest\"\x96\x01\n" +
+	"\x13QueryRecoveryHeader\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\x04R\x06height\x12\x1b\n" +
+	"\tfsm_state\x18\x02 \x01(\tR\bfsmState\x12+\n" +
+	"\x11withdrawal_locked\x18\x03 \x01(\bR\x10withdrawalLocked\x12\x1d\n" +
+	"\n" +
+	"state_root\x18\x04 \x01(\fR\tstateRoot\"\x92\x01\n" +
+	"\x1cQueryRecoveryHeadersResponse\x12,\n" +
+	"\x12last_anchored_root\x18\x01 \x01(\fR\x10lastAnchoredRoot\x12D\n" +
+	"\aheaders\x18\x02 \x03(\v2*.engram.sovereignty.v1.QueryRecoveryHeaderR\aheaders2\xe1\x01\n" +
 	"\x05Query\x12\\\n" +
-	"\x05State\x12(.engram.sovereignty.v1.QueryStateRequest\x1a).engram.sovereignty.v1.QueryStateResponseBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x05State\x12(.engram.sovereignty.v1.QueryStateRequest\x1a).engram.sovereignty.v1.QueryStateResponse\x12z\n" +
+	"\x0fRecoveryHeaders\x122.engram.sovereignty.v1.QueryRecoveryHeadersRequest\x1a3.engram.sovereignty.v1.QueryRecoveryHeadersResponseBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_query_proto_rawDescOnce sync.Once
@@ -161,21 +333,27 @@ func file_engram_sovereignty_v1_query_proto_rawDescGZIP() []byte {
 	return file_engram_sovereignty_v1_query_proto_rawDescData
 }
 
-var file_engram_sovereignty_v1_query_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_engram_sovereignty_v1_query_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_engram_sovereignty_v1_query_proto_goTypes = []any{
-	(*QueryStateRequest)(nil),  // 0: engram.sovereignty.v1.QueryStateRequest
-	(*QueryStateResponse)(nil), // 1: engram.sovereignty.v1.QueryStateResponse
-	(*PeripheralMetrics)(nil),  // 2: engram.sovereignty.v1.PeripheralMetrics
+	(*QueryStateRequest)(nil),            // 0: engram.sovereignty.v1.QueryStateRequest
+	(*QueryStateResponse)(nil),           // 1: engram.sovereignty.v1.QueryStateResponse
+	(*QueryRecoveryHeadersRequest)(nil),  // 2: engram.sovereignty.v1.QueryRecoveryHeadersRequest
+	(*QueryRecoveryHeader)(nil),          // 3: engram.sovereignty.v1.QueryRecoveryHeader
+	(*QueryRecoveryHeadersResponse)(nil), // 4: engram.sovereignty.v1.QueryRecoveryHeadersResponse
+	(*PeripheralMetrics)(nil),            // 5: engram.sovereignty.v1.PeripheralMetrics
 }
 var file_engram_sovereignty_v1_query_proto_depIdxs = []int32{
-	2, // 0: engram.sovereignty.v1.QueryStateResponse.metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
-	0, // 1: engram.sovereignty.v1.Query.State:input_type -> engram.sovereignty.v1.QueryStateRequest
-	1, // 2: engram.sovereignty.v1.Query.State:output_type -> engram.sovereignty.v1.QueryStateResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: engram.sovereignty.v1.QueryStateResponse.metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
+	3, // 1: engram.sovereignty.v1.QueryRecoveryHeadersResponse.headers:type_name -> engram.sovereignty.v1.QueryRecoveryHeader
+	0, // 2: engram.sovereignty.v1.Query.State:input_type -> engram.sovereignty.v1.QueryStateRequest
+	2, // 3: engram.sovereignty.v1.Query.RecoveryHeaders:input_type -> engram.sovereignty.v1.QueryRecoveryHeadersRequest
+	1, // 4: engram.sovereignty.v1.Query.State:output_type -> engram.sovereignty.v1.QueryStateResponse
+	4, // 5: engram.sovereignty.v1.Query.RecoveryHeaders:output_type -> engram.sovereignty.v1.QueryRecoveryHeadersResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_engram_sovereignty_v1_query_proto_init() }
@@ -190,7 +368,7 @@ func file_engram_sovereignty_v1_query_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engram_sovereignty_v1_query_proto_rawDesc), len(file_engram_sovereignty_v1_query_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

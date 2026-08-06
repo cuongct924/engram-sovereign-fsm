@@ -11,6 +11,7 @@ require (
 	github.com/cosmos/cosmos-db v1.1.3
 	github.com/cosmos/cosmos-sdk v0.54.3
 	github.com/cosmos/cosmos-sdk/store/v2 v2.0.0
+	github.com/cosmos/gogoproto v1.7.2
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/iden3/go-merkletree-sql/v2 v2.0.6
@@ -57,7 +58,6 @@ require (
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/gogogateway v1.2.0 // indirect
-	github.com/cosmos/gogoproto v1.7.2 // indirect
 	github.com/cosmos/iavl v1.2.8 // indirect
 	github.com/cosmos/ics23/go v0.11.0 // indirect
 	github.com/cosmos/ledger-cosmos-go v1.0.0 // indirect
@@ -281,4 +281,13 @@ require (
 // a different local checkout, so no import paths change anywhere in this repo.
 // Not pushed to a remote (per repo owner's direction), hence a filesystem
 // path rather than a pseudo-version/commit reference.
-replace github.com/cometbft/cometbft => /Users/cuongct090_04/Code/engram-consensus-core
+// Relative (not absolute) so this resolves identically for local `go build`
+// (relative to this go.mod's own directory -- same absolute path as
+// before: .../Code/engram-consensus-core, a sibling of this repo) AND
+// inside the Docker build, which copies that sibling in via BuildKit's
+// additional build context (see Dockerfile + docker/engram-validator-
+// node0N.yml's `additional_contexts`) -- an absolute host path can never
+// resolve inside a container, which is exactly what broke `docker compose
+// build` before this (found by actually running it: "reading
+// .../engram-consensus-core/go.mod: no such file or directory").
+replace github.com/cometbft/cometbft => ../engram-consensus-core

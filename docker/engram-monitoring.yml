@@ -10,10 +10,17 @@ services:
       engram-net:
         ipv4_address: 172.28.0.20
     volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      # Host-side 9091, not 9090: celestia-app's own Cosmos SDK gRPC port
+      # (docker/celestia-local-cluster.yml, --grpc.address 0.0.0.0:9090)
+      # already claims host 9090 -- found by actually running the full
+      # stack together for the first time (`docker compose up` failed with
+      # "Bind for 0.0.0.0:9090 failed: port is already allocated").
+      # Container-internal port stays 9090 (Prometheus's own default,
+      # unrelated to celestia-app -- only the host mapping changes).
+      - "9091:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -49,7 +56,7 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../config/grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin

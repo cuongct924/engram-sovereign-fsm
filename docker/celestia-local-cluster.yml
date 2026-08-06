@@ -9,8 +9,19 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.50
     ports:
-      - "26656:26656"
-      - "26657:26657"
+      # Host-side 27656/27657, not 26656/26657: those are CometBFT's
+      # standard P2P/RPC ports, which engram-node01 (the base-port
+      # validator, docker/engram-validator-node01.yml) also needs on the
+      # host -- found by actually bringing up the full stack together for
+      # the first time (`docker compose up` failed with "Bind for
+      # 0.0.0.0:26657 failed: port is already allocated"). Container-
+      # internal ports stay 26656/26657 (celestia-app's own convention,
+      # unrelated to engramd) -- only the host mapping changes; nothing
+      # outside this container ever reaches celestia-app via its host port
+      # (the TRUSTED_HASH bootstrap step below and the healthcheck both use
+      # the Docker-network-internal hostname/loopback, not the host mapping).
+      - "27656:26656"
+      - "27657:26657"
       - "9090:9090"
     # (No 26658 mapping here -- that's celestia-node's RPC port convention,
     # used by celestia-bridge below, not celestia-appd's. The original
@@ -76,13 +87,23 @@ services:
       # writes (empty validator set) before the gentx steps even run, so a
       # container that crashed mid-bootstrap would permanently skip retrying
       # on every subsequent restart.
+      # `init` writes config.toml with [tx_index] indexer = "null" (indexing
+      # disabled) by default, and there's no `start`-time CLI flag for it
+      # (`celestia-appd start --help` has nothing tx_index-related) -- found
+      # by actually calling blob.Submit against a freshly-init'd node and
+      # getting "rpc error: code = Unknown desc = transaction indexing is
+      # disabled". x/da's blob-submission client needs tx indexing to look up
+      # submitted transactions by hash, so patch it to the standard built-in
+      # "kv" indexer right after init, same sed-after-init pattern as
+      # celestia-bridge's TrustedHash fix below.
       - |
         if [ ! -f /home/celestia/.celestia-app/config/genesis.json ] || [ -d /home/celestia/.celestia-app/config/gentx ]; then
           celestia-appd init mynode --chain-id private &&
           celestia-appd keys add validator --keyring-backend test >> /home/celestia/admin_seed.txt 2>&1 &&
           celestia-appd add-genesis-account validator 1000000000000utia --keyring-backend test &&
           celestia-appd gentx validator 5000000000utia --chain-id private --keyring-backend test &&
-          celestia-appd collect-gentxs
+          celestia-appd collect-gentxs &&
+          sed -i 's/indexer = "null"/indexer = "kv"/' /home/celestia/.celestia-app/config/config.toml
         fi
         celestia-appd start --rpc.laddr tcp://0.0.0.0:26657 --minimum-gas-prices 0.001utia --grpc.enable --grpc.address 0.0.0.0:9090
 

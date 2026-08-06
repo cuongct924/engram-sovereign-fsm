@@ -192,9 +192,11 @@ and watching it commit real blocks, not just unit tests:
   `TxConfirmation` (gettransaction), `BlockContainsTag` (getblock verbosity=2 script scan).
 - `x/vigilante/anchor.go`'s `AnchorTracker` is this repo's minimal stand-in for Babylon's real
   Vigilante Submitter+Reporter daemons (`github.com/babylonlabs-io/vigilante`) -- deliberately
-  **not** the real `babylonlabs/babylond` vigilante images already scaffolded in
-  `docker/engram-validator-node0N.yml` (`vigilante-submitter0N`/`reporter0N`/
-  `checkpointing-monitor0N`), because those expect a real Babylon chain's
+  **not** the real `babylonlabs/babylond` vigilante images. `docker/engram-validator-node0N.yml`
+  previously scaffolded these as `vigilante-submitter0N`/`reporter0N`/`checkpointing-monitor0N`
+  services (plus the `config/{submitter,reporter,monitor}.toml` files backing them, and
+  `BABYLOND_VERSION` in `.env`/`.env.example`) -- removed at the repo owner's request to keep the
+  prototype minimal, since those daemons expect a real Babylon chain's
   `x/checkpointing`/`x/btccheckpoint`/`x/btclightclient` modules to source a BLS-aggregated
   epoch checkpoint from, which `engram-node` (only `x/sovereignty` mounted, see `app/app.go`'s
   TODO on staking) does not have and would not function against. `AnchorTracker` instead submits
@@ -223,6 +225,29 @@ and watching it commit real blocks, not just unit tests:
   once round>=3, a deliberate, documented divergence from the literal spec constant (see its
   doc). `types.Params` gained `KDeepFinality` (default 2, regtest-appropriate). Confirmed via
   `engramd start` reaching height 8+ with real, sustained block production once these landed.
+- **Second real liveness bug, found later by re-deriving `btc_gap` from spec instead of trusting
+  the earlier port**: `x/sovereignty/sensors_refresh.go`'s `btcGapMetric` computed
+  `btc_gap = h_btc_current - min(h_btc_submitted, h_btc_anchored)`, copying `EngramFSM.tla:95`'s
+  ABSTRACT-layer formula verbatim. That formula only works there because `BTCNormalUpdate`/
+  `BTCSPVFailure` (`EngramFSM.tla:173-188`) always keep `h_btc_anchored <= h_btc_submitted` in
+  lockstep, so the `min()` always resolves to `h_btc_anchored` anyway. The CONCRETE layer
+  (`ServerUponProposalInPrecommitNoDecision` Step 3/4, `EngramServer.tla:148,151-159`, which
+  `preblock.go` correctly ports) decouples the two: `h_btc_anchored` is written from the real
+  committed `btc_receipt` every block regardless of FSM state, while `h_btc_submitted` is written
+  ONLY on entering/staying RECOVERING with a claimed ZK proof -- so outside a re-anchoring cycle it
+  never leaves its Go zero value, collapsing `min(0, h_btc_anchored)` to 0 and inflating `btc_gap`
+  to ~`h_btc_current` regardless of real anchor state. Confirmed live via temporary debug prints:
+  this held the FSM in `SOVEREIGN` across this session's entire "successful" BTC pipeline testing
+  (the height-8+ block production above was real, but the FSM state driving it was not). Fixed by
+  dropping the `min()` and using `h_btc_anchored` alone, matching Step 3 exactly. Also found while
+  fixing this: `reanchoring_proof_valid` was never ported at all -- the concrete layer's Step 4
+  only ever writes `FALSE` to it (on submission) or leaves it `UNCHANGED`; the only place it's ever
+  computed back to `TRUE` is the ABSTRACT layer's `UpdateSensors` environment action
+  (`EngramFSM.tla:294-301`), which has no concrete-layer counterpart in `EngramServer.tla`. Fixed
+  by adding `refreshReanchoringProofValid` (same file), called from `RefreshMetrics` alongside
+  `btcGapMetric` -- mirroring how the abstract action recomputes it every environment tick, since
+  the concrete hooks alone never do. Without this, `CalculateNextState`'s `RECOVERING -> ANCHORED`
+  transition could never fire via a successful reanchoring proof, in any test or real run to date.
 - **Celestia infra (docker/celestia-local-cluster.yml) is now real and healthy** -- `celestia-app`
   (core) and `celestia-bridge` both reach real, sustained `docker compose ps` "healthy" status and
   serve real RPC data (confirmed via `header.NetworkHead` returning a real, advancing header).
@@ -261,12 +286,279 @@ and watching it commit real blocks, not just unit tests:
   mapped bridge's `26658`) and a relative-volume-path inconsistency (`./data/...` in this file
   resolves relative to `docker/celestia-local-cluster.yml`'s own location, landing in
   `docker/data/`, unlike `bitcoin-regtest-cluster.yml`'s `../data/...` which correctly reaches the
-  gitignored repo-root `data/`; aligned both to `../data/...`).
-- **Not yet done**: none of the above is wired into `x/da` yet -- `DASensor` is still on its static
-  mock (no live source), and there is no Go client analogous to `x/vigilante/rpc.go`/`anchor.go` for
-  submitting blobs to celestia-app or querying DAS-style availability from celestia-bridge. That
-  wiring (plus a genuine celestia-light node sampling from the bridge, per the repo owner's
-  preference over trusting the bridge's full data directly) is the next piece of work.
+  gitignored repo-root `data/`; aligned both to `../data/...`). One more found later, while wiring
+  up real blob submission: `celestia-appd init` writes `config.toml` with `[tx_index] indexer =
+  "null"` (indexing disabled) by default, and there's no `start`-time CLI flag for it -- `blob.Submit`
+  needs tx indexing and fails with "transaction indexing is disabled" without it, so the bootstrap
+  script now `sed`s `indexer = "kv"` in right after `init`.
+- **`x/da`'s real celestia-bridge wiring is now done**, confirmed end-to-end via `engramd start`
+  against the real `celestia-app`/`celestia-bridge` pair above (not just unit tests): `x/da/rpc.go`'s
+  `RPCClient` is a minimal stdlib-only celestia-node JSON-RPC 2.0 client (`Submit` = `blob.Submit`,
+  `Available` = `blob.GetAll`-backed retrievability check); `x/da/publisher.go`'s `Publisher` is the
+  DA-side counterpart of `AnchorTracker` -- **deliberately no K-deep-style confirmation depth**
+  (unlike BTC): `DANormalUpdate`/`DAFailure` (`spec/core/EngramFSM.tla:196-212`) have no depth term,
+  so once a submission is confirmed retrievable, `h_engram_verified` is set EQUAL to that height
+  immediately, not just advanced past it. Wired into `Sensors.DAPublisher` / `DASensor.SetSource`
+  (mirrors `BTCSensor`'s pattern) and `cmd/engramd/main.go`'s `wireDASensor` (reads
+  `CELESTIA_BRIDGE_URL`/`CELESTIA_BRIDGE_AUTH_TOKEN`/`CELESTIA_NAMESPACE_ID`). Also fixed the same
+  liveness-bug class as BTC's: `h_engram_verified` was frozen at its last-committed value in
+  `PrepareProposal` with no path to advance -- same fix, adopt `Publisher.VerifiedHeight()` when
+  ahead. Separately, `RefreshMetrics` was silently hardcoding `IsDasFailed`/`IsAttestationFailed` to
+  `false` regardless of what `DASensor.SetFailureFlags` had set (pre-existing bug, unrelated to this
+  wiring but found and fixed while touching the same function).
+  - **Real liveness bug found and fixed by actually running this against a real celestia-bridge**
+    (not visible in any unit test, since blob submission was never live before this wiring): a real
+    celestia-node's `blob.Submit` blocks until the blob is actually **included in a Celestia block**
+    (~12s at default block time) before returning -- calling it synchronously from `RefreshMetrics`
+    (invoked by both `PrepareProposal` and `ProcessProposal`, both on the hot consensus path) made
+    every `PrepareProposal` call take ~9-12s against CometBFT round timeouts of only 3-4.5s, so the
+    leader's own proposal was never ready before M0b's f+1-timeout quorum round-skipped -- confirmed
+    by running a live node and watching it round-skip forever at height 1 despite being the sole
+    validator (100% of the stake), with `signed proposal` consistently landing 9-12s after `entering
+    propose step` in the logs. Fixed by running `Publisher`'s `Submit` call in a background
+    goroutine (mutex-protected, at most one in-flight submission at a time) so `MaybePublish` always
+    returns near-instantly regardless of Celestia's block time -- `AnchorTracker`'s `SubmitOpReturn`
+    never had this problem since bitcoind's RPC returns as soon as a tx is broadcast, not confirmed.
+    Confirmed via `engramd start` reaching height 14+ with real, sustained block production, and via
+    direct `blob.GetAll` queries against celestia-bridge showing the exact `HeightMarker(height)`
+    payload landing at increasing Celestia heights as Engram height advanced.
+  - **Documented simplification**: the blob payload is `HeightMarker(engramHeight)` (an 8-byte tag +
+    height marker, mirroring `AnchorTracker`'s `AnchorTag + height`), not the block's actual
+    transaction data -- `RefreshMetrics` (where `MaybePublish` is called) only has `sdk.Context`, not
+    `req.Txs`; publishing the real block data needs wiring at `PrepareProposal` itself, where `Txs`
+    are available. The availability MECHANISM being exercised (a real `blob.Submit`/`blob.GetAll`
+    round-trip against live Celestia) is real; only the blob's CONTENT is currently a placeholder.
+  - **Not yet done**: a genuine `celestia-light` node service sampling from `celestia-bridge` (per
+    the repo owner's preference over trusting the bridge's full data directly) is not in
+    `docker/celestia-local-cluster.yml` yet -- `Publisher`/`RPCClient` talk to the bridge directly.
+
+**Real ZK re-anchoring (spec/README.md's §Re-anchoring via ZK-Proof of Recovery)** is now wired
+end-to-end, confirmed by actually running the pipeline against a real node (not just unit tests) --
+previously `x/sovereignty/keeper/reanchor.go`'s `VerifyZKProof` was a `return true` stub with nothing
+upstream or downstream of it real:
+- **`x/sovereignty/types/recovery_header.go`**'s `RecoveryHeader` + keeper's new
+  `HeaderHistory`/`LastAnchoredRoot` collections (`x/sovereignty/keeper/keeper.go`) track the real
+  per-block witness data the circuit needs, populated in `preblock.go`'s `CommitFSMTransition` only
+  while `fsm_state ∈ {SOVEREIGN, RECOVERING}` (pruned on return to ANCHORED). `state_root` is
+  CometBFT's real per-block `AppHash` (one-block-lagged, the standard ABCI lag already documented
+  elsewhere in this repo), NOT the keeper's `Tree` (SMT) -- that field is unrelated dead code (see
+  below), and this prototype has no `x/bank`/account state to put in an SMT leaf yet regardless.
+  Both `state_root` and `rt_last` are reduced into the circuit's BN254 scalar field
+  (`types.ReduceToField`) before storage -- a raw 32-byte hash has roughly a 1-in-16 chance of
+  exceeding the field modulus if used verbatim, which Noir/bb reject outright ("non-canonical...
+  value >= field modulus") rather than silently wrapping.
+- **`circuit/reanchoring_witness/`** is a new, separate Noir crate (its own `Nargo.toml`) that links
+  real raw header data into a real `prev_hash` chain via the same `hash_header`
+  (Pedersen) function `circuit/reanchoring/src/main.nr` uses -- deliberately NOT a Go-side hash
+  reimplementation (a real, avoidable correctness risk) and deliberately NOT touching `main.nr`
+  itself, so the already-collected E6 benchmark numbers (Table 6A/6B/Figure 6) stay valid. Mirrors
+  `main.nr`'s own `dump_chain` test technique, just fed real chain data instead of synthetic.
+- **`VerifyZKProof`** now really verifies: `x/sovereignty/keeper/zk_assets/vk` is a git-committed copy
+  of the compiled N=4 circuit's verification key (`go:embed`bed into the binary -- `go:embed` can't
+  reach `circuit/reanchoring/target/`, which is gitignored and outside this package's directory
+  tree), and the function shells out to a pinned `bb verify` against temp-file copies of the
+  submitted proof/inputs, fail-closed (returns false, never panics) on any error or missing binary.
+  Confirmed against the real, previously-generated N=4 proof on disk: verifies `true` for the valid
+  proof, `false` for a single-byte-flipped tamper. `bb`/`nargo` are now required, pinned runtime
+  dependencies on every validator for this determinism to hold (verification runs inside `DeliverTx`,
+  executed identically by all validators).
+- **Real safety bug found and fixed**: `keeper.MsgServerImpl.SubmitRecoveryProof` used to set
+  `FSMState = ANCHORED` directly and unconditionally on proof-math validity alone -- bypassing
+  `StrictFSMTransitionSafety` (e.g. a direct SOVEREIGN -> ANCHORED jump) and the hysteresis dwell
+  time entirely, via a second, unguarded FSM-state writer parallel to the real consensus-driven one.
+  Fixed by having it latch `RealProofSubmittedHeight` instead (the height of the header it proved up
+  to) -- consumed by `sensors_refresh.go`'s `refreshReanchoringProofValid` (OR'd with the existing
+  BTC-anchor heuristic), which is what `CalculateNextState`'s existing, already-correct
+  `SafeBlocks == HysteresisWait && ReanchoringProofValid` guard reads. No parallel FSM-state-writing
+  path exists anymore. Also added: cross-checking the proof's public inputs (`rt_last`/`rt_new`)
+  against `LastAnchoredRoot`/`HeaderHistory`'s real tracked tip, closing a replay gap (proof math
+  alone only proves "some self-consistent chain links some rt_last to some rt_new" -- without this,
+  the proof already checked into `circuit/reanchoring/target/proof/` could be replayed against any
+  deployment).
+- **Second real bug found by actually running the full pipeline against a live node, not by
+  inspection**: a proof submitted while N headers were tracked must stop counting the moment a NEW
+  header is appended before RECOVERING is reached -- the interval keeps growing, and a proof only
+  covers what it was built against. A flat bool latch can't express this; `RealProofSubmittedHeight`
+  stores the proven height instead, and `refreshReanchoringProofValid` requires it to still equal the
+  CURRENT tracked tip's height, not merely be nonzero. `TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows`
+  (`x/sovereignty/keeper/msg_server_test.go`) covers the primitive this depends on.
+- **`app/app.go` had three separate, previously-undiscovered wiring gaps**, all found by actually
+  trying to build+broadcast a real tx against a running node (every prior test only ever called
+  `MsgServerImpl`/`QueryServerImpl` methods directly in Go, never through real ABCI tx routing):
+  (1) no `module.Manager`/`module.Configurator` exists in this app (`InitChain` is a hand-rolled
+  `InitChainer`, not `module.Manager`'s `InitGenesis`), so `x/sovereignty/module.go`'s
+  `AppModule.RegisterServices` was NEVER called -- every `Msg` (`MsgInjectFaultRequest`,
+  `MsgSubmitForcedTxRequest`, `MsgSubmitRecoveryProofRequest`) and the `Query.State` RPC (defined in
+  the proto with generated types since early on, but never implemented OR registered) were
+  unroutable via any real submitted tx, "no message handler found" being the exact live symptom.
+  Fixed by registering directly against `bApp.MsgServiceRouter()`/`bApp.GRPCQueryRouter()` in
+  `NewEngramApp`, matching this app's existing no-module-manager architecture rather than
+  introducing one just for this. `x/sovereignty/keeper/grpc_query.go`'s `QueryServerImpl` is the
+  first real `QueryServer` implementation this module has ever had (also implements `Query.State`,
+  previously unimplemented on top of being unregistered). (2) No address codec was configured on the
+  `InterfaceRegistry` (bare `codectypes.NewInterfaceRegistry()`) -- any message with a
+  `cosmos.msg.v1.signer`-annotated field (like `MsgSubmitRecoveryProofRequest`'s `authority`) has its
+  `GetSigners()` auto-derived via bech32 decoding, which BaseApp invokes even with no
+  `SigVerificationDecorator` to cryptographically check it; live symptom was CheckTx failing with
+  "InterfaceRegistry requires a proper address codec implementation." Fixed via
+  `codectypes.NewInterfaceRegistryWithOptions` with a real `"engram"`-HRP Bech32 codec (this app
+  never had ANY bech32 prefix configured before, having no `x/auth`/`x/bank`). (3) Given (2)'s fix
+  plus no `x/auth`, `cmd/engramd/reanchor_cli.go`'s new `tx-submit-recovery-proof` command builds the
+  minimal structurally-valid `sdk.Tx` envelope BaseApp's `TxDecoder` accepts (one `SignerInfo`, one
+  empty signature, empty `Fee`) rather than a real signed tx -- nothing in the ante chain
+  (`CircuitBreakerDecorator` only) checks a signature, so this is deliberate, not an oversight; a
+  real `AccountKeeper`-backed signing flow would need `x/auth` mounted, which this prototype doesn't
+  have (see this file's `app/` layout note).
+- **New CLI**: `engramd query-recovery-headers` (dumps the real tracked interval + `rt_last` as
+  plain lines, via the real ABCI-routed gRPC query -- no separate gRPC server needed, CometBFT's
+  `/abci_query` already routes to `bApp.GRPCQueryRouter()`) and `engramd tx-submit-recovery-proof
+  --proof <file> --public-inputs <file>` (`cmd/engramd/reanchor_cli.go`). Both confirmed working
+  against a real running node: query returns real per-height data with correct Field encoding
+  (`fsm_state`: 2=SOVEREIGN/3=RECOVERING, matching `main.nr`'s comment), and tx submission correctly
+  rejects a garbage proof end-to-end (real CheckTx -> mempool -> DeliverTx -> `SubmitRecoveryProof`
+  -> `VerifyZKProof` -> `ErrInvalidZKProof`).
+- **`scripts/reanchoring_prover/prove_and_submit.sh`** wires all of the above into one real pipeline
+  (query -> witness-helper crate -> real `main.nr` `Prover.toml` -> `nargo execute` + `bb prove`,
+  using the SAME embedded VK the Go node checks against -> submit), mirroring
+  `scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh`'s style. Every stage confirmed working
+  with 100% real components against a real running node (real query, real Noir/bb proving, real
+  submission). **Known, documented, inherent limitation** (see the script's own header comment): `N`
+  is fixed at compile time (currently 4), so this only works when exactly `N` headers are tracked;
+  and because querying-then-proving-then-submitting takes real wall-clock time (tens to low hundreds
+  of ms of actual proving per the E6 numbers, plus RPC/CLI overhead) while a still-unhealthy
+  SOVEREIGN/RECOVERING interval keeps growing underneath it, a proof can legitimately go stale
+  between query and submission -- confirmed by repeated real end-to-end runs against a continuously-
+  producing test node being correctly rejected this way. This is the same anti-replay protection
+  working as designed (see `RealProofSubmittedHeight` above), just observed from the submission side
+  instead of the already-latched side; a real deployment needs to submit while the interval is
+  genuinely stable, not race a continuously-growing one.
+- **Not done / explicitly out of scope for this pass**: the keeper's `Tree` (SMT,
+  `iden3/go-merkletree-sql`) and `x/sovereignty/keeper/smt_storage.go`'s `BadgerStorage` remain
+  completely unwired dead code (confirmed via exhaustive grep -- `Tree` is constructed in
+  `NewKeeper` and never read/written anywhere else; `BadgerStorage` isn't even passed as `NewKeeper`'s
+  `smtStore` argument, which uses an in-memory store instead). Deliberately NOT pressed into service
+  for `state_root` here: this prototype has no real account/balance state to put in SMT leaves yet,
+  and forcing fabricated leaves in would violate this repo's own "don't fabricate data" convention.
+  Reviving this SMT for a real future purpose (or removing it) is separate, unstarted work. Also not
+  done: replacing the app's KVStore backend (`cosmos-db`, currently GoLevelDB) with BadgerDB was
+  investigated and rejected -- `cosmos-db` only implements goleveldb/memdb/pebbledb/rocksdb, and
+  Badger's WiscKey (value-separated) architecture is designed for large values, not IAVL's
+  small-node/random-access pattern; no ecosystem precedent either. Variable-length/recursive re-
+  anchoring proofs (removing the fixed-N limitation) are also out of scope.
+
+**Real 4-node Docker testnet (M6's remaining verification)** is now done, confirmed by actually
+running 4 `engram-nodeNN` containers to 20+ blocks with matching `AppHash` at every height,
+including a real safety bug found and fixed along the way -- not just `docker compose config`
+validating cleanly (that was already true before this pass):
+- **Build/compose plumbing fixes**, none visible from just reading the compose files: (1)
+  `.dockerignore` was missing `data`/`testnet-data` entries, sending 4.48GB+ of runtime chain data
+  as Docker build context on every build for zero benefit -- fixed. (2) the root `Dockerfile` was
+  rewritten to use BuildKit cache mounts (`--mount=type=cache` for `/go/pkg/mod`,
+  `/root/.cache/go-build`, `/var/cache/apk`) plus a multi-stage build, cutting rebuild time
+  substantially. (3) `go.mod`'s `replace github.com/cometbft/cometbft => ...` pointed at an
+  absolute host path (`/Users/.../engram-consensus-core`), unbuildable inside any container --
+  fixed to a relative path (`../engram-consensus-core`) plus each `docker/engram-validator-node0N.yml`
+  gained `build.additional_contexts: [cometbft-fork=../../engram-consensus-core]` (BuildKit
+  multi-context build) so the Docker build can see the sibling fork repo despite the relative
+  replace pointing outside the primary build context. (4) three unrelated port/path conflicts:
+  `docker/engram-monitoring.yml`'s bind mounts used `./config/...` (resolves relative to the
+  compose file's own directory, wrong) instead of `../config/...`; prometheus's host port 9090
+  collided with celestia-app's gRPC port; celestia-app's host ports 26656/26657 collided with
+  engram-node01's CometBFT defaults -- all remapped.
+- **`celestia-lightNN` services removed entirely** (all 4, plus their named volumes) from
+  `docker/engram-validator-node0N.yml`, per the repo owner's explicit request -- confirmed via grep
+  that no Go code anywhere reads `CELESTIA_LIGHT_*` or connects to a light node; `x/da`'s
+  `Publisher`/`RPCClient` talk to `celestia-bridge` directly (documented limitation, see Phase 7's DA
+  section above).
+- **`HealthMonitor.SetAnchorPeers`** (`engram-consensus-core/lp2p/health_monitor.go`) was referenced
+  only in a doc comment ("anchor peers start empty and are configured via SetAnchorPeers once
+  bootstrap peers are known") but the method never existed -- implemented it, wired into
+  `Switch.OnStart()` from `s.host.BootstrapPeers()`. This fix is real and passes `go test ./lp2p/...`,
+  but turned out to be **inert in this testnet**: the real generated `config.toml` has
+  `[p2p.libp2p] enabled = false` (vanilla CometBFT's own `p2p.Switch` is what's actually running),
+  so `lp2p.Switch`/`HealthMonitor` is entirely dormant in every real deployment to date. Kept for
+  whenever libp2p transport is actually enabled.
+- **Real P2P telemetry for the vanilla `p2p.Switch`** (`cmd/engramd/main.go`'s
+  `vanillaP2PHealthAdapter`): since libp2p is disabled, `wireP2PSensor` now type-switches on
+  `n.Switch()`'s concrete type and, for the vanilla `*p2p.Switch` case, builds a small local adapter
+  that derives `SubnetDiversity`/`ActiveAnchors`/`CleanPeers`/`ChurnRate`/`AvgTenure` from
+  `sw.Peers()` (real connected peer IPs/persistence/uptime) -- confirmed via temporary debug prints
+  to compute real, correct numbers matching each node's actual peer set. Chosen over enabling real
+  libp2p transport (the "more architecturally complete" option) specifically because it carries
+  zero risk to the already-working vanilla consensus data plane -- lower-risk option preferred over
+  completeness for this piece.
+- **Consensus stuck at height 1 forever (infinite round-skipping)** had three independent causes,
+  found by iterating through each in turn: (1) `bitcoin-net` and `engram-net` are separate Docker
+  bridge networks; `BITCOIN_HOST=bitcoin-node01` was unresolvable from any `engram-nodeNN` container
+  until all 4 were explicitly joined to `bitcoin-net` too (with distinct IPs) -- every
+  `PrepareProposal` was silently failing its BTC anchor submission with a DNS lookup error. (2)
+  bitcoind's regtest wallet was never created/funded ("No wallet is loaded" on every
+  `fundrawtransaction` RPC call from `AnchorTracker.SubmitOpReturn`) -- fixed via `createwallet` +
+  `generatetoaddress` to fund it. (3) `priv_validator_state.json` round-regression: CometBFT's
+  `FilePV` refuses to sign a vote for a round lower than its last-signed round, and restarting a
+  container (fresh process) against a *persisted* `priv_validator_state.json` without a matching
+  fresh WAL replay reliably triggers this -- the only reliable fix found was wiping `testnet-data/`
+  and regenerating fresh genesis (`engramd testnet init-files --v 4`) before every redeploy, now the
+  standing operational practice for this testnet.
+- **Bitcoin settlement checks rejecting every proposal after height ~1**: `vigilante.Tolerance`
+  widens to `KDeepFinality` (default 2) once round>=3 (see Phase 7's liveness-bug note above), so a
+  checkpoint confirmed at height H becomes permanently unverifiable the moment
+  `h_btc_current - H > KDeepFinality` -- irregular *burst* mining (`bitcoin-cli generatetoaddress 5`
+  repeatedly, done manually while debugging) pushed `h_btc_current` past a just-confirmed
+  checkpoint's tolerance window before a later consensus round could use it, observed live as
+  `hBtcCurrent=120 receiptHeight=116 kDeep=2` (window `[118,120]`, 116 rejected). Fixed by replacing
+  manual burst-mining with `scripts/bitcoin_miner_loop.sh`, a steady 1-block-per-20s regtest miner --
+  not a code fix, an operational one, but worth recording since it's exactly the kind of gap between
+  the spec's idealized "Bitcoin block arrives roughly on schedule" assumption and an
+  operator-controlled regtest chain's actual mining cadence.
+- **A real, consensus-safety bug found (and fixed by reverting) by running 4 real nodes, invisible
+  in any single-node test or unit test**: to make `Query.State` show live BTC/DA/P2P telemetry
+  instead of the genesis-default zero value it had shown forever (root cause: `PrepareProposal`/
+  `ProcessProposal` only ever write `k.Metrics` to their own throwaway `prepareProposalState`/
+  `processProposalState` branches -- BaseApp's ABCI 2.0 state separation -- so those writes never
+  reach the committed store `FinalizeBlock`/queries read from), an earlier version of this fix added
+  a `RefreshMetrics` call to `x/sovereignty/preblock.go`'s `NewPreBlocker`, writing live sensor data
+  into **committed** state. This looked like it worked: `Query.State` started returning real,
+  non-zero, matching numbers on 3 of the 4 nodes. It was actually a state-machine-determinism bug:
+  `RefreshMetrics` reads each node's own **local** P2P peer snapshot and live bitcoind height --
+  writing that into `PreBlocker`'s committed state makes it part of `AppHash`, so any two validators
+  whose local sensor view differs even slightly compute a **different** `AppHash` for the identical
+  agreed block. 3 of the 4 nodes happened to have near-identical peer views and coincidentally
+  matched; the 4th (`engram-node03`) diverged and hit
+  `CONSENSUS FAILURE!!! precommit step; +2/3 prevoted for an invalid block: wrong Block.Header.AppHash`
+  at height 2 -- its consensus engine's `receiveRoutine` goroutine panicked and died permanently
+  (the container kept running and answering RPC, since only that one goroutine crashed, but it could
+  never produce another block again). This is exactly the failure mode "sensors propose, consensus
+  decides" (this file's top-level Spec Fidelity section) exists to prevent, and this fix violated it
+  by routing a live local sensor read into the hashed state tree. **Fixed by reverting**:
+  `NewPreBlocker` no longer takes a `*Sensors` or calls `RefreshMetrics` at all -- it commits only
+  the fields already deterministically embedded in the *agreed* proposal
+  (`ext.BTCReceipt`/`ext.DAReceipt`, via `CommitFSMTransition`, unchanged), never a fresh local
+  re-read. Confirmed via a clean redeploy (fresh genesis, rebuilt images): all 4 nodes, including the
+  previously-crashed node03, reached 20+ blocks with **identical AppHash** at every height and zero
+  further `CONSENSUS FAILURE` occurrences in any container's logs. The FSM state decision itself
+  (`fsm_state`) was never wrong or non-deterministic through any of this -- it's computed from live
+  sensors only within the safe, throwaway `PrepareProposal`/`ProcessProposal` branches, exactly as
+  before; only the raw `PeripheralMetrics` values visible via `Query.State` reverted to being stale
+  (the last value genesis or a rare RECOVERING->ANCHORED sync wrote), which is the correct, safe
+  tradeoff -- real-time query observability of live per-node sensor data was never actually
+  achievable through the committed/hashed state tree without embedding those readings into the
+  agreed proposal itself (not done; `ExtendedProposal` carries only `fsm_state`/receipts/
+  `zk_proof_ref`, no raw metric values), or exposing them through a side channel outside the state
+  machine entirely (e.g. an in-memory, non-committed field with its own query path) -- neither
+  attempted here, tracked as unstarted future work if live observability is ever wanted.
+- **Missing `timestamp` field, found by checking `ExtendedProposal`
+  (`x/sovereignty/proposal.go`) against README section 6.1's "Extended Proposal Structure"**: the
+  README documents `value`, `timestamp`, `round`, `fsm_state`, `da_receipt`, `btc_receipt`,
+  `zk_proof_ref` (mirroring `EngramTendermint.tla:281-307`'s `prop.timestamp \in
+  MIN_TIMESTAMP..MAX_TIMESTAMP` check). `ExtendedProposal` today has only `FSMState`/`DAReceipt`/
+  `BTCReceipt`/`ZKProofRef` -- `value` and `round` are implicit (the tx's own block height/round, not
+  carried redundantly inside the payload, a reasonable simplification), but `timestamp` has no
+  representation anywhere and `req.Time` (available on both `RequestPrepareProposal` and
+  `RequestProcessProposal`) is never read by `proposal.go`. This is a real, previously-undocumented
+  gap against the spec -- not flagged as a deliberate simplification anywhere in the code, unlike
+  this file's other documented gaps (round=0 tolerance, no `is_btc_spv_failed` field, etc.). Left
+  unfixed this pass; worth closing before treating `ExtendedProposal` as spec-complete.
 
 **Not yet done**, tracked as later milestones (ask the repo owner for the current plan file if
 picking this up cold):

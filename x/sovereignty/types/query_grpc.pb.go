@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Query_State_FullMethodName = "/engram.sovereignty.v1.Query/State"
+	Query_State_FullMethodName           = "/engram.sovereignty.v1.Query/State"
+	Query_RecoveryHeaders_FullMethodName = "/engram.sovereignty.v1.Query/RecoveryHeaders"
 )
 
 // QueryClient is the client API for Query service.
@@ -30,6 +31,12 @@ const (
 // stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
 type QueryClient interface {
 	State(ctx context.Context, in *QueryStateRequest, opts ...grpc.CallOption) (*QueryStateResponse, error)
+	// RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
+	// tracked header history plus rt_last, so an off-chain prover can build a
+	// real ZK re-anchoring witness against this node's own on-chain-tracked
+	// state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
+	// reconstructing that state independently.
+	RecoveryHeaders(ctx context.Context, in *QueryRecoveryHeadersRequest, opts ...grpc.CallOption) (*QueryRecoveryHeadersResponse, error)
 }
 
 type queryClient struct {
@@ -50,6 +57,16 @@ func (c *queryClient) State(ctx context.Context, in *QueryStateRequest, opts ...
 	return out, nil
 }
 
+func (c *queryClient) RecoveryHeaders(ctx context.Context, in *QueryRecoveryHeadersRequest, opts ...grpc.CallOption) (*QueryRecoveryHeadersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryRecoveryHeadersResponse)
+	err := c.cc.Invoke(ctx, Query_RecoveryHeaders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QueryServer is the server API for Query service.
 // All implementations should embed UnimplementedQueryServer
 // for forward compatibility.
@@ -58,6 +75,12 @@ func (c *queryClient) State(ctx context.Context, in *QueryStateRequest, opts ...
 // stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
 type QueryServer interface {
 	State(context.Context, *QueryStateRequest) (*QueryStateResponse, error)
+	// RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
+	// tracked header history plus rt_last, so an off-chain prover can build a
+	// real ZK re-anchoring witness against this node's own on-chain-tracked
+	// state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
+	// reconstructing that state independently.
+	RecoveryHeaders(context.Context, *QueryRecoveryHeadersRequest) (*QueryRecoveryHeadersResponse, error)
 }
 
 // UnimplementedQueryServer should be embedded to have
@@ -69,6 +92,9 @@ type UnimplementedQueryServer struct{}
 
 func (UnimplementedQueryServer) State(context.Context, *QueryStateRequest) (*QueryStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method State not implemented")
+}
+func (UnimplementedQueryServer) RecoveryHeaders(context.Context, *QueryRecoveryHeadersRequest) (*QueryRecoveryHeadersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecoveryHeaders not implemented")
 }
 func (UnimplementedQueryServer) testEmbeddedByValue() {}
 
@@ -108,6 +134,24 @@ func _Query_State_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Query_RecoveryHeaders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRecoveryHeadersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).RecoveryHeaders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_RecoveryHeaders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).RecoveryHeaders(ctx, req.(*QueryRecoveryHeadersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Query_ServiceDesc is the grpc.ServiceDesc for Query service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +162,10 @@ var Query_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "State",
 			Handler:    _Query_State_Handler,
+		},
+		{
+			MethodName: "RecoveryHeaders",
+			Handler:    _Query_RecoveryHeaders_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

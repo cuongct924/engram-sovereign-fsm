@@ -10,6 +10,13 @@ import "engram/sovereignty/v1/state.proto";
 // stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
 service Query {
   rpc State(QueryStateRequest) returns (QueryStateResponse);
+
+  // RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
+  // tracked header history plus rt_last, so an off-chain prover can build a
+  // real ZK re-anchoring witness against this node's own on-chain-tracked
+  // state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
+  // reconstructing that state independently.
+  rpc RecoveryHeaders(QueryRecoveryHeadersRequest) returns (QueryRecoveryHeadersResponse);
 }
 
 message QueryStateRequest {}
@@ -20,4 +27,23 @@ message QueryStateResponse {
   uint64            suspicious_duration     = 3;
   bool              reanchoring_proof_valid = 4;
   PeripheralMetrics metrics                 = 5;
+}
+
+message QueryRecoveryHeadersRequest {}
+
+// QueryRecoveryHeader is the wire representation of a single tracked
+// header -- distinct from the Go keeper's internal types.RecoveryHeader
+// (which this mirrors field-for-field) to avoid a generated-type name clash.
+message QueryRecoveryHeader {
+  uint64 height            = 1;
+  string fsm_state         = 2;
+  bool   withdrawal_locked = 3;
+  bytes  state_root        = 4;
+}
+
+message QueryRecoveryHeadersResponse {
+  // rt_last: state root of the last ANCHORED block before this interval
+  // started (empty if no interval is currently tracked).
+  bytes                        last_anchored_root = 1;
+  repeated QueryRecoveryHeader headers             = 2;
 }

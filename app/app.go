@@ -9,15 +9,18 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
+	addresscodec "github.com/cosmos/cosmos-sdk/codec/address"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/std"
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+	txsigning "github.com/cosmos/cosmos-sdk/x/tx/signing"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	"github.com/cosmos/gogoproto/proto"
 	memoryzk "github.com/iden3/go-merkletree-sql/v2/db/memory"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
@@ -75,7 +78,28 @@ type EngramApp struct {
 // x/sovereignty module mounted (so genesis/store layout doesn't diverge),
 // only the ABCI hook wiring differs.
 func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *EngramApp {
-	interfaceRegistry := codectypes.NewInterfaceRegistry()
+	// "engram" bech32 HRP -- this app never previously configured one
+	// (no sdk.Config.SetBech32Prefix* call anywhere in this repo, since
+	// there is no x/auth/x/bank wired). A real address codec is required
+	// here regardless: message types with a `cosmos.msg.v1.signer` proto
+	// option (MsgSubmitRecoveryProofRequest's `authority` field included)
+	// have their GetSigners() auto-derived by decoding that field as a
+	// bech32 address, which BaseApp's tx handling invokes even without a
+	// SigVerificationDecorator to cryptographically check it -- found by
+	// actually broadcasting a real tx: CheckTx failed with "InterfaceRegistry
+	// requires a proper address codec implementation to do address
+	// conversion" using the bare codectypes.NewInterfaceRegistry() this used
+	// before.
+	interfaceRegistry, err := codectypes.NewInterfaceRegistryWithOptions(codectypes.InterfaceRegistryOptions{
+		ProtoFiles: proto.HybridResolver,
+		SigningOptions: txsigning.Options{
+			AddressCodec:          addresscodec.NewBech32Codec("engram"),
+			ValidatorAddressCodec: addresscodec.NewBech32Codec("engramvaloper"),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	std.RegisterInterfaces(interfaceRegistry)
 	sovereigntytypes.RegisterInterfaces(interfaceRegistry)
 	cdc := codec.NewProtoCodec(interfaceRegistry)
@@ -105,6 +129,21 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *E
 
 	anteHandler := sdk.ChainAnteDecorators(NewCircuitBreakerDecorator(sovKeeper))
 	bApp.SetAnteHandler(anteHandler)
+
+	// Route x/sovereignty's Msg/Query services directly against BaseApp's
+	// routers -- this app has no module.Manager (InitChain is a hand-rolled
+	// InitChainer below, not module.Manager's InitGenesis), so
+	// x/sovereignty/module.go's AppModule.RegisterServices(module.Configurator)
+	// is never called and was, until now, entirely dead code: no Msg
+	// (MsgInjectFaultRequest/MsgSubmitForcedTxRequest/
+	// MsgSubmitRecoveryProofRequest) or Query (Query.State/RecoveryHeaders)
+	// was actually routable via a real submitted tx -- only reachable by
+	// calling MsgServerImpl/QueryServerImpl methods directly in Go, which is
+	// all every existing test did. Found while building a real `engramd tx
+	// sovereignty submit-recovery-proof` CLI: CheckTx returned "no message
+	// handler found for *types.MsgSubmitRecoveryProofRequest".
+	sovereigntytypes.RegisterMsgServer(bApp.MsgServiceRouter(), sovereigntykeeper.NewMsgServerImpl(sovKeeper))
+	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
 	if !vanilla {
 		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, sensorBundle))

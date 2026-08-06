@@ -5,11 +5,24 @@ services:
     build: 
       context: ..
       dockerfile: Dockerfile
+      additional_contexts:
+        - cometbft-fork=../../engram-consensus-core
     hostname: engram-node03
     container_name: engram-node03
     networks:
       engram-net:
         ipv4_address: 172.28.0.120
+      # bitcoin-net: needed so BITCOIN_HOST=bitcoin-node01 (live BTC sensor
+      # wiring, x/vigilante/rpc.go) is actually DNS-resolvable -- found by
+      # actually running the 4-node testnet: without this, EVERY
+      # PrepareProposal call failed ("dial tcp: lookup bitcoin-node01 ...
+      # no such host"), so no leader could ever produce a valid proposal
+      # and consensus round-skipped forever at height 1, never committing
+      # a single block. bitcoin-node01/02 are bitcoin-net-only (docker/
+      # bitcoin-regtest-cluster.yml), completely unreachable from
+      # engram-net's separate Docker network without this.
+      bitcoin-net:
+        ipv4_address: 172.21.0.120
     volumes:
       - ../testnet-data/engram-node03:/root/.engramd
     ports:
@@ -18,15 +31,29 @@ services:
       - "1517:1317"     # Cosmos REST API (exposed)
       - "26860:26660"   # Prometheus Metrics (exposed)
     environment:
-      - DA_ENDPOINT=http://celestia-light03:26658
       - MINIMUM_GAS_PRICES=0uengram
       - MONIKER=engram-node03
       - NODE_ID=2
+      # Live BTC sensor wiring (x/vigilante/rpc.go, cmd/engramd/main.go's
+      # wireBTCSensor) -- all 4 validators point at the same bitcoin-node01
+      # (only 2 bitcoind instances are provisioned for 4 validators here, a
+      # documented prototype simplification; a real deployment would give
+      # each validator its own). Docker-network service name/internal port,
+      # not the host-mapped 18443/19443 (a different network namespace from
+      # inside this container).
+      - BITCOIN_HOST=bitcoin-node01
+      - BITCOIN_RPC_PORT=18443
+      - BITCOIN_RPC_USER=${BITCOIN_RPC_USER:-engram_admin}
+      - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD:-secure_password_123}
     command: ["start"]
     restart: unless-stopped
-    depends_on:
-      celestia-light03:
-        condition: service_healthy
+    # No depends_on celestia-light03 here (deliberately removed): x/da's
+    # Publisher/RPCClient talk to celestia-bridge directly (CELESTIA_BRIDGE_URL),
+    # never to celestia-lightNN -- that service is unused scaffolding for a
+    # future DAS light-client integration (see CLAUDE.md), and its "OLD,
+    # unfixed buggy command pattern" leaves it permanently unhealthy today.
+    # Gating engramd's startup on it blocked the entire 4-node testnet from
+    # ever coming up for a dependency this binary doesn't actually have.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
       interval: 30s
@@ -42,169 +69,18 @@ services:
           cpus: '0.2'
           memory: 256M
 
-  #  VIGILANTE SUBMITTER 
-  vigilante-submitter03:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: vigilante-submitter03
-    hostname: vigilante-submitter03
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.121
-      bitcoin-net:
-        ipv4_address: 172.21.0.120
-    volumes:
-      - ../config/submitter.toml:/home/babylon/config/submitter.toml:ro
-      - vigilante-submitter03-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node03:26657
-      - BITCOIN_HOST=bitcoin-node-01
-      - BITCOIN_RPC_PORT=18443
-      - NODE_ID=2
-    restart: unless-stopped
-    depends_on:
-      engram-node03:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.15'
-          memory: 128M
-        reservations:
-          cpus: '0.05'
-          memory: 64M
-    command:
-      - vigilante
-      - submitter
-      - --config=/home/babylon/config/submitter.toml
-
-  #  VIGILANTE REPORTER 
-  vigilante-reporter03:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: vigilante-reporter03
-    hostname: vigilante-reporter03
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.122
-      bitcoin-net:
-        ipv4_address: 172.21.0.121
-    volumes:
-      - ../config/reporter.toml:/home/babylon/config/reporter.toml:ro
-      - vigilante-reporter03-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node03:26657
-      - BITCOIN_HOST=bitcoin-node01
-      - NODE_ID=2
-    restart: unless-stopped
-    depends_on:
-      engram-node03:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.15'
-          memory: 128M
-        reservations:
-          cpus: '0.05'
-          memory: 64M
-    command:
-      - vigilante
-      - reporter
-      - --config=/home/babylon/config/reporter.toml
-
-  #  VIGILANTE MONITOR
-  checkpointing-monitor03:
-    image: babylonlabs/babylond:main${BABYLOND_VERSION:-.latest}
-    container_name: checkpointing-monitor03
-    hostname: checkpointing-monitor03
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.123
-      bitcoin-net:
-        ipv4_address: 172.21.0.122
-    volumes:
-      - ../config/monitor.toml:/home/babylon/config/monitor.toml:ro
-      - checkpointing-monitor03-data:/home/babylon/.babylon
-    environment:
-      - NODE_ADDR=http://engram-node03:26657
-      - BITCOIN_HOST=bitcoin-node01
-      - NODE_ID=2
-    restart: unless-stopped
-    depends_on:
-      engram-node03:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.1'
-          memory: 100M
-        reservations:
-          cpus: '0.05'
-          memory: 50M
-    command:
-      - vigilante
-      - monitor
-      - --config=/home/babylon/config/monitor.toml
-
-  # ==================== CELESTIA LIGHT NODE ====================
-  celestia-light03:
-    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
-    container_name: celestia-light03
-    hostname: celestia-light03
-    networks:
-      engram-net:
-        ipv4_address: 172.28.0.124
-      celestia-net:
-        ipv4_address: 172.22.0.102
-    volumes:
-      - celestia-light03-data:/home/celestia
-    ports:
-      - "26759:26658"   # RPC (exposed, offset by 200)
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-s", "http://127.0.0.1:26658/header/1 || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      celestia-app:
-        condition: service_healthy
-    environment:
-      - NODE_TYPE=light
-      - P2P_NETWORK=private
-      - NODE_ID=2
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    command: >
-      sh -c "
-      if [ ! -d /home/celestia/.light ]; then
-        celestia light init --p2p.network private --ip 0.0.0.0
-      fi
-      celestia light start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658
-      "
-
 # engram-net/bitcoin-net/celestia-net are declared once in the root
 # compose.yml, which owns them; services above reference them by name
 # directly. Redeclaring them here (even as `external: true`) makes
 # `docker compose config` fail with "conflicts with imported resource"
 # once this file is resolved via compose.yml's `include:` (see M6).
 
-volumes:
-  vigilante-submitter03-data:
-    name: vigilante-submitter03-data
-    driver: local
-  vigilante-reporter03-data:
-    name: vigilante-reporter03-data
-    driver: local
-  checkpointing-monitor03-data:
-    name: checkpointing-monitor03-data
-    driver: local
-  celestia-light03-data:
-    name: celestia-light03-data
-    driver: local
+# celestia-light03 (a Celestia DAS light-client service) previously lived
+# here -- removed at the repo owner's request: it was never functional (its
+# command pattern predates the celestia-app/bridge fixes, crash-looped on
+# every start) and, more importantly, nothing in this repo's Go code ever
+# used it -- x/da's Publisher/RPCClient talk to celestia-bridge directly
+# (CELESTIA_BRIDGE_URL), and DA_ENDPOINT (which pointed here) was never
+# read by any code either (see CLAUDE.md). A real DAS light-client
+# integration remains a documented, not-yet-done future item if ever
+# pursued -- this was pure non-functional scaffolding, not that feature.

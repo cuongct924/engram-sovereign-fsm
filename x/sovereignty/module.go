@@ -71,9 +71,10 @@ func NewAppModule(cdc codec.Codec, k *keeper.Keeper) AppModule {
 
 func (a AppModule) ConsensusVersion() uint64 { return 1 }
 
-// RegisterServices đăng ký MsgServer của bạn
+// RegisterServices đăng ký MsgServer và QueryServer của module.
 func (a AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(a.keeper))
+	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQueryServerImpl(a.keeper))
 }
 
 // BeginBlock được gọi tại mỗi block, đây là nơi "bộ não" FSM vận hành

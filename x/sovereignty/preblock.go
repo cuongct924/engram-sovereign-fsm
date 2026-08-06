@@ -16,6 +16,27 @@ import (
 // separation the spec depends on (see CLAUDE.md's FSM-layer notes). Wiring
 // this onto a real BaseApp via SetPreBlocker is M5's job -- this function
 // only builds the handler.
+//
+// A prior version of this function took a *Sensors and called RefreshMetrics
+// here to make k.Metrics query-visible in committed state (Query.State
+// otherwise only ever saw the genesis-default zero value, since
+// PrepareProposal/ProcessProposal only write it to their own throwaway
+// state branches per BaseApp's ABCI 2.0 separation). That was a real
+// consensus-safety bug, found by actually running a 4-node Docker testnet:
+// RefreshMetrics reads live, node-LOCAL sensor data (P2P peer snapshot,
+// live bitcoind height) -- writing that into PreBlocker's COMMITTED state
+// makes it part of AppHash, so any two validators with even a slightly
+// different local view (e.g. differing P2P peer sets) compute a DIFFERENT
+// AppHash for the identical agreed block. 3 of 4 nodes in that testnet
+// coincidentally matched (near-identical peer views); the 4th diverged and
+// permanently crashed its consensus engine with "CONSENSUS FAILURE!!!
+// +2/3 prevoted for an invalid block: wrong Block.Header.AppHash". Reverted:
+// this function commits ONLY the fields already deterministically embedded
+// in the agreed proposal (ext.BTCReceipt/ext.DAReceipt, via
+// CommitFSMTransition below) -- never a live local sensor re-read. Making
+// live BTC/DA/P2P telemetry safely query-visible would need a channel
+// outside the hashed state tree entirely (e.g. an in-memory, non-committed
+// field queried directly rather than through Query.State) -- not built here.
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
 		if err := updateForcedTxTracking(ctx, k, req.Txs); err != nil {
@@ -123,5 +144,72 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		}
 	}
 
+	// Step 5b: a real ZK proof (keeper.MsgServerImpl.SubmitRecoveryProof)
+	// only ever applies to the SOVEREIGN/RECOVERING interval it was proven
+	// against. Once RECOVERING is left -- whether successfully to ANCHORED
+	// or back down to SOVEREIGN on a fresh setback -- that latch is stale:
+	// a NEW interval (if any) needs a NEW proof. See
+	// sensors_refresh.go's refreshReanchoringProofValid, the only reader.
+	if currState == types.StateRecovering && ext.FSMState != types.StateRecovering {
+		if err := k.RealProofSubmittedHeight.Set(ctx, 0); err != nil {
+			return err
+		}
+	}
+
+	// Step 6: track real per-block header history for the ZK re-anchoring
+	// circuit's witness (spec/README.md's §Re-anchoring via ZK-Proof of
+	// Recovery; circuit/reanchoring/src/main.nr's Header{fsm_state,
+	// withdrawal_locked, state_root}). Only meaningful while the FSM is
+	// SOVEREIGN/RECOVERING -- see types.RecoveryHeader's doc for why
+	// StateRoot is CometBFT's real AppHash rather than the keeper's (dead,
+	// unwired) SMT.
+	if types.WithdrawLocked(ext.FSMState) {
+		if !types.WithdrawLocked(currState) {
+			// Entering the interval for the first time: rt_last (README:
+			// "the state root of the last Bitcoin-anchored block") is this
+			// block's incoming AppHash -- the state right before the
+			// interval starts, which headers[0].prev_hash must bind to.
+			if err := k.LastAnchoredRoot.Set(ctx, types.ReduceToField(ctx.BlockHeader().AppHash)); err != nil {
+				return err
+			}
+		}
+		header := types.RecoveryHeader{
+			FsmState:         ext.FSMState,
+			WithdrawalLocked: true,
+			StateRoot:        types.ReduceToField(ctx.BlockHeader().AppHash),
+		}
+		if err := k.HeaderHistory.Set(ctx, uint64(ctx.BlockHeight()), header); err != nil {
+			return err
+		}
+	} else if types.WithdrawLocked(currState) {
+		// Interval just ended (back to ANCHORED): this history is no
+		// longer needed for a proof -- a future interval starts its own
+		// LastAnchoredRoot from scratch above.
+		if err := pruneHeaderHistory(ctx, k); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// pruneHeaderHistory clears HeaderHistory once a SOVEREIGN/RECOVERING
+// interval ends -- only the CURRENT interval's headers are ever needed to
+// build a re-anchoring proof against.
+func pruneHeaderHistory(ctx sdk.Context, k *keeper.Keeper) error {
+	iter, err := k.HeaderHistory.Iterate(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	heights, err := iter.Keys()
+	if err != nil {
+		return err
+	}
+	for _, height := range heights {
+		if err := k.HeaderHistory.Remove(ctx, height); err != nil {
+			return err
+		}
+	}
 	return nil
 }
