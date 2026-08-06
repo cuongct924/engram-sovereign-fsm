@@ -123,5 +123,72 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		}
 	}
 
+	// Step 5b: a real ZK proof (keeper.MsgServerImpl.SubmitRecoveryProof)
+	// only ever applies to the SOVEREIGN/RECOVERING interval it was proven
+	// against. Once RECOVERING is left -- whether successfully to ANCHORED
+	// or back down to SOVEREIGN on a fresh setback -- that latch is stale:
+	// a NEW interval (if any) needs a NEW proof. See
+	// sensors_refresh.go's refreshReanchoringProofValid, the only reader.
+	if currState == types.StateRecovering && ext.FSMState != types.StateRecovering {
+		if err := k.RealProofSubmittedHeight.Set(ctx, 0); err != nil {
+			return err
+		}
+	}
+
+	// Step 6: track real per-block header history for the ZK re-anchoring
+	// circuit's witness (spec/README.md's §Re-anchoring via ZK-Proof of
+	// Recovery; circuit/reanchoring/src/main.nr's Header{fsm_state,
+	// withdrawal_locked, state_root}). Only meaningful while the FSM is
+	// SOVEREIGN/RECOVERING -- see types.RecoveryHeader's doc for why
+	// StateRoot is CometBFT's real AppHash rather than the keeper's (dead,
+	// unwired) SMT.
+	if types.WithdrawLocked(ext.FSMState) {
+		if !types.WithdrawLocked(currState) {
+			// Entering the interval for the first time: rt_last (README:
+			// "the state root of the last Bitcoin-anchored block") is this
+			// block's incoming AppHash -- the state right before the
+			// interval starts, which headers[0].prev_hash must bind to.
+			if err := k.LastAnchoredRoot.Set(ctx, types.ReduceToField(ctx.BlockHeader().AppHash)); err != nil {
+				return err
+			}
+		}
+		header := types.RecoveryHeader{
+			FsmState:         ext.FSMState,
+			WithdrawalLocked: true,
+			StateRoot:        types.ReduceToField(ctx.BlockHeader().AppHash),
+		}
+		if err := k.HeaderHistory.Set(ctx, uint64(ctx.BlockHeight()), header); err != nil {
+			return err
+		}
+	} else if types.WithdrawLocked(currState) {
+		// Interval just ended (back to ANCHORED): this history is no
+		// longer needed for a proof -- a future interval starts its own
+		// LastAnchoredRoot from scratch above.
+		if err := pruneHeaderHistory(ctx, k); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// pruneHeaderHistory clears HeaderHistory once a SOVEREIGN/RECOVERING
+// interval ends -- only the CURRENT interval's headers are ever needed to
+// build a re-anchoring proof against.
+func pruneHeaderHistory(ctx sdk.Context, k *keeper.Keeper) error {
+	iter, err := k.HeaderHistory.Iterate(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	heights, err := iter.Keys()
+	if err != nil {
+		return err
+	}
+	for _, height := range heights {
+		if err := k.HeaderHistory.Remove(ctx, height); err != nil {
+			return err
+		}
+	}
 	return nil
 }

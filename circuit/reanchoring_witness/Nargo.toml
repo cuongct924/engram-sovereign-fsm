@@ -1,0 +1,10 @@
+[package]
+name = "reanchoring_witness"
+type = "bin"
+authors = ["CuongCT <cuongct0902@gmail.com>"]
+compiler_version = ">=0.31.0"
+
+[dependencies]
+
+[bin]
+name = "reanchoring_witness"

@@ -14,6 +14,12 @@ circuit
 spec
 scripts
 tests
+# Runtime data bind-mounted from running containers (bitcoind/celestia chain
+# state) and generated testnet homes -- neither is needed to compile
+# engramd, and both grow unbounded over time (found: 77M+ of real chain
+# data was being sent as build context on every build with no benefit).
+data
+testnet-data
 *.md
 LICENSE
 .env.example

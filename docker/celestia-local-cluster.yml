@@ -9,8 +9,19 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.50
     ports:
-      - "26656:26656"
-      - "26657:26657"
+      # Host-side 27656/27657, not 26656/26657: those are CometBFT's
+      # standard P2P/RPC ports, which engram-node01 (the base-port
+      # validator, docker/engram-validator-node01.yml) also needs on the
+      # host -- found by actually bringing up the full stack together for
+      # the first time (`docker compose up` failed with "Bind for
+      # 0.0.0.0:26657 failed: port is already allocated"). Container-
+      # internal ports stay 26656/26657 (celestia-app's own convention,
+      # unrelated to engramd) -- only the host mapping changes; nothing
+      # outside this container ever reaches celestia-app via its host port
+      # (the TRUSTED_HASH bootstrap step below and the healthcheck both use
+      # the Docker-network-internal hostname/loopback, not the host mapping).
+      - "27656:26656"
+      - "27657:26657"
       - "9090:9090"
     # (No 26658 mapping here -- that's celestia-node's RPC port convention,
     # used by celestia-bridge below, not celestia-appd's. The original

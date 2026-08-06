@@ -225,6 +225,29 @@ and watching it commit real blocks, not just unit tests:
   once round>=3, a deliberate, documented divergence from the literal spec constant (see its
   doc). `types.Params` gained `KDeepFinality` (default 2, regtest-appropriate). Confirmed via
   `engramd start` reaching height 8+ with real, sustained block production once these landed.
+- **Second real liveness bug, found later by re-deriving `btc_gap` from spec instead of trusting
+  the earlier port**: `x/sovereignty/sensors_refresh.go`'s `btcGapMetric` computed
+  `btc_gap = h_btc_current - min(h_btc_submitted, h_btc_anchored)`, copying `EngramFSM.tla:95`'s
+  ABSTRACT-layer formula verbatim. That formula only works there because `BTCNormalUpdate`/
+  `BTCSPVFailure` (`EngramFSM.tla:173-188`) always keep `h_btc_anchored <= h_btc_submitted` in
+  lockstep, so the `min()` always resolves to `h_btc_anchored` anyway. The CONCRETE layer
+  (`ServerUponProposalInPrecommitNoDecision` Step 3/4, `EngramServer.tla:148,151-159`, which
+  `preblock.go` correctly ports) decouples the two: `h_btc_anchored` is written from the real
+  committed `btc_receipt` every block regardless of FSM state, while `h_btc_submitted` is written
+  ONLY on entering/staying RECOVERING with a claimed ZK proof -- so outside a re-anchoring cycle it
+  never leaves its Go zero value, collapsing `min(0, h_btc_anchored)` to 0 and inflating `btc_gap`
+  to ~`h_btc_current` regardless of real anchor state. Confirmed live via temporary debug prints:
+  this held the FSM in `SOVEREIGN` across this session's entire "successful" BTC pipeline testing
+  (the height-8+ block production above was real, but the FSM state driving it was not). Fixed by
+  dropping the `min()` and using `h_btc_anchored` alone, matching Step 3 exactly. Also found while
+  fixing this: `reanchoring_proof_valid` was never ported at all -- the concrete layer's Step 4
+  only ever writes `FALSE` to it (on submission) or leaves it `UNCHANGED`; the only place it's ever
+  computed back to `TRUE` is the ABSTRACT layer's `UpdateSensors` environment action
+  (`EngramFSM.tla:294-301`), which has no concrete-layer counterpart in `EngramServer.tla`. Fixed
+  by adding `refreshReanchoringProofValid` (same file), called from `RefreshMetrics` alongside
+  `btcGapMetric` -- mirroring how the abstract action recomputes it every environment tick, since
+  the concrete hooks alone never do. Without this, `CalculateNextState`'s `RECOVERING -> ANCHORED`
+  transition could never fire via a successful reanchoring proof, in any test or real run to date.
 - **Celestia infra (docker/celestia-local-cluster.yml) is now real and healthy** -- `celestia-app`
   (core) and `celestia-bridge` both reach real, sustained `docker compose ps` "healthy" status and
   serve real RPC data (confirmed via `header.NetworkHead` returning a real, advancing header).
@@ -308,6 +331,120 @@ and watching it commit real blocks, not just unit tests:
   - **Not yet done**: a genuine `celestia-light` node service sampling from `celestia-bridge` (per
     the repo owner's preference over trusting the bridge's full data directly) is not in
     `docker/celestia-local-cluster.yml` yet -- `Publisher`/`RPCClient` talk to the bridge directly.
+
+**Real ZK re-anchoring (spec/README.md's §Re-anchoring via ZK-Proof of Recovery)** is now wired
+end-to-end, confirmed by actually running the pipeline against a real node (not just unit tests) --
+previously `x/sovereignty/keeper/reanchor.go`'s `VerifyZKProof` was a `return true` stub with nothing
+upstream or downstream of it real:
+- **`x/sovereignty/types/recovery_header.go`**'s `RecoveryHeader` + keeper's new
+  `HeaderHistory`/`LastAnchoredRoot` collections (`x/sovereignty/keeper/keeper.go`) track the real
+  per-block witness data the circuit needs, populated in `preblock.go`'s `CommitFSMTransition` only
+  while `fsm_state ∈ {SOVEREIGN, RECOVERING}` (pruned on return to ANCHORED). `state_root` is
+  CometBFT's real per-block `AppHash` (one-block-lagged, the standard ABCI lag already documented
+  elsewhere in this repo), NOT the keeper's `Tree` (SMT) -- that field is unrelated dead code (see
+  below), and this prototype has no `x/bank`/account state to put in an SMT leaf yet regardless.
+  Both `state_root` and `rt_last` are reduced into the circuit's BN254 scalar field
+  (`types.ReduceToField`) before storage -- a raw 32-byte hash has roughly a 1-in-16 chance of
+  exceeding the field modulus if used verbatim, which Noir/bb reject outright ("non-canonical...
+  value >= field modulus") rather than silently wrapping.
+- **`circuit/reanchoring_witness/`** is a new, separate Noir crate (its own `Nargo.toml`) that links
+  real raw header data into a real `prev_hash` chain via the same `hash_header`
+  (Pedersen) function `circuit/reanchoring/src/main.nr` uses -- deliberately NOT a Go-side hash
+  reimplementation (a real, avoidable correctness risk) and deliberately NOT touching `main.nr`
+  itself, so the already-collected E6 benchmark numbers (Table 6A/6B/Figure 6) stay valid. Mirrors
+  `main.nr`'s own `dump_chain` test technique, just fed real chain data instead of synthetic.
+- **`VerifyZKProof`** now really verifies: `x/sovereignty/keeper/zk_assets/vk` is a git-committed copy
+  of the compiled N=4 circuit's verification key (`go:embed`bed into the binary -- `go:embed` can't
+  reach `circuit/reanchoring/target/`, which is gitignored and outside this package's directory
+  tree), and the function shells out to a pinned `bb verify` against temp-file copies of the
+  submitted proof/inputs, fail-closed (returns false, never panics) on any error or missing binary.
+  Confirmed against the real, previously-generated N=4 proof on disk: verifies `true` for the valid
+  proof, `false` for a single-byte-flipped tamper. `bb`/`nargo` are now required, pinned runtime
+  dependencies on every validator for this determinism to hold (verification runs inside `DeliverTx`,
+  executed identically by all validators).
+- **Real safety bug found and fixed**: `keeper.MsgServerImpl.SubmitRecoveryProof` used to set
+  `FSMState = ANCHORED` directly and unconditionally on proof-math validity alone -- bypassing
+  `StrictFSMTransitionSafety` (e.g. a direct SOVEREIGN -> ANCHORED jump) and the hysteresis dwell
+  time entirely, via a second, unguarded FSM-state writer parallel to the real consensus-driven one.
+  Fixed by having it latch `RealProofSubmittedHeight` instead (the height of the header it proved up
+  to) -- consumed by `sensors_refresh.go`'s `refreshReanchoringProofValid` (OR'd with the existing
+  BTC-anchor heuristic), which is what `CalculateNextState`'s existing, already-correct
+  `SafeBlocks == HysteresisWait && ReanchoringProofValid` guard reads. No parallel FSM-state-writing
+  path exists anymore. Also added: cross-checking the proof's public inputs (`rt_last`/`rt_new`)
+  against `LastAnchoredRoot`/`HeaderHistory`'s real tracked tip, closing a replay gap (proof math
+  alone only proves "some self-consistent chain links some rt_last to some rt_new" -- without this,
+  the proof already checked into `circuit/reanchoring/target/proof/` could be replayed against any
+  deployment).
+- **Second real bug found by actually running the full pipeline against a live node, not by
+  inspection**: a proof submitted while N headers were tracked must stop counting the moment a NEW
+  header is appended before RECOVERING is reached -- the interval keeps growing, and a proof only
+  covers what it was built against. A flat bool latch can't express this; `RealProofSubmittedHeight`
+  stores the proven height instead, and `refreshReanchoringProofValid` requires it to still equal the
+  CURRENT tracked tip's height, not merely be nonzero. `TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows`
+  (`x/sovereignty/keeper/msg_server_test.go`) covers the primitive this depends on.
+- **`app/app.go` had three separate, previously-undiscovered wiring gaps**, all found by actually
+  trying to build+broadcast a real tx against a running node (every prior test only ever called
+  `MsgServerImpl`/`QueryServerImpl` methods directly in Go, never through real ABCI tx routing):
+  (1) no `module.Manager`/`module.Configurator` exists in this app (`InitChain` is a hand-rolled
+  `InitChainer`, not `module.Manager`'s `InitGenesis`), so `x/sovereignty/module.go`'s
+  `AppModule.RegisterServices` was NEVER called -- every `Msg` (`MsgInjectFaultRequest`,
+  `MsgSubmitForcedTxRequest`, `MsgSubmitRecoveryProofRequest`) and the `Query.State` RPC (defined in
+  the proto with generated types since early on, but never implemented OR registered) were
+  unroutable via any real submitted tx, "no message handler found" being the exact live symptom.
+  Fixed by registering directly against `bApp.MsgServiceRouter()`/`bApp.GRPCQueryRouter()` in
+  `NewEngramApp`, matching this app's existing no-module-manager architecture rather than
+  introducing one just for this. `x/sovereignty/keeper/grpc_query.go`'s `QueryServerImpl` is the
+  first real `QueryServer` implementation this module has ever had (also implements `Query.State`,
+  previously unimplemented on top of being unregistered). (2) No address codec was configured on the
+  `InterfaceRegistry` (bare `codectypes.NewInterfaceRegistry()`) -- any message with a
+  `cosmos.msg.v1.signer`-annotated field (like `MsgSubmitRecoveryProofRequest`'s `authority`) has its
+  `GetSigners()` auto-derived via bech32 decoding, which BaseApp invokes even with no
+  `SigVerificationDecorator` to cryptographically check it; live symptom was CheckTx failing with
+  "InterfaceRegistry requires a proper address codec implementation." Fixed via
+  `codectypes.NewInterfaceRegistryWithOptions` with a real `"engram"`-HRP Bech32 codec (this app
+  never had ANY bech32 prefix configured before, having no `x/auth`/`x/bank`). (3) Given (2)'s fix
+  plus no `x/auth`, `cmd/engramd/reanchor_cli.go`'s new `tx-submit-recovery-proof` command builds the
+  minimal structurally-valid `sdk.Tx` envelope BaseApp's `TxDecoder` accepts (one `SignerInfo`, one
+  empty signature, empty `Fee`) rather than a real signed tx -- nothing in the ante chain
+  (`CircuitBreakerDecorator` only) checks a signature, so this is deliberate, not an oversight; a
+  real `AccountKeeper`-backed signing flow would need `x/auth` mounted, which this prototype doesn't
+  have (see this file's `app/` layout note).
+- **New CLI**: `engramd query-recovery-headers` (dumps the real tracked interval + `rt_last` as
+  plain lines, via the real ABCI-routed gRPC query -- no separate gRPC server needed, CometBFT's
+  `/abci_query` already routes to `bApp.GRPCQueryRouter()`) and `engramd tx-submit-recovery-proof
+  --proof <file> --public-inputs <file>` (`cmd/engramd/reanchor_cli.go`). Both confirmed working
+  against a real running node: query returns real per-height data with correct Field encoding
+  (`fsm_state`: 2=SOVEREIGN/3=RECOVERING, matching `main.nr`'s comment), and tx submission correctly
+  rejects a garbage proof end-to-end (real CheckTx -> mempool -> DeliverTx -> `SubmitRecoveryProof`
+  -> `VerifyZKProof` -> `ErrInvalidZKProof`).
+- **`scripts/reanchoring_prover/prove_and_submit.sh`** wires all of the above into one real pipeline
+  (query -> witness-helper crate -> real `main.nr` `Prover.toml` -> `nargo execute` + `bb prove`,
+  using the SAME embedded VK the Go node checks against -> submit), mirroring
+  `scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh`'s style. Every stage confirmed working
+  with 100% real components against a real running node (real query, real Noir/bb proving, real
+  submission). **Known, documented, inherent limitation** (see the script's own header comment): `N`
+  is fixed at compile time (currently 4), so this only works when exactly `N` headers are tracked;
+  and because querying-then-proving-then-submitting takes real wall-clock time (tens to low hundreds
+  of ms of actual proving per the E6 numbers, plus RPC/CLI overhead) while a still-unhealthy
+  SOVEREIGN/RECOVERING interval keeps growing underneath it, a proof can legitimately go stale
+  between query and submission -- confirmed by repeated real end-to-end runs against a continuously-
+  producing test node being correctly rejected this way. This is the same anti-replay protection
+  working as designed (see `RealProofSubmittedHeight` above), just observed from the submission side
+  instead of the already-latched side; a real deployment needs to submit while the interval is
+  genuinely stable, not race a continuously-growing one.
+- **Not done / explicitly out of scope for this pass**: the keeper's `Tree` (SMT,
+  `iden3/go-merkletree-sql`) and `x/sovereignty/keeper/smt_storage.go`'s `BadgerStorage` remain
+  completely unwired dead code (confirmed via exhaustive grep -- `Tree` is constructed in
+  `NewKeeper` and never read/written anywhere else; `BadgerStorage` isn't even passed as `NewKeeper`'s
+  `smtStore` argument, which uses an in-memory store instead). Deliberately NOT pressed into service
+  for `state_root` here: this prototype has no real account/balance state to put in SMT leaves yet,
+  and forcing fabricated leaves in would violate this repo's own "don't fabricate data" convention.
+  Reviving this SMT for a real future purpose (or removing it) is separate, unstarted work. Also not
+  done: replacing the app's KVStore backend (`cosmos-db`, currently GoLevelDB) with BadgerDB was
+  investigated and rejected -- `cosmos-db` only implements goleveldb/memdb/pebbledb/rocksdb, and
+  Badger's WiscKey (value-separated) architecture is designed for large values, not IAVL's
+  small-node/random-access pattern; no ecosystem precedent either. Variable-length/recursive re-
+  anchoring proofs (removing the fixed-N limitation) are also out of scope.
 
 **Not yet done**, tracked as later milestones (ask the repo owner for the current plan file if
 picking this up cold):

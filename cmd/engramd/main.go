@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -53,6 +55,8 @@ func main() {
 	rootCmd.AddCommand(startCmd(homeFlag))
 	rootCmd.AddCommand(testnetInitFilesCmd())
 	rootCmd.AddCommand(demoSMTCmd())
+	rootCmd.AddCommand(queryRecoveryHeadersCmd())
+	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -392,20 +396,132 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 	}
 }
 
+// vanillaP2PHealthAdapter computes real P2PSnapshot readings from the
+// STANDARD (non-libp2p) CometBFT p2p.Switch -- the transport actually
+// carrying consensus traffic in every deployment of this repo to date
+// (docker/engram-validator-node0N.yml's generated config.toml has
+// `[p2p.libp2p] enabled = false`, confirmed by actually running the 4-node
+// testnet and finding lp2pHealthAdapter's type assertion always failed, so
+// wireP2PSensor silently no-op'd and the P2P sensor read its static
+// zero-value mock forever -- the FSM was stuck reporting SOVEREIGN, driven
+// entirely by Cardinality(ActiveAnchors) = 0, without any real Eclipse
+// condition). This reads real, already-flowing p2p.Switch data (Peers(),
+// IsPersistent(), Status().Duration) -- it does not touch the active
+// consensus data plane, only observes it.
+//
+// ActiveAnchors mirrors persistent_peers (config.toml, already the trusted
+// bootstrap set every validator dials on startup -- see node.go's
+// AddPersistentPeers/DialPeersAsync): a peer connection CometBFT itself
+// marks IsPersistent() is exactly the spec's "anchor peer" concept (a
+// known, pre-designated peer, as opposed to one discovered dynamically via
+// PEX and therefore more exposed to Sybil/Eclipse manipulation).
+//
+// CleanPeers has no independent "blacklist" concept in this app yet (the
+// fork's own HealthMonitor.Blacklist is likewise never called anywhere) --
+// counts total connected peers, a documented simplification matching that.
+//
+// PeerLatencyMs stays 0 (real RTT measurement not implemented), matching
+// the fork's own lp2p.HealthSnapshot's identical documented gap.
+type vanillaP2PHealthAdapter struct {
+	sw *p2p.Switch
+
+	mu          sync.Mutex
+	firstSeen   map[p2p.ID]time.Time
+	churnEvents []time.Time
+}
+
+const p2pChurnWindow = time.Hour
+
+func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
+	peers := a.sw.Peers().Copy()
+
+	subnets := make(map[string]bool, len(peers))
+	var activeAnchors, cleanPeers uint64
+	var tenureSum time.Duration
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	seen := make(map[p2p.ID]bool, len(peers))
+	now := time.Now()
+	for _, p := range peers {
+		id := p.ID()
+		seen[id] = true
+		if _, ok := a.firstSeen[id]; !ok {
+			a.firstSeen[id] = now
+			a.churnEvents = append(a.churnEvents, now)
+		}
+
+		if ip := p.RemoteIP(); ip != nil {
+			if v4 := ip.To4(); v4 != nil {
+				subnets[v4.Mask(net.CIDRMask(24, 32)).String()] = true
+			} else {
+				subnets[ip.Mask(net.CIDRMask(48, 128)).String()] = true
+			}
+		}
+		if p.IsPersistent() {
+			activeAnchors++
+		}
+		cleanPeers++
+		tenureSum += p.Status().Duration
+	}
+	// Any previously-seen peer no longer in the current set disconnected --
+	// also counts as a churn event, and stops accumulating tenure/anchors.
+	for id := range a.firstSeen {
+		if !seen[id] {
+			delete(a.firstSeen, id)
+			a.churnEvents = append(a.churnEvents, now)
+		}
+	}
+
+	cutoff := now.Add(-p2pChurnWindow)
+	kept := a.churnEvents[:0]
+	for _, t := range a.churnEvents {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	a.churnEvents = kept
+
+	var avgTenure uint64
+	if cleanPeers > 0 {
+		avgTenure = uint64((tenureSum / time.Duration(cleanPeers)).Seconds())
+	}
+
+	return sensors.P2PSnapshot{
+		SubnetDiversity: uint64(len(subnets)),
+		ActiveAnchors:   activeAnchors,
+		CleanPeers:      cleanPeers,
+		ChurnRate:       uint64(len(a.churnEvents)),
+		AvgTenure:       avgTenure,
+		Latency:         0,
+	}
+}
+
 // wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot-
-// based mock to the fork's live lp2p.Switch (Phase 7). n.Switch() only
-// exists after node.NewNode() returns -- NewEngramApp runs before that, so
-// this late-binds the real source in rather than passing it at construction
-// time. Runs before n.Start(), so no real proposal is ever processed with
-// the mock source still active. If the fork isn't in use (n.Switch() isn't
-// a *lp2p.Switch, e.g. a vanilla CometBFT build), this is a silent no-op --
-// the sensor just stays on its static mock reading.
+// based mock to a live source. n.Switch() only exists after node.NewNode()
+// returns -- NewEngramApp runs before that, so this late-binds the real
+// source in rather than passing it at construction time. Runs before
+// n.Start(), so no real proposal is ever processed with the mock source
+// still active.
+//
+// Tries the fork's lp2p.Switch first (Phase 7's original wiring, for if
+// libp2p networking is ever actually enabled -- config.toml's
+// `[p2p.libp2p] enabled = true`); falls back to vanillaP2PHealthAdapter
+// against the standard p2p.Switch otherwise, which is what every real
+// deployment of this repo has actually used to date. Only if NEITHER type
+// assertion matches (shouldn't happen -- n.Switch() is always one of these
+// two concrete types) does this stay a no-op on the static mock.
 func wireP2PSensor(engramApp *app.EngramApp, n *node.Node) {
-	sw, ok := n.Switch().(*lp2p.Switch)
+	if lsw, ok := n.Switch().(*lp2p.Switch); ok {
+		engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: lsw})
+		return
+	}
+	sw, ok := n.Switch().(*p2p.Switch)
 	if !ok {
 		return
 	}
-	engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: sw})
+	engramApp.Sensors.P2P.SetSource(&vanillaP2PHealthAdapter{sw: sw, firstSeen: make(map[p2p.ID]time.Time)})
 }
 
 // wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap-based

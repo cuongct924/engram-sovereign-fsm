@@ -65,6 +65,9 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 	if err != nil {
 		return err
 	}
+	if err := refreshReanchoringProofValid(ctx, k); err != nil {
+		return err
+	}
 	if s.Anchor != nil {
 		// Idempotent per pending submission: only actually broadcasts a new
 		// tx once the previous one has resolved, so calling this from both
@@ -148,16 +151,23 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 
 // btcGapMetric computes btc_gap. With no live Source wired, it's exactly
 // btc.GetMetric's static SetGap-injected value (fault-injection tests,
-// unchanged). With a live Source (vigilante.RPCClient, Phase 7), it instead
-// applies spec/README.md §4.1's real formula:
-//
-//	Δ_BTC = H_current - min(H_submitted, H_anchored)
-//
-// using the Source's live chain-tip reading for H_current (also persisting
-// it to k.HBtcCurrent, the canonical location other code already reads it
-// from) and the keeper's tracked H_submitted/H_anchored. A submitted-but-
-// not-yet-anchored checkpoint is counted toward the gap, matching the
-// README's rationale for the min().
+// unchanged). With a live Source (vigilante.RPCClient, Phase 7), it applies
+// the CONCRETE layer's formula, not the abstract one: ServerUponProposalInPrecommitNoDecision
+// Step 3 (spec/core/EngramServer.tla:148) writes h_btc_anchored' directly
+// from the committed proposal's btc_receipt on every block, independent of
+// FSM state, so h_btc_anchored alone is already the authoritative, live
+// anchor baseline here -- unlike EngramFSM.tla's abstract btc_gap
+// (spec/core/EngramFSM.tla:95, Δ_BTC = H_current - min(H_submitted,
+// H_anchored)), whose min() only ever resolves to h_btc_anchored anyway
+// (BTCNormalUpdate/BTCSPVFailure, EngramFSM.tla:173-188, always keep
+// h_btc_anchored <= h_btc_submitted in lockstep). Applying that min() here
+// instead breaks: h_btc_submitted is updated ONLY by Step 4's RECOVERING +
+// zk_proof_ref path (EngramServer.tla:151-159), so outside a re-anchoring
+// cycle it never leaves its zero value, collapsing min(0, h_btc_anchored) to
+// 0 and inflating btc_gap to ~h_btc_current regardless of the real anchor
+// state (confirmed live: this held the FSM in SOVEREIGN across an entire
+// test session). h_btc_submitted is NOT unused -- see
+// refreshReanchoringProofValid, its actual concrete-layer role.
 func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (uint64, error) {
 	src := btc.Source()
 	if src == nil {
@@ -172,11 +182,63 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (ui
 		return 0, err
 	}
 
-	hSubmitted, _ := k.HBtcSubmitted.Get(ctx)
 	hAnchored, _ := k.HBtcAnchored.Get(ctx)
-	baseline := min(hSubmitted, hAnchored)
-	if hCurrent <= baseline {
+	if hCurrent <= hAnchored {
 		return 0, nil
 	}
-	return hCurrent - baseline, nil
+	return hCurrent - hAnchored, nil
+}
+
+// refreshReanchoringProofValid ports UpdateSensors' reanchoring_proof_valid
+// update (spec/core/EngramFSM.tla:294-301): the ZK re-anchoring proof
+// (submitted by Step 4 above while entering/staying RECOVERING) becomes
+// valid once Bitcoin has confirmed an anchor at or past the submitted
+// height. The concrete layer (EngramServer.tla) only ever writes FALSE to
+// this at submission time or holds it UNCHANGED (Step 4,
+// EngramServer.tla:151-159) -- nothing in the concrete hooks ever flips it
+// back to TRUE, so this recomputation has to live on the sensor-refresh path
+// (mirroring how the abstract UpdateSensors action recomputes it every
+// environment tick) rather than in preblock.go's commit path. Previously
+// missing entirely: ReanchoringProofValid was only ever set to false anywhere
+// in this module, so CalculateNextState's RECOVERING -> ANCHORED transition
+// (keeper/circuit_breaker.go) could never actually fire via a successful
+// reanchoring proof.
+//
+// Two independent sources feed this, OR'd together: the BTC-anchor
+// heuristic above (hAnchored >= hSubmitted), and RealProofSubmittedHeight,
+// the latch set by keeper.MsgServerImpl.SubmitRecoveryProof once a REAL
+// Noir/bb proof has verified (x/sovereignty/keeper/reanchor.go) AND its
+// public inputs were cross-checked against on-chain tracked state -- both
+// are legitimate ways to demonstrate the same underlying fact ("this
+// recovery interval is provably safe to re-anchor"), so either is
+// sufficient. Both only ever apply while currently RECOVERING.
+//
+// The real-proof latch must ALSO still match the CURRENT tip height, not
+// merely be nonzero: the SOVEREIGN/RECOVERING interval can keep growing
+// (new headers appended) after a proof was submitted but before RECOVERING
+// is reached, and a proof only covers headers up to the height it was
+// built against -- confirmed by actually running the real prover pipeline
+// end-to-end and appending a header after submitting a real proof.
+// RealProofSubmittedHeight is reset to 0 by preblock.go's
+// CommitFSMTransition the moment RECOVERING is left (Step 5b), so a stale
+// latch from a prior interval can never leak into a new one either.
+func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
+	currState, err := k.FSMState.Get(ctx)
+	if err != nil {
+		currState = types.StateAnchored
+	}
+	hAnchored, _ := k.HBtcAnchored.Get(ctx)
+	hSubmitted, _ := k.HBtcSubmitted.Get(ctx)
+	realProofSubmittedHeight, _ := k.RealProofSubmittedHeight.Get(ctx)
+
+	realProofValid := false
+	if realProofSubmittedHeight > 0 {
+		if tipHeight, _, err := k.LatestTrackedHeader(ctx); err == nil && tipHeight == realProofSubmittedHeight {
+			realProofValid = true
+		}
+	}
+
+	heuristicValid := hAnchored >= hSubmitted && hSubmitted > 0
+	valid := currState == types.StateRecovering && (heuristicValid || realProofValid)
+	return k.ReanchoringProofValid.Set(ctx, valid)
 }
