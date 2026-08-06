@@ -12,6 +12,17 @@ services:
     networks:
       engram-net:
         ipv4_address: 172.28.0.110
+      # bitcoin-net: needed so BITCOIN_HOST=bitcoin-node01 (live BTC sensor
+      # wiring, x/vigilante/rpc.go) is actually DNS-resolvable -- found by
+      # actually running the 4-node testnet: without this, EVERY
+      # PrepareProposal call failed ("dial tcp: lookup bitcoin-node01 ...
+      # no such host"), so no leader could ever produce a valid proposal
+      # and consensus round-skipped forever at height 1, never committing
+      # a single block. bitcoin-node01/02 are bitcoin-net-only (docker/
+      # bitcoin-regtest-cluster.yml), completely unreachable from
+      # engram-net's separate Docker network without this.
+      bitcoin-net:
+        ipv4_address: 172.21.0.110
     volumes:
       - ../testnet-data/engram-node02:/root/.engramd
     ports:

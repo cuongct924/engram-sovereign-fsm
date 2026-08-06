@@ -16,6 +16,27 @@ import (
 // separation the spec depends on (see CLAUDE.md's FSM-layer notes). Wiring
 // this onto a real BaseApp via SetPreBlocker is M5's job -- this function
 // only builds the handler.
+//
+// A prior version of this function took a *Sensors and called RefreshMetrics
+// here to make k.Metrics query-visible in committed state (Query.State
+// otherwise only ever saw the genesis-default zero value, since
+// PrepareProposal/ProcessProposal only write it to their own throwaway
+// state branches per BaseApp's ABCI 2.0 separation). That was a real
+// consensus-safety bug, found by actually running a 4-node Docker testnet:
+// RefreshMetrics reads live, node-LOCAL sensor data (P2P peer snapshot,
+// live bitcoind height) -- writing that into PreBlocker's COMMITTED state
+// makes it part of AppHash, so any two validators with even a slightly
+// different local view (e.g. differing P2P peer sets) compute a DIFFERENT
+// AppHash for the identical agreed block. 3 of 4 nodes in that testnet
+// coincidentally matched (near-identical peer views); the 4th diverged and
+// permanently crashed its consensus engine with "CONSENSUS FAILURE!!!
+// +2/3 prevoted for an invalid block: wrong Block.Header.AppHash". Reverted:
+// this function commits ONLY the fields already deterministically embedded
+// in the agreed proposal (ext.BTCReceipt/ext.DAReceipt, via
+// CommitFSMTransition below) -- never a live local sensor re-read. Making
+// live BTC/DA/P2P telemetry safely query-visible would need a channel
+// outside the hashed state tree entirely (e.g. an in-memory, non-committed
+// field queried directly rather than through Query.State) -- not built here.
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
 		if err := updateForcedTxTracking(ctx, k, req.Txs); err != nil {
