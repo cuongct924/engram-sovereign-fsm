@@ -77,14 +77,24 @@ func NextSafeBlocks(currentState, targetState string, safeBlocks uint64, p types
 
 // NextSuspiciousDuration mirrors the suspicious_duration' update
 // (spec/core/EngramFSM.tla:337-340): increments, capped at MaxSuspiciousTime+1,
-// only while staying in SUSPICIOUS between consecutive blocks; resets to 0 otherwise.
+// whenever the TARGET state is SUSPICIOUS -- including the very first block
+// entering SUSPICIOUS from ANCHORED, not just while already staying in
+// SUSPICIOUS. The spec's formula only guards on target_state, not on
+// currentState also being SUSPICIOUS (unlike NextSafeBlocks, which
+// deliberately does guard on both -- see its own doc); an earlier version of
+// this function copied that two-state guard here too, which made the
+// counter lag the spec by exactly one block for the entire SUSPICIOUS dwell,
+// delaying the MAX_SUSPICIOUS_TIME gray-failure escalation to SOVEREIGN by
+// one block. currentState is unused now but kept in the signature to match
+// NextSafeBlocks' call shape.
 func NextSuspiciousDuration(currentState, targetState string, duration uint64, p types.Params) uint64 {
-	if targetState == types.StateSuspicious && currentState == types.StateSuspicious {
-		cap := p.MaxSuspiciousTime + 1
-		if duration+1 > cap {
-			return cap
-		}
-		return duration + 1
+	_ = currentState
+	if targetState != types.StateSuspicious {
+		return 0
 	}
-	return 0
+	cap := p.MaxSuspiciousTime + 1
+	if duration+1 > cap {
+		return cap
+	}
+	return duration + 1
 }

@@ -1,5 +1,5 @@
 height,state,btc_gap,da_healthy,p2p_healthy,safe_blocks,suspicious_duration,withdraw_locked
-1,SUSPICIOUS,0,true,false,0,0,false
-2,SUSPICIOUS,0,true,false,0,1,false
+1,SUSPICIOUS,0,true,false,0,1,false
+2,SOVEREIGN,0,true,false,0,0,true
 3,SOVEREIGN,0,true,false,0,0,true
 4,SOVEREIGN,0,true,false,0,0,true

@@ -157,3 +157,15 @@ func TestNextSuspiciousDuration_ResetsOnLeavingSuspicious(t *testing.T) {
 	p := types.DefaultParams()
 	require.Equal(t, uint64(0), NextSuspiciousDuration(types.StateSuspicious, types.StateAnchored, 5, p))
 }
+
+func TestNextSuspiciousDuration_IncrementsOnFirstEntryFromAnchored(t *testing.T) {
+	// spec/core/EngramFSM.tla:337-340's suspicious_duration' formula guards
+	// only on target_state = "SUSPICIOUS", not on the current state also
+	// being SUSPICIOUS -- so the very first block entering SUSPICIOUS from
+	// ANCHORED must already count as 1, not 0 (a prior version of this
+	// function required currentState == SUSPICIOUS too, lagging the spec's
+	// counter by one block for the entire SUSPICIOUS dwell).
+	p := types.DefaultParams()
+	got := NextSuspiciousDuration(types.StateAnchored, types.StateSuspicious, 0, p)
+	require.Equal(t, uint64(1), got)
+}

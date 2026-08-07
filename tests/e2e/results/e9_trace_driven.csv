@@ -17,7 +17,7 @@ height,state,btc_gap,da_healthy,p2p_healthy,withdraw_locked,proof_submitted,bloc
 16,ANCHORED,0,true,true,false,false,true
 17,ANCHORED,0,true,true,false,false,true
 18,SUSPICIOUS,1,true,true,false,false,true
-19,SUSPICIOUS,1,true,true,false,false,true
+19,SOVEREIGN,1,true,true,true,false,true
 20,SOVEREIGN,2,true,true,true,false,true
 21,SOVEREIGN,2,true,true,true,false,true
 22,SOVEREIGN,2,true,true,true,false,true

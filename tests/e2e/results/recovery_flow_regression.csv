@@ -1,0 +1,5 @@
+height,state,btc_gap,da_healthy,p2p_healthy,safe_blocks,suspicious_duration,withdraw_locked
+1,SOVEREIGN,2,true,true,0,0,true
+2,RECOVERING,0,true,true,0,0,true
+3,RECOVERING,0,true,true,1,0,true
+4,SOVEREIGN,0,false,true,0,0,true

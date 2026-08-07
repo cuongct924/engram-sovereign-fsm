@@ -1,9 +1,26 @@
-epoch_id = "0"
-merkle_path = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
-old_balance = "0"
-old_reputation = "0"
-penalty_amount = "0"
-reward_amount = "0"
-state_root_new = "0"
-state_root_old = "0"
-validator_id = "0"
+rt_last = "15434364762196996140549589341552222435606443046533897618586580254812431104081"
+rt_new = "0x20958a06f896d29a6d75ad1c378fbaf8e8c7b5417786b9cbfb0c3b3100220b9e"
+
+[[headers]]
+prev_hash = "0x221f8a7714359b6db9baddee936a57af86dea0c27db5d107950dc2cbb852b851"
+fsm_state = "0x02"
+withdrawal_locked = "0x01"
+state_root = "0x221f8a7714359b6db9baddee936a57af86dea0c27db5d107950dc2cbb852b851"
+
+[[headers]]
+prev_hash = "0x06fd92c67d971adecc73e9f2c456d3d7ed4600fffe6767476c46f36a4caa332c"
+fsm_state = "0x02"
+withdrawal_locked = "0x01"
+state_root = "0x024f719ee6466812826fcffdb53d11b1d56eb774a060f3f8c34ed62ecf4ac80e"
+
+[[headers]]
+prev_hash = "0x0d2e4a8c5477eb31d235a54c8a7a36d09cd5aab9d49b355fcc9502b93fc02365"
+fsm_state = "0x02"
+withdrawal_locked = "0x01"
+state_root = "0x07df6aeee9f908464194c7a02309ff3c3e505d09c6643e939d6765277da22015"
+
+[[headers]]
+prev_hash = "0x1fd4b212f2d467f2cc0887832ccc5f34bc2a1cecd0ee69cb9a9b047a0b6e508d"
+fsm_state = "0x02"
+withdrawal_locked = "0x01"
+state_root = "0x20958a06f896d29a6d75ad1c378fbaf8e8c7b5417786b9cbfb0c3b3100220b9e"

@@ -4,6 +4,8 @@
 .DS_Store
 .idea
 .vscode
+.claude
+.github
 *.log
 node_modules
 dist

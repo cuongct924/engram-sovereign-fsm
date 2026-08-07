@@ -158,7 +158,7 @@ stateDiagram-v2
     SOVEREIGN --> RECOVERING : IsHealthyCondition
 
     RECOVERING --> ANCHORED   : IsHealthyCondition <br>/\ safe_blocks = H_wait <br>/\ pi_RA = TRUE
-    RECOVERING --> SOVEREIGN  : IsCriticalCondition
+    RECOVERING --> SOVEREIGN  : ~IsHealthyCondition
 ```
 
 ### 2.3 Key Design Properties
