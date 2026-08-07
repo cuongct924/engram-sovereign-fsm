@@ -358,7 +358,7 @@ func runStart(home string, vanilla bool) error {
 		return fmt.Errorf("construct node: %w", err)
 	}
 
-	wireP2PSensor(engramApp, n)
+	wireP2PSensor(engramApp, n, config.P2P.PersistentPeers)
 	wireBTCSensor(engramApp)
 	wireDASensor(engramApp)
 
@@ -411,10 +411,28 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 //
 // ActiveAnchors mirrors persistent_peers (config.toml, already the trusted
 // bootstrap set every validator dials on startup -- see node.go's
-// AddPersistentPeers/DialPeersAsync): a peer connection CometBFT itself
-// marks IsPersistent() is exactly the spec's "anchor peer" concept (a
-// known, pre-designated peer, as opposed to one discovered dynamically via
-// PEX and therefore more exposed to Sybil/Eclipse manipulation).
+// AddPersistentPeers/DialPeersAsync): a known, pre-designated peer, as
+// opposed to one discovered dynamically via PEX and therefore more exposed
+// to Sybil/Eclipse manipulation.
+//
+// Counted by matching each connected peer's ID against persistentPeerIDs
+// (parsed from config.toml's persistent_peers), NOT via p2p.Peer's own
+// IsPersistent() -- a real, structural bug found live against the 4-node
+// testnet: p2p.Switch.IsPeerPersistent(na) matches by NetAddress (IP:port),
+// and only the DIALING side of a connection ever has a NetAddress that can
+// match a persistent_peers entry (host:26656, the listen address) --
+// acceptRoutine sees the REMOTE peer's actual TCP source, which for an
+// outbound connection is an OS-assigned ephemeral port, never 26656.
+// Confirmed live: in a real, fully-connected 4-node mesh, ActiveAnchors via
+// IsPersistent() summed to exactly 6 across all 4 nodes (the number of
+// undirected edges in a 4-node mesh, each attributed to only its dialing
+// side) and was distributed unevenly/unpredictably per node depending on
+// dial-race timing -- e.g. one run showed {0,3,2,1} across the 4 nodes, a
+// simultaneous clean restart reshuffled it to {3,1,0,2} (same sum, different
+// distribution) -- meaning MinAnchorPeers could structurally fail on
+// whichever node(s) happened to accept more connections than they dialed,
+// with no relation to real network health. ID-based matching is symmetric:
+// a peer's ID doesn't depend on which side dialed.
 //
 // CleanPeers has no independent "blacklist" concept in this app yet (the
 // fork's own HealthMonitor.Blacklist is likewise never called anywhere) --
@@ -423,11 +441,34 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 // PeerLatencyMs stays 0 (real RTT measurement not implemented), matching
 // the fork's own lp2p.HealthSnapshot's identical documented gap.
 type vanillaP2PHealthAdapter struct {
-	sw *p2p.Switch
+	sw                *p2p.Switch
+	persistentPeerIDs map[p2p.ID]bool
 
 	mu          sync.Mutex
 	firstSeen   map[p2p.ID]time.Time
 	churnEvents []time.Time
+}
+
+// parsePersistentPeerIDs extracts just the "id@host:port" -> id portion of
+// config.toml's persistent_peers string, for ActiveAnchors' ID-based
+// matching (see vanillaP2PHealthAdapter's doc for why raw IsPersistent()
+// isn't reliable). Malformed entries (no "@") are skipped rather than
+// erroring -- this is a best-effort health signal, not consensus-critical
+// parsing.
+func parsePersistentPeerIDs(raw string) map[p2p.ID]bool {
+	ids := make(map[p2p.ID]bool)
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		at := strings.Index(entry, "@")
+		if at <= 0 {
+			continue
+		}
+		ids[p2p.ID(entry[:at])] = true
+	}
+	return ids
 }
 
 const p2pChurnWindow = time.Hour
@@ -459,7 +500,7 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 				subnets[ip.Mask(net.CIDRMask(48, 128)).String()] = true
 			}
 		}
-		if p.IsPersistent() {
+		if a.persistentPeerIDs[id] {
 			activeAnchors++
 		}
 		cleanPeers++
@@ -512,7 +553,7 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 // deployment of this repo has actually used to date. Only if NEITHER type
 // assertion matches (shouldn't happen -- n.Switch() is always one of these
 // two concrete types) does this stay a no-op on the static mock.
-func wireP2PSensor(engramApp *app.EngramApp, n *node.Node) {
+func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers string) {
 	if lsw, ok := n.Switch().(*lp2p.Switch); ok {
 		engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: lsw})
 		return
@@ -521,7 +562,11 @@ func wireP2PSensor(engramApp *app.EngramApp, n *node.Node) {
 	if !ok {
 		return
 	}
-	engramApp.Sensors.P2P.SetSource(&vanillaP2PHealthAdapter{sw: sw, firstSeen: make(map[p2p.ID]time.Time)})
+	engramApp.Sensors.P2P.SetSource(&vanillaP2PHealthAdapter{
+		sw:                sw,
+		persistentPeerIDs: parsePersistentPeerIDs(persistentPeers),
+		firstSeen:         make(map[p2p.ID]time.Time),
+	})
 }
 
 // wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap-based

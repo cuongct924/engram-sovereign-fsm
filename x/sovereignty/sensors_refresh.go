@@ -1,6 +1,8 @@
 package sovereignty
 
 import (
+	"fmt"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
@@ -106,6 +108,18 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		AvgPeerTenure:       p2pSnap.AvgTenure,
 		PeerLatency:         p2pSnap.Latency,
 	}
+	fmt.Printf("engramd: DEBUG metrics h=%d btcGap=%d(susp>=%d,sov>=%d) daGap=%d(<%d) dasFailed=%v attFailed=%v subnetDiv=%d(>=%d) anchors=%d(>=%d) peers=%d(>=%d) churn=%d(<=%d) tenure=%d(>=%d) latency=%d(<=%d) healthy=%v\n",
+		ctx.BlockHeight(), btcGap, k.Params.SuspiciousThreshold, k.Params.SovereignThreshold,
+		daGap, k.Params.DAThreshold, dasFailed, attestationFailed,
+		p2pSnap.SubnetDiversity, k.Params.MinSubnetDiversity, p2pSnap.ActiveAnchors, k.Params.MinAnchorPeers,
+		p2pSnap.CleanPeers, k.Params.MinPeers, p2pSnap.ChurnRate, k.Params.MaxChurnRate,
+		p2pSnap.AvgTenure, k.Params.MinAvgTenure, p2pSnap.Latency, k.Params.MaxPeerLatency,
+		types.IsHealthyCondition(&types.PeripheralMetrics{
+			BtcGap: btcGap, DaGap: daGap, IsDasFailed: dasFailed, IsAttestationFailed: attestationFailed,
+			SubnetDiversity: p2pSnap.SubnetDiversity, ActiveAnchors: p2pSnap.ActiveAnchors,
+			CleanPeers: p2pSnap.CleanPeers, PeerChurnRate: p2pSnap.ChurnRate,
+			AvgPeerTenure: p2pSnap.AvgTenure, PeerLatency: p2pSnap.Latency,
+		}, k.Params))
 	return k.Metrics.Set(ctx, metrics)
 }
 

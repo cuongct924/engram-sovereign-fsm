@@ -139,6 +139,13 @@ func (c *RPCClient) GenerateToAddress(ctx context.Context, n int, address string
 	return c.call(ctx, "generatetoaddress", []any{n, address}, nil)
 }
 
+// utxoRef identifies one input by (txid, vout) -- the shape `lockunspent`
+// and `decoderawtransaction`'s vin entries both use.
+type utxoRef struct {
+	Txid string `json:"txid"`
+	Vout uint32 `json:"vout"`
+}
+
 // SubmitOpReturn broadcasts a zero-value transaction carrying payload in an
 // OP_RETURN output -- this fork's minimal stand-in for Babylon's Vigilante
 // Submitter (github.com/babylonlabs-io/vigilante), which converts a raw
@@ -146,6 +153,22 @@ func (c *RPCClient) GenerateToAddress(ctx context.Context, n int, address string
 // what "minimal" means here). Requires a wallet loaded on the connected
 // bitcoind with spendable funds (regtest: `createwallet` + mine to one of
 // its addresses). Returns the broadcast transaction's txid.
+//
+// Locks the coins `fundrawtransaction` selected (via `lockunspent`) before
+// signing/broadcasting, and always releases the lock afterward. This repo's
+// 4 validators all share ONE bitcoind wallet (docker/bitcoin-regtest-cluster.yml
+// only provisions 2 bitcoind instances for 4 validators, a documented
+// prototype simplification) -- `fundrawtransaction` alone does NOT reserve
+// its chosen inputs, so two validators calling it within the same ~block
+// window can select the SAME UTXO; whichever broadcasts second then
+// conflicts with the first's already-mempooled tx and bitcoind rejects it as
+// an underpriced BIP125 replacement ("insufficient fee, rejecting
+// replacement ... new feerate <= old feerate"). Confirmed happening for
+// real, persistently (not occasionally) against the live 4-node testnet --
+// frequently enough that NO submission from ANY validator was ever actually
+// reaching kDeepFinality confirmations, so h_btc_anchored never advanced at
+// all and btc_gap grew unbounded. `lockunspent` is the standard fix for
+// exactly this class of concurrent-wallet-access race.
 func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string, error) {
 	dataHex := fmt.Sprintf("%x", payload)
 
@@ -159,6 +182,21 @@ func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string,
 	}
 	if err := c.call(ctx, "fundrawtransaction", []any{rawHex}, &funded); err != nil {
 		return "", fmt.Errorf("fundrawtransaction: %w", err)
+	}
+
+	var decoded struct {
+		Vin []utxoRef `json:"vin"`
+	}
+	if err := c.call(ctx, "decoderawtransaction", []any{funded.Hex}, &decoded); err != nil {
+		return "", fmt.Errorf("decoderawtransaction: %w", err)
+	}
+	if len(decoded.Vin) > 0 {
+		if err := c.call(ctx, "lockunspent", []any{false, decoded.Vin}, nil); err != nil {
+			return "", fmt.Errorf("lockunspent: %w", err)
+		}
+		defer func() {
+			_ = c.call(context.Background(), "lockunspent", []any{true, decoded.Vin}, nil)
+		}()
 	}
 
 	var signed struct {

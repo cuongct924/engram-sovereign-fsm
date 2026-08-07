@@ -71,7 +71,11 @@ type Params struct {
 // productionScaleParams() (already empirically validated: FPR=0%/FNR=0%
 // against all 4 synthetic eclipse/Sybil attack scenarios, E4 real data),
 // scaled down for this N=4 testnet's actual validator count rather than a
-// larger production network's.
+// larger production network's -- EXCEPT MinSubnetDiversity, see its own
+// field comment below: a real, structural bug in an earlier version of this
+// function, found by actually running it against the live 4-node testnet
+// and watching SOVEREIGN never transition to RECOVERING no matter how long
+// BTC/DA stayed healthy.
 func DefaultParams() Params {
 	return Params{
 		// KDeepFinality: Bitcoin reorg-safety depth. 2 is a fast-iteration
@@ -84,10 +88,25 @@ func DefaultParams() Params {
 		// observed [2,3] steady-state band under this testnet's mining cadence.
 		SuspiciousThreshold: 5,
 		SovereignThreshold:  8,
-		// da_gap threshold: margin above the observed ~1.3 Engram-blocks-per-
-		// Celestia-block ratio plus async publish latency; not yet cross-checked
-		// against a live da_gap reading (see doc above).
-		DAThreshold: 4,
+		// da_gap threshold: WAS 4, sized off an assumed ~1.3
+		// Engram-blocks-per-Celestia-block ratio that held when this was first
+		// written -- a real bug, found live AFTER the Tolerance round-skip fix
+		// (x/vigilante/verify.go) landed: removing the guaranteed round-skips
+		// sped Engram block time up roughly 30-40x (from ~9-10s/block to
+		// ~0.3s/block, confirmed live), while da.Publisher.MaybePublish's
+		// underlying celestia-bridge blob.Submit call is still bound by
+		// Celestia's own real ~12s block time -- so the Engram:Celestia block
+		// ratio this threshold needs to absorb grew by the same 30-40x,
+		// completely invalidating the old estimate. Confirmed via live debug
+		// instrumentation: da_gap oscillated in a real [9,16] band once Engram
+		// was running at its new (fixed) speed, with SUSPICIOUS/SOVEREIGN BTC
+		// thresholds and P2P conditions all simultaneously healthy -- da_gap
+		// alone was keeping IsHealthyCondition false. 30 covers the observed
+		// band with real margin; this is fundamentally a function of the
+		// current Engram block cadence, so it should be revisited again if
+		// that cadence changes materially (e.g. real CometBFT timeout_commit
+		// tuning, not just round-skip elimination).
+		DAThreshold: 30,
 		// Hysteresis: deliberately small per E5's real finding (see doc
 		// above) -- NOT tuned up looking for a "sweet spot" that doesn't exist.
 		HysteresisWait: 2,
@@ -101,8 +120,29 @@ func DefaultParams() Params {
 		// actual Byzantine-fault assumption per spec/core/MC_StressC1*.cfg) --
 		// MinAnchorPeers=1 (the old default) meant losing a SINGLE anchor peer
 		// already trips total-isolation critical; 2 tolerates one loss.
-		MinPeers:           3,
-		MinSubnetDiversity: 8,
+		MinPeers: 3,
+		// MinSubnetDiversity: WAS 8 (productionScaleParams()'s value,
+		// copied verbatim without translating it for this testnet's real
+		// topology) -- a real bug, found live: all 4 engram-nodeNN
+		// containers sit on the SAME engram-net Docker bridge subnet
+		// (172.28.0.0/24, docker/engram-validator-node0N.yml's
+		// ipv4_address entries), so vanillaP2PHealthAdapter's real
+		// SubnetDiversity computation (cmd/engramd/main.go, masks each
+		// connected peer's IP to /24 and counts distinct results) can
+		// only ever report 1 from any node's point of view, no matter how
+		// healthy the network genuinely is -- MinSubnetDiversity=8 made
+		// IsP2PQualityHealthy, and therefore IsHealthyCondition, and
+		// therefore SOVEREIGN -> RECOVERING, structurally unreachable on
+		// this deployment regardless of BTC/DA state. Confirmed by
+		// running the 4-node testnet at MinSubnetDiversity=8 and
+		// observing FSM state stay SOVEREIGN indefinitely despite a
+		// healthy BTC anchor pipeline and clean AppHash convergence.
+		// 1 is the correct value for THIS single-Docker-network
+		// deployment (this metric only becomes meaningful once
+		// validators genuinely span multiple L3 subnets/ASNs -- a real
+		// multi-host or multi-region deployment should raise this back
+		// toward productionScaleParams()'s 8).
+		MinSubnetDiversity: 1,
 		MinAnchorPeers:     2,
 		MaxChurnRate:       5,
 		MinAvgTenure:       300, // seconds (vanillaP2PHealthAdapter's real unit)

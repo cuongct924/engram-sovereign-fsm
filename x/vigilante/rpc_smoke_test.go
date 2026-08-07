@@ -65,6 +65,42 @@ func TestAnchorTracker_LiveSmoke(t *testing.T) {
 	require.False(t, verifiedWrong, "must not verify a height that doesn't actually carry our tag")
 }
 
+// TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor exercises the
+// EXACT confirmation-count boundary the earlier TestAnchorTracker_LiveSmoke
+// mines past without noticing: at exactly kDeepFinality (2) confirmations
+// (not more), MaybeSubmit must NOT yet report confirmed -- and the first
+// height it DOES report confirmed at must always pass VerifyAnchor
+// immediately, with no extra confirmation needed. Found live: an earlier
+// version of AnchorTracker.MaybeSubmit required only `confirmations >=
+// kDeepFinality`, but VerifyAnchor (and every other validator's independent
+// ProcessProposal re-check) implements the spec's IsKDeep with one fewer
+// block of slack (h_btc_current - height >= kDeepFinality, no +1) --
+// bitcoind's inclusive confirmations field made these off by exactly one, so
+// every claimed anchor advance was rejected by every validator, 100% of the
+// time, on the real 4-node testnet.
+func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
+	c := vigilante.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	tracker := vigilante.NewAnchorTracker(c, 2) // kDeepFinality=2
+	require.NoError(t, tracker.MaybeSubmit(ctx, 1000))
+
+	addr := mineBlocks(t, ctx, c, 2) // exactly kDeepFinality confirmations, no more
+	require.NoError(t, tracker.MaybeSubmit(ctx, 1000))
+	_, ok := tracker.ConfirmedAnchorHeight()
+	require.False(t, ok, "must NOT be confirmed at exactly kDeepFinality confirmations -- needs kDeepFinality+1")
+
+	mineBlocksToAddr(t, ctx, c, 1, addr) // one more -> kDeepFinality+1 total
+	require.NoError(t, tracker.MaybeSubmit(ctx, 1000))
+	height, ok := tracker.ConfirmedAnchorHeight()
+	require.True(t, ok, "must be confirmed at kDeepFinality+1 confirmations")
+
+	verified, err := tracker.VerifyAnchor(ctx, height)
+	require.NoError(t, err)
+	require.True(t, verified, "the height MaybeSubmit just reported confirmed must immediately pass VerifyAnchor -- this is exactly what failed live before the fix")
+}
+
 func mineBlocks(t *testing.T, ctx context.Context, c *vigilante.RPCClient, n int) string {
 	t.Helper()
 	addr, err := c.GetNewAddress(ctx)
