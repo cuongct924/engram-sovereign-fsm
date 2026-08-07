@@ -111,10 +111,16 @@ func TestE2_S2_BTCCongestion(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
 
-	// Ramp up: 0,0,1,2,2,2 (crosses SuspiciousThreshold=1 then SovereignThreshold=2)
-	schedule := []uint64{0, 0, 1, 2, 2, 2, 2, 2}
-	for _, gap := range schedule {
-		h.BTC.SetGap(gap)
+	// Ramp up: 0, then cross SuspiciousThreshold, then sit at/above
+	// SovereignThreshold for a few blocks -- derived from p's actual
+	// thresholds rather than hardcoded numbers, so this stays correct
+	// whichever DefaultParams() ends up using.
+	h.BTC.SetGap(0)
+	h.Advance()
+	h.BTC.SetGap(p.SuspiciousThreshold)
+	h.Advance()
+	h.BTC.SetGap(p.SovereignThreshold)
+	for i := 0; i < 4; i++ {
 		h.Advance()
 	}
 	require.Equal(t, types.StateSovereign, h.State(), "sustained btc_gap >= SOVEREIGN_THRESHOLD must reach SOVEREIGN")
