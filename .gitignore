@@ -80,6 +80,7 @@ docs/spec/core/EngramTypes.tla
 
 
 build/
+engramd
 
 .claude/worktrees
 spec/.claude
