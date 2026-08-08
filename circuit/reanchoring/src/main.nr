@@ -17,7 +17,30 @@ struct Header {
 }
 
 fn hash_header(h: Header) -> Field {
-    std::hash::pedersen_hash([h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root])
+    // Real Poseidon2 sponge (BN254 state width 4, rate 3, capacity 1 --
+    // Barretenberg's own Poseidon2 instantiation, driven directly through the
+    // real POSEIDON2_PERMUTATION black-box gate via std::hash::poseidon2_permutation).
+    // Noir's stdlib at the pinned 1.0.0-beta.22 toolchain (see CLAUDE.md) has
+    // no public single-call "hash this array" wrapper for Poseidon2 -- only
+    // the raw permutation is exported -- so this absorbs the header's 4
+    // fields with a standard, length-domain-separated (IV = input_length <<
+    // 64) two-block absorb/squeeze. This mirrors the shape of Noir's own
+    // internal Poseidon2Hasher (std/hash/poseidon2.nr, used for HashMap
+    // bucketing) but does NOT reuse its body: that helper's tail-block
+    // indexing re-adds inputs[0] instead of the true remaining element for
+    // any length not a multiple of RATE=3, which is fine for its bucket-hash
+    // use case but wrong for a cryptographic per-field absorption -- fixed
+    // here so all 4 fields are absorbed exactly once.
+    let inputs = [h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root];
+    let iv: Field = 4 * 18446744073709551616; // (input_length << 64), input_length = 4
+    let mut state = [0, 0, 0, iv];
+    state[0] += inputs[0];
+    state[1] += inputs[1];
+    state[2] += inputs[2];
+    state = std::hash::poseidon2_permutation(state);
+    state[0] += inputs[3];
+    state = std::hash::poseidon2_permutation(state);
+    state[0]
 }
 
 fn main(

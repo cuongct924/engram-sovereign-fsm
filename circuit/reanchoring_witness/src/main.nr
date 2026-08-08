@@ -30,7 +30,19 @@ struct Header {
 }
 
 fn hash_header(h: Header) -> Field {
-    std::hash::pedersen_hash([h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root])
+    // Kept byte-for-byte identical to circuit/reanchoring/src/main.nr's
+    // hash_header (see that file's comment for the full rationale of this
+    // Poseidon2 sponge construction) -- must stay in sync by hand.
+    let inputs = [h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root];
+    let iv: Field = 4 * 18446744073709551616; // (input_length << 64), input_length = 4
+    let mut state = [0, 0, 0, iv];
+    state[0] += inputs[0];
+    state[1] += inputs[1];
+    state[2] += inputs[2];
+    state = std::hash::poseidon2_permutation(state);
+    state[0] += inputs[3];
+    state = std::hash::poseidon2_permutation(state);
+    state[0]
 }
 
 // raw_fsm_state / raw_withdrawal_locked / raw_state_root are the per-header
@@ -66,5 +78,5 @@ fn hash_header_matches_main_circuit_fixture() {
     // failure here means the two have drifted and this crate's output would
     // no longer link into a witness the real circuit accepts.
     let h0 = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
-    assert(hash_header(h0) == 0x1156674a800086810c521672675cd070094f4af37e40cf9b2d6e530cb8311475);
+    assert(hash_header(h0) == 0x168c1f5895ad57e0d8257da085aab977ec14ed66699553157cd0bcffcd02bb3c);
 }
