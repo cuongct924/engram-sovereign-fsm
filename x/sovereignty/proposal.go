@@ -2,6 +2,7 @@ package sovereignty
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 
@@ -142,10 +143,22 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 		// existing IsCensoring/ForcedTxQueue machinery (already exercised
 		// from the honest side by TestProcessProposal_RejectsCensoringProposal)
 		// a real adversary to detect, live.
-		target := strings.TrimPrefix(behavior, byzantineCensorTxPrefix)
+		//
+		// The target is hex-encoded in ENGRAM_BYZANTINE_BEHAVIOR, not a raw
+		// byte string -- a real forced tx's identifier is arbitrary raw tx
+		// bytes (ForcedTxQueue stores msg.Tx verbatim, matched against real
+		// req.Txs[1:] block-tx content), which is not guaranteed valid UTF-8
+		// and does not survive Docker Compose's env-var/YAML interpolation
+		// unscathed (found live wiring up A7's driver script -- hex keeps
+		// the env var plain ASCII while still matching byte-for-byte).
+		targetHex := strings.TrimPrefix(behavior, byzantineCensorTxPrefix)
+		target, err := hex.DecodeString(targetHex)
+		if err != nil {
+			return txs
+		}
 		filtered := txs[:0:0]
 		for _, tx := range txs {
-			if string(tx) == target {
+			if bytes.Equal(tx, target) {
 				continue
 			}
 			filtered = append(filtered, tx)

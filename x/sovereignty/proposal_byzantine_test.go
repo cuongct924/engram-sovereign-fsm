@@ -1,6 +1,7 @@
 package sovereignty
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"cosmossdk.io/collections/colltest"
@@ -110,7 +111,7 @@ func TestPrepareProposal_CensorTxOmitsTargetedTx(t *testing.T) {
 	k, ctx := newByzantineTestKeeperCtx(t)
 	target := []byte("forced-tx-content")
 	other := []byte("unrelated-tx-content")
-	resp, err := NewPrepareProposalHandler(k, nil, "censor_tx:"+string(target))(
+	resp, err := NewPrepareProposalHandler(k, nil, "censor_tx:"+hex.EncodeToString(target))(
 		ctx, &abci.RequestPrepareProposal{Txs: [][]byte{target, other}})
 	require.NoError(t, err)
 

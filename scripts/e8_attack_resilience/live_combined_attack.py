@@ -174,18 +174,29 @@ class Tracker:
             all_samples = sample_all_nodes()
             self.samples.extend(all_samples)
 
+            # Compare AppHash only within the same height -- see
+            # live_byzantine_attacks.py's Tracker.poll_for for the false-
+            # positive this avoids (found live, same bug class here).
             witness_hashes = {
                 s.node: s.app_hash
                 for s in all_samples
                 if s.node in SAFETY_WITNESS_NODES and s.height > 0
             }
-            distinct = set(witness_hashes.values())
-            if len(distinct) > 1:
-                self.divergence_events.append((t, phase, dict(witness_hashes)))
-                print(
-                    f"  *** [{phase}] SAFETY VIOLATION @ {t:6.0f}s: witness nodes disagree: "
-                    f"{witness_hashes} ***"
-                )
+            witness_heights = {
+                s.node: s.height
+                for s in all_samples
+                if s.node in SAFETY_WITNESS_NODES and s.height > 0
+            }
+            by_height: dict = {}
+            for node, h in witness_heights.items():
+                by_height.setdefault(h, {})[node] = witness_hashes[node]
+            for h, hashes_at_h in by_height.items():
+                if len(hashes_at_h) > 1 and len(set(hashes_at_h.values())) > 1:
+                    self.divergence_events.append((t, phase, h, dict(hashes_at_h)))
+                    print(
+                        f"  *** [{phase}] SAFETY VIOLATION @ {t:6.0f}s height={h}: witness nodes "
+                        f"disagree: {hashes_at_h} ***"
+                    )
 
             states = {s.node: (s.height, s.fsm_state) for s in all_samples}
             print(f"[{t:6.0f}s][{phase}] {states}")
@@ -238,8 +249,8 @@ def main():
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n\n")
         if tr.divergence_events:
             f.write("### Divergence detail\n\n")
-            for t, phase, hashes in tr.divergence_events:
-                f.write(f"- t={t:.0f}s phase={phase}: {hashes}\n")
+            for t, phase, h, hashes in tr.divergence_events:
+                f.write(f"- t={t:.0f}s phase={phase} height={h}: {hashes}\n")
 
     print(f"\nwrote {len(tr.samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")

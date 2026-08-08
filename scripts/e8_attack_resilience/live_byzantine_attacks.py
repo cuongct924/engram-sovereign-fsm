@@ -129,18 +129,36 @@ class Tracker:
             all_samples = sample_all_nodes()
             self.samples.extend(all_samples)
 
+            # AppHash only means anything compared WITHIN the same height --
+            # different heights necessarily have different AppHash even
+            # under perfectly identical honest execution. Comparing across
+            # heights directly (an earlier version of this script did) is a
+            # false-positive generator: nodes are rarely all sampled at the
+            # exact same height in one poll round, since round-trip timing
+            # differs per node. Found live: this incorrectly flagged a
+            # "SAFETY VIOLATION" during a completely healthy baseline phase
+            # where node03 had simply advanced one block ahead of the others
+            # at sample time.
             honest_hashes = {
                 s.node: s.app_hash
                 for s in all_samples
                 if s.node in HONEST_NODES and s.height > 0
             }
-            distinct_hashes = set(honest_hashes.values())
-            if len(distinct_hashes) > 1:
-                self.divergence_events.append((t, phase, dict(honest_hashes)))
-                print(
-                    f"  *** [{phase}] SAFETY VIOLATION @ {t:6.0f}s: honest nodes disagree on AppHash: "
-                    f"{honest_hashes} ***"
-                )
+            honest_heights = {
+                s.node: s.height
+                for s in all_samples
+                if s.node in HONEST_NODES and s.height > 0
+            }
+            by_height: dict = {}
+            for node, h in honest_heights.items():
+                by_height.setdefault(h, {})[node] = honest_hashes[node]
+            for h, hashes_at_h in by_height.items():
+                if len(hashes_at_h) > 1 and len(set(hashes_at_h.values())) > 1:
+                    self.divergence_events.append((t, phase, h, dict(hashes_at_h)))
+                    print(
+                        f"  *** [{phase}] SAFETY VIOLATION @ {t:6.0f}s height={h}: honest nodes "
+                        f"disagree on AppHash: {hashes_at_h} ***"
+                    )
 
             states = {s.node: (s.height, s.fsm_state) for s in all_samples}
             print(f"[{t:6.0f}s][{phase}] {states}")
@@ -184,8 +202,8 @@ def run_scenario(name: str, attack_s: float, recovery_s: float, interval_s: floa
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n\n")
         if tr.divergence_events:
             f.write("### Divergence detail\n\n")
-            for t, phase, hashes in tr.divergence_events:
-                f.write(f"- t={t:.0f}s phase={phase}: {hashes}\n")
+            for t, phase, h, hashes in tr.divergence_events:
+                f.write(f"- t={t:.0f}s phase={phase} height={h}: {hashes}\n")
 
     print(f"\nwrote {len(tr.samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")

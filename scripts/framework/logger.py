@@ -143,6 +143,13 @@ def query_node(node: str, port: Optional[int] = None) -> NodeSample:
         KeyError,
         ValueError,
         RuntimeError,
+        OSError,  # covers ConnectionResetError/ConnectionRefusedError etc. --
+        # found live (E8's byzantine-mode test): a mid-response reset while
+        # docker compose force-recreates the node being polled raises these
+        # directly from the socket layer, NOT wrapped in urllib.error.URLError
+        # the way a failed connection attempt is, so they escaped this
+        # except clause and crashed every long-running poll loop in this
+        # framework the first time a container was recreated mid-poll.
     ) as e:
         return NodeSample(
             timestamp=ts,
