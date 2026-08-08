@@ -103,7 +103,18 @@ func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) er
 	if a.pendingTxid != "" {
 		confirmations, blockHeight, mined, err := a.client.TxConfirmation(ctx, a.pendingTxid)
 		if err != nil {
-			return err
+			// Same class of bug as x/da/publisher.go's MaybePublish (see its
+			// doc for the full live-reproduction story): propagating this
+			// error up through RefreshMetrics used to make a bitcoind
+			// outage a hard PrepareProposal/ProcessProposal failure --
+			// BaseApp-level, stalling block production entirely -- instead
+			// of the intended graceful degrade through the FSM's own
+			// btc_gap/IsCriticalCondition handling. A confirmation-check
+			// RPC error is sensor data (btc_gap will simply stop shrinking
+			// via h_btc_anchored, which the FSM already reacts to), not a
+			// block-production fault.
+			fmt.Println("engramd: anchor confirmation check failed this block, will retry next block:", err)
+			return nil
 		}
 		if !mined {
 			return nil // still in mempool, nothing more to do this block

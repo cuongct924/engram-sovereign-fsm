@@ -176,7 +176,19 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (ui
 
 	hCurrent, err := src.CurrentHeight(ctx)
 	if err != nil {
-		return 0, err
+		// Same class of bug as x/da/publisher.go's MaybePublish and
+		// x/vigilante/anchor.go's AnchorTracker.MaybeSubmit (see either's
+		// doc for the live-reproduction story) -- propagating this error
+		// used to make a bitcoind outage a hard PrepareProposal/
+		// ProcessProposal failure instead of the intended graceful
+		// degrade through btc_gap. Report the maximum gap (matching
+		// daGapMetric's own no-Source-wired fallback, which does the same
+		// for an unhealthy DASensor): total inability to reach bitcoind is
+		// at least as severe as any gap this threshold is meant to catch,
+		// and -- unlike freezing at the last known (possibly small, stale)
+		// gap -- correctly reflects "we currently have zero visibility
+		// into Bitcoin's real state" rather than silently looking healthy.
+		return k.Params.SovereignThreshold, nil
 	}
 	if err := k.HBtcCurrent.Set(ctx, hCurrent); err != nil {
 		return 0, err

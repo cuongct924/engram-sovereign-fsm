@@ -94,8 +94,32 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 			// failure but leave verifiedHeight frozen (DAFailure's
 			// h_engram_verified' = h_engram_verified), and keep the pending
 			// submission in place to retry against on the next call.
+			//
+			// Returning nil here (not err) is load-bearing, found by
+			// actually running a real celestia-bridge outage against a live
+			// 4-node testnet: this error used to propagate all the way up
+			// through RefreshMetrics into PrepareProposal/ProcessProposal,
+			// which BaseApp treats as a hard ABCI failure ("failed to
+			// prepare/process proposal") -- not the graceful "reject this
+			// proposal, prevote nil, try next round" path, but a condition
+			// severe enough that block production stalled for minutes
+			// (round after round of f+1-timeout quorum skips) instead of
+			// cleanly degrading through SUSPICIOUS as designed. By the time
+			// a proposal finally succeeded (only once ALL 4 validators
+			// happened to have no pending submission in flight
+			// simultaneously, sidestepping this code path entirely), so
+			// much real time had passed that da_gap had already blown past
+			// SUSPICIOUS straight into IsCriticalCondition territory,
+			// observed live as ANCHORED jumping directly to SOVEREIGN with
+			// SUSPICIOUS never appearing at all -- exactly the "halt
+			// instead of gracefully degrade" failure mode this whole
+			// protocol exists to avoid. A DA availability-check error is
+			// sensor data, not a block-production fault: the failure
+			// belongs in is_das_failed/is_attestation_failed (already
+			// recorded above via lastSubmitFailed), which the FSM already
+			// has a well-defined, tested response to.
 			p.lastSubmitFailed = true
-			return err
+			return nil
 		}
 		if !available {
 			return nil // not yet retrievable, keep waiting -- gap grows (DAFailure-shaped, but not a hard failure)
