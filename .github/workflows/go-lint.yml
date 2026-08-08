@@ -38,5 +38,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v2.12.2
-          install-mode: goinstall
+          # v2.x releases aren't installable via `go install <pkg>@v2...` with
+          # this package path; use the prebuilt binary installer instead.
+          install-mode: binary
           args: --timeout=5m
