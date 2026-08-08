@@ -216,7 +216,27 @@ def toggle_profile_bursts(profile: str, on_s: float, off_s: float, cycles: int) 
 
 
 def cleanup_profile(profile: str) -> None:
+    """Stops then removes profile's container. `docker compose rm -f` alone
+    only skips the interactive confirmation prompt -- it does NOT stop a
+    still-RUNNING container first (unlike plain `docker rm -f`), so it
+    silently no-ops when called on a container whose own `--duration` hasn't
+    elapsed yet. This was invisible everywhere this helper was previously
+    called right after a profile's natural `--duration` expiry (the
+    container had already self-exited by then, so `rm -f` alone worked) --
+    found live via toggle_profile_bursts/E9's live_combined_trace.py Phase 4,
+    which deliberately cuts a still-active chaos-loss profile short (its own
+    --duration is 2m, but the burst cycle only holds it on for 20s): the
+    container stayed stuck "Up" indefinitely, and the next
+    wait_for_no_active_netem() call correctly refused to start a new profile
+    on top of it, surfacing this as a real RuntimeError rather than silently
+    corrupting results.
+    """
     service = PROFILE_TO_SERVICE[profile]
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "stop", service],
+        capture_output=True,
+        text=True,
+    )
     subprocess.run(
         ["docker", "compose", "--profile", profile, "rm", "-f", service],
         capture_output=True,

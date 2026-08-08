@@ -237,16 +237,31 @@ def main():
     print("=== Phase 1: baseline ===")
     tr.poll_for(15.0, 3.0, "baseline")
 
-    print("=== Phase 2: build + register + broadcast the real target tx ===")
-    target_hex = build_target_tx_hex()
+    # node04 goes byzantine BEFORE the target tx is ever registered/
+    # broadcast -- ordering matters: x/sovereignty/preblock.go's
+    # updateForcedTxTracking now dequeues a forced tx the moment ANY leader
+    # (honest or not) includes it (fixed this session -- previously it
+    # stayed queued forever after inclusion, permanently deadlocking the
+    # chain the first time this test ran, since the tx can never reappear
+    # once consumed). If the target were registered while node04 is still
+    # honest, an honest leader could dequeue it before byzantine mode even
+    # activates, and the test would trivially pass without ever exercising
+    # node04's censor_tx path. Enabling byzantine first means whichever
+    # validator leads the round the target lands in mempool determines
+    # what's actually observed: node04 (25% of rounds) censors it and the
+    # NEXT leader picks it up; an honest leader just includes it directly --
+    # either way, height must keep progressing normally the whole time.
+    print("=== Phase 2: node04 byzantine (censor_tx), before target tx exists ===")
+    build_only_hex = build_target_tx_hex()
+    enable_byzantine(build_only_hex)
+    tr.poll_for(10.0, 3.0, "byzantine_armed")
+
+    print("=== Phase 3: register + broadcast the real target tx, poll 90s ===")
+    attack_start_ts = time.strftime("%Y-%m-%dT%H:%M:%S")
+    target_hex = build_only_hex
     print(f"    target tx: {len(target_hex)//2} bytes")
     register_forced_tx(target_hex)
     broadcast_target_tx(target_hex)
-    tr.poll_for(10.0, 3.0, "target_tx_settling")
-
-    print("=== Phase 3: node04 byzantine (censor_tx), 90s ===")
-    attack_start_ts = time.strftime("%Y-%m-%dT%H:%M:%S")
-    enable_byzantine(target_hex)
     tr.poll_for(90.0, 3.0, "censoring")
 
     print("=== Phase 4: revert node04 to honest ===")

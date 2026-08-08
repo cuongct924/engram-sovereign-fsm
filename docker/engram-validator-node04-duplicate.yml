@@ -47,11 +47,22 @@ services:
       # Own, separate home -- NOT engram-node04's volume (see module doc:
       # sharing data/priv_validator_state.json would prevent the double-sign
       # this harness exists to produce).
+      #
+      # priv_validator_key.json/genesis.json are NOT separate nested bind
+      # mounts here (an earlier version had them as their own
+      # `source:target:ro` lines) -- found live: Docker Desktop's macOS
+      # virtiofs backend fails to mount a specific file whose target path
+      # resolves INSIDE a directory that is itself already a bind-mount
+      # source ("mountpoint ... is outside of rootfs"), a real, reproducible
+      # limitation, not a YAML mistake (reproduced twice, including after
+      # deleting stale placeholder files Docker had created at the target).
+      # Fixed by having the caller (scripts/e8_attack_resilience/
+      # live_double_signing_test.py's start_duplicate) copy both files onto
+      # the HOST at ../testnet-data/engram-node04-duplicate/config/ BEFORE
+      # `docker compose up` -- they then arrive inside the container for
+      # free as part of this single top-level mount, no nested remount
+      # needed.
       - ../testnet-data/engram-node04-duplicate:/root/.engramd
-      # The REAL node04 signing key, read-only -- same validator identity.
-      - ../testnet-data/engram-node04/config/priv_validator_key.json:/root/.engramd/config/priv_validator_key.json:ro
-      # Same shared genesis every real validator uses.
-      - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     environment:
       # :- (default), not :? (required) -- a required var with no default
       # makes docker compose fail interpolation for the WHOLE merged config

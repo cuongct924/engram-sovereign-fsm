@@ -119,7 +119,20 @@ fi
 # EXPECTED_N headers exist, not just the single block where the count is
 # exactly EXPECTED_N.
 N="$EXPECTED_N"
-HEADER_LINES=$(echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N")
+# Here-string, NOT `echo ... | head -n "$EXPECTED_N"` -- found live (real
+# bug, not a proof rejection): once TOTAL_N grows large enough that
+# ALL_HEADER_LINES exceeds the OS pipe buffer (~64KB, i.e. a few hundred
+# tracked headers), `head` reads its N lines and exits BEFORE `echo`
+# finishes writing the rest, so `echo` gets SIGPIPE -- under `set -o
+# pipefail` that aborts this entire script with exit 141, before Step 4
+# ever submits anything to the chain. This was silently masquerading as
+# "proof rejected by the chain (staleness race)" in watch_and_prove.sh's
+# generic non-zero-exit handling for potentially every single one of this
+# session's rejected attempts once the interval grew past a few hundred
+# headers -- confirmed by reproducing manually with `bash -x`: execution
+# never reached "2/4" at all. A here-string has no live pipe to race;
+# `head` just reads from it directly.
+HEADER_LINES=$(head -n "$EXPECTED_N" <<< "$ALL_HEADER_LINES")
 
 field() {
   # field <line-number 1-indexed> <field-name>

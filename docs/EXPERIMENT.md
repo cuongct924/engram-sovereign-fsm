@@ -376,17 +376,17 @@ Chuyển các lemma an toàn thành integration tests hoặc simulation traces.
 nhầm; A1/A2 dưới đây thay cho 2 dòng "Timeout flooding"/"Double-signing" cũ, ánh xạ đúng lemma hình thức đã có sẵn trong `spec/README.md` — Eclipse ≈
 Lemma 7.5, Data Withholding ≈ Lemma 7.2 — và tái dùng hạ tầng đã xây cho E4 thay vì trùng lặp công việc):
 
-| # | Attack | Expected result | Bằng chứng thật hiện có | Cơ chế live-docker |
-|---|--------|------------------|--------------------------|---------------------|
-| A1 | Eclipse Attack (cô lập) | Filter chặn slot trước khi bị chiếm, FSM không degrade sai | Part 1a/2 (real defense + swarm) | `docker/attacker-peer-swarm.yml` leg `a1`, `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py a1` |
-| A2 | Sybil qua đa-subnet giả lập | Filter chặn dựa trên mật độ subnet, không bị đánh lừa bởi đa dạng hoá | Part 1a/2 | leg `a2` của cùng script trên |
-| A3 | Data Withholding | Honest validators reject proposal claiming DA attestation giả | `TestProcessProposal_RejectsMissingDAAttestation` (in-process) + `TestPrepareProposal_FalseDAAttestationClaimsUnverifiedData` (in-process, xác nhận byzantine-mode production) | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=false_da_attestation`), `scripts/e8_attack_resilience/live_byzantine_attacks.py a3_false_da_attestation` |
-| A4 | Forged BTC Receipt | Honest validators reject checkpoint hash không khớp `ExpectedBlockHash` | `TestProcessProposal_RejectsForgedBTCHash` + `TestPrepareProposal_ForgeBTCHashTampersReceipt` (in-process) | cùng script trên, scenario `a4_forge_btc_hash` |
-| A5 | Withdrawal During SOVEREIGN | Tx bị giữ lại (không commit) trong khi SOVEREIGN | `TestProcessProposal_RejectsWithdrawalWhileSovereign` (in-process) | `engramd tx-submit-forced-tx --payload "TX_WITHDRAWAL..."` (cmd/engramd/e8_cli.go), `scripts/e8_attack_resilience/live_withdrawal_test.py` |
-| A6 | Malicious Proposer | Honest validators reject `fsm_state` giả không khớp tính toán cục bộ | `TestProcessProposal_RejectsFSMStateMismatch` + `TestPrepareProposal_FakeFSMStateOverridesRealComputation` (in-process) | cùng script byzantine trên, scenario `a6_fake_fsm_state` |
-| A7 | Censorship / Tx Withholding | Leader cố tình bỏ qua tx bị phát hiện qua `IsCensoring`/`ForcedTxQueue` | `TestProcessProposal_RejectsCensoringProposal`, `TestProcessProposal_AcceptsCensoredTxOnceIncluded`, `TestPreBlocker_TracksForcedTxIgnoredRounds` (in-process) + `TestPrepareProposal_CensorTxOmitsTargetedTx` (in-process, byzantine-mode production) | Nửa chủ động (leader cố tình censor 1 tx thật) CHƯA có driver live -- `applyByzantineBehavior`'s `censor_tx:<hash>` đã hỗ trợ về mặt cơ chế, chỉ thiếu script điều phối gửi 1 forced-tx thật rồi quan sát bị bỏ qua |
-| A8 | Combined Attack | An toàn giữ vững dưới nhiều vector tấn công chồng lấn | Chưa có ở đâu trước đây | Capstone, chạy sau cùng khi A1-A7 đã có cơ chế thật -- vd. node04 byzantine `fake_fsm_state` đồng thời với Sybil swarm từ Part 2 đang hoạt động |
-| — | Double-signing (không đánh số, giữ như mục phụ) | Evidence extracted/logged | Cơ chế thật đã code xong (chưa chạy live) | `x/sovereignty/types/evidence.go` + `preblock.go`'s `recordDetectedEvidence`, `docker/engram-validator-node04-duplicate.yml`, `scripts/e8_attack_resilience/live_double_signing_test.py` -- xem ghi chú riêng bên dưới |
+| # | Attack | Expected result | Kết quả live thật (2026-08-08) | Cơ chế live-docker |
+|---|--------|------------------|-------------------------------|---------------------|
+| A1 | Eclipse Attack (cô lập) | Filter chặn slot trước khi bị chiếm, FSM không degrade sai | **PASS thật** -- filter giữ đúng 8/8 (`MaxPeersPerSubnet`), cluster không bị ảnh hưởng | `docker/attacker-peer-swarm.yml` leg `a1`, `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py a1` |
+| A2 | Sybil qua đa-subnet giả lập | Filter chặn dựa trên mật độ subnet, không bị đánh lừa bởi đa dạng hoá | **PASS thật** -- filter giữ đúng 8/8 dù swarm lớn hơn (12 attacker) | leg `a2` của cùng script trên |
+| A3 | Data Withholding | Honest validators reject proposal claiming DA attestation giả | **PASS thật** -- `safety_held=True divergence_events=0`, height tiến bình thường xuyên suốt 60s tấn công + 30s hồi phục | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=false_da_attestation`), `scripts/e8_attack_resilience/live_byzantine_attacks.py a3_false_da_attestation` |
+| A4 | Forged BTC Receipt | Honest validators reject checkpoint hash không khớp `ExpectedBlockHash` | **PASS thật** -- cùng verdict, cùng cơ chế | cùng script trên, scenario `a4_forge_btc_hash` |
+| A5 | Withdrawal During SOVEREIGN | Tx bị giữ lại (không commit) trong khi SOVEREIGN | **PASS thật** -- `blocked_correctly=True` (CLI real timeout chờ DeliverTx, tx không bao giờ commit trong khi SOVEREIGN); cluster hồi phục bình thường sau khi khôi phục celestia-bridge | `engramd tx-submit-forced-tx --payload "TX_WITHDRAWAL..."` (cmd/engramd/e8_cli.go), `scripts/e8_attack_resilience/live_withdrawal_test.py` |
+| A6 | Malicious Proposer | Honest validators reject `fsm_state` giả không khớp tính toán cục bộ | **PASS thật** -- cùng verdict, cùng cơ chế | cùng script byzantine trên, scenario `a6_fake_fsm_state` |
+| A7 | Censorship / Tx Withholding | Leader cố tình bỏ qua tx bị phát hiện qua `IsCensoring`/`ForcedTxQueue` | **PASS thật** (sau khi sửa 3 lỗi thật, xem "Bugs found" bên dưới) -- `safety_held=True divergence_events=0`, height tiến liên tục 10→132 xuyên suốt cửa sổ censoring | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<hex>`), `scripts/e8_attack_resilience/live_censorship_test.py` (mới, viết trong đợt này) |
+| A8 | Combined Attack | An toàn giữ vững dưới nhiều vector tấn công chồng lấn | **PASS thật** -- node04 byzantine (`fake_fsm_state:SOVEREIGN`) đồng thời với A1 swarm 10 attacker, `safety_held=True divergence_events=0`, height tiến liên tục 145→309 xuyên suốt 120s tấn công kép | `scripts/e8_attack_resilience/live_combined_attack.py` |
+| — | Double-signing (không đánh số, giữ như mục phụ) | Evidence extracted/logged | **PASS thật** -- cả 3 validator trung thực phát hiện `DuplicateVoteEvidence` thật, độ trễ phát hiện chỉ 1 block, xác nhận 2 lần độc lập (offense height 765 và 773) | `x/sovereignty/types/evidence.go` + `preblock.go`'s `recordDetectedEvidence`, `docker/engram-validator-node04-duplicate.yml`, `scripts/e8_attack_resilience/live_double_signing_test.py` -- xem ghi chú riêng bên dưới |
 
 **Double-signing, đóng được rẻ hơn dự tính ban đầu -- KHÔNG cần wiring `x/evidence` module:** phát hiện thật khi đọc kỹ ABCI 2.0:
 `RequestFinalizeBlock.Misbehavior` đã mang sẵn báo cáo `DuplicateVoteEvidence`/`LightClientAttackEvidence` thật từ evidence pool CometBFT (stock, không
@@ -398,8 +398,55 @@ mới) + log dòng `SLASHABLE EVIDENCE DETECTED` thật. **An toàn để commit
 Nửa khó nhất (1 validator thật, còn sống, hành xử ác ý) đóng qua `docker/engram-validator-node04-duplicate.yml`: clone `priv_validator_key.json` thật
 của node04 vào 1 container thứ 2 -- **nhưng cố tình KHÔNG chia sẻ** `priv_validator_state.json` (file theo dõi height/round đã ký cuối, chính là cơ chế
 chống double-sign có sẵn của FilePV) -- nếu chia sẻ thì tiến trình thứ 2 sẽ không bao giờ double-sign được, đúng như thiết kế bảo vệ vốn có. 3 unit test
-thật (`evidence_test.go`) xác nhận `recordDetectedEvidence` hoạt động đúng. `scripts/e8_attack_resilience/live_double_signing_test.py` quan sát qua
-`docker logs` (chưa có Query RPC riêng cho `DetectedEvidenceCount` -- cần thêm message .proto mới, để ngoài phạm vi đợt này). **Chưa chạy live thật.**
+thật (`evidence_test.go`) xác nhận `recordDetectedEvidence` hoạt động đúng.
+
+**Lưu ý quan trọng về định nghĩa (double-signing ≠ AppHash phân kỳ)**: double-signing/equivocation nghĩa là **một validator duy nhất** (cùng private
+key) ký **2 vote xung đột** (khác `BlockID`) cho **cùng height + cùng round + cùng loại vote**, hoàn toàn khác với "AppHash phân kỳ" (state machine
+non-determinism -- các validator trung thực tính ra state root khác nhau, dùng để kiểm tra `safety_held` ở A3-A8 phía trên). Harness ở đây tạo
+equivocation thật bằng cách chạy 2 tiến trình độc lập cùng cầm 1 private key nhưng KHÔNG chia sẻ lịch sử ký -- khi cả 2 độc lập vote khác nhau cho
+cùng height/round, evidence pool CometBFT tự phát hiện, không cần giả lập gì thêm.
+
+**Kết quả live thật (2026-08-08)**: chạy thành công lần đầu sau khi sửa 2 lỗi bootstrap thật (xem "Bugs found" bên dưới) -- cả 3 validator trung thực
+log `SLASHABLE EVIDENCE DETECTED` thật, độ trễ phát hiện 1 block, xác nhận độc lập 2 lần trong cùng 1 lần chạy (offense_height=765/detected=766 và
+offense_height=773/detected=774). Quan sát qua `docker logs` (chưa có Query RPC riêng cho `DetectedEvidenceCount` -- cần thêm message .proto mới, để
+ngoài phạm vi đợt này) chứ không phải giả định.
+
+### Bugs found and fixed live during A7/A8/Double-signing (real, not hypothetical)
+
+Toàn bộ 6 mục dưới đây là lỗi thật, mỗi lỗi được tìm ra vì thực sự chạy live-docker lần đầu, không phải bằng đọc code:
+
+1. **`docker/engram-validator-node04-byzantine.yml` có `name:` riêng ở top-level** -- khi merge với `compose.yml` qua `-f a -f b`, Compose lấy `name:`
+   của file SAU CÙNG, biến override này thành một Compose project RIÊNG BIỆT thay vì cùng project với cluster thật -- gây "Conflict: container name
+   /engram-node04 already in use" thật khi thử swap service này. Sửa bằng cách xoá hẳn `name:` khỏi file override (và file `-duplicate.yml` có cùng lỗi
+   tiềm ẩn, dù chưa gây crash vì nó tạo container MỚI thay vì swap container có sẵn).
+2. **Withdrawal-tx gây deadlock liveness vĩnh viễn**: A5's tx `TX_WITHDRAWAL` bị `ProcessProposal`'s check #4 từ chối đúng như thiết kế (không commit
+   khi SOVEREIGN), nhưng vì `PrepareProposal` cũ KHÔNG chủ động lọc bỏ tx này khỏi proposal của chính mình, tx đó vẫn nằm mãi trong mempool và cứ bị
+   mọi leader tiếp tục đưa vào proposal → mọi proposal của MỌI validator (không riêng gì leader ác ý) đều bị reject vĩnh viễn -- cluster đứng hình thật
+   (round-skip liên tục hàng chục round, quan sát qua `docker logs`: `prevote step: state machine rejected a proposed block`). Sửa bằng cách để
+   `PrepareProposal` tự lọc bỏ tx chứa marker withdrawal khỏi chính proposal của nó khi `WithdrawLocked`, thay vì chỉ dựa vào check #4 làm hàng rào
+   cuối. (`x/sovereignty/proposal.go`)
+3. **`ForcedTxQueue` không bao giờ dequeue sau khi tx đã được include** (lỗi NGHIÊM TRỌNG NHẤT, phát hiện khi debug A7 lần 2): `updateForcedTxTracking`
+   cũ chỉ reset `ignoredRounds` về 0 khi tx được include, nhưng KHÔNG xoá entry khỏi `ForcedTxQueue` -- vì tx này chỉ có thể "include" đúng 1 lần (bị
+   tiêu thụ khỏi mempool sau khi commit), mọi round SAU đó `included[tx]` luôn `false` mãi mãi, khiến `IsCensoring` trip vĩnh viễn dù không còn ai
+   censoring cả (kể cả sau khi revert node04 về honest). Sửa: dequeue hẳn khỏi `ForcedTxQueue`/`TxIgnoredRounds` ngay khi tx được include, không chỉ
+   reset counter. (`x/sovereignty/preblock.go`'s `updateForcedTxTracking`)
+4. **`SubmitForcedTx` chấp nhận nội dung KHÔNG BAO GIỜ có thể include được (lỗ hổng self-DoS/DoS chưa từng bị giới hạn)**: root-cause thật của lần
+   deadlock A7 thứ 2 -- script test chọn "tx mục tiêu" là 1 `MsgSubmitForcedTxRequest` KHÁC; khi broadcast tx này, handler `SubmitForcedTx` của CHÍNH
+   NÓ chạy lại và đăng ký payload bên trong (một chuỗi ASCII đơn thuần, không phải tx hợp lệ) làm entry MỚI trong `ForcedTxQueue` -- entry này không
+   bao giờ có thể tự xuất hiện dưới dạng raw tx bytes thật, nên vĩnh viễn không thể "included". Đây không chỉ là lỗi test script: **bất kỳ ai gửi
+   `MsgSubmitForcedTx` với nội dung không decode được thành tx hợp lệ đều có thể đóng băng TOÀN BỘ mạng vĩnh viễn**, không cần quyền validator. Sửa tận
+   gốc: `SubmitForcedTx` giờ từ chối ngay lúc submit nếu `msg.Tx` không decode được qua `k.TxDecoder` (field mới, optional/nil-safe theo đúng pattern
+   `peerFilterSrc` có sẵn, wire từ `app.go` bằng `txConfig.TxDecoder()` -- cùng decoder BaseApp tự dùng). 2 unit test mới xác nhận cả 2 nhánh (từ chối
+   nội dung rác / chấp nhận tx hợp lệ). (`x/sovereignty/keeper/msg_server.go`, `x/sovereignty/keeper/keeper.go`, `app/app.go`)
+5. **Docker Desktop (macOS virtiofs) không mount được 1 file cụ thể nằm bên trong 1 thư mục ĐÃ được bind-mount từ nguồn khác** -- lỗi hạ tầng thật, tái
+   hiện 2 lần: `docker/engram-validator-node04-duplicate.yml`'s 2 dòng volume lồng nhau (`priv_validator_key.json`/`genesis.json` từ 2 nguồn khác nhau,
+   lồng bên trong `/root/.engramd` vốn đã là 1 bind-mount) → "mountpoint ... is outside of rootfs". Sửa bằng cách bỏ 2 volume lồng đó, thay bằng script
+   Python (`stage_duplicate_identity`) copy 2 file này lên HOST trước khi `docker compose up`, để chúng đã sẵn có trong volume gốc duy nhất.
+6. **`priv_validator_state.json` không bao giờ được tạo cho harness duplicate-key** -- `engramd init` bail ra sớm (vì genesis.json/priv_validator_key.json
+   đã tồn tại sẵn), nên KHÔNG BAO GIỜ chạm tới bước tạo file state cho FilePV, khiến `engramd start` crash thật ("no such file or directory") lần đầu
+   tiên harness này thực sự chạy được (2 lỗi #1/#5 trước đó đã che mất lỗi này). Sửa: `stage_duplicate_identity` tự tạo file state rỗng chuẩn
+   (`{"height":"0","round":0,"step":0}`) -- khớp đúng ý đồ thiết kế ban đầu (tiến trình thứ 2 phải bắt đầu từ trạng thái ký trống, KHÔNG copy từ state
+   đã tiến triển của node04 thật).
 
 **"Timeout flooding by Byzantine nodes"** (dòng cũ, không còn trong ma trận đánh số A1-A8 ở trên): đóng qua `chaos-crash` (SIGKILL 1 node) như phần
 gần nhất hiện có, với 2 vế caveat rõ ràng: (1) **có** đi qua đúng đường f+1-timeout-quorum thật (M0b's `handleTimeout`/
@@ -411,11 +458,12 @@ dung đối kháng thật (SIGKILL không gửi gì cả). Hướng đóng rẻ 
 
 **Ngoài pass/fail:** đo number of rounds to recover, number of invalid proposals rejected, honest validator agreement rate, censorship latency, slashable evidence detection latency.
 
-**Đã đo thật (6/8 dòng, xem giới hạn):** `scripts/e8_attack_resilience/trigger_disconnect.py` chạy thật `go test -json` trên các test an toàn thật trong
-`x/sovereignty/proposal_test.go` (đúng code path `ProcessProposal`/`IsValidProposal` một node thật sẽ dùng), map kết quả pass/fail thật vào bảng trên --
-kết quả ở `scripts/e8_attack_resilience/results/table3_attack_resilience.md`, tất cả PASS. 2 dòng "Timeout flooding" và "Double-signing" **không đo được**
-bằng harness in-process này -- cần consensus engine nhiều node thật (M0b) và CometBFT evidence module trên node thật (M7), đã ghi rõ "NOT COVERED" trong
-bảng, không giả lập số liệu.
+**Đã đo thật, TOÀN BỘ A1-A8 + Double-signing (9/9 dòng đánh số, 2026-08-08)**: mỗi dòng trong bảng trên giờ có kết quả live-docker thật (không phải
+in-process nữa) -- xem cột "Kết quả live thật" và file `results_live/*_summary.md` tương ứng trong `scripts/e8_attack_resilience/results_live/`. Đây là
+lần đầu ma trận này đạt độ phủ live-docker đầy đủ; trước đó chỉ có `scripts/e8_attack_resilience/trigger_disconnect.py`'s in-process `go test -json`
+run (kết quả cũ vẫn còn ở `scripts/e8_attack_resilience/results/table3_attack_resilience.md`, PASS, giữ lại như tài liệu tham khảo song song, không phải
+nguồn số liệu chính nữa). Chỉ riêng "Timeout flooding" (dòng phụ, không đánh số A1-A8) vẫn dừng ở mức đóng một phần qua `chaos-crash`, như đã ghi ở trên
+-- không phải vì thiếu hạ tầng, mà vì hướng đóng đầy đủ (Byzantine chủ động flood `Timeout` hợp lệ) là công việc mới, ngoài phạm vi đợt này.
 
 ---
 
@@ -431,10 +479,44 @@ Kết quả biểu diễn bằng **timeline** ANCHORED → SUSPICIOUS → SOVERE
 - Withdrawal lock status
 - Proof generation status
 
-**Đã đo thật:** `go test ./tests/e2e/... -run TestE9_TraceDrivenCombinedFailure` replay một trace liên tục thật (không phải 7 kịch bản riêng lẻ như E2) qua
-Harness/BeginBlocker thật: BTC congestion tăng dần → chồng thêm DA outage khi vẫn đang SOVEREIGN → chồng thêm P2P churn spike (combined 3 lỗi cùng lúc) →
-lần lượt hồi phục → RECOVERING → ANCHORED. Dữ liệu thật ở `tests/e2e/results/e9_trace_driven.csv` (48 block), Figure 2 6-panel ở
-`scripts/e9_trace_driven/results/figure2_trace_timeline.{png,pdf}` -- xác nhận chain không dừng commit block dù cả 3 lỗi chồng nhau cùng lúc.
+**Đã đo thật (in-process, baseline cũ):** `go test ./tests/e2e/... -run TestE9_TraceDrivenCombinedFailure` replay một trace liên tục thật (không phải 7
+kịch bản riêng lẻ như E2) qua Harness/BeginBlocker thật: BTC congestion tăng dần → chồng thêm DA outage khi vẫn đang SOVEREIGN → chồng thêm P2P churn
+spike (combined 3 lỗi cùng lúc) → lần lượt hồi phục → RECOVERING → ANCHORED. Dữ liệu thật ở `tests/e2e/results/e9_trace_driven.csv` (48 block), Figure 2
+6-panel ở `scripts/e9_trace_driven/results/figure2_trace_timeline.{png,pdf}` -- xác nhận chain không dừng commit block dù cả 3 lỗi chồng nhau cùng lúc.
+
+**Đã đo thật (live-docker, 2026-08-08)**: `scripts/e9_trace_driven/live_combined_trace.py` chạy 1 trace liên tục thật trên cluster 4-node thật (không
+phải mock BeginBlocker) -- layering đúng như thiết kế, không tuần tự: chaos-btc-delay (BTC congestion) → chồng `docker stop celestia-bridge` (DA outage,
+vẫn đang BTC pressure) → chồng 3 chu kỳ chaos-loss (P2P churn burst, cả 3 lỗi cùng lúc) → hồi phục ngược thứ tự → chờ ANCHORED thật qua ZK pipeline.
+Phase 1-6 (baseline → BTC → +DA → +P2P churn → peak triple-fault → healing) **PASS thật**: height tiến liên tục 1043→1192 xuyên suốt toàn bộ 273s đầu,
+không có round nào bị treo, cả 4 node luôn đồng bộ height. Phase 7 (chờ ANCHORED thật qua `watch_and_prove.sh`/`prove_and_submit.sh`) **TIMEOUT sau
+600s, không đạt ANCHORED**. Dữ liệu thật ở `scripts/e9_trace_driven/results_live/e9_combined_trace_20260808T181408.csv` (1504 sample) + `_summary.md`
+(bảng marker/transition thật). Không có 6-panel figure tự động (BTC gap/DA gap/P2P health không có trong committed state, xem giới hạn đã ghi ở
+`x/sovereignty/preblock.go`'s `NewPreBlocker`) -- chỉ `fsm_state`/height/marker là dữ liệu live thật.
+
+**Đính chính quan trọng (phát hiện SAU khi viết bản đầu của mục này, khi bị hỏi lại liệu lời giải thích Phase 7 có đáng tin không)**: bản đầu của mục
+này giải thích Phase 7 timeout là do "interval tăng nhanh hơn tốc độ proof N=4 cố định có thể theo kịp" -- dựa hoàn toàn vào dòng log
+`watch_and_prove.sh` tự in ra ("likely the documented staleness race") mỗi khi `prove_and_submit.sh` thoát với mã khác 0, **mà không tự kiểm chứng lại
+nguyên nhân thật**. Khi bị hỏi lại và tự chạy tay `bash -x scripts/reanchoring_prover/prove_and_submit.sh` để xác minh, phát hiện ra: script thoát với
+exit code **141 (SIGPIPE)** ngay ở Step 1/4 (trích xuất header), **CHƯA BAO GIỜ chạm tới Step 4 (submit proof) hay bị chain từ chối gì cả** -- dòng
+`HEADER_LINES=$(echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N")` bị vỡ pipe thật khi `$ALL_HEADER_LINES` đã lớn hơn pipe buffer của OS (~64KB, tức
+vài trăm header trở lên): `head -n 4` đọc đủ 4 dòng rồi thoát sớm, trong khi `echo` vẫn đang ghi phần còn lại → `echo` nhận SIGPIPE → dưới
+`set -o pipefail`, toàn bộ script thoát 141. Đây là bug thật trong shell script, không liên quan gì đến logic ZK/chain. Sau khi sửa (thay bằng
+here-string `head -n "$EXPECTED_N" <<< "$ALL_HEADER_LINES"`, không còn pipe sống để vỡ), chạy tay lại **thành công thật**: proof được chain CHẤP NHẬN
+thật (`submitted at height 2517`), checkpoint tiến thật (`HeaderHistory` giờ bắt đầu từ height=5 thay vì height=1, `rt_last` đổi sang giá trị mới) --
+xác nhận cơ chế ZK re-anchoring pipeline hoạt động đúng khi thực sự được gọi tới; **518 lần "rejected" ghi trong log trước đó gần như chắc chắn đều là
+cùng 1 bug SIGPIPE này**, không phải chain từ chối proof vì staleness race như bản đầu đã suy đoán sai. Đã sửa `prove_and_submit.sh`. Kết luận đúng cho
+Phase 7's timeout: cơ chế ZK re-anchoring hoạt động đúng khi được gọi, nhưng **`watch_and_prove.sh` trong suốt phiên chạy E9 không hề gọi thành công lần
+nào** vì bug script này -- tức Phase 7 timeout thật, nhưng vì driver script bị lỗi chứ không phải vì bất kỳ giới hạn thiết kế nào của cơ chế proof N=4
+cố định (giới hạn đó vẫn có thật và vẫn ghi ở `RealProofSubmittedHeight`'s doc, chỉ là KHÔNG PHẢI nguyên nhân của riêng lần timeout này). Chưa chạy lại
+E9's Phase 7 với bản script đã sửa trong đợt này (interval hiện đã hơn 2500 header, một lần chạy watch_and_prove.sh với bug đã sửa sẽ submit thành công
+nhưng vẫn cần rất nhiều lần lặp N=4 mới đuổi kịp).
+
+**Bug thật khác tìm được khi chạy E9 lần đầu**: `scripts/framework/injector.py`'s `cleanup_profile` (dùng chung cho MỌI script chaos trong repo) chỉ gọi
+`docker compose rm -f`, không `stop` trước -- `rm -f` chỉ bỏ qua prompt xác nhận, KHÔNG tự dừng container đang chạy (khác với `docker rm -f` thường).
+Điều này vô hình suốt cả session vì mọi lần gọi trước đó đều xảy ra SAU KHI container đã tự hết `--duration` (đã exit tự nhiên). E9's Phase 4 lần đầu
+tiên cần NGẮT một profile đang chạy dở giữa chừng (chaos-loss có `--duration=2m` nhưng mỗi chu kỳ chỉ giữ 20s) -- lộ ra thật: container kẹt "Up" mãi,
+`wait_for_no_active_netem()` đúng đắn từ chối khởi động profile tiếp theo thay vì âm thầm chồng 2 profile lên nhau. Sửa tận gốc trong helper dùng chung:
+`stop` trước `rm -f`.
 
 ---
 

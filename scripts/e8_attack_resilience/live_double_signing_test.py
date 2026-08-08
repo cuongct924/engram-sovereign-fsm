@@ -26,10 +26,19 @@ Usage:
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
 
+REPO_ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+DUPLICATE_HOME = os.path.join(REPO_ROOT, "testnet-data", "engram-node04-duplicate")
+REAL_NODE04_KEY = os.path.join(
+    REPO_ROOT, "testnet-data", "engram-node04", "config", "priv_validator_key.json"
+)
+REAL_GENESIS = os.path.join(
+    REPO_ROOT, "testnet-data", "engram-node01", "config", "genesis.json"
+)
 DUPLICATE_SERVICE = "engram-node04-duplicate"
 WITNESS_CONTAINERS = ["engram-node01", "engram-node02", "engram-node03"]
 EVIDENCE_MARKER = re.compile(
@@ -64,7 +73,43 @@ def compute_persistent_peers() -> str:
     return ",".join(f"{node_ids[n]}@{n}:26656" for n in peers)
 
 
+def stage_duplicate_identity() -> None:
+    """Copies the real node04 signing key + shared genesis onto the HOST at
+    the duplicate's own home dir, BEFORE the container starts -- see
+    docker/engram-validator-node04-duplicate.yml's volumes doc for why this
+    replaced two nested bind-mount lines (a real Docker Desktop virtiofs
+    limitation, confirmed live: mounting a specific file whose target path
+    resolves inside an already-bind-mounted directory fails with
+    "mountpoint ... is outside of rootfs"). Wiping any stale prior config/
+    first -- Docker itself can leave empty placeholder files at a failed
+    mount's target, which then block a clean file copy on retry (also
+    confirmed live).
+    """
+    config_dir = os.path.join(DUPLICATE_HOME, "config")
+    data_dir = os.path.join(DUPLICATE_HOME, "data")
+    if os.path.isdir(config_dir):
+        shutil.rmtree(config_dir)
+    if os.path.isdir(data_dir):
+        shutil.rmtree(data_dir)
+    os.makedirs(config_dir, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
+    shutil.copy(REAL_NODE04_KEY, os.path.join(config_dir, "priv_validator_key.json"))
+    shutil.copy(REAL_GENESIS, os.path.join(config_dir, "genesis.json"))
+    # FilePV's own state file (last-signed height/round/step) -- normally
+    # created by `engramd init`, but init bails out early here since
+    # genesis.json/priv_validator_key.json already exist (pre-copied above),
+    # so `engramd start` crashed on a missing file the first time this
+    # harness actually ran ("no such file or directory"). A brand-new
+    # validator that has never signed anything starts at height 0 -- this is
+    # the FRESH state the duplicate process needs (deliberately NOT copied
+    # from the real node04's own, already-advanced state file, which is the
+    # entire point of this harness, see the compose file's own doc).
+    with open(os.path.join(data_dir, "priv_validator_state.json"), "w") as f:
+        f.write('{"height":"0","round":0,"step":0}')
+
+
 def start_duplicate(persistent_peers: str) -> None:
+    stage_duplicate_identity()
     print(
         f"[{now()}] >>> starting {DUPLICATE_SERVICE} with DUPLICATE_PERSISTENT_PEERS={persistent_peers!r}"
     )
