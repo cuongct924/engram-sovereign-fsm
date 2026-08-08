@@ -8,6 +8,40 @@ against the live 4-node testnet, `docker/*.yml`, and `compose.yml` directly).
 
 ## IP Addressing Scheme
 
+```mermaid
+flowchart TB
+    subgraph engramnet["engram-net (172.28.0.0/24)"]
+        N1["engram-node01<br/>.100"]
+        N2["engram-node02<br/>.110"]
+        N3["engram-node03<br/>.120"]
+        N4["engram-node04<br/>.130"]
+        N1 <-->|CometBFT P2P :26656| N2
+        N2 <--> N3
+        N3 <--> N4
+        N4 <--> N1
+        N1 <--> N3
+    end
+    subgraph bitcoinnet["bitcoin-net (172.21.0.0/24, isolated)"]
+        BTC1["bitcoin-node01<br/>.10"]
+        BTC2["bitcoin-node02<br/>.11"]
+    end
+    subgraph celestianet["celestia-net (172.22.0.0/24, isolated)"]
+        CApp["celestia-app<br/>.50"]
+        CBridge["celestia-bridge<br/>.51"]
+    end
+    N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
+    N1 & N2 & N3 & N4 -.->|CELESTIA_BRIDGE_URL<br/>JSON-RPC 2.0| CBridge
+    CBridge --> CApp
+
+    style engramnet fill:#eef5ff,stroke:#4a7fd6
+    style bitcoinnet fill:#fff3e6,stroke:#d68a30
+    style celestianet fill:#f0eaff,stroke:#8a5fd6
+```
+
+Each `engram-nodeNN` is multi-homed across all 3 networks so its hostname-based env vars resolve
+via Docker's embedded DNS -- see "Why validators are multi-homed" below for a real routing quirk
+this causes.
+
 ```
 Network: 172.28.0.0/24 (engram-net) - Main Validator Network
 ├── Gateway: 172.28.0.1
@@ -166,6 +200,31 @@ external infrastructure as "not yet wired". **That is no longer accurate.** As o
   `ProcessProposal` handler.
 
 ## 2. Consensus-Layer Integration (as implemented -- NOT ABCI++ Vote Extensions)
+
+```mermaid
+sequenceDiagram
+    participant Sensors as Real sensors<br/>(AnchorTracker / Publisher / p2p.Switch)
+    participant Leader as Leader: PrepareProposal
+    participant Others as Other validators: ProcessProposal
+    participant All as All validators: PreBlocker
+
+    Sensors->>Leader: ConfirmedAnchorHeight, VerifiedHeight,<br/>SubnetDiversity/RTT/ChurnRate
+    Leader->>Leader: CalculateNextState (FSM)
+    Leader->>Others: ExtendedProposal in Txs[0]<br/>(fsm_state, da_receipt, btc_receipt, zk_proof_ref)
+    Others->>Sensors: refresh OWN local sensor readings
+    Others->>Others: recompute CalculateNextState locally +<br/>VerifyReceipt(BTC) + VerifyReceipt(DA) + withdrawal check
+    alt local computation matches proposal
+        Others-->>All: ACCEPT (prevote)
+    else mismatch
+        Others-->>All: REJECT (nil prevote)
+    end
+    Note over All: CometBFT commits once 2/3+ voting power agrees
+    All->>All: PreBlocker: CommitFSMTransition<br/>(writes FSMState/safe_blocks/heights from the AGREED Txs[0],<br/>never a fresh local re-read)
+```
+
+"Sensors propose, consensus decides": a node's own sensor readings only ever influence what
+**that node proposes or votes on**; the only state that ever gets committed is whatever the
+agreed block's `Txs[0]` says, written identically by every honest validator in `PreBlocker`.
 
 An earlier draft of this document described `ExtendVote`/`VerifyVoteExtension` wiring. **That was
 never built and is not the current design.** The actual mechanism (`x/sovereignty/proposal.go`,

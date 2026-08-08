@@ -1,45 +1,86 @@
-# Engram Sovereign FSM (in-progress)
+# Engram Sovereign FSM
 
-## Prerequisites
-- IDE: VSCode
-- Extensions: `TLA+ (Temporal Logic of Actions)`, `Graphviz Interactive Preview`, `Noir Language Support`.
+A Cosmos SDK + CometBFT prototype implementing **Engram Hybrid Adaptive Consensus** — a modular
+consensus protocol that treats peripheral network health (Bitcoin settlement finality, Celestia
+data availability, P2P health) as a first-class consensus variable, degrading gracefully into a
+local-PoS "Sovereign" fallback mode instead of halting when those layers fail.
+
+This is the reference implementation of the formal specification in [`spec/`](spec/) (TLA+, with
+TLC/Apalache model-checked safety and liveness proofs). Consensus itself runs on a forked
+CometBFT core: **[cuongct924/engram-consensus-core](https://github.com/cuongct924/engram-consensus-core)**.
+
+## Repository Structure
+
+```
+x/sovereignty/         FSM engine: state machine, sensors, circuit breaker, ABCI++ hooks
+x/da/                  Celestia DA receipt type + verification
+x/vigilante/           Bitcoin settlement receipt type + SPV verification
+app/                   EngramApp (real BaseApp wiring)
+cmd/engramd/           Node binary -- init/start, testnet bootstrap, CLI tooling
+circuit/               Noir ZK circuit for the re-anchoring recovery proof
+proto/                 Protobuf sources
+docker/, compose.yml   Multi-node local testnet + Pumba chaos-engineering profiles
+scripts/               Python live-experiment framework (E2-E9)
+tests/e2e/             In-process fault-injection harness
+spec/                  TLA+ formal specification + model-checking proofs
+docs/                  Architecture, development, and experiment documentation
+```
+
+## System Architecture
+
+![System Architecture](docs/architecture.png?v=1)
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full technical breakdown: real network
+topology, sensor wiring, and the `PrepareProposal` / `ProcessProposal` / `PreBlocker` consensus
+flow (with diagrams).
+
+## Quick Start
 
 ```bash
-git clone <repo-url>
-cd engram-sovereign-fsm
-
-python3 -m venv .venv
-source .venv/bin/activate 
-pip install requirements.txt
+go build ./... && go test ./...
+docker compose up -d --build   # 4-node testnet + Bitcoin regtest + Celestia
 ```
 
-## Scripts Directory
-```
-scripts/
-├── common/                        # Dùng chung (Utility, Plotting, Logging)
-│   ├── logger.py                  # Format log chuẩn cho tất cả thực nghiệm
-│   └── plot_utils.py              # Thư viện vẽ biểu đồ chuẩn IEEE
-├── e2_fault_injection_prototype/  # The Harness (Hạ tầng tiêm lỗi)
-│   ├── controller.py              # Điều khiển vòng đời node (Start/Stop/Reset)
-│   └── injector.py                # Gửi tín hiệu fault vào Keeper
-├── e3_failure_matrix/             # The Test Suite (Ma trận lỗi)
-│   ├── scenarios/                 # Nơi chứa file config kịch bản (YAML/JSON)
-│   └── runner.py                  # Script đọc matrix & gọi e2 để chạy
-├── e4_p2p_eclipse_attack/          # E4: Khả năng chống tấn công
-│   ├── sybil_attacker.py          # Script giả lập Sybil attack
-│   └── eclipse_monitor.py         # Theo dõi peer table (để verify detection)
-├── e5_hysteresis_flapping/        # E5: Kiểm tra độ nhạy FSM
-│   ├── flapping_gen.py            # Tạo nhiễu mạng dao động
-│   └── stability_analyzer.py      # Phân tích xem có bị Flapping không
-├── e6_zk_reanchoring_benchmark/   # E6: Microbenchmark ZK
-│   ├── prover_bench.sh            # Script chạy nargo/prover
-│   └── stats_collector.py         # Tổng hợp kết quả
-├── e7_consensus_overhead/         # E7: Đo đạc Overhead
-│   ├── proposal_analyzer.py       # Đo size Block Proposal
-│   └── latency_tracker.py         # Đo consensus latency
-├── e8_attack_resilience/          # E8: Resilience
-│   └── attack_replay.py           # Replay các tấn công từ TLA+ counterexamples
-└── e9_trace_driven/               # E9: Thực nghiệm vết
-    └── traces/                    # Dữ liệu vết (BTC/Celestia)
-        └── runner.py              # Replay engine
-```
+The full build/test/lint workflow, the real multi-node Docker deploy sequence (including the
+operational ordering that actually matters), and the ZK re-anchoring pipeline are documented in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — written so anyone can run and review this from a
+clean checkout.
+
+## Experiment Results
+
+Real measurements from the live 4-node Docker testnet, the in-process fault-injection harness, and
+the real Noir/Barretenberg proving pipeline -- not synthetic placeholders. Full methodology, raw
+tables, and which numbers are real vs. synthetic (always labeled) are in
+[`docs/EXPERIMENT.md`](docs/EXPERIMENT.md); this is just the visual summary. Click a thumbnail for
+the full-resolution vector PDF.
+
+> **If you regenerate any figure below and keep the same filename**, GitHub/browsers will keep
+> serving the old cached image at that URL. Bump the `?v=N` suffix on that image's line (both the
+> thumbnail and its PDF link) by 1 -- that's the only way a same-filename update reliably shows up.
+
+### E1 — Formal Verification (TLA+ / Apalache stress & ablation)
+Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
+
+### E2 — Fault-Injection End-to-End (S1-S7 scenarios, live)
+[![Figure 3](scripts/e2_fault_injection/results/figure3_state_timelines_live.png?v=1)](scripts/e2_fault_injection/results/figure3_state_timelines_live.pdf?v=1)
+
+### E3 — Failure Matrix
+Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
+
+### E4 — P2P Eclipse / Sybil Detection
+Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
+
+### E5 — Hysteresis Sensitivity (live)
+[![Figure 4](scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.png?v=1)](scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.pdf?v=1)
+
+### E6 — ZK Re-Anchoring Proof Scaling (Noir + UltraHonk)
+[![Figure 6](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png?v=1)](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.pdf?v=1)
+
+### E7 — Consensus Overhead of the Extended Proposal
+Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
+
+### E8 — Attack Resilience (A1-A8 + double-signing)
+Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
+
+### E9 — Trace-Driven Combined-Failure Stress Test (live)
+[![Figure 2](scripts/e9_trace_driven/results/figure2_trace_timeline_live.png?v=1)](scripts/e9_trace_driven/results/figure2_trace_timeline_live.pdf?v=1)
