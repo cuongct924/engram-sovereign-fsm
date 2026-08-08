@@ -66,6 +66,24 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 // per round transition" the spec uses, since vanilla ABCI 2.0 doesn't expose
 // round number to app hooks (see NewProcessProposalHandler's censorship-check
 // comment for the same gap). No-ops when forced_tx_queue is empty.
+//
+// Dequeues a forced tx entirely once it's actually included, rather than
+// just resetting its ignored-round counter to 0 and leaving it queued --
+// the spec's forced_tx_queue (a TLA+ SET) is checked over a bounded,
+// finite model run where "never shrinks" is an unobserved simplification,
+// not a real liveness property; a real chain keeps running indefinitely,
+// and this app's txs are one-shot/consumed once committed (no resubmission
+// path), so an entry that stays queued after its one and only possible
+// inclusion is guaranteed to have included[tx]==false on every subsequent
+// round forever, tripping IsCensoring (check #0, ProcessProposal) and
+// permanently deadlocking the chain -- found live (E8's A7 test, this
+// session): once the target forced tx was naturally included and
+// consumed from every node's mempool, ALL 4 validators (not just a
+// byzantine one) rejected every subsequent proposal from every leader,
+// forever, since the tx could never appear in req.Txs again to satisfy
+// the check. Confirmed via docker logs: "prevote step: state machine
+// rejected a proposed block" repeating across dozens of rounds with no
+// recovery, even after the byzantine validator was reverted to honest.
 func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) error {
 	forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 	if err != nil || len(forcedTxQueue) == 0 {
@@ -77,6 +95,15 @@ func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) err
 	}
 	next := types.NextIgnoredRounds(forcedTxQueue, k.IgnoredRoundsMap(ctx, forcedTxQueue), included, k.Params.MaxIgnoreRounds)
 	for tx, count := range next {
+		if included[tx] {
+			if err := k.ForcedTxQueue.Remove(ctx, tx); err != nil {
+				return err
+			}
+			if err := k.TxIgnoredRounds.Remove(ctx, tx); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := k.TxIgnoredRounds.Set(ctx, tx, count); err != nil {
 			return err
 		}

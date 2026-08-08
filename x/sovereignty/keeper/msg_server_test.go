@@ -2,9 +2,11 @@ package keeper
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"cosmossdk.io/collections/colltest"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +18,48 @@ func newTestMsgServer(t *testing.T) (*MsgServerImpl, context.Context) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
 	return &MsgServerImpl{Keeper: k}, ctx
+}
+
+// TestSubmitForcedTx_RejectsUndecodableContentWhenTxDecoderSet is a
+// regression test for a real, live-confirmed permanent-liveness bug:
+// SubmitForcedTx used to queue ANY msg.Tx content unconditionally. Content
+// that can never itself appear as real block-tx bytes (e.g. a bare marker
+// string) can also never satisfy IsCensoring's "included in req.Txs" check,
+// so once its ignored-round counter reaches MaxIgnoreRounds, every future
+// proposal from every validator is rejected forever -- confirmed live this
+// session: a single such forced tx halted a healthy 4-node cluster for
+// dozens of consensus rounds with no recovery path. Rejecting undecodable
+// content at submission time closes this at its source.
+func TestSubmitForcedTx_RejectsUndecodableContentWhenTxDecoderSet(t *testing.T) {
+	srv, ctx := newTestMsgServer(t)
+	srv.TxDecoder = func(txBytes []byte) (sdk.Tx, error) {
+		if string(txBytes) == "valid" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("not a real tx")
+	}
+
+	_, err := srv.SubmitForcedTx(ctx, &types.MsgSubmitForcedTxRequest{Tx: []byte("not-a-real-tx")})
+	require.Error(t, err, "undecodable content must be rejected before ever entering ForcedTxQueue")
+	has, err := srv.ForcedTxQueue.Has(ctx, "not-a-real-tx")
+	require.NoError(t, err)
+	require.False(t, has)
+
+	_, err = srv.SubmitForcedTx(ctx, &types.MsgSubmitForcedTxRequest{Tx: []byte("valid")})
+	require.NoError(t, err)
+	has, err = srv.ForcedTxQueue.Has(ctx, "valid")
+	require.NoError(t, err)
+	require.True(t, has)
+}
+
+// TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset confirms the nil-safe
+// default (no TxDecoder wired, e.g. every other test in this package using
+// newTestMsgServer) preserves the old unconditional-accept behavior --
+// TxDecoder wiring is optional, matching peerFilterSrc's existing pattern.
+func TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset(t *testing.T) {
+	srv, ctx := newTestMsgServer(t)
+	_, err := srv.SubmitForcedTx(ctx, &types.MsgSubmitForcedTxRequest{Tx: []byte("anything")})
+	require.NoError(t, err)
 }
 
 // TestSubmitRecoveryProof_NeverSetsFSMStateDirectly is a regression test for

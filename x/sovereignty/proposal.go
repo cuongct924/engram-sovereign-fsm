@@ -247,6 +247,31 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			ZKProofRef: zkProofRef,
 		}
 		innerTxs := req.Txs
+		// Filter out any withdrawal-marked tx BEFORE it ever reaches
+		// ProcessProposal's check #4 (WithdrawLocked, below) -- mirrors
+		// IsValidProposal's intent (hold withdrawals during SOVEREIGN/
+		// RECOVERING, not halt the chain). Found live (E8's A5/A7 runs,
+		// same session): without this, a withdrawal tx that entered ANY
+		// node's mempool while locked sits there indefinitely (CheckTx
+		// alone doesn't reject it, see containsWithdrawal's doc), and
+		// since every leader used to pass req.Txs through unfiltered,
+		// EVERY subsequent proposal from EVERY validator kept
+		// re-including it and getting rejected by check #4 below --
+		// a permanent liveness deadlock (endless round-skip), not just a
+		// single rejected proposal, since nothing ever removed the tx
+		// from contention. This filter is the leader-side fix; check #4
+		// stays as defense-in-depth against a byzantine leader that
+		// deliberately includes one anyway.
+		if types.WithdrawLocked(targetState) {
+			filtered := innerTxs[:0:0]
+			for _, tx := range innerTxs {
+				if containsWithdrawal(tx) {
+					continue
+				}
+				filtered = append(filtered, tx)
+			}
+			innerTxs = filtered
+		}
 		if byzantineBehavior != "" {
 			innerTxs = applyByzantineBehavior(byzantineBehavior, &ext, innerTxs)
 		}

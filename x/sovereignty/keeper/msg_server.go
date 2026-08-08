@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
@@ -30,7 +31,21 @@ func (k *MsgServerImpl) InjectFault(ctx context.Context, msg *types.MsgInjectFau
 // (the spec's \E tx \in ValidValues \ forced_tx_queue guard means the action
 // is simply not enabled for an already-present tx; collections.KeySet.Set is
 // naturally idempotent, so this matches without an extra check).
+//
+// Rejects msg.Tx up front if it doesn't decode as a real, well-formed tx
+// (via k.TxDecoder, set from app.go -- see Keeper.TxDecoder's doc for the
+// live incident this closes). ValidValues in the abstract spec is already
+// implicitly "things that could plausibly become a block tx" -- this just
+// makes that assumption concrete and enforced, rather than silently
+// accepting content that can never satisfy IsCensoring's "included in
+// req.Txs" check and would otherwise deadlock every future proposal
+// forever once its ignored-round counter reaches MaxIgnoreRounds.
 func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmitForcedTxRequest) (*types.MsgSubmitForcedTxResponse, error) {
+	if k.TxDecoder != nil {
+		if _, err := k.TxDecoder(msg.Tx); err != nil {
+			return nil, fmt.Errorf("forced tx content does not decode as a valid tx (would be permanently unsatisfiable): %w", err)
+		}
+	}
 	if err := k.ForcedTxQueue.Set(ctx, string(msg.Tx)); err != nil {
 		return nil, err
 	}

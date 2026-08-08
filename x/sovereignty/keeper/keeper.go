@@ -6,6 +6,7 @@ import (
 	"cosmossdk.io/collections"
 	"cosmossdk.io/core/store"
 	"github.com/cosmos/cosmos-sdk/codec"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	merkletree "github.com/iden3/go-merkletree-sql/v2"
 )
@@ -92,6 +93,28 @@ type Keeper struct {
 	// after node.NewNode() constructs the real *p2p.Switch, since
 	// NewEngramApp registers FilterPeerByAddr on BaseApp before that).
 	peerFilterSrc PeerFilterSource
+
+	// TxDecoder backs SubmitForcedTx's validation (msg_server.go) that a
+	// forced tx's content is at least a syntactically valid, decodable tx --
+	// nil until SetTxDecoder is called (app.go wires txConfig.TxDecoder()
+	// right after NewKeeper). Optional/nil-safe like peerFilterSrc above:
+	// tests that never call SetTxDecoder skip the check rather than needing
+	// a full TxConfig just to construct a keeper. Found live (E8's A7 test,
+	// this session): SubmitForcedTx previously queued ANY byte content
+	// unconditionally, including content that could never itself appear as
+	// real block-tx bytes (e.g. a bare marker string, or a MsgSubmitForcedTx
+	// envelope whose OWN broadcast-and-inclusion just re-registers a new,
+	// equally-unsatisfiable entry) -- once ignoredRounds for such an entry
+	// reaches MaxIgnoreRounds, IsCensoring (ProcessProposal check #0) trips
+	// on EVERY future proposal from EVERY validator FOREVER, since the
+	// content can never appear in req.Txs to satisfy it. Confirmed via a
+	// live repro: a single such MsgSubmitForcedTx permanently halted a
+	// healthy 4-node cluster (endless round-skip, tens of rounds, no
+	// recovery even after reverting the one validator being tested).
+	// Rejecting undecodable content at submission time closes this
+	// unbounded self-DoS/DoS vector at its source, rather than trying to
+	// recover from it after the fact.
+	TxDecoder sdk.TxDecoder
 
 	// Double-signing detection (docs/EXPERIMENT.md's E8, "Double-signing"
 	// row), written from preblock.go's NewPreBlocker reading

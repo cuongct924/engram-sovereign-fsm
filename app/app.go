@@ -127,6 +127,13 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 
 	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc, memoryzk.NewMemoryStorage())
 
+	// Lets SubmitForcedTx reject content that can never appear as real
+	// block-tx bytes before it ever enters ForcedTxQueue -- see
+	// Keeper.TxDecoder's doc for the live permanent-deadlock incident this
+	// closes. Uses the SAME txConfig BaseApp itself decodes with, just
+	// below.
+	sovKeeper.TxDecoder = txConfig.TxDecoder()
+
 	// Real active Sybil/eclipse ingress defense (x/sovereignty/keeper/peer_filter.go's
 	// FilterPeerByAddr) -- fails open until cmd/engramd's wirePeerFilter
 	// late-binds a live PeerFilterSource after node.NewNode() constructs the
