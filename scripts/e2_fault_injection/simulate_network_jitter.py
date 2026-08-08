@@ -28,7 +28,9 @@ from utils import setup_academic_plot_style  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
-E2E_RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "e2e", "results")
+E2E_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "tests", "e2e", "results"
+)
 OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 STATES = ["ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"]
@@ -76,7 +78,10 @@ def plot_state_timelines(scenarios):
         ax.set_title(SCENARIO_TITLES.get(name, name), fontsize=11, loc="left")
         ax.set_xlabel("Block height")
 
-    fig.suptitle("Figure 3 -- FSM State Timeline under Fault Injection (real tests/e2e data)", y=1.0)
+    fig.suptitle(
+        "Figure 3 -- FSM State Timeline under Fault Injection (real tests/e2e data)",
+        y=1.0,
+    )
     fig.tight_layout()
     os.makedirs(OUT_DIR, exist_ok=True)
     fig.savefig(os.path.join(OUT_DIR, "figure3_state_timelines.pdf"))
@@ -92,7 +97,11 @@ def plot_summary_bars(scenarios, metrics_by_scenario):
     for ax, key, title in zip(
         axes,
         ("time_to_fallback", "recovery_time", "withdrawal_blocked_blocks"),
-        ("Time to Fallback (blocks)", "Recovery Time (blocks)", "Withdrawal-Locked Blocks"),
+        (
+            "Time to Fallback (blocks)",
+            "Recovery Time (blocks)",
+            "Withdrawal-Locked Blocks",
+        ),
     ):
         vals = [metrics_by_scenario.get(n, {}).get(key) for n in names]
         xs = [v if v is not None else 0 for v in vals]
@@ -137,7 +146,10 @@ def parse_summary_md(path):
 def main():
     csv_paths = sorted(glob.glob(os.path.join(E2E_RESULTS_DIR, "s*.csv")))
     if not csv_paths:
-        print(f"No CSVs found in {E2E_RESULTS_DIR} -- run 'go test ./tests/e2e/...' first.", file=sys.stderr)
+        print(
+            f"No CSVs found in {E2E_RESULTS_DIR} -- run 'go test ./tests/e2e/...' first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     scenarios = {}

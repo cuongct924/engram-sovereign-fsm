@@ -113,7 +113,9 @@ def build_figure6(rows):
     axes[1, 1].set_ylabel("Proof Size (bytes)")
     axes[1, 1].set_ylim(0, max(r["proof_size_bytes"] for r in rows) * 1.5)
 
-    fig.suptitle("Figure 6 -- Recovery Proof Scaling (Noir + UltraHonk, real measurements)")
+    fig.suptitle(
+        "Figure 6 -- Recovery Proof Scaling (Noir + UltraHonk, real measurements)"
+    )
     fig.tight_layout()
     fig.savefig(FIGURE_OUT)
     fig.savefig(FIGURE_PNG, dpi=150)

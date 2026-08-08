@@ -49,20 +49,37 @@ ATTACK_TO_TESTS = {
         "Blocked",
     ),
     "Leader censorship of forced tx queue": (
-        ["TestProcessProposal_RejectsCensoringProposal", "TestProcessProposal_AcceptsCensoredTxOnceIncluded"],
+        [
+            "TestProcessProposal_RejectsCensoringProposal",
+            "TestProcessProposal_AcceptsCensoredTxOnceIncluded",
+        ],
         "Rejected while omitted; accepted once included (M0d)",
     ),
     "Premature/fake ZK re-anchoring proof claim (bonus, not in original E8 list)": (
         ["TestProcessProposal_RejectsPrematureZKProofClaim"],
         "Reject",
     ),
-    "Timeout flooding by Byzantine nodes": ([], "NOT COVERED -- needs live multi-node consensus (M0b)"),
-    "Double-signing": ([], "NOT COVERED -- needs CometBFT evidence module on a live node (M7)"),
+    "Timeout flooding by Byzantine nodes": (
+        [],
+        "NOT COVERED -- needs live multi-node consensus (M0b)",
+    ),
+    "Double-signing": (
+        [],
+        "NOT COVERED -- needs CometBFT evidence module on a live node (M7)",
+    ),
 }
 
 
 def run_go_tests():
-    cmd = ["go", "test", "./x/sovereignty/...", "-run", "TestProcessProposal|TestCommitFSMTransition", "-v", "-json"]
+    cmd = [
+        "go",
+        "test",
+        "./x/sovereignty/...",
+        "-run",
+        "TestProcessProposal|TestCommitFSMTransition",
+        "-v",
+        "-json",
+    ]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     results = {}
     for line in proc.stdout.splitlines():
@@ -106,7 +123,9 @@ def main():
     print(f"\nTable written to {TABLE_OUT}")
     n_covered = sum(1 for tests, _ in ATTACK_TO_TESTS.values() if tests)
     n_total = len(ATTACK_TO_TESTS)
-    print(f"{n_covered}/{n_total} attack rows covered by real in-process tests; go test exit code {returncode}")
+    print(
+        f"{n_covered}/{n_total} attack rows covered by real in-process tests; go test exit code {returncode}"
+    )
     if returncode != 0:
         sys.exit(returncode)
 

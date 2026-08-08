@@ -20,7 +20,9 @@ import glob
 import os
 import sys
 
-E2E_RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "e2e", "results")
+E2E_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "tests", "e2e", "results"
+)
 OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
 TABLE_OUT = os.path.join(OUT_DIR, "table2_failure_matrix.md")
 
@@ -56,7 +58,10 @@ def load_last_row(path):
 def build_table():
     csv_paths = sorted(glob.glob(os.path.join(E2E_RESULTS_DIR, "s*.csv")))
     if not csv_paths:
-        print(f"No CSVs found in {E2E_RESULTS_DIR} -- run 'go test ./tests/e2e/...' first.", file=sys.stderr)
+        print(
+            f"No CSVs found in {E2E_RESULTS_DIR} -- run 'go test ./tests/e2e/...' first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     lines = [
@@ -73,7 +78,9 @@ def build_table():
         btc = btc_condition(int(row["btc_gap"]))
         da = "healthy" if row["da_healthy"].lower() == "true" else "failed"
         p2p = "healthy" if row["p2p_healthy"].lower() == "true" else "unhealthy"
-        withdrawals = "locked" if row["withdraw_locked"].lower() == "true" else "enabled"
+        withdrawals = (
+            "locked" if row["withdraw_locked"].lower() == "true" else "enabled"
+        )
         lines.append(
             f"| {SCENARIO_LABELS.get(name, name)} | {btc} | {da} | {p2p} | {row['state']} "
             f"| {withdrawals} | continuous ({row['height']} blocks, 0 halts) |"

@@ -69,12 +69,18 @@ def build_table(results):
         return results.get(name)
 
     size = {
-        "V0": r("BenchmarkProposalSize/V0_Vanilla_NoExtension-8") or r("BenchmarkProposalSize/V0_Vanilla_NoExtension"),
-        "V1": r("BenchmarkProposalSize/V1_FSMStateOnly-8") or r("BenchmarkProposalSize/V1_FSMStateOnly"),
-        "V2": r("BenchmarkProposalSize/V2_PlusDAReceipt-8") or r("BenchmarkProposalSize/V2_PlusDAReceipt"),
-        "V3": r("BenchmarkProposalSize/V3_PlusBTCReceipt-8") or r("BenchmarkProposalSize/V3_PlusBTCReceipt"),
-        "V4": r("BenchmarkProposalSize/V4_PlusP2PDigest-8") or r("BenchmarkProposalSize/V4_PlusP2PDigest"),
-        "V5": r("BenchmarkProposalSize/V5_PlusZKProofRef-8") or r("BenchmarkProposalSize/V5_PlusZKProofRef"),
+        "V0": r("BenchmarkProposalSize/V0_Vanilla_NoExtension-8")
+        or r("BenchmarkProposalSize/V0_Vanilla_NoExtension"),
+        "V1": r("BenchmarkProposalSize/V1_FSMStateOnly-8")
+        or r("BenchmarkProposalSize/V1_FSMStateOnly"),
+        "V2": r("BenchmarkProposalSize/V2_PlusDAReceipt-8")
+        or r("BenchmarkProposalSize/V2_PlusDAReceipt"),
+        "V3": r("BenchmarkProposalSize/V3_PlusBTCReceipt-8")
+        or r("BenchmarkProposalSize/V3_PlusBTCReceipt"),
+        "V4": r("BenchmarkProposalSize/V4_PlusP2PDigest-8")
+        or r("BenchmarkProposalSize/V4_PlusP2PDigest"),
+        "V5": r("BenchmarkProposalSize/V5_PlusZKProofRef-8")
+        or r("BenchmarkProposalSize/V5_PlusZKProofRef"),
     }
 
     fsm_cost = r("BenchmarkCalculateNextState-8") or r("BenchmarkCalculateNextState")

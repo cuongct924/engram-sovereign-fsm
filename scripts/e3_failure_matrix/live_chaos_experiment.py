@@ -24,7 +24,12 @@ import time
 import argparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import poll_timeline, write_csv, sample_all_nodes, NODE_RPC_PORTS  # noqa: E402
+from logger import (
+    poll_timeline,
+    write_csv,
+    sample_all_nodes,
+    NODE_RPC_PORTS,
+)  # noqa: E402
 import injector  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
@@ -56,10 +61,16 @@ def main():
 
     target = CHAOS_TARGET_CONTAINER[profile]
     if target:
-        print(f"target container status before: {target} = {injector.container_status(target)}")
+        print(
+            f"target container status before: {target} = {injector.container_status(target)}"
+        )
 
     print(f"\n-- baseline ({args.baseline_s:.0f}s) --")
-    all_samples = poll_timeline(args.baseline_s, args.interval_s, on_sample=lambda r: print(" ", " | ".join(fmt_sample(s) for s in r)))
+    all_samples = poll_timeline(
+        args.baseline_s,
+        args.interval_s,
+        on_sample=lambda r: print(" ", " | ".join(fmt_sample(s) for s in r)),
+    )
 
     print(f"\n-- injecting {profile} (polling until Pumba's own --duration elapses) --")
     injector.wait_for_no_active_netem()
@@ -72,18 +83,28 @@ def main():
         print(" ", " | ".join(fmt_sample(s) for s in round_samples))
         time.sleep(args.interval_s)
     all_samples.extend(during_samples)
-    print(f"pumba container {container} finished, status={injector.container_status(container)}")
+    print(
+        f"pumba container {container} finished, status={injector.container_status(container)}"
+    )
     injector.cleanup_profile(profile)
 
     if target:
-        print(f"target container status right after chaos: {target} = {injector.container_status(target)}")
+        print(
+            f"target container status right after chaos: {target} = {injector.container_status(target)}"
+        )
 
     print(f"\n-- post-recovery window ({args.post_s:.0f}s) --")
-    post_samples = poll_timeline(args.post_s, args.interval_s, on_sample=lambda r: print(" ", " | ".join(fmt_sample(s) for s in r)))
+    post_samples = poll_timeline(
+        args.post_s,
+        args.interval_s,
+        on_sample=lambda r: print(" ", " | ".join(fmt_sample(s) for s in r)),
+    )
     all_samples.extend(post_samples)
 
     if target:
-        print(f"target container status after recovery window: {target} = {injector.container_status(target)}")
+        print(
+            f"target container status after recovery window: {target} = {injector.container_status(target)}"
+        )
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     csv_path = os.path.join(RESULTS_DIR, f"{profile}_{ts_label}.csv")
@@ -110,7 +131,9 @@ def main():
             rng = f"{min(hs)}..{max(hs)}" if hs else "n/a"
             f.write(f"| {node} | {rng} | {errors_by_node.get(node, 0)} |\n")
         if target:
-            f.write(f"\nTarget container `{target}` final status: `{injector.container_status(target)}`\n")
+            f.write(
+                f"\nTarget container `{target}` final status: `{injector.container_status(target)}`\n"
+            )
     print(f"wrote summary to {summary_path}")
 
 

@@ -51,13 +51,17 @@ def main():
 
         line_parts = []
         for s in round_samples:
-            line_parts.append(f"{s.node}: h={s.height} state={s.fsm_state or '?'} "
-                               f"safe_blocks={s.safe_blocks} susp_dur={s.suspicious_duration} "
-                               f"proof_valid={s.reanchoring_proof_valid}")
+            line_parts.append(
+                f"{s.node}: h={s.height} state={s.fsm_state or '?'} "
+                f"safe_blocks={s.safe_blocks} susp_dur={s.suspicious_duration} "
+                f"proof_valid={s.reanchoring_proof_valid}"
+            )
             prev = last_state.get(s.node)
             if s.fsm_state and prev and prev != s.fsm_state:
                 transitions.append((elapsed, s.node, prev, s.fsm_state))
-                print(f"  *** TRANSITION @ {elapsed:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***")
+                print(
+                    f"  *** TRANSITION @ {elapsed:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***"
+                )
                 if s.fsm_state == "ANCHORED" and s.node not in anchored_reached_at:
                     anchored_reached_at[s.node] = elapsed
             if s.fsm_state:
@@ -78,7 +82,9 @@ def main():
     summary_path = os.path.join(RESULTS_DIR, f"recovery_flow_{ts_label}_summary.md")
     with open(summary_path, "w") as f:
         f.write("# LIVE recovery-flow observation (real 4-node docker testnet)\n\n")
-        f.write(f"Window: {args.minutes:.0f} min requested, {(time.time()-start)/60:.1f} min actually run.\n\n")
+        f.write(
+            f"Window: {args.minutes:.0f} min requested, {(time.time()-start)/60:.1f} min actually run.\n\n"
+        )
         f.write(f"Samples: {len(all_samples)}, CSV: `{os.path.basename(csv_path)}`\n\n")
         f.write("## Real transitions observed\n\n")
         if transitions:
@@ -92,7 +98,9 @@ def main():
             for node, t in anchored_reached_at.items():
                 f.write(f"- {node}: reached ANCHORED at t={t:.0f}s\n")
         else:
-            f.write("Not reached by any node within this window (real result, not omitted).\n")
+            f.write(
+                "Not reached by any node within this window (real result, not omitted).\n"
+            )
     print(f"\nwrote {len(all_samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")
 

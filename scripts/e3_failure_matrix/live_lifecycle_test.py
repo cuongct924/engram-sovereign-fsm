@@ -86,7 +86,9 @@ class Tracker:
                 if s.fsm_state and prev and prev != s.fsm_state:
                     t = self.elapsed()
                     self.transitions.append((t, self.phase, s.node, prev, s.fsm_state))
-                    print(f"  *** [{self.phase}] TRANSITION @ {t:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***")
+                    print(
+                        f"  *** [{self.phase}] TRANSITION @ {t:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***"
+                    )
                 if s.fsm_state:
                     self.last_state[s.node] = s.fsm_state
             heights = [s.height for s in round_samples]
@@ -106,7 +108,9 @@ class Tracker:
                 if s.fsm_state and prev and prev != s.fsm_state:
                     t = self.elapsed()
                     self.transitions.append((t, self.phase, s.node, prev, s.fsm_state))
-                    print(f"  *** [{self.phase}] TRANSITION @ {t:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***")
+                    print(
+                        f"  *** [{self.phase}] TRANSITION @ {t:6.0f}s  {s.node}: {prev} -> {s.fsm_state} ***"
+                    )
                 if s.fsm_state:
                     self.last_state[s.node] = s.fsm_state
             states = {s.node: s.fsm_state for s in round_samples}
@@ -115,7 +119,9 @@ class Tracker:
                 print(f"[{self.elapsed():6.0f}s] all 4 nodes reached {target_state}")
                 return True
             time.sleep(2.0)
-        print(f"[{self.elapsed():6.0f}s] TIMEOUT waiting for {target_state} after {timeout_s}s")
+        print(
+            f"[{self.elapsed():6.0f}s] TIMEOUT waiting for {target_state} after {timeout_s}s"
+        )
         return False
 
 
@@ -134,7 +140,9 @@ def main():
     start_celestia()
     tr.wait_for_state("ANCHORED", 60, phase="P3_quick_recovery")
 
-    print("=== Phase 4: stop celestia-bridge again, hold past MaxSuspiciousTime, expect SUSPICIOUS->SOVEREIGN ===")
+    print(
+        "=== Phase 4: stop celestia-bridge again, hold past MaxSuspiciousTime, expect SUSPICIOUS->SOVEREIGN ==="
+    )
     stop_celestia()
     tr.wait_for_state("SUSPICIOUS", 30, phase="P4_sustained_outage_enter")
     tr.wait_for_state("SOVEREIGN", 120, phase="P4_sustained_outage_escalate")
@@ -143,11 +151,15 @@ def main():
     start_celestia()
     tr.wait_for_state("RECOVERING", 60, phase="P5_recovery_start")
 
-    print("=== Phase 6: brief re-outage while RECOVERING, expect RECOVERING->SOVEREIGN ===")
+    print(
+        "=== Phase 6: brief re-outage while RECOVERING, expect RECOVERING->SOVEREIGN ==="
+    )
     stop_celestia()
     tr.wait_for_state("SOVEREIGN", 30, phase="P6_regression")
 
-    print("=== Phase 7: restart for good, let it run to real ANCHORED (needs watch_and_prove.sh running) ===")
+    print(
+        "=== Phase 7: restart for good, let it run to real ANCHORED (needs watch_and_prove.sh running) ==="
+    )
     start_celestia()
     reached = tr.wait_for_state("ANCHORED", 600, phase="P7_final_recovery")
 
@@ -158,8 +170,12 @@ def main():
 
     summary_path = os.path.join(RESULTS_DIR, f"lifecycle_test_{ts_label}_summary.md")
     with open(summary_path, "w") as f:
-        f.write("# LIVE full-lifecycle fault-injection test (real docker celestia-bridge stop/start)\n\n")
-        f.write(f"Total duration: {tr.elapsed():.0f}s. Final phase reached ANCHORED: {reached}\n\n")
+        f.write(
+            "# LIVE full-lifecycle fault-injection test (real docker celestia-bridge stop/start)\n\n"
+        )
+        f.write(
+            f"Total duration: {tr.elapsed():.0f}s. Final phase reached ANCHORED: {reached}\n\n"
+        )
         f.write("## Real transitions observed\n\n")
         f.write("| t (s) | Phase | Node | From | To |\n|---:|---|---|---|---|\n")
         for t, phase, node, frm, to in tr.transitions:

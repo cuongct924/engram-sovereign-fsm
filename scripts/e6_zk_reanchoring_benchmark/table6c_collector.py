@@ -138,7 +138,9 @@ def build_figure7(noir_rows, plonky3_rows):
         ax.bar_label(bars, fmt="%.3g")
         ax.set_yscale("log")
 
-    fig.suptitle(f"Figure 7 -- Backend Trade-off at N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale)")
+    fig.suptitle(
+        f"Figure 7 -- Backend Trade-off at N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale)"
+    )
     fig.tight_layout()
     fig.savefig(FIGURE_OUT)
     fig.savefig(FIGURE_PNG, dpi=150)

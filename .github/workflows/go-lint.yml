@@ -14,6 +14,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Checkout CometBFT fork (go.mod's local replace directive)
+        # See go-test.yml's identical step for the full explanation -- same
+        # go.mod replace directive, same module-resolution failure without
+        # this, golangci-lint included since it resolves the module graph too.
+        uses: actions/checkout@v4
+        with:
+          repository: cuongct924/engram-consensus-core
+          ref: c32bf90f17ec58916929203c9799b389f63a564d
+          path: ../engram-consensus-core
+
       - name: Setup Go Environment
         uses: actions/setup-go@v5
         with:

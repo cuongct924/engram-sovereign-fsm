@@ -23,7 +23,9 @@ import csv
 import os
 import sys
 
-E2E_RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "e2e", "results")
+E2E_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "tests", "e2e", "results"
+)
 CSV_IN = os.path.join(E2E_RESULTS_DIR, "e4_p2p_detector_comparison.csv")
 OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
 TABLE_OUT = os.path.join(OUT_DIR, "table6_p2p_detector_accuracy.md")
@@ -58,21 +60,29 @@ def build_table(rows, param_set):
     for attack, label in ATTACK_LABELS.items():
         entry = by_attack.get(attack, {})
         first = True
-        for detector, dname in (("peer_count_only", "Peer-count"), ("tri_interface", "**Tri-interface**")):
+        for detector, dname in (
+            ("peer_count_only", "Peer-count"),
+            ("tri_interface", "**Tri-interface**"),
+        ):
             r = entry.get(detector)
             if r is None:
                 continue
             delay = r["avg_detection_delay_snapshots"]
             delay_str = "N/A" if float(delay) < 0 else delay
             scenario_col = label if first else ""
-            lines.append(f"| {scenario_col} | {dname} | {float(r['fpr'])*100:.1f}% | {float(r['fnr'])*100:.1f}% | {delay_str} |")
+            lines.append(
+                f"| {scenario_col} | {dname} | {float(r['fpr'])*100:.1f}% | {float(r['fnr'])*100:.1f}% | {delay_str} |"
+            )
             first = False
     return "\n".join(lines)
 
 
 def main():
     if not os.path.exists(CSV_IN):
-        print(f"{CSV_IN} not found -- run 'go test ./tests/e2e/... -run TestE4_P2PDetectorComparison' first.", file=sys.stderr)
+        print(
+            f"{CSV_IN} not found -- run 'go test ./tests/e2e/... -run TestE4_P2PDetectorComparison' first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     rows = load_rows()

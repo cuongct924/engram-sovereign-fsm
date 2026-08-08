@@ -39,7 +39,9 @@ from utils import setup_academic_plot_style  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
-E2E_RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "e2e", "results")
+E2E_RESULTS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "tests", "e2e", "results"
+)
 CSV_IN = os.path.join(E2E_RESULTS_DIR, "e5_hysteresis_sweep.csv")
 OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
 
@@ -61,13 +63,24 @@ def load_rows():
 
 def plot_figure4(rows):
     setup_academic_plot_style()
-    by_env = {env: sorted([r for r in rows if r["environment"] == env], key=lambda r: r["hysteresis_wait"]) for env in ENVIRONMENTS}
+    by_env = {
+        env: sorted(
+            [r for r in rows if r["environment"] == env],
+            key=lambda r: r["hysteresis_wait"],
+        )
+        for env in ENVIRONMENTS
+    }
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
 
     for env in ENVIRONMENTS:
         rs = by_env[env]
-        axes[0].plot([r["hysteresis_wait"] for r in rs], [r["anchored_uptime"] for r in rs], marker="o", label=env)
+        axes[0].plot(
+            [r["hysteresis_wait"] for r in rs],
+            [r["anchored_uptime"] for r in rs],
+            marker="o",
+            label=env,
+        )
     axes[0].set_xlabel("HYSTERESIS_WAIT")
     axes[0].set_ylabel("ANCHORED uptime (fraction of window)")
     axes[0].set_title("(A) Stability vs. HYSTERESIS_WAIT")
@@ -76,7 +89,12 @@ def plot_figure4(rows):
 
     for env in ENVIRONMENTS:
         rs = by_env[env]
-        axes[1].plot([r["hysteresis_wait"] for r in rs], [r["flapping_count"] for r in rs], marker="s", label=env)
+        axes[1].plot(
+            [r["hysteresis_wait"] for r in rs],
+            [r["flapping_count"] for r in rs],
+            marker="s",
+            label=env,
+        )
     axes[1].set_xlabel("HYSTERESIS_WAIT")
     axes[1].set_ylabel("Flapping count (window of 100 blocks)")
     axes[1].set_title("(B) Flapping vs. HYSTERESIS_WAIT")
@@ -84,14 +102,18 @@ def plot_figure4(rows):
 
     for env in ENVIRONMENTS:
         rs = by_env[env]
-        y = [r["first_anchored_at"] if r["first_anchored_at"] >= 0 else None for r in rs]
+        y = [
+            r["first_anchored_at"] if r["first_anchored_at"] >= 0 else None for r in rs
+        ]
         axes[2].plot([r["hysteresis_wait"] for r in rs], y, marker="^", label=env)
     axes[2].set_xlabel("HYSTERESIS_WAIT")
     axes[2].set_ylabel("Blocks to first reach ANCHORED (gap = never)")
     axes[2].set_title("(C) Time-to-First-Recovery vs. HYSTERESIS_WAIT")
     axes[2].legend(fontsize=8)
 
-    fig.suptitle("Figure 4 -- Recovery Stability vs. HYSTERESIS_WAIT (real tests/e2e data, 5 environments)")
+    fig.suptitle(
+        "Figure 4 -- Recovery Stability vs. HYSTERESIS_WAIT (real tests/e2e data, 5 environments)"
+    )
     fig.tight_layout()
     os.makedirs(OUT_DIR, exist_ok=True)
     fig.savefig(os.path.join(OUT_DIR, "figure4_hysteresis.pdf"))
@@ -105,7 +127,9 @@ def build_table(rows):
         "| HYSTERESIS_WAIT | Environment | Reached ANCHORED | First at (blocks) | Final State | Flapping | ANCHORED uptime |",
         "| ---: | --- | :---: | ---: | --- | ---: | ---: |",
     ]
-    for r in sorted(rows, key=lambda r: (r["hysteresis_wait"], ENVIRONMENTS.index(r["environment"]))):
+    for r in sorted(
+        rows, key=lambda r: (r["hysteresis_wait"], ENVIRONMENTS.index(r["environment"]))
+    ):
         first_at = r["first_anchored_at"] if r["first_anchored_at"] >= 0 else "never"
         lines.append(
             f"| {r['hysteresis_wait']} | {r['environment']} | {'yes' if r['reached_anchored'] else 'NO'} "
@@ -116,7 +140,10 @@ def build_table(rows):
 
 def main():
     if not os.path.exists(CSV_IN):
-        print(f"{CSV_IN} not found -- run 'go test ./tests/e2e/... -run TestE5_HysteresisSweep' first.", file=sys.stderr)
+        print(
+            f"{CSV_IN} not found -- run 'go test ./tests/e2e/... -run TestE5_HysteresisSweep' first.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     rows = load_rows()
