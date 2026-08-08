@@ -37,5 +37,6 @@ jobs:
         # which golangci-lint-action@v3's bundled v1.x binary cannot parse.
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.12.2
+          install-mode: goinstall
           args: --timeout=5m
