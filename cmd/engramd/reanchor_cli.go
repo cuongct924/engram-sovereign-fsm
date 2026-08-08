@@ -203,6 +203,73 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 	return cmd
 }
 
+// txSubmitForcedTxCmd submits a forced-inclusion payload to x/sovereignty's
+// queue through MsgSubmitForcedTxRequest. Like txSubmitRecoveryProofCmd, this
+// uses BroadcastTxSync + explicit DeliverTx polling (instead of
+// BroadcastTxCommit's fixed ~10s RPC-server-side wait) so callers can observe
+// "accepted in CheckTx but not committed yet" as a bounded timeout.
+func txSubmitForcedTxCmd() *cobra.Command {
+	var nodeURL, payload string
+	cmd := &cobra.Command{
+		Use:   "tx-submit-forced-tx",
+		Short: "Submit a forced-inclusion tx payload",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			registry, err := newSovereigntyInterfaceRegistry()
+			if err != nil {
+				return err
+			}
+			addressCodec := addresscodec.NewBech32Codec("engram")
+			sender, err := addressCodec.BytesToString(make([]byte, 20))
+			if err != nil {
+				return err
+			}
+
+			msg := &sovereigntytypes.MsgSubmitForcedTxRequest{
+				Sender: sender,
+				Tx:     []byte(payload),
+			}
+			txBytes, err := buildMinimalTx(registry, msg)
+			if err != nil {
+				return err
+			}
+
+			client, err := rpchttp.New(nodeURL, "/websocket")
+			if err != nil {
+				return err
+			}
+			syncResult, err := client.BroadcastTxSync(context.Background(), txBytes)
+			if err != nil {
+				return err
+			}
+			if syncResult.Code != 0 {
+				return fmt.Errorf("rejected in CheckTx: %s", syncResult.Log)
+			}
+
+			const pollTimeout = 30 * time.Second
+			const pollInterval = 300 * time.Millisecond
+			deadline := time.Now().Add(pollTimeout)
+			for {
+				txResult, txErr := client.Tx(context.Background(), syncResult.Hash, false)
+				if txErr == nil {
+					if txResult.TxResult.Code != 0 {
+						return fmt.Errorf("rejected in DeliverTx: %s", txResult.TxResult.Log)
+					}
+					fmt.Printf("submitted at height %d, hash %s\n", txResult.Height, syncResult.Hash)
+					return nil
+				}
+				if time.Now().After(deadline) {
+					return fmt.Errorf("passed CheckTx (hash %s) but DeliverTx result not observed within %s -- likely still pending in a slow/round-skipping block, not necessarily rejected", syncResult.Hash, pollTimeout)
+				}
+				time.Sleep(pollInterval)
+			}
+		},
+	}
+	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
+	cmd.Flags().StringVar(&payload, "payload", "", "forced tx payload bytes (required)")
+	cmd.MarkFlagRequired("payload")
+	return cmd
+}
+
 // buildMinimalTx encodes msg into the minimal structurally-valid sdk.Tx
 // envelope this chain's TxDecoder (authtx.NewTxConfig, app.go) accepts --
 // see txSubmitRecoveryProofCmd's doc for why a real signature isn't needed.
