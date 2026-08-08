@@ -40,10 +40,28 @@ MAX_PEERS_PER_SUBNET = 8  # x/sovereignty/types/params.go's DefaultParams()
 LEGS = {
     "a1": {
         "profile": "attacker-swarm-a1",
+        "services": [f"attacker-a1-{i:02d}" for i in range(1, 11)],
         "description": "10 attackers, all on engram-net (same subnet as the 4 real validators)",
     },
     "a2": {
         "profile": "attacker-swarm-a2",
+        "services": [
+            f"attacker-a2-{suffix}"
+            for suffix in [
+                "a1",
+                "a2",
+                "a3",
+                "b1",
+                "b2",
+                "b3",
+                "c1",
+                "c2",
+                "c3",
+                "d1",
+                "d2",
+                "d3",
+            ]
+        ],
         "description": "12 attackers across 4 distinct subnets (attacker-subnet-a/b/c/d, 3 each)",
     },
 }
@@ -53,12 +71,12 @@ def now() -> str:
     return time.strftime("%H:%M:%S", time.gmtime())
 
 
-def swarm_up(profile: str) -> None:
+def swarm_up(profile: str, services: list) -> None:
     print(
-        f"[{now()}] >>> docker compose --profile {profile} up -d (starting attacker swarm)"
+        f"[{now()}] >>> docker compose --profile {profile} up -d <services> (starting attacker swarm)"
     )
     subprocess.run(
-        ["docker", "compose", "--profile", profile, "up", "-d"],
+        ["docker", "compose", "--profile", profile, "up", "-d", *services],
         capture_output=True,
         text=True,
         timeout=120,
@@ -66,12 +84,26 @@ def swarm_up(profile: str) -> None:
     )
 
 
-def swarm_down(profile: str) -> None:
+def swarm_down(profile: str, services: list) -> None:
+    # NEVER `docker compose down` here -- that tears down the ENTIRE project
+    # (all containers/networks, including the real 4-node cluster and
+    # bitcoin/celestia), regardless of --profile filtering; `down`'s scope is
+    # the whole compose project, not profile-gated services, unlike `up`.
+    # Confirmed live: an earlier version of this function used `down` and it
+    # destroyed the running real cluster mid-experiment. `stop` + `rm -f`
+    # with explicit service names (matching injector.py's cleanup_profile
+    # convention) is scoped correctly.
     print(
-        f"[{now()}] >>> docker compose --profile {profile} down (tearing down attacker swarm)"
+        f"[{now()}] >>> docker compose stop/rm <services> (tearing down attacker swarm only)"
     )
     subprocess.run(
-        ["docker", "compose", "--profile", profile, "down"],
+        ["docker", "compose", "--profile", profile, "stop", *services],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "rm", "-f", *services],
         capture_output=True,
         text=True,
         timeout=60,
@@ -151,7 +183,7 @@ def main():
     baseline_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
     print(f"=== Phase 2: attack ({args.attack_s:.0f}s) ===")
-    swarm_up(leg["profile"])
+    swarm_up(leg["profile"], leg["services"])
     tr.poll_for(args.attack_s, args.interval_s, "attack")
     peak_count = max(
         r["target_subnet_peer_count"] for r in tr.rows if r["phase"] == "attack"
@@ -159,13 +191,28 @@ def main():
     peak_total = max(r["total_peers"] for r in tr.rows if r["phase"] == "attack")
 
     print(f"=== Phase 3: recovery ({args.recovery_s:.0f}s, tearing down swarm) ===")
-    swarm_down(leg["profile"])
+    swarm_down(leg["profile"], leg["services"])
     tr.poll_for(args.recovery_s, args.interval_s, "recovery")
     final_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
     filter_held = peak_count <= MAX_PEERS_PER_SUBNET
-    fsm_stayed_healthy = all(
-        r["fsm_state"] in ("ANCHORED", "SUSPICIOUS") for r in tr.rows if r["fsm_state"]
+    # Not a fixed ANCHORED/SUSPICIOUS allowlist -- the cluster's baseline
+    # state depends on whatever the real BTC/DA/P2P pipeline's own timing
+    # happens to be at the moment this script runs (e.g. RECOVERING is a
+    # legitimate non-degraded baseline mid-reanchoring, unrelated to this
+    # attack). The real claim to check is "the attack itself didn't cause a
+    # WORSE transition" -- i.e. fsm_state during/after the attack never
+    # regressed relative to the baseline phase's own state set.
+    baseline_states = {
+        r["fsm_state"] for r in tr.rows if r["phase"] == "baseline" and r["fsm_state"]
+    }
+    attack_states = {
+        r["fsm_state"]
+        for r in tr.rows
+        if r["phase"] in ("attack", "recovery") and r["fsm_state"]
+    }
+    fsm_stayed_healthy = (
+        attack_states.issubset(baseline_states) if baseline_states else True
     )
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")

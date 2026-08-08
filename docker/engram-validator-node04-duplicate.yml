@@ -1,0 +1,78 @@
+# Deliberately no top-level `name:` here -- see
+# docker/engram-validator-node04-byzantine.yml's comment for why: Compose
+# merges/forks project identity from a sub-file's own `name:`, which is
+# fatal when a `-f`-merged override swaps an existing container (confirmed
+# live for that file) and pointless dead weight here even though this file
+# is pulled in via compose.yml's `include:` (which keeps the root project
+# name regardless) rather than `-f` -- harmless today, but a `-f`-based
+# invocation of this file directly would hit the exact same bug.
+#
+# Duplicate-key harness for docs/EXPERIMENT.md's E8 "Double-signing" row --
+# NOT included via compose.yml's `include:` list (only started explicitly,
+# same convention as attacker-peer-swarm.yml/engram-validator-node04-byzantine.yml).
+#
+# Runs a SECOND, independent `engramd` process holding the EXACT SAME
+# priv_validator_key.json as the real engram-node04 -- same validator
+# identity, same voting power, same place in the genesis validator set.
+# CometBFT's own detection (stock, unmodified evidence pool) is what
+# produces real DuplicateVoteEvidence once both processes vote differently
+# for the same height/round -- no fork changes needed for detection, see
+# x/sovereignty/preblock.go's recordDetectedEvidence for the consuming side.
+#
+# CRITICAL: this container gets its own FRESH priv_validator_state.json
+# (data/ is NOT shared with the real node04's volume) -- FilePV's own state
+# file (tracking last-signed height/round) is CometBFT's BUILT-IN anti-
+# double-sign safety net in normal single-process operation; sharing it
+# here would make this harness structurally unable to ever double-sign
+# (the whole point of a SEPARATE process is that it doesn't know what the
+# real node04 already signed). This is a deliberate safety-net bypass for
+# testing double-signing DETECTION -- never do this outside a controlled
+# experiment, and never point this at anything but a disposable test
+# genesis/network.
+
+services:
+  engram-node04-duplicate:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      additional_contexts:
+        - cometbft-fork=../../engram-consensus-core
+    hostname: engram-node04-duplicate
+    container_name: engram-node04-duplicate
+    profiles: [double-sign-harness]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.220
+    volumes:
+      # Own, separate home -- NOT engram-node04's volume (see module doc:
+      # sharing data/priv_validator_state.json would prevent the double-sign
+      # this harness exists to produce).
+      - ../testnet-data/engram-node04-duplicate:/root/.engramd
+      # The REAL node04 signing key, read-only -- same validator identity.
+      - ../testnet-data/engram-node04/config/priv_validator_key.json:/root/.engramd/config/priv_validator_key.json:ro
+      # Same shared genesis every real validator uses.
+      - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
+    environment:
+      # :- (default), not :? (required) -- a required var with no default
+      # makes docker compose fail interpolation for the WHOLE merged config
+      # file (compose.yml's include: list), breaking commands like `docker
+      # compose build` that never touch this profile-gated service at all
+      # (confirmed live). Falls back to an obviously-wrong placeholder that
+      # fails fast and loud INSIDE this container specifically if the caller
+      # (scripts/e8_attack_resilience/live_double_signing_test.py, which
+      # always sets this for real) forgot to set it.
+      - PERSISTENT_PEERS=${DUPLICATE_PERSISTENT_PEERS:-SET_DUPLICATE_PERSISTENT_PEERS_BEFORE_USE}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        engramd init engram-node04-duplicate --home /root/.engramd || true
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$PERSISTENT_PEERS\"#" /root/.engramd/config/config.toml
+        sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
+        sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
+        echo "engram-node04-duplicate: holding node04's real validator key, own independent state -- expect real DuplicateVoteEvidence once it votes"
+        exec engramd start --home /root/.engramd
+    restart: "no"
+
+# engram-net is declared once in the root compose.yml (owns it); see the
+# existing engram-validator-node0N.yml/attacker-peer-swarm.yml files for the
+# same "conflicts with imported resource" reason this doesn't redeclare it.

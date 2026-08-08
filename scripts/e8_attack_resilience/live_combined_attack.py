@@ -99,10 +99,23 @@ def disable_byzantine() -> None:
     )
 
 
+A1_SWARM_SERVICES = [f"attacker-a1-{i:02d}" for i in range(1, 11)]
+
+
 def swarm_up() -> None:
-    print(f"[{now()}] >>> docker compose --profile attacker-swarm-a1 up -d (A1 leg)")
+    print(
+        f"[{now()}] >>> docker compose --profile attacker-swarm-a1 up -d <services> (A1 leg)"
+    )
     subprocess.run(
-        ["docker", "compose", "--profile", "attacker-swarm-a1", "up", "-d"],
+        [
+            "docker",
+            "compose",
+            "--profile",
+            "attacker-swarm-a1",
+            "up",
+            "-d",
+            *A1_SWARM_SERVICES,
+        ],
         capture_output=True,
         text=True,
         timeout=120,
@@ -111,9 +124,34 @@ def swarm_up() -> None:
 
 
 def swarm_down() -> None:
-    print(f"[{now()}] >>> docker compose --profile attacker-swarm-a1 down")
+    # NEVER `docker compose down` (no service names) -- tears down the WHOLE
+    # project (real cluster included), not just this profile. See
+    # scripts/e4_p2p_eclipse_detection/live_sybil_attack.py's swarm_down doc
+    # for the live incident this is fixed from.
+    print(f"[{now()}] >>> docker compose stop/rm <services> (A1 leg only)")
     subprocess.run(
-        ["docker", "compose", "--profile", "attacker-swarm-a1", "down"],
+        [
+            "docker",
+            "compose",
+            "--profile",
+            "attacker-swarm-a1",
+            "stop",
+            *A1_SWARM_SERVICES,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--profile",
+            "attacker-swarm-a1",
+            "rm",
+            "-f",
+            *A1_SWARM_SERVICES,
+        ],
         capture_output=True,
         text=True,
         timeout=60,

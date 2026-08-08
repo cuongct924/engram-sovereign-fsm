@@ -70,7 +70,8 @@ services:
         engramd init attacker-a1-01 --home /root/.engramd || true
         NODE_ID=$$(engramd tendermint show-node-id --home /root/.engramd 2>/dev/null || true)
         echo "attacker-a1-01 node_id=$$NODE_ID dialing $$TARGET_PEER"
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -88,7 +89,8 @@ services:
     command:
       - |
         engramd init attacker-a1-02 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -106,7 +108,8 @@ services:
     command:
       - |
         engramd init attacker-a1-03 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -124,7 +127,8 @@ services:
     command:
       - |
         engramd init attacker-a1-04 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -142,7 +146,8 @@ services:
     command:
       - |
         engramd init attacker-a1-05 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -160,7 +165,8 @@ services:
     command:
       - |
         engramd init attacker-a1-06 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -178,7 +184,8 @@ services:
     command:
       - |
         engramd init attacker-a1-07 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -196,7 +203,8 @@ services:
     command:
       - |
         engramd init attacker-a1-08 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -214,7 +222,8 @@ services:
     command:
       - |
         engramd init attacker-a1-09 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -232,7 +241,8 @@ services:
     command:
       - |
         engramd init attacker-a1-10 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -253,6 +263,9 @@ services:
     networks:
       attacker-subnet-a:
         ipv4_address: 172.30.0.11
+        gw_priority: 1
+      engram-net:
+        gw_priority: 0
     volumes:
       - ../testnet-data/attacker-a2-a1:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
@@ -261,7 +274,8 @@ services:
     command:
       - |
         engramd init attacker-a2-a1 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -273,13 +287,15 @@ services:
     networks:
       attacker-subnet-a:
         ipv4_address: 172.30.0.12
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-a2:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-a2 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -291,13 +307,15 @@ services:
     networks:
       attacker-subnet-a:
         ipv4_address: 172.30.0.13
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-a3:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-a3 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -309,13 +327,15 @@ services:
     networks:
       attacker-subnet-b:
         ipv4_address: 172.31.0.11
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-b1:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-b1 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -327,13 +347,15 @@ services:
     networks:
       attacker-subnet-b:
         ipv4_address: 172.31.0.12
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-b2:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-b2 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -345,13 +367,15 @@ services:
     networks:
       attacker-subnet-b:
         ipv4_address: 172.31.0.13
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-b3:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-b3 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -363,13 +387,15 @@ services:
     networks:
       attacker-subnet-c:
         ipv4_address: 172.32.0.11
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-c1:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-c1 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -381,13 +407,15 @@ services:
     networks:
       attacker-subnet-c:
         ipv4_address: 172.32.0.12
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-c2:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-c2 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -399,13 +427,15 @@ services:
     networks:
       attacker-subnet-c:
         ipv4_address: 172.32.0.13
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-c3:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-c3 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -417,13 +447,15 @@ services:
     networks:
       attacker-subnet-d:
         ipv4_address: 172.33.0.11
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-d1:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-d1 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -435,13 +467,15 @@ services:
     networks:
       attacker-subnet-d:
         ipv4_address: 172.33.0.12
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-d2:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-d2 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
@@ -453,13 +487,15 @@ services:
     networks:
       attacker-subnet-d:
         ipv4_address: 172.33.0.13
+      engram-net: {}
     volumes:
       - ../testnet-data/attacker-a2-d3:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     command:
       - |
         engramd init attacker-a2-d3 --home /root/.engramd || true
-        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
         sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd

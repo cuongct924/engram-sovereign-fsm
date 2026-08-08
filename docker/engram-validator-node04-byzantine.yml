@@ -1,5 +1,15 @@
-name: engram-validator-node04-byzantine
-
+# Deliberately no top-level `name:` here -- Compose merges the LAST file's
+# `name:` when given multiple `-f` flags, so an override file declaring its
+# own project name silently forks this into a SEPARATE Compose project from
+# compose.yml's `engram-validator-cluster`. That's fatal for this file
+# specifically (it swaps the SAME container, engram-node04 -- found live:
+# "Conflict. The container name /engram-node04 is already in use" once the
+# stray `name:` here caused `up` to treat it as a second project trying to
+# create a container the first project already owns). Confirmed the fix
+# resolves it: omitting `name:` here lets this override inherit
+# compose.yml's project name via Compose's normal merge, matching how a
+# `-f a -f b` merge is supposed to behave for an override, not a fork.
+#
 # Byzantine-mode override for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 attack
 # rows -- NOT included via compose.yml's `include:` list (that would make
 # byzantine mode always active on every deploy). Applied explicitly, on top

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 
 	"cosmossdk.io/collections"
-	log "cosmossdk.io/log/v2"
 	store "cosmossdk.io/core/store"
+	log "cosmossdk.io/log/v2"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"

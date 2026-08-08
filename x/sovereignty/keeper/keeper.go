@@ -92,30 +92,40 @@ type Keeper struct {
 	// after node.NewNode() constructs the real *p2p.Switch, since
 	// NewEngramApp registers FilterPeerByAddr on BaseApp before that).
 	peerFilterSrc PeerFilterSource
+
+	// Double-signing detection (docs/EXPERIMENT.md's E8, "Double-signing"
+	// row), written from preblock.go's NewPreBlocker reading
+	// RequestFinalizeBlock.Misbehavior directly -- see types.EvidenceRecord's
+	// doc for why this is safe to commit (deterministic, agreed block data,
+	// not a local sensor read).
+	DetectedEvidenceCount collections.Item[uint64]
+	LastDetectedEvidence  collections.Item[types.EvidenceRecord]
 }
 
 func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merkletree.Storage) *Keeper {
 	sb := collections.NewSchemaBuilder(storeService)
 
 	k := &Keeper{
-		cdc:                   cdc,
-		storeService:          storeService,
-		Params:                types.DefaultParams(),
-		FSMState:              collections.NewItem(sb, collections.NewPrefix(1), "fsm_state", collections.StringValue),
-		SafeBlocks:            collections.NewItem(sb, collections.NewPrefix(2), "safe_blocks", collections.Uint64Value),
-		Metrics:               collections.NewItem(sb, collections.NewPrefix(3), "metrics", collections.NewJSONValueCodec[*types.PeripheralMetrics]()),
-		SuspiciousDuration:    collections.NewItem(sb, collections.NewPrefix(4), "suspicious_duration", collections.Uint64Value),
-		ReanchoringProofValid: collections.NewItem(sb, collections.NewPrefix(5), "reanchoring_proof_valid", collections.BoolValue),
-		HBtcCurrent:           collections.NewItem(sb, collections.NewPrefix(6), "h_btc_current", collections.Uint64Value),
-		HBtcAnchored:          collections.NewItem(sb, collections.NewPrefix(7), "h_btc_anchored", collections.Uint64Value),
-		HBtcSubmitted:         collections.NewItem(sb, collections.NewPrefix(8), "h_btc_submitted", collections.Uint64Value),
-		HEngramCurrent:        collections.NewItem(sb, collections.NewPrefix(9), "h_engram_current", collections.Uint64Value),
-		HEngramVerified:       collections.NewItem(sb, collections.NewPrefix(10), "h_engram_verified", collections.Uint64Value),
-		ForcedTxQueue:         collections.NewKeySet(sb, collections.NewPrefix(11), "forced_tx_queue", collections.StringKey),
-		TxIgnoredRounds:       collections.NewMap(sb, collections.NewPrefix(12), "tx_ignored_rounds", collections.StringKey, collections.Uint64Value),
+		cdc:                      cdc,
+		storeService:             storeService,
+		Params:                   types.DefaultParams(),
+		FSMState:                 collections.NewItem(sb, collections.NewPrefix(1), "fsm_state", collections.StringValue),
+		SafeBlocks:               collections.NewItem(sb, collections.NewPrefix(2), "safe_blocks", collections.Uint64Value),
+		Metrics:                  collections.NewItem(sb, collections.NewPrefix(3), "metrics", collections.NewJSONValueCodec[*types.PeripheralMetrics]()),
+		SuspiciousDuration:       collections.NewItem(sb, collections.NewPrefix(4), "suspicious_duration", collections.Uint64Value),
+		ReanchoringProofValid:    collections.NewItem(sb, collections.NewPrefix(5), "reanchoring_proof_valid", collections.BoolValue),
+		HBtcCurrent:              collections.NewItem(sb, collections.NewPrefix(6), "h_btc_current", collections.Uint64Value),
+		HBtcAnchored:             collections.NewItem(sb, collections.NewPrefix(7), "h_btc_anchored", collections.Uint64Value),
+		HBtcSubmitted:            collections.NewItem(sb, collections.NewPrefix(8), "h_btc_submitted", collections.Uint64Value),
+		HEngramCurrent:           collections.NewItem(sb, collections.NewPrefix(9), "h_engram_current", collections.Uint64Value),
+		HEngramVerified:          collections.NewItem(sb, collections.NewPrefix(10), "h_engram_verified", collections.Uint64Value),
+		ForcedTxQueue:            collections.NewKeySet(sb, collections.NewPrefix(11), "forced_tx_queue", collections.StringKey),
+		TxIgnoredRounds:          collections.NewMap(sb, collections.NewPrefix(12), "tx_ignored_rounds", collections.StringKey, collections.Uint64Value),
 		HeaderHistory:            collections.NewMap(sb, collections.NewPrefix(13), "header_history", collections.Uint64Key, collections.NewJSONValueCodec[types.RecoveryHeader]()),
 		LastAnchoredRoot:         collections.NewItem(sb, collections.NewPrefix(14), "last_anchored_root", collections.BytesValue),
 		RealProofSubmittedHeight: collections.NewItem(sb, collections.NewPrefix(15), "real_proof_submitted_height", collections.Uint64Value),
+		DetectedEvidenceCount:    collections.NewItem(sb, collections.NewPrefix(16), "detected_evidence_count", collections.Uint64Value),
+		LastDetectedEvidence:     collections.NewItem(sb, collections.NewPrefix(17), "last_detected_evidence", collections.NewJSONValueCodec[types.EvidenceRecord]()),
 	}
 
 	// Khởi tạo SMT với storage adapter được inject vào
