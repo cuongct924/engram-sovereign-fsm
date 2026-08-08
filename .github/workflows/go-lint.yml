@@ -33,9 +33,8 @@ jobs:
           cache: false # golangci-lint-action manages its own cache
 
       - name: Run Linter
-        # v6+ required: .golangci.yml uses the v2 config schema (`version: "2"`),
-        # which golangci-lint-action@v3's bundled v1.x binary cannot parse.
-        uses: golangci/golangci-lint-action@v6
+        # v7+ required: golangci-lint-action@v6 rejects golangci-lint v2.x.
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.12.2
           # v2.x releases aren't installable via `go install <pkg>@v2...` with
