@@ -23,27 +23,45 @@
 # built from THIS checkout (so query-recovery-headers/tx-submit-recovery-proof
 # exist -- both new, see cmd/engramd/reanchor_cli.go).
 #
+# Rolling checkpoint, oldest-EXPECTED_N slice (see
+# x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc for the full
+# design): this script proves the OLDEST EXPECTED_N tracked headers after
+# the current checkpoint (rt_last), not "however many are currently
+# tracked". x/sovereignty/keeper.HeaderHistory keeps every header from the
+# checkpoint onward until this exact segment is proven and pruned, so the
+# oldest EXPECTED_N entries are always a valid, provable segment regardless
+# of how many MORE have accumulated past them since -- a real testnet
+# producing a block roughly every ~0.3-1s blows past a fixed count within a
+# couple of polls (confirmed live: the tracked count was already 17 and
+# climbing by the time a watcher's very first poll ran against a
+# just-started node), so requiring an EXACT match (an earlier version of
+# this script) made the window exactly one block wide and, in practice,
+# nearly impossible to hit. Proving the oldest slice instead means a
+# real proof is buildable at ANY point once at least EXPECTED_N headers
+# exist, not just the single block where the count happens to equal
+# EXPECTED_N -- and since the oldest EXPECTED_N headers are already
+# committed and immutable, the interval growing further underneath this
+# script WHILE it's proving no longer invalidates what it's building (the
+# staleness race described below no longer applies to this slice; it only
+# ever applied when proving against the moving tip).
+#
 # Known limitations (see circuit/reanchoring/src/main.nr's `global N`, and
 # CLAUDE.md):
-#   - N is fixed at compile time. This script only works when EXACTLY N
-#     headers are currently tracked -- if the SOVEREIGN/RECOVERING interval
-#     is a different length, it exits with an error rather than attempting
-#     a mismatched proof. Recompiling the circuit for a different N (or
-#     building variable-length/recursive proof support) is out of scope
-#     here.
-#   - A real, inherent race: this script queries the interval, then spends
-#     real wall-clock time (query + nargo execute + bb prove, ~50-200ms of
-#     actual proving at N=4 per the E6 benchmark, plus RPC/CLI overhead) off
-#     the hot path before submitting. If the chain is STILL producing new
-#     blocks in a still-unhealthy SOVEREIGN/RECOVERING run during that
-#     window, the interval keeps growing underneath the proof -- by
-#     submission time, the tip's real state_root may already differ from
-#     the rt_new this proof was built against, and x/sovereignty/keeper/
-#     msg_server.go's SubmitRecoveryProof correctly rejects it (confirmed
-#     empirically: multiple real end-to-end runs against a continuously-
-#     producing test node were rejected this way, exactly as designed --
-#     this is the same anti-staleness protection RealProofSubmittedHeight
-#     enforces for the "proof already accepted, then interval grew before
+#   - N is fixed at compile time, so a proof only ever advances the
+#     checkpoint by EXPECTED_N headers per call -- a long interval needs
+#     this script run repeatedly (scripts/reanchoring_prover/watch_and_prove.sh
+#     does this automatically) rather than once.
+#   - The staleness race this replaced: an earlier version proved against
+#     the CURRENT TIP specifically, which meant real wall-clock proving time
+#     (query + nargo execute + bb prove, ~50-200ms of actual proving at N=4
+#     per the E6 benchmark, plus RPC/CLI overhead) spent off the hot path
+#     let the interval grow underneath the proof before submission --
+#     x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof correctly
+#     rejected those (confirmed empirically: multiple real end-to-end runs
+#     against a continuously-producing test node were rejected this way,
+#     exactly as designed -- this is the same anti-staleness protection
+#     RealProofSubmittedHeight enforces for the "proof already accepted,
+#     then interval grew before
 #     RECOVERING was reached" case, just observed here at submission time
 #     instead). This is not a bug: a real operator needs to submit while the
 #     interval is genuinely stable (e.g. once BTC/DA/P2P conditions clearly
@@ -77,13 +95,31 @@ echo "[reanchoring_prover] 1/4: querying real header history from $NODE_URL..."
 HEADERS_OUT=$("$ENGRAMD" query-recovery-headers --node "$NODE_URL")
 
 RT_LAST=$(echo "$HEADERS_OUT" | grep '^rt_last=' | cut -d= -f2)
-HEADER_LINES=$(echo "$HEADERS_OUT" | grep '^height=')
-N=$(echo "$HEADER_LINES" | grep -c '^height=' || true)
+ALL_HEADER_LINES=$(echo "$HEADERS_OUT" | grep '^height=')
+TOTAL_N=$(echo "$ALL_HEADER_LINES" | grep -c '^height=' || true)
 
-if [ "$N" -ne "$EXPECTED_N" ]; then
-  echo "[reanchoring_prover] ERROR: currently tracked interval has $N header(s), circuit requires exactly $EXPECTED_N -- no proof attempted (see this script's doc on the fixed-N limitation)." >&2
+if [ "$TOTAL_N" -lt "$EXPECTED_N" ]; then
+  echo "[reanchoring_prover] ERROR: currently tracked interval has only $TOTAL_N header(s), circuit needs at least $EXPECTED_N -- no proof attempted." >&2
   exit 1
 fi
+
+# Prove only the FIRST EXPECTED_N headers after the checkpoint (rt_last),
+# not "however many are currently tracked": x/sovereignty/keeper.HeaderHistory
+# keeps every header from the checkpoint onward until this exact segment is
+# proven and pruned (x/sovereignty/keeper/msg_server.go's
+# pruneHeaderHistoryUpTo), so the oldest EXPECTED_N entries are always a
+# valid, provable segment regardless of how many MORE have accumulated past
+# them since. Requiring TOTAL_N to equal EXPECTED_N exactly (the previous
+# version of this script) made the window exactly one block wide -- on a
+# real testnet producing a block roughly every ~0.3-1s, that window was
+# consistently missed entirely before any watcher could react (confirmed
+# live: TOTAL_N was already 17 and climbing by the time watch_and_prove.sh's
+# very first poll ran against a just-started node). Slicing to the oldest
+# EXPECTED_N instead means a proof is buildable at ANY point once at least
+# EXPECTED_N headers exist, not just the single block where the count is
+# exactly EXPECTED_N.
+N="$EXPECTED_N"
+HEADER_LINES=$(echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N")
 
 field() {
   # field <line-number 1-indexed> <field-name>

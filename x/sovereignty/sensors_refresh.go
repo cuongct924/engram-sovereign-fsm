@@ -213,15 +213,25 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (ui
 // recovery interval is provably safe to re-anchor"), so either is
 // sufficient. Both only ever apply while currently RECOVERING.
 //
-// The real-proof latch must ALSO still match the CURRENT tip height, not
-// merely be nonzero: the SOVEREIGN/RECOVERING interval can keep growing
-// (new headers appended) after a proof was submitted but before RECOVERING
-// is reached, and a proof only covers headers up to the height it was
-// built against -- confirmed by actually running the real prover pipeline
-// end-to-end and appending a header after submitting a real proof.
-// RealProofSubmittedHeight is reset to 0 by preblock.go's
-// CommitFSMTransition the moment RECOVERING is left (Step 5b), so a stale
-// latch from a prior interval can never leak into a new one either.
+// The real-proof latch must ALSO still be within Params.MaxUnprovenTailBlocks
+// of the CURRENT tip height, not merely be nonzero: the SOVEREIGN/RECOVERING
+// interval can keep growing (new headers appended) after a proof was
+// submitted but before RECOVERING is reached, and a proof only covers
+// headers up to the height it was built against -- confirmed by actually
+// running the real prover pipeline end-to-end and appending a header after
+// submitting a real proof. An EXACT match (tipHeight == realProofSubmittedHeight)
+// was tried first and found live to be a genuine liveness bug: on a
+// fast-producing testnet (block time well under one query+prove+submit
+// round trip), the tip is a moving target a proof built from an earlier
+// snapshot can only equal by coincidence -- confirmed live, dozens of real
+// proofs landing successfully (checkpoint advancing every time) without
+// ever once satisfying an exact match, RECOVERING never completing despite
+// the network being genuinely healthy throughout. MaxUnprovenTailBlocks'
+// own doc (types.Params) has the full reasoning for why a bounded gap is
+// safe here, not a heuristic bypass. RealProofSubmittedHeight is reset to 0
+// by preblock.go's CommitFSMTransition the moment RECOVERING is left (Step
+// 5b), so a stale latch from a prior interval can never leak into a new
+// one either.
 func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {
@@ -233,7 +243,7 @@ func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
 
 	realProofValid := false
 	if realProofSubmittedHeight > 0 {
-		if tipHeight, _, err := k.LatestTrackedHeader(ctx); err == nil && tipHeight == realProofSubmittedHeight {
+		if tipHeight, _, err := k.LatestTrackedHeader(ctx); err == nil && tipHeight-realProofSubmittedHeight <= k.Params.MaxUnprovenTailBlocks {
 			realProofValid = true
 		}
 	}

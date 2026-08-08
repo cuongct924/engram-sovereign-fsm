@@ -21,6 +21,55 @@ type Params struct {
 	// the FSM THRESHOLDS block below -- it governs the anchor-submission
 	// mechanism, not the FSM's warning/critical predicates.
 	KDeepFinality uint64
+
+	// MaxUnprovenTailBlocks bounds how far behind the current tip a real ZK
+	// re-anchoring proof's checkpoint (RealProofSubmittedHeight) is allowed
+	// to trail and still count as valid (sensors_refresh.go's
+	// refreshReanchoringProofValid). NOT a bypass of the "RECOVERING ->
+	// ANCHORED must go through a real verified proof" invariant -- every
+	// block up to tip-MaxUnprovenTailBlocks still requires a real, verified
+	// N-header proof (x/sovereignty/keeper/msg_server.go's
+	// SubmitRecoveryProof); this only relaxes "the proof's checkpoint must
+	// equal the tip EXACTLY" to "must be within this many blocks of it".
+	//
+	// Real liveness bug this fixes, found by actually running the rolling-
+	// checkpoint prover against a live, fast-producing testnet: requiring
+	// an EXACT match makes ANCHORED unreachable whenever block production
+	// is faster than one full query+prove+submit round trip, since the tip
+	// is a moving target that a real proof (built from a snapshot taken
+	// before it lands) can only ever equal by coincidence -- confirmed
+	// live, dozens of real proofs landing successfully (checkpoint
+	// advancing every time) without ever once satisfying the exact-match
+	// check, RECOVERING never completing despite the network being
+	// genuinely healthy the whole time. This mirrors KDeepFinality's own
+	// "accept once K confirmations deep, not literally at the current
+	// tip" precedent already used elsewhere in this same file for Bitcoin
+	// settlement, and is the same pattern production ZK-rollups use
+	// (sequencer-confirmed "soft" state vs L1-proven "hard" state trailing
+	// behind it by a bounded, continuously-shrinking backlog) -- not an
+	// invented workaround.
+	//
+	// Originally set to N=4 (the circuit's fixed per-proof header count) on
+	// the theoretical reasoning that a single proof can only ever advance
+	// the checkpoint by N at a time, so a tighter bound wouldn't change
+	// what's achievable. That theory was WRONG, found by actually
+	// measuring the real steady-state gap against a live, continuously-
+	// producing testnet after deploying it: the full query + witness-link
+	// + nargo execute + bb prove + broadcast + confirm round trip takes
+	// long enough in wall-clock time that ~9-10 new headers accumulate
+	// during a SINGLE proof cycle, while each accepted proof only removes
+	// N=4 -- so the gap oscillates around 9-10 in steady state (real
+	// histogram from one run: 12/21 samples at exactly 9, none at or below
+	// 4), meaning N=4 as the bound was structurally unsatisfiable, not just
+	// unlucky. Set to 16 -- comfortable margin above the observed 9-10
+	// steady-state band (covers normal variance) plus headroom for a
+	// round-skip stall (observed up to 50s+) briefly widening the gap
+	// further without permanently blocking the transition. Revisit if the
+	// proof pipeline's wall-clock latency changes materially (e.g. if
+	// prove_and_submit.sh's round trip is later optimized to be faster
+	// than N blocks' worth of real time, at which point N=4 itself would
+	// become achievable again).
+	MaxUnprovenTailBlocks uint64
 }
 
 // DefaultParams returns this repo's genesis-constant proposal for a real
@@ -83,6 +132,12 @@ func DefaultParams() Params {
 		// every 20s); a mainnet deployment should use something closer to the
 		// industry-standard 6-confirmation (~1h) settlement depth.
 		KDeepFinality: 2,
+		// MaxUnprovenTailBlocks: 16 -- see the field's own doc on
+		// x/sovereignty/types.Params for the full reasoning. NOT N=4 (tried
+		// first, found live to be structurally unsatisfiable: the real
+		// proof round trip takes long enough that the steady-state gap
+		// oscillates around 9-10, never at or below 4).
+		MaxUnprovenTailBlocks: 16,
 		// btc_gap thresholds: KDeepFinality + margin, NOT close to
 		// KDeepFinality itself -- see doc above. Comfortably above the
 		// observed [2,3] steady-state band under this testnet's mining cadence.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"time"
 
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -153,18 +154,45 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.BroadcastTxCommit(context.Background(), txBytes)
+
+			// BroadcastTxCommit blocks the RPC server itself for a fixed,
+			// non-configurable ~10s waiting for DeliverTx (CometBFT's own
+			// internal poll loop) -- found live to be a real bottleneck
+			// against this testnet's occasional round-skip stalls (up to
+			// 50s+ observed): a single submission attempt can burn the
+			// ENTIRE 10s budget on a block that was always going to land
+			// a few seconds later anyway, starving watch_and_prove.sh's
+			// retry loop of the time it needs to catch the next real
+			// opportunity. BroadcastTxSync returns as soon as CheckTx
+			// passes (near-instant in practice) -- DeliverTx's real result
+			// is then polled here directly, with a timeout matched to this
+			// testnet's OBSERVED worst-case block latency rather than
+			// CometBFT's hardcoded default.
+			syncResult, err := client.BroadcastTxSync(context.Background(), txBytes)
 			if err != nil {
 				return err
 			}
-			if result.CheckTx.Code != 0 {
-				return fmt.Errorf("rejected in CheckTx: %s", result.CheckTx.Log)
+			if syncResult.Code != 0 {
+				return fmt.Errorf("rejected in CheckTx: %s", syncResult.Log)
 			}
-			if result.TxResult.Code != 0 {
-				return fmt.Errorf("rejected in DeliverTx: %s", result.TxResult.Log)
+
+			const pollTimeout = 30 * time.Second
+			const pollInterval = 300 * time.Millisecond
+			deadline := time.Now().Add(pollTimeout)
+			for {
+				txResult, txErr := client.Tx(context.Background(), syncResult.Hash, false)
+				if txErr == nil {
+					if txResult.TxResult.Code != 0 {
+						return fmt.Errorf("rejected in DeliverTx: %s", txResult.TxResult.Log)
+					}
+					fmt.Printf("submitted at height %d, hash %s\n", txResult.Height, syncResult.Hash)
+					return nil
+				}
+				if time.Now().After(deadline) {
+					return fmt.Errorf("passed CheckTx (hash %s) but DeliverTx result not observed within %s -- likely still pending in a slow/round-skipping block, not necessarily rejected", syncResult.Hash, pollTimeout)
+				}
+				time.Sleep(pollInterval)
 			}
-			fmt.Printf("submitted at height %d, hash %s\n", result.Height, result.Hash)
-			return nil
 		},
 	}
 	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
