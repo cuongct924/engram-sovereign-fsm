@@ -46,7 +46,7 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 		FSMState:   types.StateAnchored,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
 		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
-		ZKProofRef: false,
+		ZKProofRef: nil,
 	}
 }
 
@@ -142,7 +142,7 @@ func TestProcessProposal_RejectsWithdrawalWhileSovereign(t *testing.T) {
 func TestProcessProposal_RejectsPrematureZKProofClaim(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 	ext := healthyExtendedProposal(k, ctx)
-	ext.ZKProofRef = true // hysteresis not even relevant here (state isn't RECOVERING)
+	ext.ZKProofRef = []byte("claimed-root") // hysteresis not even relevant here (state isn't RECOVERING)
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
@@ -259,7 +259,7 @@ func TestCommitFSMTransition_TracksZKProofSubmission(t *testing.T) {
 		FSMState:   types.StateRecovering,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 1, Attestation: true},
 		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
-		ZKProofRef: true,
+		ZKProofRef: []byte("claimed-root"),
 	}
 	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
 

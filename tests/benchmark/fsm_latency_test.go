@@ -83,7 +83,7 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 		FSMState:   types.StateAnchored,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
 		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
-		ZKProofRef: false,
+		ZKProofRef: nil,
 	}
 }
 
@@ -121,7 +121,7 @@ func BenchmarkProposalSize(b *testing.B) {
 			FSMState:   types.StateAnchored,
 			DAReceipt:  daReceipt,
 			BTCReceipt: btcReceipt,
-			ZKProofRef: false,
+			ZKProofRef: nil,
 		}},
 	}
 

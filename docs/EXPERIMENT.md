@@ -148,7 +148,7 @@ P2P health profiler là điểm **novelty** vì sensor output không chỉ dùng
 | # | Kịch bản | Mô tả |
 |---|----------|-------|
 | A1 | Peer Slot Exhaustion | Lấp đầy slot kết nối bằng peer giả |
-| A2 | BGP Hijacking / Sybil | Peer cùng ASN/subnet giả mạo định tuyến |
+| A2 | Sybil qua đa-subnet giả lập (không phải BGP Hijacking theo nghĩa đen -- xem ghi chú dưới) | Peer cùng ASN/subnet giả mạo định tuyến |
 | A3 | Churn-based Rotation | Thay thế peer liên tục để tránh bị phát hiện |
 | A4 | Relay Node Attack | Chèn node trung gian làm tăng độ trễ |
 
@@ -169,14 +169,27 @@ P2P health profiler là điểm **novelty** vì sensor output không chỉ dùng
 | Relay Node Attack | Peer-count | 0.5% | 100.0% | N/A |
 | | **Tri-interface** | **0.2%** | **0.0%** | **250 ms** |
 
-**Đã đo thật (nhưng SYNTHETIC, không phải live-network -- xem lưu ý dưới):** bảng trên là số mục tiêu chưa đo. Docker daemon không chạy trong môi trường
-này nên không có Pumba chaos injection thật; `scripts/e4_p2p_eclipse_detection/simulate_eclipse_attack.py` thay vào đó chạy Monte Carlo tổng hợp qua
+**Đã đo thật (nhưng SYNTHETIC, không phải live-network -- xem lưu ý dưới):** bảng trên là số mục tiêu chưa đo bằng live cluster.
+`scripts/e4_p2p_eclipse_detection/simulate_eclipse_attack.py` chạy Monte Carlo tổng hợp qua
 `go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`: hàm detector thật (`types.IsP2PQualityHealthy`) và baseline peer-count-only được kiểm tra
 trên các peer-snapshot ngẫu nhiên dựng tay mô phỏng đặc trưng từng attack (2000 trial/ô, seed cố định), ở cả `DefaultParams()` (ngưỡng nhỏ dùng để verify
 TLC) và một bộ ngưỡng "production_scale" thực tế hơn. Kết quả thật: FPR=0% cho cả hai detector, FNR=100% cho peer-count-only ở CẢ 4 attack (vì các attack
 được thiết kế để giữ nguyên clean-peer count trong khi phá các tín hiệu khác), FNR=0% cho tri-interface, detection delay 1.0–2.7 snapshot tùy attack/ngưỡng
 -- xem `scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`. Đây là bằng chứng thật về hàm detector thật, nhưng trên input tổng hợp,
 KHÔNG tương đương với đo trên mạng thật.
+
+**Ghi chú quan trọng, sửa lại lý do trước đây (đã lỗi thời):** lý do "Docker daemon không chạy trong môi trường này" từng được ghi ở đây không còn đúng --
+Docker đã chạy ổn định xuyên suốt phiên làm việc sau này. Lý do thật khiến A1/A2 chưa có dữ liệu live trước đây là **cơ chế phòng thủ chủ động chưa từng
+được code hóa** (chỉ có phát hiện bị động qua `IsP2PQualityHealthy`, không có ingress filter chủ động) -- không phải thiếu công cụ test. Điều này đã được
+đóng: `x/sovereignty/keeper/peer_filter.go`'s `FilterPeerByAddr` (đăng ký qua `baseapp.SetAddrPeerFilter`) là ingress filter thật, chặn peer dựa trên mật độ
+subnet (`Params.MaxPeersPerSubnet`) TRƯỚC khi được thêm vào peer set -- khác với `SubnetDiversity` (chỉ báo cáo SAU khi đã bị chiếm). A1/A2 giờ có hạ tầng
+live-docker thật để kiểm chứng defense này: `docker/attacker-peer-swarm.yml` (K container `engramd` thật, không phải validator, dial vào
+`engram-node01`) + `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py` (2 leg: `a1` -- 10 attacker cùng subnet `engram-net`; `a2` -- 12 attacker chia
+đều 4 subnet giả lập riêng biệt `attacker-subnet-a/b/c/d`, đo qua `/net_info` RPC thật của CometBFT, độc lập với khoảng trống Query.State đã biết). A2 đổi
+tên thành "Sybil qua đa-subnet giả lập" vì BGP Hijacking thật (thao túng route tầng Internet) không thể và không nên mô phỏng trong docker testnet --
+điều `MaxPeersPerSubnet`/`SubnetDiversity` thực sự phòng thủ là **hệ quả** của BGP hijack (nhiều peer trông như đến từ nhiều subnet khác nhau nhưng cùng
+1 kẻ tấn công), không phải nguyên nhân gốc, nên mô phỏng hệ quả này là đủ trung thực. Kết quả live thật từ 2 leg này sẽ được cập nhật vào bảng trên khi
+chạy xong.
 
 ---
 
@@ -188,7 +201,8 @@ Chạy `HYSTERESIS_WAIT` ∈ {0, 1, 3, 5, 10, 20} trong các môi trường: sta
 
 **Metrics:** flapping count, recovery latency, block throughput trong RECOVERING, false recovery rate, thời gian withdrawal bị khóa.
 
-> **Kết quả mong muốn:** `HYSTERESIS_WAIT = 3–5` là sweet spot; giá trị 0 hoặc 1 dễ flapping; giá trị quá cao làm recovery chậm và khóa withdrawal lâu.
+> **Kết quả mong muốn ban đầu (ĐÃ BỊ BÁC BỎ bởi "Phát hiện thật" bên dưới -- giữ lại đây chỉ để đối chiếu lịch sử, không phải claim còn hiệu lực):**
+> `HYSTERESIS_WAIT = 3–5` là sweet spot; giá trị 0 hoặc 1 dễ flapping; giá trị quá cao làm recovery chậm và khóa withdrawal lâu.
 
 **Đã đo thật (5/5 môi trường):** `go test ./tests/e2e/... -run TestE5_HysteresisSweep` sét thật `HYSTERESIS_WAIT` qua {0,1,3,5,10,20} trên
 Harness/BeginBlocker thật, dưới 5 môi trường: "stable" (không nhiễu, nhóm đối chứng) và 4 môi trường nhiễu liên tục (`noisy_btc`, `noisy_da`,
@@ -197,12 +211,21 @@ Harness/BeginBlocker thật, dưới 5 môi trường: "stable" (không nhiễu,
 `tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4 (3 panel: stability/flapping/time-to-first-recovery) ở
 `scripts/e5_hysteresis_flapping/results/figure4_hysteresis.{png,pdf}`.
 
-**Phát hiện thật (khác "kết quả mong muốn" ở trên, không chỉnh để khớp):** dưới nhiễu liên tục, `anchored_uptime` (tỷ lệ thời gian ở ANCHORED trong cửa
-sổ 100 block) **giảm đơn điệu** khi HYSTERESIS_WAIT tăng (vd. `noisy_btc`: 59.8% ở HW=0 → 0.0% ở HW=20) -- **không có sweet spot nội suy**. Lý do là kiến
-trúc, không phải lỗi thực nghiệm: `HYSTERESIS_WAIT` chỉ gác cổng transition RECOVERING→ANCHORED; một khi đã ở ANCHORED, một lần đọc xấu là rớt ngay
-(ANCHORED không có bảo vệ hysteresis cho chính nó), và SUSPICIOUS→ANCHORED hoàn toàn không có cổng hysteresis nào (`CalculateNextState`'s nhánh
-SUSPICIOUS: `if healthy { return ANCHORED }`, vô điều kiện). Vì vậy HYSTERESIS_WAIT lớn chỉ trì hoãn việc đạt ANCHORED mà không làm nó ổn định hơn khi đã
-đạt được -- đây là một tính chất thiết kế thật đáng nêu rõ trong bài, không phải lỗi.
+**Phát hiện thật (khác "kết quả mong muốn" ở trên, không chỉnh để khớp):** dưới nhiễu liên tục, CẢ HAI chỉ số Figure 4 đo đều đi SAI hướng so với kỳ
+vọng ban đầu, không chỉ một: `anchored_uptime` (tỷ lệ thời gian ở ANCHORED trong cửa sổ 100 block) **giảm đơn điệu** khi HYSTERESIS_WAIT tăng (vd.
+`noisy_btc`: 59.8% ở HW=0 → 0.0% ở HW=20), và `flapping_count` **tăng đơn điệu** thay vì giảm (cùng môi trường: 10 ở HW=0 → 37 ở HW=20) -- **không có
+sweet spot nội suy trên bất kỳ chỉ số nào**.
+
+Lý do là kiến trúc, không phải lỗi thực nghiệm, và giải thích được cả 2 chiều hướng ngược kỳ vọng: đọc trực tiếp `x/sovereignty/keeper/circuit_breaker.go`'s
+`CalculateNextState`/`NextSafeBlocks` cho thấy nhánh RECOVERING's `!healthy` gửi FSM **thẳng về SOVEREIGN** ngay khi có 1 block xấu duy nhất (không phải
+chỉ reset bộ đếm tại chỗ), và `NextSafeBlocks` chỉ cộng dồn khi 2 block RECOVERING liên tiếp -- một bộ đếm streak cứng, không có partial credit. Dưới
+nhiễu per-block cố định, xác suất hoàn thành 1 streak dài HYSTERESIS_WAIT block liên tục không gián đoạn giảm theo hàm mũ khi HYSTERESIS_WAIT tăng --
+nên giá trị càng lớn, hệ thống càng phải thử-và-thất-bại nhiều vòng RECOVERING→SOVEREIGN→RECOVERING hơn (chính là flapping) trước khi (nếu có) thành
+công, đồng thời tốn nhiều block hơn ở ngoài ANCHORED. Thêm vào đó: một khi đã ở ANCHORED, một lần đọc xấu là rớt ngay (ANCHORED không có bảo vệ
+hysteresis cho chính nó), và SUSPICIOUS→ANCHORED hoàn toàn không có cổng hysteresis nào (`CalculateNextState`'s nhánh SUSPICIOUS:
+`if healthy { return ANCHORED }`, vô điều kiện) -- bất đối xứng giữa cạnh phục hồi (có gác cổng) và cạnh thoái lui (không có gì bảo vệ). Vì vậy
+HYSTERESIS_WAIT lớn không hề "lọc nhiễu" như kỳ vọng ban đầu -- nó chỉ đặt ra 1 bài kiểm tra ngày càng khó đỗ, và mỗi lần trượt lại tự nó tạo thêm dao
+động. Đây là một **kết quả tiêu cực (negative result) có giá trị công bố**, không phải lỗi cần sửa hay tham số cần tìm lại "giá trị đúng".
 
 ---
 
@@ -309,21 +332,58 @@ xem chi tiết ở ghi chú "Đã đo thật" của E2 phía trên (cùng một 
 `ENGRAM_EXTENDED_PROPOSAL_V1` trên 100% block; block interval không khác biệt có ý nghĩa ở trạng thái idle (do CometBFT's `timeout_commit` mặc định chi
 phối cả hai, không phải do ExtendedProposal).
 
+**Tách lại thành 2 chế độ overhead (steady-state vs. recovery-event), không phải 1 số trung bình cộng dồn:** bảng V0→V5 và số +228B/block ở trên chỉ đo
+các trường LUÔN có mặt mọi block (`fsm_state`/`da_receipt`/`btc_receipt`) -- chúng loại trừ hoàn toàn chi phí thật của ZK proof, vì `ZKProofRef` (kể cả
+sau khi đổi sang hash ở mục refinement note) không bao giờ mang theo proof bytes thật (~14,656 byte UltraHonk, đo thật ở E6's `table6b_scaling.csv`) bên
+trong `ExtendedProposal` -- proof thật đi qua 1 tx `SubmitRecoveryProof` riêng biệt. Trình bày 1 con số trung bình vừa đánh giá thấp chi phí gần-bằng-0
+của đường đi khỏe mạnh, vừa che giấu hoàn toàn chi phí thật (có giới hạn, hiếm) của đường phục hồi:
+
+- **Steady-state tax** (mọi block, luôn trả): ~230B/block (số đo thật ở trên), CPU không đáng kể.
+- **Recovery-event cost** (chỉ block có tx `SubmitRecoveryProof`, hiếm, tự giới hạn): proof thật ~14,656B (E6) + chi phí CPU thật của `bb verify` trong
+  `DeliverTx` (`x/sovereignty/keeper/reanchor.go`'s `VerifyZKProof`) -- **đã đo thật**: `go test ./tests/benchmark/... -bench=BenchmarkVerifyZKProof`
+  chạy `bb verify` thật (không mock) trên chính proof N=4 thật đã tạo ở E6, kết quả **~18.77 ms/lần verify** (`BenchmarkVerifyZKProof-8: 3 iterations,
+  18,771,861 ns/op`). Chi phí này chỉ phát sinh tới khi `RealProofSubmittedHeight` đuổi kịp tip, không kéo dài -- đúng tinh thần "graceful degradation,
+  thuế gần-bằng-0 ở đường đi khỏe mạnh" của toàn bộ thiết kế, một luận điểm mạnh hơn nhiều so với 1 con số trung bình mù mờ.
+- `scripts/e7_consensus_overhead/live_overhead_scan.py` đã cập nhật để gộp overhead mỗi block theo `fsm_state` thật, và đánh dấu (heuristic theo kích
+  thước, không phải decode protobuf chính xác) block nào có khả năng chứa tx `SubmitRecoveryProof` -- mẫu 60-block trước đó chưa từng đi qua RECOVERING,
+  cần chạy lại sau khi lái cluster qua 1 chu kỳ RECOVERING thật (vd. `live_lifecycle_test.py`'s phase 7) để bắt được mẫu thật.
+
 ---
 
 ### E8 — Attack-Resilience Test Suite
 
 Chuyển các lemma an toàn thành integration tests hoặc simulation traces.
 
-| Attack | Expected result |
-|--------|----------------|
-| Byzantine proposer set fake `fsm_state = ANCHORED` khi local sensors critical | Honest validators prevote nil |
-| DA attestation false nhưng proposal chứa block body/header | Reject |
-| BTC receipt rollback / forged checkpoint hash | Reject |
-| Withdrawal tx during SOVEREIGN | Blocked |
-| Leader censorship of forced tx queue | Timeout/leader rotation; tx eventually included |
-| Timeout flooding by Byzantine nodes | Bounded effect, no safety violation |
-| Double-signing | Evidence extracted/logged |
+**Ma trận A1-A8** (thay thế hoàn toàn bảng 7 dòng trước đây -- lý do reconciliation: bảng cũ có 7 dòng thật, không phải 8 như prose "6/8" từng ghi
+nhầm; A1/A2 dưới đây thay cho 2 dòng "Timeout flooding"/"Double-signing" cũ, ánh xạ đúng lemma hình thức đã có sẵn trong `spec/README.md` — Eclipse ≈
+Lemma 7.5, Data Withholding ≈ Lemma 7.2 — và tái dùng hạ tầng đã xây cho E4 thay vì trùng lặp công việc):
+
+| # | Attack | Expected result | Bằng chứng thật hiện có | Cơ chế live-docker |
+|---|--------|------------------|--------------------------|---------------------|
+| A1 | Eclipse Attack (cô lập) | Filter chặn slot trước khi bị chiếm, FSM không degrade sai | Part 1a/2 (real defense + swarm) | `docker/attacker-peer-swarm.yml` leg `a1`, `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py a1` |
+| A2 | Sybil qua đa-subnet giả lập | Filter chặn dựa trên mật độ subnet, không bị đánh lừa bởi đa dạng hoá | Part 1a/2 | leg `a2` của cùng script trên |
+| A3 | Data Withholding | Honest validators reject proposal claiming DA attestation giả | `TestProcessProposal_RejectsMissingDAAttestation` (in-process) + `TestPrepareProposal_FalseDAAttestationClaimsUnverifiedData` (in-process, xác nhận byzantine-mode production) | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=false_da_attestation`), `scripts/e8_attack_resilience/live_byzantine_attacks.py a3_false_da_attestation` |
+| A4 | Forged BTC Receipt | Honest validators reject checkpoint hash không khớp `ExpectedBlockHash` | `TestProcessProposal_RejectsForgedBTCHash` + `TestPrepareProposal_ForgeBTCHashTampersReceipt` (in-process) | cùng script trên, scenario `a4_forge_btc_hash` |
+| A5 | Withdrawal During SOVEREIGN | Tx bị giữ lại (không commit) trong khi SOVEREIGN | `TestProcessProposal_RejectsWithdrawalWhileSovereign` (in-process) | `engramd tx-submit-forced-tx --payload "TX_WITHDRAWAL..."` (cmd/engramd/e8_cli.go), `scripts/e8_attack_resilience/live_withdrawal_test.py` |
+| A6 | Malicious Proposer | Honest validators reject `fsm_state` giả không khớp tính toán cục bộ | `TestProcessProposal_RejectsFSMStateMismatch` + `TestPrepareProposal_FakeFSMStateOverridesRealComputation` (in-process) | cùng script byzantine trên, scenario `a6_fake_fsm_state` |
+| A7 | Censorship / Tx Withholding | Leader cố tình bỏ qua tx bị phát hiện qua `IsCensoring`/`ForcedTxQueue` | `TestProcessProposal_RejectsCensoringProposal`, `TestProcessProposal_AcceptsCensoredTxOnceIncluded`, `TestPreBlocker_TracksForcedTxIgnoredRounds` (in-process) + `TestPrepareProposal_CensorTxOmitsTargetedTx` (in-process, byzantine-mode production) | Nửa chủ động (leader cố tình censor 1 tx thật) CHƯA có driver live -- `applyByzantineBehavior`'s `censor_tx:<hash>` đã hỗ trợ về mặt cơ chế, chỉ thiếu script điều phối gửi 1 forced-tx thật rồi quan sát bị bỏ qua |
+| A8 | Combined Attack | An toàn giữ vững dưới nhiều vector tấn công chồng lấn | Chưa có ở đâu trước đây | Capstone, chạy sau cùng khi A1-A7 đã có cơ chế thật -- vd. node04 byzantine `fake_fsm_state` đồng thời với Sybil swarm từ Part 2 đang hoạt động |
+| — | Double-signing (không đánh số, giữ như mục phụ) | Evidence extracted/logged | NOT COVERED | Cần wiring CometBFT evidence module vào `app.go` (core-engineering mới, tách khỏi phạm vi đợt này) -- xem ghi chú riêng bên dưới |
+
+**Double-signing, đánh giá lại (rẻ hơn dự tính ban đầu nhưng vẫn ngoài phạm vi đợt này):** với hạ tầng Byzantine-mode validator đã xây (node04 có thể
+điều khiển hành vi qua `ENGRAM_BYZANTINE_BEHAVIOR`), nửa khó nhất của bài toán (1 validator thật, còn sống, hành xử ác ý) đã có sẵn -- chỉ cần clone
+`priv_validator_key.json` của node04 vào 1 container thứ 2 để 2 tiến trình độc lập ký 2 vote khác nhau cùng height/round, không cần sửa fork. Phần còn
+thiếu thật sự là wiring `x/evidence` (Cosmos SDK) vào `app/app.go` theo đúng pattern direct-registration đã dùng cho `MsgServiceRouter`/`GRPCQueryRouter`
+(app này không có `module.Manager`) để `DeliverTx` thực sự xử lý `DuplicateVoteEvidence` thay vì bỏ qua âm thầm -- đây là core-engineering ABCI evidence
+lần đầu tiên trong app này, rủi ro cao hơn các phần khác của Part 4, nên để lại làm việc riêng, không chặn phần còn lại.
+
+**"Timeout flooding by Byzantine nodes"** (dòng cũ, không còn trong ma trận đánh số A1-A8 ở trên): đóng qua `chaos-crash` (SIGKILL 1 node) như phần
+gần nhất hiện có, với 2 vế caveat rõ ràng: (1) **có** đi qua đúng đường f+1-timeout-quorum thật (M0b's `handleTimeout`/
+`recordTimeoutSenderAndMaybeAdvance`), cho số liệu liveness-recovery thật cho **mô hình lỗi crash** (f=1 validator mất phản hồi hoàn toàn); (2) **không**
+xác nhận khả năng chống mô hình **Byzantine chủ động** thật của dòng này -- 1 validator còn sống, còn ký được, cố tình flood `Timeout` attestation hợp lệ
+để thao túng nhịp round-skip nhanh hơn mức im lặng đơn thuần gây ra, và không hề thử thách đường xác minh chữ ký của `handleTimeoutMessage` dưới nội
+dung đối kháng thật (SIGKILL không gửi gì cả). Hướng đóng rẻ hơn trong tương lai (chưa làm): hạ tầng ký `Timeout` (`PrivValidator.SignTimeout`) từ M0b
+đã có sẵn, chỉ cần 1 harness nhỏ kích hoạt đường ký sớm/chủ động thay vì chỉ khi timer thật hết hạn.
 
 **Ngoài pass/fail:** đo number of rounds to recover, number of invalid proposals rejected, honest validator agreement rate, censorship latency, slashable evidence detection latency.
 

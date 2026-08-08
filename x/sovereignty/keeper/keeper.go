@@ -86,6 +86,12 @@ type Keeper struct {
 
 	// SMT Tree
 	Tree *merkletree.MerkleTree
+
+	// peerFilterSrc backs FilterPeerByAddr (peer_filter.go) -- nil until
+	// SetPeerFilterSource is called (cmd/engramd's wirePeerFilter, late-bound
+	// after node.NewNode() constructs the real *p2p.Switch, since
+	// NewEngramApp registers FilterPeerByAddr on BaseApp before that).
+	peerFilterSrc PeerFilterSource
 }
 
 func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merkletree.Storage) *Keeper {

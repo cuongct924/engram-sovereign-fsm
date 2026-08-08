@@ -21,6 +21,7 @@ PROFILE_TO_SERVICE = {
     "chaos-loss": "pumba-loss",
     "chaos-crash": "pumba-kill",
     "chaos-eclipse": "pumba-eclipse",
+    "chaos-btc-delay": "pumba-btc-delay",
 }
 
 # Real CONTAINER names (compose.yml's `container_name:` override on each
@@ -41,6 +42,7 @@ PROFILE_TO_CONTAINER = {
     "chaos-loss": "pumba-loss-injector",
     "chaos-crash": "pumba-crash-injector",
     "chaos-eclipse": "pumba-eclipse-injector",
+    "chaos-btc-delay": "pumba-btc-delay-injector",
 }
 
 # Real, human-readable description of each profile's actual command (see
@@ -51,6 +53,7 @@ PROFILE_DESCRIPTIONS = {
     "chaos-loss": "netem 5% packet loss on engram-node01,engram-node02 for 2m",
     "chaos-crash": "SIGKILL engram-node04 (immediate, one-shot)",
     "chaos-eclipse": "netem 100% packet loss on engram-node01 for 3m",
+    "chaos-btc-delay": "netem delay 500ms +-100ms jitter on bitcoin-node01 for 2m",
 }
 
 
@@ -79,11 +82,16 @@ def _up_detached(profile: str) -> str:
     the command to that one container.
     """
     if profile not in PROFILE_TO_SERVICE:
-        raise ValueError(f"unknown profile {profile!r}, expected one of {list(PROFILE_TO_SERVICE)}")
+        raise ValueError(
+            f"unknown profile {profile!r}, expected one of {list(PROFILE_TO_SERVICE)}"
+        )
     service = PROFILE_TO_SERVICE[profile]
     subprocess.run(
         ["docker", "compose", "--profile", profile, "up", "-d", service],
-        capture_output=True, text=True, timeout=30, check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
     )
     return PROFILE_TO_CONTAINER[profile]
 
@@ -95,17 +103,29 @@ def run_pumba_profile(profile: str, timeout_s: float = 600.0) -> ChaosRunResult:
     started = time.time()
     container = _up_detached(profile)
     wait_proc = subprocess.run(
-        ["docker", "wait", container], capture_output=True, text=True, timeout=timeout_s,
+        ["docker", "wait", container],
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
     )
-    logs_proc = subprocess.run(["docker", "logs", container], capture_output=True, text=True)
+    logs_proc = subprocess.run(
+        ["docker", "logs", container], capture_output=True, text=True
+    )
     ended = time.time()
 
-    exit_code = int(wait_proc.stdout.strip()) if wait_proc.stdout.strip().isdigit() else -1
+    exit_code = (
+        int(wait_proc.stdout.strip()) if wait_proc.stdout.strip().isdigit() else -1
+    )
     cleanup_profile(profile)
 
     return ChaosRunResult(
-        profile=profile, service=PROFILE_TO_SERVICE[profile], started_at=started, ended_at=ended,
-        returncode=exit_code, stdout=logs_proc.stdout, stderr=logs_proc.stderr,
+        profile=profile,
+        service=PROFILE_TO_SERVICE[profile],
+        started_at=started,
+        ended_at=ended,
+        returncode=exit_code,
+        stdout=logs_proc.stdout,
+        stderr=logs_proc.stderr,
     )
 
 
@@ -124,7 +144,9 @@ def start_pumba_profile(profile: str, wait_running_timeout_s: float = 15.0) -> s
         if status in ("running", "exited"):
             return container
         time.sleep(0.3)
-    raise RuntimeError(f"{container} did not reach running/exited state within {wait_running_timeout_s}s")
+    raise RuntimeError(
+        f"{container} did not reach running/exited state within {wait_running_timeout_s}s"
+    )
 
 
 def is_running(container: str) -> bool:
@@ -138,20 +160,68 @@ def wait_for_no_active_netem(timeout_s: float = 20.0) -> None:
     chaos-crash (SIGKILL, no qdisc) doesn't strictly need this, but calling
     it unconditionally is cheap and safe.
     """
-    netem_containers = ["pumba-latency-injector", "pumba-loss-injector", "pumba-eclipse-injector"]
+    netem_containers = [
+        "pumba-latency-injector",
+        "pumba-loss-injector",
+        "pumba-eclipse-injector",
+        "pumba-btc-delay-injector",
+    ]
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if all(container_status(c) in ("missing", "exited") for c in netem_containers):
             return
         time.sleep(0.5)
-    still = [c for c in netem_containers if container_status(c) not in ("missing", "exited")]
-    raise RuntimeError(f"netem containers still active, refusing to start a new profile: {still}")
+    still = [
+        c for c in netem_containers if container_status(c) not in ("missing", "exited")
+    ]
+    raise RuntimeError(
+        f"netem containers still active, refusing to start a new profile: {still}"
+    )
+
+
+def toggle_profile_bursts(profile: str, on_s: float, off_s: float, cycles: int) -> None:
+    """Repeatedly starts and stops profile to simulate genuine peer
+    connect/disconnect churn (docs/EXPERIMENT.md's E4 A3 Churn-based
+    Rotation, E9's P2P churn-spike leg), rather than one sustained
+    degradation window like run_pumba_profile's normal use. Built from the
+    same start_pumba_profile/cleanup_profile primitives everything else
+    here uses -- no new Pumba/compose mechanism, just a different calling
+    pattern over the existing ones.
+
+    Each on-phase blocks until the container is confirmed running (matching
+    start_pumba_profile's own wait_running_timeout_s default), then sleeps
+    on_s before cleaning it up and sleeping off_s -- this only makes sense
+    for the netem-based profiles (chaos-delay/chaos-loss/chaos-eclipse/
+    chaos-btc-delay), whose own `--duration` is normally long enough that
+    natural expiry wouldn't otherwise produce repeated cycles within a
+    reasonable observation window. chaos-crash (a one-shot SIGKILL, not a
+    sustained condition) is not a meaningful input here.
+    """
+    if profile == "chaos-crash":
+        raise ValueError(
+            "toggle_profile_bursts is for sustained netem profiles, not chaos-crash"
+        )
+    for i in range(cycles):
+        print(
+            f"toggle_profile_bursts({profile}): cycle {i + 1}/{cycles} -- ON for {on_s:.0f}s"
+        )
+        start_pumba_profile(profile)
+        time.sleep(on_s)
+        cleanup_profile(profile)
+        print(
+            f"toggle_profile_bursts({profile}): cycle {i + 1}/{cycles} -- OFF for {off_s:.0f}s"
+        )
+        time.sleep(off_s)
+        wait_for_no_active_netem()
 
 
 def cleanup_profile(profile: str) -> None:
     service = PROFILE_TO_SERVICE[profile]
-    subprocess.run(["docker", "compose", "--profile", profile, "rm", "-f", service],
-                    capture_output=True, text=True)
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "rm", "-f", service],
+        capture_output=True,
+        text=True,
+    )
 
 
 def container_status(name: str) -> str:
@@ -162,7 +232,8 @@ def container_status(name: str) -> str:
     """
     proc = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Status}}", name],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if proc.returncode != 0:
         return "missing"

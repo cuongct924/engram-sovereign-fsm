@@ -496,7 +496,19 @@ Proposal := {
                      checkpoint_block_height : Nat,   -- Bitcoin block containing Engram checkpoint 
                      checkpoint_block_hash   : Hash   -- canonical chain hash of the block contains Engram checkpoint
                    },
-    zk_proof_ref : Bool  -- proof submission flag for re-anchoring
+    zk_proof_ref : Bool  -- proof submission flag for re-anchoring. The
+                            concrete implementation (x/sovereignty/proposal.go's
+                            ExtendedProposal.ZKProofRef) refines this to a
+                            hash-valued commitment -- the ZK proof's attested
+                            new state root, rt_new -- rather than a bare flag,
+                            for audit traceability of which specific proof
+                            backed a given transition. This is a safe
+                            refinement, not a widening of the spec: every
+                            operator that reads zk_proof_ref below
+                            (VerifyZkProof, IsValidProposal, ZKProofConsistency
+                            in EngramServer.tla) only ever tests presence,
+                            never identity, so a non-nil commitment refines to
+                            abstract TRUE and nil refines to abstract FALSE.
 }
 ```
 

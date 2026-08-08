@@ -114,7 +114,7 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 
 	// Step 4: ZK proof submission tracking -- mark as submitted (pending
 	// Bitcoin confirmation) once a proof was claimed while entering/staying RECOVERING.
-	if ext.FSMState == types.StateRecovering && ext.ZKProofRef {
+	if ext.FSMState == types.StateRecovering && len(ext.ZKProofRef) > 0 {
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		if err := k.HBtcSubmitted.Set(ctx, hBtcCurrent); err != nil {
 			return err

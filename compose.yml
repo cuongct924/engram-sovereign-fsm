@@ -8,6 +8,7 @@ include:
   - ./docker/engram-validator-node02.yml
   - ./docker/engram-validator-node03.yml
   - ./docker/engram-validator-node04.yml
+  - ./docker/attacker-peer-swarm.yml
 
 services:
   # ==========================================
@@ -67,12 +68,36 @@ services:
     profiles:
       - chaos-eclipse
     # SCENARIO: Eclipse Attack - Isolate node 01 by dropping 100% of its traffic for 3m
-    command: 
+    command:
       - "netem"
       - "--duration=3m"
       - "loss"
       - "--percent=100"
       - "engram-node01"
+
+  pumba-btc-delay:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-btc-delay-injector
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-btc-delay
+    # SCENARIO: BTC congestion (docs/EXPERIMENT.md's E2 S2) -- no existing
+    # profile above targets a bitcoin-net container at all (chaos-delay's
+    # re2 pattern is anchored to ^engram-node.*). Delay/jitter applied
+    # directly to bitcoin-node01 (the only RPC target every validator's
+    # AnchorTracker/btcGapMetric actually points at -- bitcoin-node02 is
+    # only bitcoin-node01's own regtest sync peer, never dialed by any
+    # engramd), duration matched to scripts/e2_fault_injection's staged-ramp
+    # orchestration rather than a single fixed window (see that script's
+    # own doc on why a single Pumba window can't itself express a ramp).
+    command:
+      - "netem"
+      - "--duration=2m"
+      - "delay"
+      - "--time=500"
+      - "--jitter=100"
+      - "bitcoin-node01"
 
 networks:
   # Main validator network: All validators and monitoring tools communicate here
@@ -110,6 +135,43 @@ networks:
       config:
         - subnet: 172.22.0.0/24
           gateway: 172.22.0.1
+
+  # attacker-subnet-a/b/c/d: 4 DISTINCT bridge networks for E4/E8's A2
+  # (Sybil via simulated multi-subnet swarm, docker/attacker-peer-swarm.yml).
+  # engram-net's own 4 real validators all sit on ONE /24 by construction
+  # (see MinSubnetDiversity's doc in x/sovereignty/types/params.go) -- these
+  # give an attacker swarm genuine multi-subnet diversity to test Part 1a's
+  # real ingress filter (FilterPeerByAddr) against, honestly distinct from
+  # real BGP-level route hijacking (attacking real internet routing
+  # infrastructure, categorically out of scope for a docker testnet).
+  attacker-subnet-a:
+    name: attacker-subnet-a
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+  attacker-subnet-b:
+    name: attacker-subnet-b
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+          gateway: 172.31.0.1
+  attacker-subnet-c:
+    name: attacker-subnet-c
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24
+          gateway: 172.32.0.1
+  attacker-subnet-d:
+    name: attacker-subnet-d
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.33.0.0/24
+          gateway: 172.33.0.1
 
 volumes:
   prometheus-data:

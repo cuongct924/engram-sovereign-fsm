@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -57,6 +56,7 @@ func main() {
 	rootCmd.AddCommand(demoSMTCmd())
 	rootCmd.AddCommand(queryRecoveryHeadersCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
+	rootCmd.AddCommand(txSubmitForcedTxCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -94,6 +94,12 @@ func initHome(home, moniker string) error {
 	cmtcfg.EnsureRoot(home)
 
 	config.Moniker = moniker
+	// Enables the ABCI ingress peer filter (x/sovereignty/keeper/peer_filter.go's
+	// FilterPeerByAddr, wired via app.go's baseapp.SetAddrPeerFilter) -- a
+	// stock cosmos-sdk/CometBFT mechanism, node/setup.go's
+	// createCometTransport already builds the "/p2p/filter/addr/..." ABCI
+	// query path whenever this is true, no fork changes needed.
+	config.FilterPeers = true
 	cmtcfg.WriteConfigFile(filepath.Join(home, "config", "config.toml"), config)
 
 	pv := privval.LoadOrGenFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile())
@@ -257,6 +263,8 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 		// Docker networks, not public-internet-facing.
 		config.RPC.ListenAddress = "tcp://0.0.0.0:26657"
 		config.Instrumentation.Prometheus = true
+		// See initHome's identical FilterPeers comment.
+		config.FilterPeers = true
 
 		var peers []string
 		for j, other := range nodes {
@@ -336,7 +344,17 @@ func runStart(home string, vanilla bool) error {
 	if err != nil {
 		return fmt.Errorf("load genesis (did you run `engramd init` first?): %w", err)
 	}
-	engramApp := app.NewEngramApp(sdkLogger, db, genDoc.ChainID, vanilla)
+	// ENGRAM_BYZANTINE_BEHAVIOR: unset ("") on every real validator --
+	// deliberate misbehavior for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 rows,
+	// only ever set by docker/engram-validator-node04-byzantine.yml. See
+	// x/sovereignty/proposal.go's applyByzantineBehavior for recognized
+	// values.
+	byzantineBehavior := os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR")
+	if byzantineBehavior != "" {
+		fmt.Println("engramd: WARNING -- ENGRAM_BYZANTINE_BEHAVIOR is set:", byzantineBehavior,
+			"(this node will deliberately misbehave; never set this on a real validator)")
+	}
+	engramApp := app.NewEngramApp(sdkLogger, db, genDoc.ChainID, vanilla, byzantineBehavior)
 
 	pv := privval.LoadFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile())
 	nodeKey, err := p2p.LoadNodeKey(config.NodeKeyFile())
@@ -359,6 +377,7 @@ func runStart(home string, vanilla bool) error {
 	}
 
 	wireP2PSensor(engramApp, n, config.P2P.PersistentPeers)
+	wirePeerFilter(engramApp, n)
 	wireBTCSensor(engramApp)
 	wireDASensor(engramApp)
 
@@ -494,11 +513,7 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 		}
 
 		if ip := p.RemoteIP(); ip != nil {
-			if v4 := ip.To4(); v4 != nil {
-				subnets[v4.Mask(net.CIDRMask(24, 32)).String()] = true
-			} else {
-				subnets[ip.Mask(net.CIDRMask(48, 128)).String()] = true
-			}
+			subnets[sovereigntytypes.SubnetOf(ip)] = true
 		}
 		if a.persistentPeerIDs[id] {
 			activeAnchors++
@@ -539,6 +554,22 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 	}
 }
 
+// PeerCountInSubnet implements sovereigntykeeper.PeerFilterSource for the
+// vanilla p2p.Switch transport -- counts currently-connected peers whose
+// types.SubnetOf matches subnet, using the same live peer set
+// PeerHealthSnapshot reads. Used by FilterPeerByAddr (x/sovereignty/keeper/
+// peer_filter.go) to decide whether a NEW connection attempt would push that
+// subnet's population to or above Params.MaxPeersPerSubnet.
+func (a *vanillaP2PHealthAdapter) PeerCountInSubnet(subnet string) uint64 {
+	var count uint64
+	for _, p := range a.sw.Peers().Copy() {
+		if ip := p.RemoteIP(); ip != nil && sovereigntytypes.SubnetOf(ip) == subnet {
+			count++
+		}
+	}
+	return count
+}
+
 // wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot-
 // based mock to a live source. n.Switch() only exists after node.NewNode()
 // returns -- NewEngramApp runs before that, so this late-binds the real
@@ -567,6 +598,31 @@ func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers strin
 		persistentPeerIDs: parsePersistentPeerIDs(persistentPeers),
 		firstSeen:         make(map[p2p.ID]time.Time),
 	})
+}
+
+// wirePeerFilter upgrades engramApp's ingress peer filter
+// (x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr, registered on
+// BaseApp by app.NewEngramApp before n exists) from its fail-open default to
+// a live PeerFilterSource, mirroring wireP2PSensor's exact late-binding
+// pattern and the same n.Switch() type-switch. Only the vanilla *p2p.Switch
+// case is wired (per this repo's confirmed live topology: lp2p is dormant on
+// every real deployment to date, config.toml's `[p2p.libp2p] enabled =
+// false`) -- if lp2p is ever actually enabled, this silently stays a no-op
+// (fail-open) on that path.
+//
+// Builds its own small vanillaP2PHealthAdapter (sw set, no
+// persistentPeerIDs/firstSeen) rather than reusing wireP2PSensor's instance
+// -- PeerCountInSubnet only ever reads a.sw.Peers() fresh, none of the
+// stateful churn-tracking fields wireP2PSensor's instance carries, so a
+// second lightweight instance is simpler than threading the first one
+// through and avoids the two call sites racing on the same mutex-protected
+// churn state for an unrelated purpose.
+func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
+	sw, ok := n.Switch().(*p2p.Switch)
+	if !ok {
+		return
+	}
+	engramApp.SovereigntyKeeper.SetPeerFilterSource(&vanillaP2PHealthAdapter{sw: sw})
 }
 
 // wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap-based

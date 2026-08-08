@@ -77,7 +77,13 @@ type EngramApp struct {
 // EXPERIMENT.md's E2/E3/E7 vanilla-CometBFT baseline: same binary, same
 // x/sovereignty module mounted (so genesis/store layout doesn't diverge),
 // only the ABCI hook wiring differs.
-func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *EngramApp {
+//
+// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR (cmd/engramd/main.go),
+// empty ("") on every real validator -- forwarded to
+// sovereignty.NewPrepareProposalHandler, see applyByzantineBehavior's doc
+// (x/sovereignty/proposal.go) for the recognized values and docs/
+// EXPERIMENT.md's E8 A3/A4/A6/A7 attack rows this exercises live.
+func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, byzantineBehavior string) *EngramApp {
 	// "engram" bech32 HRP -- this app never previously configured one
 	// (no sdk.Config.SetBech32Prefix* call anywhere in this repo, since
 	// there is no x/auth/x/bank wired). A real address codec is required
@@ -121,6 +127,16 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *E
 
 	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc, memoryzk.NewMemoryStorage())
 
+	// Real active Sybil/eclipse ingress defense (x/sovereignty/keeper/peer_filter.go's
+	// FilterPeerByAddr) -- fails open until cmd/engramd's wirePeerFilter
+	// late-binds a live PeerFilterSource after node.NewNode() constructs the
+	// real *p2p.Switch, mirroring wireP2PSensor's existing late-binding
+	// pattern for the exact same NewEngramApp-runs-before-node.NewNode()
+	// ordering constraint. No CometBFT fork changes needed: this hook is a
+	// stock cosmos-sdk BaseApp mechanism the fork already wires (see
+	// FilterPeerByAddr's own doc).
+	bApp.SetAddrPeerFilter(sovKeeper.FilterPeerByAddr)
+
 	sensorBundle := &sovereignty.Sensors{
 		BTC: sensors.NewBTCSensor(),
 		DA:  sensors.NewDASensor(),
@@ -146,7 +162,7 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool) *E
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
 	if !vanilla {
-		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, sensorBundle))
+		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, sensorBundle, byzantineBehavior))
 		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper, sensorBundle))
 		bApp.SetPreBlocker(sovereignty.NewPreBlocker(sovKeeper))
 	}

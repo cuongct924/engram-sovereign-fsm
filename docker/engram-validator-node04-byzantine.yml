@@ -1,0 +1,34 @@
+name: engram-validator-node04-byzantine
+
+# Byzantine-mode override for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 attack
+# rows -- NOT included via compose.yml's `include:` list (that would make
+# byzantine mode always active on every deploy). Applied explicitly, on top
+# of the normal cluster, via:
+#
+#   docker compose -f compose.yml -f docker/engram-validator-node04-byzantine.yml \
+#     up -d --no-deps engram-node04
+#
+# Docker Compose merges `environment:` as a mapping (by key), not a list
+# replacement, so this only needs to declare the ONE new variable --
+# engram-validator-node04.yml's existing BITCOIN_HOST/CELESTIA_BRIDGE_URL/etc.
+# are preserved unchanged; only ENGRAM_BYZANTINE_BEHAVIOR is added.
+#
+# node04 stays IN the real 4-node validator set (N=4, f=1) the whole time --
+# this deliberately does NOT add a 5th node, matching this repo's tuned
+# N=4,f=1 Byzantine-fault assumption (see x/sovereignty/types/params.go's
+# MinAnchorPeers/MinSubnetDiversity comments referencing this exact model).
+# scripts/e8_attack_resilience/live_byzantine_attacks.py swaps this override
+# in for one scenario at a time, then reverts to the plain
+# engram-validator-node04.yml definition afterward.
+#
+# See x/sovereignty/proposal.go's applyByzantineBehavior for the full list
+# of recognized ENGRAM_BYZANTINE_BEHAVIOR values -- the actual value used
+# for a given run is set at `docker compose up` time via this file's
+# environment substitution (${ENGRAM_BYZANTINE_BEHAVIOR}, exported by the
+# orchestrating script before invoking compose), not hardcoded here, so one
+# override file covers every A3/A4/A6/A7 scenario.
+
+services:
+  engram-node04:
+    environment:
+      - ENGRAM_BYZANTINE_BEHAVIOR=${ENGRAM_BYZANTINE_BEHAVIOR:?must be set, see applyByzantineBehavior's doc for valid values}

@@ -70,6 +70,21 @@ type Params struct {
 	// than N blocks' worth of real time, at which point N=4 itself would
 	// become achievable again).
 	MaxUnprovenTailBlocks uint64
+
+	// MaxPeersPerSubnet bounds how many currently-connected peers may share
+	// the same /24 (IPv4) or /48 (IPv6) subnet (types.SubnetOf) before the
+	// ingress peer filter (x/sovereignty/keeper/peer_filter.go's
+	// FilterPeerByAddr, wired via baseapp.SetAddrPeerFilter) starts
+	// rejecting further same-subnet connection attempts outright. This is
+	// the ACTIVE counterpart to the passive SubnetDiversity metric
+	// IsP2PQualityHealthy already reads: that metric only degrades the FSM
+	// AFTER enough same-subnet peers have already connected (a Sybil/eclipse
+	// condition already in effect); this stops the next one from connecting
+	// at all, closing a real design-vs-implementation gap found by
+	// re-reading this project's own early P2P design notes (an active
+	// ingress filter was designed but never built -- only passive detection
+	// existed until this field).
+	MaxPeersPerSubnet uint64
 }
 
 // DefaultParams returns this repo's genesis-constant proposal for a real
@@ -207,5 +222,18 @@ func DefaultParams() Params {
 		// so it's already correctly sized once real RTT wiring lands.
 		MaxPeerLatency:  200, // milliseconds
 		MaxIgnoreRounds: 1,
+		// MaxPeersPerSubnet: same same-subnet-topology constraint as
+		// MinSubnetDiversity's doc above applies here too -- all 4 real
+		// engram-nodeNN validators sit on ONE /24 (172.28.0.0/24), so this
+		// MUST exceed 4 or the ingress filter (FilterPeerByAddr) would
+		// reject the honest validators' own mesh connections to each other,
+		// not just an attacker's. 8 gives comfortable margin above the 4
+		// known-honest peers (reconnects, brief overlap during a rolling
+		// restart) while still meaningfully capping a same-subnet Sybil/
+		// slot-exhaustion swarm (docs/EXPERIMENT.md's E4/E8 A1/A2) -- revisit
+		// once Part 2's live attacker-swarm test measures real behavior
+		// against this value, same "reasoned default, then live-tuned"
+		// precedent as MaxUnprovenTailBlocks/DAThreshold above.
+		MaxPeersPerSubnet: 8,
 	}
 }
