@@ -118,3 +118,66 @@ func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) 
 	submittedHeight, _ := srv.RealProofSubmittedHeight.Get(ctx)
 	require.Equal(t, uint64(4), submittedHeight, "the stale latch value itself is untouched by new headers -- staleness is detected by comparing it against the tip, not by it self-clearing")
 }
+
+// TestFindHeaderByStateRoot_FindsMatchingHeight covers the primitive that
+// makes rolling, mid-interval checkpoint advances possible (see
+// SubmitRecoveryProof's doc): a proof's rt_new only needs to match SOME
+// tracked header's state_root, not the absolute tip, since a valid proof
+// (already checked against the fixed-N circuit's VK before this is called)
+// is itself the guarantee that exactly N real headers connect rt_last to
+// whatever height this finds.
+func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
+	storeService, ctx := colltest.MockStore()
+	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+
+	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 8, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h8")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 12, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h12")}))
+
+	height, found, err := k.findHeaderByStateRoot(ctx, []byte("h8"))
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(8), height, "must find the MIDDLE tracked header, not just the tip -- a rolling checkpoint proof's rt_new is rarely the current tip")
+}
+
+// TestFindHeaderByStateRoot_NotFound confirms this fails closed (found=false,
+// no error) for a root that was never tracked -- SubmitRecoveryProof treats
+// this the same as any other invalid proof (ErrInvalidZKProof), closing the
+// same replay gap LatestTrackedHeader's exact-tip check used to close.
+func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
+	storeService, ctx := colltest.MockStore()
+	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+
+	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
+
+	_, found, err := k.findHeaderByStateRoot(ctx, []byte("never-tracked"))
+	require.NoError(t, err)
+	require.False(t, found)
+}
+
+// TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater covers the other half
+// of the rolling-checkpoint scheme: advancing a checkpoint to height H must
+// only drop headers AT OR BELOW H (this segment's proof, now consumed) and
+// leave anything already accumulated past H untouched -- those headers are
+// the start of the NEXT segment, not garbage. Unlike
+// x/sovereignty.pruneHeaderHistory (full clear on return to ANCHORED), this
+// is always a prefix trim.
+func TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater(t *testing.T) {
+	storeService, ctx := colltest.MockStore()
+	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+
+	for h := uint64(1); h <= 6; h++ {
+		require.NoError(t, k.HeaderHistory.Set(ctx, h, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte{byte(h)}}))
+	}
+
+	require.NoError(t, k.pruneHeaderHistoryUpTo(ctx, 4))
+
+	for h := uint64(1); h <= 4; h++ {
+		_, err := k.HeaderHistory.Get(ctx, h)
+		require.Error(t, err, "height %d should have been pruned", h)
+	}
+	for h := uint64(5); h <= 6; h++ {
+		_, err := k.HeaderHistory.Get(ctx, h)
+		require.NoError(t, err, "height %d is past the new checkpoint and must survive", h)
+	}
+}

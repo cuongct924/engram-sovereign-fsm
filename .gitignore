@@ -53,6 +53,9 @@ _apalache-out/
 target/
 proofs/
 
+# Plonky3 checkout cloned by benchmark_plonky3.sh (E6 Table 6C, external toolchain, not vendored)
+scripts/e6_zk_reanchoring_benchmark/.plonky3_checkout/
+
 
 # Private inputs
 Prover.toml

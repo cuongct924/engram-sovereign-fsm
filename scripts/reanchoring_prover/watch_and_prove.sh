@@ -6,8 +6,22 @@
 # block, and prove_and_submit.sh refuses at any other count), so this must
 # react within one block interval, not be run by hand.
 #
-# Exits successfully (0) once a real proof has been submitted, or once
-# --max-checks is exhausted without ever seeing exactly N headers.
+# Keeps running after a successful submission rather than exiting -- see
+# x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc on rolling
+# checkpoints: LastAnchoredRoot now advances (and HeaderHistory prunes only
+# the covered prefix) on EVERY accepted proof, not just once at the true end
+# of the interval, so the tracked count legitimately drops back near 0 and
+# starts climbing again for the NEXT segment. A long unhealthy interval
+# therefore needs this watcher to catch N=4 repeatedly, not once -- exiting
+# after the first hit (the previous behavior) meant no further segments of
+# a still-open interval could ever be proven, exactly the gap that made the
+# fixed-N circuit unusable against a real, unbounded-length interval.
+#
+# Exits successfully (0) once --max-checks is exhausted (the natural way to
+# stop watching, e.g. once the interval has genuinely ended), or non-zero if
+# it never saw exactly N headers even once in that budget. A rejected
+# submission (prove_and_submit.sh's documented staleness race, see its own
+# header comment) logs a warning and keeps watching rather than aborting.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,21 +37,31 @@ if [ ! -x "$ENGRAMD" ]; then
   (cd "$REPO_ROOT" && go build -o "$ENGRAMD" ./cmd/engramd)
 fi
 
-echo "[watch_and_prove] watching $NODE_URL for exactly $EXPECTED_N tracked headers..."
+echo "[watch_and_prove] watching $NODE_URL for exactly $EXPECTED_N tracked headers (repeating, rolling-checkpoint mode)..."
 i=0
+proofs_submitted=0
+proofs_rejected=0
 while [ "$i" -lt "$MAX_CHECKS" ]; do
   i=$((i + 1))
   OUT=$("$ENGRAMD" query-recovery-headers --node "$NODE_URL" 2>&1)
   N=$(echo "$OUT" | grep -c '^height=' || true)
   TS=$(date -u +%H:%M:%S)
-  echo "[$TS] check $i: N=$N"
+  echo "[$TS] check $i: N=$N (proofs so far: $proofs_submitted submitted, $proofs_rejected rejected)"
   if [ "$N" -eq "$EXPECTED_N" ]; then
     echo "[watch_and_prove] N=$EXPECTED_N caught -- firing prove_and_submit.sh NOW"
-    "$SCRIPT_DIR/prove_and_submit.sh"
-    exit $?
+    if "$SCRIPT_DIR/prove_and_submit.sh"; then
+      proofs_submitted=$((proofs_submitted + 1))
+      echo "[watch_and_prove] proof #$proofs_submitted accepted -- checkpoint advanced, continuing to watch for the next segment."
+    else
+      proofs_rejected=$((proofs_rejected + 1))
+      echo "[watch_and_prove] proof rejected (likely the documented staleness race -- interval grew before submission landed, see prove_and_submit.sh's doc) -- continuing to watch." >&2
+    fi
   fi
   sleep "$POLL_INTERVAL_S"
 done
 
-echo "[watch_and_prove] gave up after $MAX_CHECKS checks without ever seeing exactly $EXPECTED_N headers." >&2
-exit 1
+echo "[watch_and_prove] stopped after $MAX_CHECKS checks: $proofs_submitted proof(s) submitted, $proofs_rejected rejected."
+if [ "$proofs_submitted" -eq 0 ]; then
+  exit 1
+fi
+exit 0

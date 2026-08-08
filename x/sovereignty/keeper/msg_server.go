@@ -39,7 +39,8 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 
 // SubmitRecoveryProof verifies a real re-anchoring ZK proof
 // (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) and, if valid,
-// latches RealProofSubmittedHeight -- it does NOT set FSMState directly. See
+// advances the rolling checkpoint (LastAnchoredRoot) and latches
+// RealProofSubmittedHeight -- it does NOT set FSMState directly. See
 // x/sovereignty/sensors_refresh.go's refreshReanchoringProofValid, the only
 // consumer of that latch: RECOVERING -> ANCHORED still only ever fires
 // through CalculateNextState's existing hysteresis-gated pipeline
@@ -49,6 +50,36 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 // from ANY current state, on proof-math validity alone -- bypassing both
 // StrictFSMTransitionSafety (e.g. a direct SOVEREIGN -> ANCHORED jump) and
 // the hysteresis dwell time, via a second, unguarded FSM-state writer.
+//
+// Rolling checkpoint (not a fixed interval-start-to-tip proof): the
+// circuit's N is fixed at compile time (circuit/reanchoring/src/main.nr's
+// `global N: u32 = 4`), but a real SOVEREIGN/RECOVERING interval's length is
+// environment-controlled and unbounded -- requiring one proof to span the
+// ENTIRE interval (rt_last = the point ANCHORED was last left, rt_new = the
+// CURRENT tip) makes the circuit permanently unusable the moment the
+// interval exceeds N blocks, since the tip keeps moving before a proof can
+// even be built. Confirmed live: HeaderHistory grew past 2,000 tracked
+// blocks across a single never-yet-ANCHORED run this session, with the
+// N=4 circuit unable to prove any of it.
+//
+// Fixed by NOT requiring rt_new to match the absolute tip: instead, rt_new
+// only needs to match the state_root of SOME tracked header (found via
+// findHeaderByStateRoot) -- the proof itself, having already verified
+// against the fixed-N circuit's VK above, is what guarantees exactly N real
+// headers connect rt_last to that point (Go never needs to know or hardcode
+// N to trust this). Once a match is found, the checkpoint (LastAnchoredRoot)
+// advances to it and everything at or below that height is pruned (a FUTURE
+// proof only ever needs to link forward from the new checkpoint). This lets
+// checkpoints advance every N blocks throughout an arbitrarily long
+// interval via a sequence of real, independently-verified N-sized proofs,
+// rather than needing one proof to catch the tip in a single-block-wide
+// window. refreshReanchoringProofValid's existing "proof height == current
+// tip height" check is UNCHANGED and still correct under this scheme: it
+// naturally becomes true (and can trigger a real ANCHORED transition,
+// gated on SafeBlocks == HysteresisWait as before) exactly when a
+// checkpoint-advancing proof happens to land with no further headers having
+// been appended since -- i.e. the interval has both recovered AND been
+// fully proven, block for block, from the last real anchor to the tip.
 func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProofRequest) (*types.MsgSubmitRecoveryProofResponse, error) {
 	// 1. Verify proof math against the circuit's embedded verification key.
 	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
@@ -72,18 +103,76 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	if err != nil || !bytes.Equal(rtLast, trackedLast) {
 		return nil, types.ErrInvalidZKProof
 	}
-	tipHeight, tip, err := k.LatestTrackedHeader(ctx)
-	if err != nil || !bytes.Equal(rtNew, tip.StateRoot) {
+	newCheckpointHeight, found, err := k.findHeaderByStateRoot(ctx, rtNew)
+	if err != nil || !found {
 		return nil, types.ErrInvalidZKProof
 	}
 
-	// 3. Latch the verified proof, recording WHICH height it proved up to
-	// (see RealProofSubmittedHeight's doc on keeper.go for why the height,
-	// not just a bool, matters).
-	if err := k.RealProofSubmittedHeight.Set(ctx, tipHeight); err != nil {
+	// 3. Advance the rolling checkpoint and prune everything the next proof
+	// will no longer need. Order matters: RealProofSubmittedHeight is set
+	// last so a failure partway through never leaves the latch pointing at
+	// a checkpoint that wasn't actually committed.
+	if err := k.LastAnchoredRoot.Set(ctx, rtNew); err != nil {
+		return nil, err
+	}
+	if err := k.pruneHeaderHistoryUpTo(ctx, newCheckpointHeight); err != nil {
+		return nil, err
+	}
+	if err := k.RealProofSubmittedHeight.Set(ctx, newCheckpointHeight); err != nil {
 		return nil, err
 	}
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
+}
+
+// findHeaderByStateRoot returns the height of the tracked header whose
+// StateRoot equals root, and whether one was found. Used by
+// SubmitRecoveryProof to locate a proof's rt_new within this validator's
+// own tracked history (see that function's doc for why matching by content
+// rather than requiring an exact tip match is what makes rolling,
+// mid-interval checkpoint advances possible).
+func (k *Keeper) findHeaderByStateRoot(ctx context.Context, root []byte) (uint64, bool, error) {
+	iter, err := k.HeaderHistory.Iterate(ctx, nil)
+	if err != nil {
+		return 0, false, err
+	}
+	defer iter.Close()
+	kvs, err := iter.KeyValues()
+	if err != nil {
+		return 0, false, err
+	}
+	for _, kv := range kvs {
+		if bytes.Equal(kv.Value.StateRoot, root) {
+			return kv.Key, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// pruneHeaderHistoryUpTo removes every tracked header at or below height --
+// the segment a just-verified proof covered, which no future proof will
+// ever need to reference again (a future proof only links forward from the
+// new checkpoint). Unlike x/sovereignty's pruneHeaderHistory (which clears
+// the ENTIRE tracked interval on a full return to ANCHORED), this only
+// clears a prefix, leaving any already-accumulated later headers in place
+// as the start of the next segment.
+func (k *Keeper) pruneHeaderHistoryUpTo(ctx context.Context, height uint64) error {
+	iter, err := k.HeaderHistory.Iterate(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	heights, err := iter.Keys()
+	if err != nil {
+		return err
+	}
+	for _, h := range heights {
+		if h <= height {
+			if err := k.HeaderHistory.Remove(ctx, h); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // LatestTrackedHeader returns the height and value of the highest-height

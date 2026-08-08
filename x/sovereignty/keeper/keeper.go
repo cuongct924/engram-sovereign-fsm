@@ -49,22 +49,37 @@ type Keeper struct {
 	// Re-anchoring ZK proof state, mirroring spec/README.md's §Re-anchoring
 	// via ZK-Proof of Recovery: HeaderHistory tracks the witness headers
 	// (types.RecoveryHeader) for the CURRENT SOVEREIGN/RECOVERING interval
-	// only (populated/pruned by preblock.go's CommitFSMTransition);
-	// LastAnchoredRoot is rt_last, captured when the interval starts.
-	// RealProofSubmittedHeight is set by keeper.MsgServerImpl.SubmitRecoveryProof
-	// once a real proof verifies AND its public inputs match on-chain state, to
-	// the HEIGHT of the header it proved up to (0 = no real proof submitted
-	// for the current interval) -- storing the height, not just a bool, is
+	// only (populated by preblock.go's CommitFSMTransition; pruned there in
+	// full on a full return to ANCHORED, and pruned incrementally by
+	// keeper.MsgServerImpl.pruneHeaderHistoryUpTo on each rolling checkpoint
+	// advance below). LastAnchoredRoot is rt_last -- initially captured when
+	// the interval starts, but a ROLLING checkpoint from then on: it also
+	// advances every time keeper.MsgServerImpl.SubmitRecoveryProof accepts a
+	// real proof, since the circuit's N is fixed at compile time
+	// (circuit/reanchoring/src/main.nr) while a real interval's length is
+	// environment-controlled and unbounded -- one proof spanning the entire
+	// interval-start-to-tip range would make the circuit unusable the
+	// moment the interval outgrows N (confirmed live: this happened for
+	// real, HeaderHistory grew past 2,000 entries in a single never-yet-
+	// ANCHORED run). Rolling checkpoints let a sequence of real, independent
+	// N-sized proofs cover an arbitrarily long interval instead.
+	// RealProofSubmittedHeight is set by the same handler, once a real proof
+	// verifies AND its public inputs match on-chain state, to the HEIGHT the
+	// checkpoint was just advanced to (0 = no real proof accepted yet for
+	// the current interval) -- storing the height, not just a bool, is
 	// load-bearing: the interval can keep growing (new headers appended)
 	// after a proof is submitted but before RECOVERING is reached, and a
 	// proof only covers headers up to the height it was built against, so a
 	// flat bool would stay stale-true even once newer, never-proven headers
 	// have been appended (confirmed by actually running this pipeline: a
 	// proof submitted while 4 headers were tracked must NOT still read as
-	// valid once a 5th has been appended). Consumed (and reset to 0) by
-	// sensors_refresh.go's refreshReanchoringProofValid, which requires this
-	// to equal the CURRENT latest tracked header's height, not just be
-	// nonzero.
+	// valid once a 5th has been appended). Consumed (and reset to 0 only
+	// when RECOVERING is left) by sensors_refresh.go's
+	// refreshReanchoringProofValid, which requires this to equal the
+	// CURRENT latest tracked header's height, not just be nonzero -- which
+	// is exactly what makes a rolling-checkpoint proof landing with no
+	// further headers appended since double as the final proof that
+	// completes RECOVERING -> ANCHORED.
 	HeaderHistory            collections.Map[uint64, types.RecoveryHeader]
 	LastAnchoredRoot         collections.Item[[]byte]
 	RealProofSubmittedHeight collections.Item[uint64]

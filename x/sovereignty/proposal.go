@@ -3,7 +3,6 @@ package sovereignty
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -230,8 +229,6 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		// 1. fsm_state cross-check (IsValidProposal:288 -- prop.fsm_state = CalculateNextFSMState).
 		expectedState := keeper.CalculateNextState(currState, in, k.Params)
 		if ext.FSMState != expectedState {
-			fmt.Printf("engramd: DEBUG reject#1 h=%d r=%d currState=%s proposed=%s expected=%s\n",
-				ctx.BlockHeight(), req.Round, currState, ext.FSMState, expectedState)
 			return reject, nil
 		}
 
@@ -252,8 +249,6 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
 		isDAHealthy := types.IsDAHealthy(in.Metrics, k.Params)
 		if !da.VerifyReceipt(ext.DAReceipt, ext.FSMState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold, round) {
-			fmt.Printf("engramd: DEBUG reject#2 h=%d r=%d hEngramCurrent=%d da=%+v isDAHealthy=%v thresh=%d\n",
-				ctx.BlockHeight(), req.Round, hEngramCurrent, ext.DAReceipt, isDAHealthy, k.Params.DAThreshold)
 			return reject, nil
 		}
 
@@ -261,8 +256,6 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		if !vigilante.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
-			fmt.Printf("engramd: DEBUG reject#3 h=%d r=%d hBtcCurrent=%d hBtcAnchored=%d btc=%+v kDeep=%d\n",
-				ctx.BlockHeight(), req.Round, hBtcCurrent, hBtcAnchored, ext.BTCReceipt, k.Params.KDeepFinality)
 			return reject, nil
 		}
 
@@ -280,8 +273,6 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		if s != nil && s.Anchor != nil && ext.BTCReceipt.CheckpointBlockHeight > hBtcAnchored {
 			verified, verr := s.Anchor.VerifyAnchor(ctx, ext.BTCReceipt.CheckpointBlockHeight)
 			if verr != nil || !verified {
-				fmt.Printf("engramd: DEBUG reject#3b h=%d r=%d claimed=%d hBtcAnchored=%d verified=%v verr=%v\n",
-					ctx.BlockHeight(), req.Round, ext.BTCReceipt.CheckpointBlockHeight, hBtcAnchored, verified, verr)
 				return reject, nil
 			}
 		}
@@ -299,13 +290,9 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		if ext.FSMState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait {
 			if !verifyZkProofFlag(ext.ZKProofRef, ext.DAReceipt, hEngramVerified) {
-				fmt.Printf("engramd: DEBUG reject#5a h=%d r=%d zkProofRef=%v da=%+v hEngramVerified=%d\n",
-					ctx.BlockHeight(), req.Round, ext.ZKProofRef, ext.DAReceipt, hEngramVerified)
 				return reject, nil
 			}
 		} else if ext.ZKProofRef {
-			fmt.Printf("engramd: DEBUG reject#5b h=%d r=%d fsmState=%s safeBlocks=%d hysteresisWait=%d\n",
-				ctx.BlockHeight(), req.Round, ext.FSMState, in.SafeBlocks, k.Params.HysteresisWait)
 			return reject, nil
 		}
 
