@@ -1,7 +1,6 @@
 name: engram-validator-cluster
 
 include:
-  - ./docker/engram-monitoring.yml
   - ./docker/bitcoin-regtest-cluster.yml
   - ./docker/celestia-local-cluster.yml
   - ./docker/engram-validator-node01.yml
@@ -101,7 +100,7 @@ services:
       - "bitcoin-node01"
 
 networks:
-  # Main validator network: All validators and monitoring tools communicate here
+  # Main validator network: all 4 real validators communicate here
   engram-net:
     name: engram-net
     driver: bridge
@@ -173,11 +172,3 @@ networks:
       config:
         - subnet: 172.33.0.0/24
           gateway: 172.33.0.1
-
-volumes:
-  prometheus-data:
-    name: prometheus-data
-    driver: local
-  grafana-data:
-    name: grafana-data
-    driver: local

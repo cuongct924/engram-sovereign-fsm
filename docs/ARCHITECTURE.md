@@ -11,7 +11,6 @@ against the live 4-node testnet, `docker/*.yml`, and `compose.yml` directly).
 ```
 Network: 172.28.0.0/24 (engram-net) - Main Validator Network
 ├── Gateway: 172.28.0.1
-├── Monitoring: Prometheus 172.28.0.20, Grafana 172.28.0.21
 ├── Validators:
 │   ├── engram-node01: 172.28.0.100
 │   ├── engram-node02: 172.28.0.110
@@ -53,7 +52,19 @@ were removed entirely at the repo owner's request -- `x/da`'s `Publisher`/`RPCCl
 `celestia-bridge` directly, no light-client hop exists in this deployment. `vigilante-*` sidecar
 containers (Submitter/Reporter/checkpointing-monitor) were likewise removed -- the real BTC
 anchor mechanism is `x/vigilante.AnchorTracker`, a Go package linked directly into `engramd`
-itself (see §3 below), not a separate container.
+itself (see §3 below), not a separate container. The `prometheus`/`grafana` monitoring stack
+(`docker/engram-monitoring.yml`, `config/prometheus.yml`, `config/grafana/`) was also removed --
+every real E2-E9 experiment number in this repo comes from `scripts/`'s Python framework polling
+CometBFT RPC/ABCI-query directly (`scripts/framework/logger.py`), never from a Prometheus scrape;
+confirmed via grep that no experiment script under `scripts/` ever reads the Prometheus HTTP API
+(one unused helper function in `scripts/utils.py` did, dead code, removed alongside the stack).
+
+### Note on `/metrics` in the Port Allocation table below
+
+Each `engram-nodeNN` still exposes its own CometBFT-built-in Prometheus-format `/metrics` endpoint
+(`[instrumentation] prometheus = true` in `config.toml`, no extra infra needed) -- this is
+free/always-on and unrelated to the removed scraper stack above. Nothing currently scrapes it; it
+just sits there as a passive endpoint, listed below for completeness only.
 
 ### Why validators are multi-homed, and a real Docker gateway-priority quirk found live
 
@@ -89,22 +100,24 @@ same in-network ports; only the **host-mapped** ports below differ):
 engram-node01 (docker/engram-validator-node01.yml):
 ├── Engram RPC:      26657  (host-mapped, exposed)
 ├── Cosmos REST API:   1317   (host-mapped, exposed)
-└── Prometheus:        26660  (host-mapped, exposed)
+└── CometBFT metrics:  26660  (host-mapped, exposed -- CometBFT's own built-in
+                                Prometheus-format `/metrics` endpoint; nothing
+                                scrapes it, see the note below)
 
 engram-node02 (docker/engram-validator-node02.yml)  [offset +100]:
 ├── Engram RPC:      26757
 ├── Cosmos REST API:   1417
-└── Prometheus:        26760
+└── CometBFT metrics:  26760
 
 engram-node03 (docker/engram-validator-node03.yml)  [offset +200]:
 ├── Engram RPC:      26857
 ├── Cosmos REST API:   1517
-└── Prometheus:        26860
+└── CometBFT metrics:  26860
 
 engram-node04 (docker/engram-validator-node04.yml)  [offset +300]:
 ├── Engram RPC:      26957
 ├── Cosmos REST API:   1617
-└── Prometheus:        26960
+└── CometBFT metrics:  26960
 
 Bitcoin regtest (docker/bitcoin-regtest-cluster.yml, isolated on bitcoin-net):
 ├── bitcoin-node01 RPC: 18443 (host-mapped)
