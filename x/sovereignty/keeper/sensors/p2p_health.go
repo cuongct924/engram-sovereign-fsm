@@ -5,12 +5,12 @@ import "context"
 // P2PSnapshot mirrors the inputs to IsP2PQualityHealthy in spec/core/EngramFSM.tla
 // (SubnetDiversity, ActiveAnchors, CleanPeers, peer_churn_rate, avg_peer_tenure, peer_latency).
 type P2PSnapshot struct {
-	ActiveAnchors  uint64
-	CleanPeers     uint64
+	ActiveAnchors   uint64
+	CleanPeers      uint64
 	SubnetDiversity uint64
-	ChurnRate      uint64
-	AvgTenure      uint64
-	Latency        uint64
+	ChurnRate       uint64
+	AvgTenure       uint64
+	Latency         uint64
 }
 
 // P2PHealthSource abstracts a live, continuously-updated P2P telemetry

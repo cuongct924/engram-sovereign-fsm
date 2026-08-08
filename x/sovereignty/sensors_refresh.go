@@ -96,7 +96,7 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 
 	metrics := &types.PeripheralMetrics{
 		BtcGap:              btcGap,
-		DaGap:                daGap,
+		DaGap:               daGap,
 		IsDasFailed:         dasFailed,
 		IsAttestationFailed: attestationFailed,
 		SubnetDiversity:     p2pSnap.SubnetDiversity,

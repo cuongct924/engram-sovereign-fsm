@@ -1,6 +1,8 @@
 package sovereignty
 
 import (
+	"fmt"
+
 	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -39,6 +41,9 @@ import (
 // field queried directly rather than through Query.State) -- not built here.
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
+		if err := recordDetectedEvidence(ctx, k, req); err != nil {
+			return nil, err
+		}
 		if err := updateForcedTxTracking(ctx, k, req.Txs); err != nil {
 			return nil, err
 		}
@@ -210,6 +215,42 @@ func pruneHeaderHistory(ctx sdk.Context, k *keeper.Keeper) error {
 		if err := k.HeaderHistory.Remove(ctx, height); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// recordDetectedEvidence is docs/EXPERIMENT.md's E8 "Double-signing" row's
+// "Evidence extracted/logged" mechanism: req.Misbehavior is CometBFT's
+// stock, unmodified evidence pool's report of DuplicateVote/LightClientAttack
+// misbehavior it independently detected at the consensus layer -- no fork
+// changes needed for detection itself, this only consumes what's already
+// there. Safe to commit (unlike a live local sensor read, see NewPreBlocker's
+// own doc on the AppHash-divergence bug that lesson came from):
+// req.Misbehavior is part of RequestFinalizeBlock itself, deterministic and
+// identical across every honest validator for a given block, exactly like
+// req.Txs.
+func recordDetectedEvidence(ctx sdk.Context, k *keeper.Keeper, req *abci.RequestFinalizeBlock) error {
+	for _, m := range req.Misbehavior {
+		record := types.EvidenceRecord{
+			Type:             types.MisbehaviorTypeName(int32(m.Type)),
+			ValidatorAddress: m.Validator.Address,
+			ValidatorPower:   m.Validator.Power,
+			OffenseHeight:    m.Height,
+			OffenseTime:      m.Time,
+			DetectedAtHeight: req.Height,
+		}
+		if err := k.LastDetectedEvidence.Set(ctx, record); err != nil {
+			return err
+		}
+		count, err := k.DetectedEvidenceCount.Get(ctx)
+		if err != nil {
+			count = 0
+		}
+		if err := k.DetectedEvidenceCount.Set(ctx, count+1); err != nil {
+			return err
+		}
+		fmt.Printf("engramd: SLASHABLE EVIDENCE DETECTED type=%s validator=%X offense_height=%d detected_at_height=%d (latency=%d blocks)\n",
+			record.Type, record.ValidatorAddress, record.OffenseHeight, record.DetectedAtHeight, record.DetectedAtHeight-record.OffenseHeight)
 	}
 	return nil
 }

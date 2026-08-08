@@ -210,11 +210,11 @@ func (h *Harness) WriteCSV(name string) string {
 // E2 metric list (time-to-detection/fallback, recovery time, downtime proxy,
 // withdrawal-blocked count, flapping count).
 type E2Metrics struct {
-	TimeToFallback     int64 // blocks from height 1 until first entering SOVEREIGN (-1 if never)
-	RecoveryTime       int64 // blocks from entering RECOVERING until ANCHORED (-1 if never completed)
-	WithdrawalBlocked  int   // number of blocks where WithdrawLocked was true
-	FlappingCount      int   // number of state transitions that immediately reversed the previous one
-	TotalTransitions   int
+	TimeToFallback    int64 // blocks from height 1 until first entering SOVEREIGN (-1 if never)
+	RecoveryTime      int64 // blocks from entering RECOVERING until ANCHORED (-1 if never completed)
+	WithdrawalBlocked int   // number of blocks where WithdrawLocked was true
+	FlappingCount     int   // number of state transitions that immediately reversed the previous one
+	TotalTransitions  int
 }
 
 // ComputeMetrics derives E2Metrics from the recorded timeline.

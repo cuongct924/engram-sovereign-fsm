@@ -188,8 +188,26 @@ live-docker thật để kiểm chứng defense này: `docker/attacker-peer-swar
 đều 4 subnet giả lập riêng biệt `attacker-subnet-a/b/c/d`, đo qua `/net_info` RPC thật của CometBFT, độc lập với khoảng trống Query.State đã biết). A2 đổi
 tên thành "Sybil qua đa-subnet giả lập" vì BGP Hijacking thật (thao túng route tầng Internet) không thể và không nên mô phỏng trong docker testnet --
 điều `MaxPeersPerSubnet`/`SubnetDiversity` thực sự phòng thủ là **hệ quả** của BGP hijack (nhiều peer trông như đến từ nhiều subnet khác nhau nhưng cùng
-1 kẻ tấn công), không phải nguyên nhân gốc, nên mô phỏng hệ quả này là đủ trung thực. Kết quả live thật từ 2 leg này sẽ được cập nhật vào bảng trên khi
-chạy xong.
+1 kẻ tấn công), không phải nguyên nhân gốc, nên mô phỏng hệ quả này là đủ trung thực.
+
+**Đã chạy live thật (2026-08-08), cả 2 leg, trên cluster 4-node thật đã rebuild với toàn bộ code phiên này:**
+chi tiết đầy đủ ở `scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_live_run_20260808_summary.md`. Tóm tắt:
+
+- **A1** (10 attacker cùng subnet `engram-net`): filter thật chặn đúng ở **8/8** (`MaxPeersPerSubnet`), lặp lại 2 lần cho kết quả nhất quán. 3 validator
+  thật (subnet `172.21.0.0`, do quirk gateway-priority của Docker multi-homed container -- xem dưới) hoàn toàn không bị ảnh hưởng suốt quá trình tấn
+  công. Block height và AppHash tiến triển bình thường, khớp cả 4 node.
+- **A2** (12 attacker, dự định trải trên 4 subnet riêng): filter vẫn giữ đúng **8/8**, nhưng **không đạt được đa dạng subnet thật như thiết kế ban đầu**
+  -- phát hiện thật: container multi-homed trên Docker (gắn cả subnet riêng LẪN `engram-net` để có route tới `engram-node01`) mặc định route ra qua
+  network được khai báo THỨ HAI trong service definition, không phải cái đầu tiên -- đúng cùng cơ chế khiến 4 validator thật cũng lộ diện qua
+  `bitcoin-net` thay vì `engram-net` (dù `engram-net` khai báo trước). Đây là giới hạn thật của cách mô phỏng bằng Docker bridge network mặc định, không
+  phải lỗi của `FilterPeerByAddr` -- filter vẫn phòng thủ đúng trên bất kỳ subnet nào peer thực sự xuất hiện, minh chứng bởi cả A1 lẫn A2 đều giữ đúng
+  8/8. Thử `gw_priority` (tính năng Compose thật) trên 1 container để sửa nhưng chưa thành công trong thời gian cho phép -- để lại như giới hạn đã ghi
+  nhận, không phải giả định.
+- **3 bug thật tìm và sửa trực tiếp khi chạy live** (không phải giả thuyết): (1) `docker compose ... down` không chỉ định service sẽ phá hủy TOÀN BỘ
+  cluster thật, không chỉ swarm tấn công -- đã xảy ra thật 1 lần giữa thí nghiệm, sửa bằng `stop`+`rm -f` với tên service tường minh, áp dụng luôn cho
+  `live_combined_attack.py`/`live_double_signing_test.py`; (2) `persistent_peers` của attacker thiếu node ID thật (CometBFT yêu cầu định dạng
+  `id@host:port`) -- sửa bằng cách resolve ID thật qua RPC lúc container khởi động; (3) attacker A2 ban đầu không có route tới `engram-node01` (chỉ gắn
+  subnet riêng, chưa gắn `engram-net`) -- sửa bằng cách gắn cả 2 network, việc này lại lộ ra chính phát hiện gateway-priority ở trên.
 
 ---
 
@@ -368,14 +386,20 @@ Lemma 7.5, Data Withholding ≈ Lemma 7.2 — và tái dùng hạ tầng đã x�
 | A6 | Malicious Proposer | Honest validators reject `fsm_state` giả không khớp tính toán cục bộ | `TestProcessProposal_RejectsFSMStateMismatch` + `TestPrepareProposal_FakeFSMStateOverridesRealComputation` (in-process) | cùng script byzantine trên, scenario `a6_fake_fsm_state` |
 | A7 | Censorship / Tx Withholding | Leader cố tình bỏ qua tx bị phát hiện qua `IsCensoring`/`ForcedTxQueue` | `TestProcessProposal_RejectsCensoringProposal`, `TestProcessProposal_AcceptsCensoredTxOnceIncluded`, `TestPreBlocker_TracksForcedTxIgnoredRounds` (in-process) + `TestPrepareProposal_CensorTxOmitsTargetedTx` (in-process, byzantine-mode production) | Nửa chủ động (leader cố tình censor 1 tx thật) CHƯA có driver live -- `applyByzantineBehavior`'s `censor_tx:<hash>` đã hỗ trợ về mặt cơ chế, chỉ thiếu script điều phối gửi 1 forced-tx thật rồi quan sát bị bỏ qua |
 | A8 | Combined Attack | An toàn giữ vững dưới nhiều vector tấn công chồng lấn | Chưa có ở đâu trước đây | Capstone, chạy sau cùng khi A1-A7 đã có cơ chế thật -- vd. node04 byzantine `fake_fsm_state` đồng thời với Sybil swarm từ Part 2 đang hoạt động |
-| — | Double-signing (không đánh số, giữ như mục phụ) | Evidence extracted/logged | NOT COVERED | Cần wiring CometBFT evidence module vào `app.go` (core-engineering mới, tách khỏi phạm vi đợt này) -- xem ghi chú riêng bên dưới |
+| — | Double-signing (không đánh số, giữ như mục phụ) | Evidence extracted/logged | Cơ chế thật đã code xong (chưa chạy live) | `x/sovereignty/types/evidence.go` + `preblock.go`'s `recordDetectedEvidence`, `docker/engram-validator-node04-duplicate.yml`, `scripts/e8_attack_resilience/live_double_signing_test.py` -- xem ghi chú riêng bên dưới |
 
-**Double-signing, đánh giá lại (rẻ hơn dự tính ban đầu nhưng vẫn ngoài phạm vi đợt này):** với hạ tầng Byzantine-mode validator đã xây (node04 có thể
-điều khiển hành vi qua `ENGRAM_BYZANTINE_BEHAVIOR`), nửa khó nhất của bài toán (1 validator thật, còn sống, hành xử ác ý) đã có sẵn -- chỉ cần clone
-`priv_validator_key.json` của node04 vào 1 container thứ 2 để 2 tiến trình độc lập ký 2 vote khác nhau cùng height/round, không cần sửa fork. Phần còn
-thiếu thật sự là wiring `x/evidence` (Cosmos SDK) vào `app/app.go` theo đúng pattern direct-registration đã dùng cho `MsgServiceRouter`/`GRPCQueryRouter`
-(app này không có `module.Manager`) để `DeliverTx` thực sự xử lý `DuplicateVoteEvidence` thay vì bỏ qua âm thầm -- đây là core-engineering ABCI evidence
-lần đầu tiên trong app này, rủi ro cao hơn các phần khác của Part 4, nên để lại làm việc riêng, không chặn phần còn lại.
+**Double-signing, đóng được rẻ hơn dự tính ban đầu -- KHÔNG cần wiring `x/evidence` module:** phát hiện thật khi đọc kỹ ABCI 2.0:
+`RequestFinalizeBlock.Misbehavior` đã mang sẵn báo cáo `DuplicateVoteEvidence`/`LightClientAttackEvidence` thật từ evidence pool CometBFT (stock, không
+sửa fork) -- không cần wiring `x/evidence` (Cosmos SDK), chỉ cần đọc trực tiếp field này trong `PreBlocker` đã có sẵn. `preblock.go`'s
+`recordDetectedEvidence` đọc `req.Misbehavior`, ghi vào state mới (`Keeper.DetectedEvidenceCount`/`LastDetectedEvidence`, JSON-encoded, không cần proto
+mới) + log dòng `SLASHABLE EVIDENCE DETECTED` thật. **An toàn để commit** (khác hẳn lỗi sensor cục bộ đã tìm thấy trước đó gây AppHash phân kỳ):
+`req.Misbehavior` là dữ liệu đã đồng thuận, tất định, giống hệt `req.Txs`, không phải 1 lần đọc cục bộ mới -- xem comment trong `evidence.go`.
+
+Nửa khó nhất (1 validator thật, còn sống, hành xử ác ý) đóng qua `docker/engram-validator-node04-duplicate.yml`: clone `priv_validator_key.json` thật
+của node04 vào 1 container thứ 2 -- **nhưng cố tình KHÔNG chia sẻ** `priv_validator_state.json` (file theo dõi height/round đã ký cuối, chính là cơ chế
+chống double-sign có sẵn của FilePV) -- nếu chia sẻ thì tiến trình thứ 2 sẽ không bao giờ double-sign được, đúng như thiết kế bảo vệ vốn có. 3 unit test
+thật (`evidence_test.go`) xác nhận `recordDetectedEvidence` hoạt động đúng. `scripts/e8_attack_resilience/live_double_signing_test.py` quan sát qua
+`docker logs` (chưa có Query RPC riêng cho `DetectedEvidenceCount` -- cần thêm message .proto mới, để ngoài phạm vi đợt này). **Chưa chạy live thật.**
 
 **"Timeout flooding by Byzantine nodes"** (dòng cũ, không còn trong ma trận đánh số A1-A8 ở trên): đóng qua `chaos-crash` (SIGKILL 1 node) như phần
 gần nhất hiện có, với 2 vế caveat rõ ràng: (1) **có** đi qua đúng đường f+1-timeout-quorum thật (M0b's `handleTimeout`/

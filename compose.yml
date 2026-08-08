@@ -9,6 +9,7 @@ include:
   - ./docker/engram-validator-node03.yml
   - ./docker/engram-validator-node04.yml
   - ./docker/attacker-peer-swarm.yml
+  - ./docker/engram-validator-node04-duplicate.yml
 
 services:
   # ==========================================
