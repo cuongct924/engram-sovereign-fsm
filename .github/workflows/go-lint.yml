@@ -17,12 +17,14 @@ jobs:
       - name: Checkout CometBFT fork (go.mod's local replace directive)
         # See go-test.yml's identical step for the full explanation -- same
         # go.mod replace directive, same module-resolution failure without
-        # this, golangci-lint included since it resolves the module graph too.
-        uses: actions/checkout@v4
-        with:
-          repository: cuongct924/engram-consensus-core
-          ref: c32bf90f17ec58916929203c9799b389f63a564d
-          path: ../engram-consensus-core
+        # this (golangci-lint included, since it resolves the module graph
+        # too). Plain `git clone` here, NOT actions/checkout with path: ../..
+        # -- confirmed live that actions/checkout refuses to place a checkout
+        # outside its initial working directory, a security sandbox it
+        # enforces unconditionally, not something a path: override can bypass.
+        run: |
+          git clone --quiet https://github.com/cuongct924/engram-consensus-core.git ../engram-consensus-core
+          git -C ../engram-consensus-core checkout --quiet c32bf90f17ec58916929203c9799b389f63a564d
 
       - name: Setup Go Environment
         uses: actions/setup-go@v5

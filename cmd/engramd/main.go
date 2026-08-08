@@ -457,8 +457,15 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 // fork's own HealthMonitor.Blacklist is likewise never called anywhere) --
 // counts total connected peers, a documented simplification matching that.
 //
-// PeerLatencyMs stays 0 (real RTT measurement not implemented), matching
-// the fork's own lp2p.HealthSnapshot's identical documented gap.
+// Latency is now real (Part 1b follow-up): p2p.Peer.RTT() (engram-consensus-core's
+// p2p/conn/connection.go) piggybacks on MConnection's existing PacketPing/
+// PacketPong keep-alive exchange (already running every PingInterval,
+// default 60s, on every real connection) rather than adding a new reactor
+// or protobuf message type -- 0 per-peer until that peer's first exchange
+// completes. This closes the gap the fork's own lp2p.HealthSnapshot still
+// has (libp2p transport is dormant on every real deployment to date, so
+// that side was left at its existing documented limitation, not worth
+// fixing on a code path nothing runs).
 type vanillaP2PHealthAdapter struct {
 	sw                *p2p.Switch
 	persistentPeerIDs map[p2p.ID]bool
@@ -498,6 +505,7 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 	subnets := make(map[string]bool, len(peers))
 	var activeAnchors, cleanPeers uint64
 	var tenureSum time.Duration
+	var maxRTT time.Duration
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -520,6 +528,19 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 		}
 		cleanPeers++
 		tenureSum += p.Status().Duration
+		// Real RTT (Phase M0-followup, fork's p2p.Peer.RTT() -- see
+		// engram-consensus-core's connection.go doc): piggybacks on
+		// MConnection's existing PacketPing/PacketPong keep-alive, 0 until
+		// that peer's first exchange completes (up to one PingInterval,
+		// default 60s, after connecting) -- excluded from the max rather
+		// than counted as "0ms, perfectly healthy" during that warm-up
+		// window. Worst-case (max, not average) across peers, matching
+		// this snapshot's other fields' conservative posture (a single
+		// degraded/attacked peer is itself the signal IsP2PQualityHealthy
+		// exists to catch, not something an average should dilute).
+		if rtt := p.RTT(); rtt > maxRTT {
+			maxRTT = rtt
+		}
 	}
 	// Any previously-seen peer no longer in the current set disconnected --
 	// also counts as a churn event, and stops accumulating tenure/anchors.
@@ -550,7 +571,7 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 		CleanPeers:      cleanPeers,
 		ChurnRate:       uint64(len(a.churnEvents)),
 		AvgTenure:       avgTenure,
-		Latency:         0,
+		Latency:         uint64(maxRTT.Milliseconds()),
 	}
 }
 

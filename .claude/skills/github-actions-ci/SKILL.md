@@ -46,14 +46,29 @@ adding jobs; don't make every workflow run on every push.
    that also has the sibling `engram-consensus-core` checkout — `actions/checkout@v4` only fetches
    the one repo it's pointed at, so a bare `go-test.yml`/`go-lint.yml` breaks the instant this
    `replace` directive was added (confirmed as the actual root cause of a real CI failure, not
-   guessed). Fix: both workflows need a second `actions/checkout@v4` step, before any `go`/lint
-   step, checking out `cuongct924/engram-consensus-core` (confirmed public — no token needed) with
-   `path: ../engram-consensus-core` (resolves relative to `github.workspace`, landing as a sibling
-   of the main repo's checkout root, exactly matching the `replace` directive's relative path).
-   Pin `ref:` to the same commit/branch the local sibling checkout is actually on, not just
-   "whatever `main` happens to be" — a moving target there makes CI depend on a fork commit nobody
-   deliberately chose for that run. If the `replace` directive's target path or the fork's remote
-   ever changes, this checkout step must be updated in lockstep, in both workflow files.
+   guessed).
+   **`actions/checkout@v4` with `path: ../engram-consensus-core` does NOT work for this** — a
+   second `actions/checkout` step with a `path:` that escapes the initial working directory fails
+   live with `Repository path '.../engram-consensus-core' is not under '.../engram-sovereign-fsm'`.
+   This is a deliberate, unconditional security sandbox the action enforces (relevant for reusable/
+   third-party-triggered workflows); no input on the action bypasses it. (An earlier version of
+   this rule recommended the `path:` approach without having actually run it in CI — wrong,
+   corrected here after seeing the real failure.)
+   Fix: a plain `git clone` in a normal `run:` step, which has no such sandboxing and can place the
+   fork anywhere the runner's filesystem allows, including `../engram-consensus-core` — exactly
+   matching `go.mod`'s relative path with zero `go.mod` changes needed and zero divergence from how
+   every developer's local sibling checkout already works:
+   ```yaml
+   - name: Checkout CometBFT fork (go.mod's local replace directive)
+     run: |
+       git clone --quiet https://github.com/cuongct924/engram-consensus-core.git ../engram-consensus-core
+       git -C ../engram-consensus-core checkout --quiet <pinned-commit-sha>
+   ```
+   Pin the commit to the same one the local sibling checkout is actually on, not just "whatever
+   `main` happens to be" — a moving target there makes CI depend on a fork commit nobody
+   deliberately chose for that run. If the fork's remote or the pinned commit changes, update this
+   step in lockstep, in both workflow files (`go-test.yml` and `go-lint.yml` both need it —
+   golangci-lint resolves the module graph too, not just the test job).
 
 7. **Run `black scripts/` locally before committing any Python change under `scripts/`, don't wait
    for CI to report formatting failures.** `black --check` fails the whole job on a single

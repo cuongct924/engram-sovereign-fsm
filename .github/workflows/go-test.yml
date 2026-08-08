@@ -20,19 +20,26 @@ jobs:
         # (../engram-consensus-core) to a sibling checkout -- without this,
         # `go mod download`/`go vet`/`go test` all fail at module-resolution
         # time, since that path only exists on a machine that also has this
-        # fork checked out next to the main repo. `path:` here resolves
-        # relative to github.workspace, landing as a sibling of the main
-        # repo's own checkout root, matching the replace directive exactly.
-        uses: actions/checkout@v4
-        with:
-          repository: cuongct924/engram-consensus-core
-          # Pinned to the exact commit the local sibling checkout is on when
-          # this workflow step was added -- NOT `main`, which would make CI
-          # depend on a moving target nobody deliberately chose for a given
-          # run. Bump this in lockstep whenever the local fork checkout
-          # (../engram-consensus-core, relative to this repo) advances.
-          ref: c32bf90f17ec58916929203c9799b389f63a564d
-          path: ../engram-consensus-core
+        # fork checked out next to the main repo.
+        #
+        # A second actions/checkout@v4 with path: ../engram-consensus-core
+        # does NOT work here -- confirmed live, that action refuses to place
+        # a checkout outside its initial working directory ("Repository path
+        # '.../engram-consensus-core' is not under '.../engram-sovereign-fsm'"),
+        # a deliberate security sandboxing the action enforces unconditionally.
+        # A plain `git clone` in a normal run: step has no such sandboxing, so
+        # it can land the fork exactly where go.mod's relative path expects
+        # it, with zero go.mod changes needed and zero divergence from how
+        # every developer's local sibling checkout already works.
+        #
+        # Pinned to the exact commit the local sibling checkout is on when
+        # this step was added -- NOT `main`, which would make CI depend on a
+        # moving target nobody deliberately chose for a given run. Bump this
+        # in lockstep whenever the local fork checkout (../engram-consensus-core,
+        # relative to this repo) advances.
+        run: |
+          git clone --quiet https://github.com/cuongct924/engram-consensus-core.git ../engram-consensus-core
+          git -C ../engram-consensus-core checkout --quiet c32bf90f17ec58916929203c9799b389f63a564d
 
       - name: Setup Go Environment
         uses: actions/setup-go@v5

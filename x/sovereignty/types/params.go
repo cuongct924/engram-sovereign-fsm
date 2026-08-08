@@ -216,10 +216,12 @@ func DefaultParams() Params {
 		MinAnchorPeers:     2,
 		MaxChurnRate:       5,
 		MinAvgTenure:       300, // seconds (vanillaP2PHealthAdapter's real unit)
-		// PeerLatency has no real RTT measurement yet on the vanilla p2p.Switch
-		// transport (vanillaP2PHealthAdapter always reports 0, cmd/engramd/main.go) --
-		// this threshold is inert defense today, kept at the E4-validated value
-		// so it's already correctly sized once real RTT wiring lands.
+		// PeerLatency is now real (Part 1b follow-up): vanillaP2PHealthAdapter
+		// reads p2p.Peer.RTT() (engram-consensus-core's real PacketPing/
+		// PacketPong keep-alive measurement, cmd/engramd/main.go) -- this
+		// threshold was previously inert (adapter always reported 0), kept
+		// at the E4-validated value which is now genuinely load-bearing
+		// rather than merely correctly-sized-for-later.
 		MaxPeerLatency:  200, // milliseconds
 		MaxIgnoreRounds: 1,
 		// MaxPeersPerSubnet: same same-subnet-topology constraint as
