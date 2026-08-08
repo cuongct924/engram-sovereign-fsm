@@ -15,7 +15,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style  # noqa: E402
+from utils import setup_academic_plot_style, figsize_row, savefig_academic  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -23,8 +23,6 @@ RESULTS_DIR = os.path.dirname(__file__) + "/results"
 NOIR_CSV = os.path.join(RESULTS_DIR, "table6b_scaling.csv")
 PLONKY3_CSV = os.path.join(RESULTS_DIR, "table6c_plonky3.csv")
 TABLE_OUT = os.path.join(RESULTS_DIR, "table6c_backend_comparison.md")
-FIGURE_OUT = os.path.join(RESULTS_DIR, "figure7_backend_tradeoff.pdf")
-FIGURE_PNG = os.path.join(RESULTS_DIR, "figure7_backend_tradeoff.png")
 
 # Representative N for the headline comparison numbers -- the largest N both
 # sides actually measured (256), matching docs/EXPERIMENT.md's Table 6C style
@@ -131,7 +129,7 @@ def build_figure7(noir_rows, plonky3_rows):
         float(p3["prove_s"]),
     ]
 
-    fig, axes = plt.subplots(1, 3, figsize=(11, 4))
+    fig, axes = plt.subplots(1, 3, figsize=figsize_row(3))
     for ax, metric, nv, pv in zip(axes, metrics, noir_vals, p3_vals):
         bars = ax.bar(["Noir+Honk", "Plonky3"], [nv, pv], color=["C0", "C1"])
         ax.set_title(metric)
@@ -142,8 +140,7 @@ def build_figure7(noir_rows, plonky3_rows):
         f"Figure 7 -- Backend Trade-off at N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale)"
     )
     fig.tight_layout()
-    fig.savefig(FIGURE_OUT)
-    fig.savefig(FIGURE_PNG, dpi=150)
+    savefig_academic(fig, RESULTS_DIR, "figure7_backend_tradeoff")
 
 
 def main():
@@ -158,7 +155,7 @@ def main():
 
     print(table6c)
     print()
-    print(f"Figure 7 written to {FIGURE_OUT} / {FIGURE_PNG}")
+    print(f"Figure 7 written to {RESULTS_DIR}/figure7_backend_tradeoff.{{pdf,png}}")
     print(f"Table written to {TABLE_OUT}")
 
 

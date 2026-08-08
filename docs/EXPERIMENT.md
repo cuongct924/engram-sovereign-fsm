@@ -48,8 +48,6 @@ Thay vì chỉ báo cáo "no error", biến phần này thành một **verificat
 | C1 | 4 | 1 | 2–3 | 2–3 | 2–3 | Reproduce current result |
 | C2 | 4 | 1 | 4–5 | 3–4 | 3–4 | Kiểm tra consensus rounds sâu hơn |
 | C3 | 7 | 2 | 2–3 | 2–3 | 2–3 | Kiểm tra quorum overlap lớn hơn |
-| C4 | 4 | 1 | 3 | 3 | 3 | Simultaneous BTC + DA + P2P failure |
-| C5 | 4 | 1 | 3 | 3 | 3 | Byzantine proposer + forged receipt + data withholding |
 
 **Bảng ablation:**
 
@@ -97,9 +95,21 @@ Thay vì chỉ báo cáo "no error", biến phần này thành một **verificat
 
 **Baselines:** vanilla CometBFT với strict external validity; static circuit breaker; FSM without hysteresis; FSM với peer-count-only P2P sensor.
 
-**Đã đo thật:** `go test ./tests/e2e/...` chạy 7 kịch bản S1-S7 thật qua `x/sovereignty`'s `BeginBlocker` thật (không mock FSM logic, chỉ mock input sensor),
-kết quả ở `tests/e2e/results/s*.csv` + `e2_summary.md`. `scripts/e2_fault_injection/simulate_network_jitter.py` dựng Figure 3 (state timeline 7 kịch bản +
-withdrawal-lock shading) từ đúng dữ liệu đó.
+**Đã đo thật (in-process, baseline cũ):** `go test ./tests/e2e/...` chạy 7 kịch bản S1-S7 thật qua `x/sovereignty`'s `BeginBlocker` thật (không mock FSM
+logic, chỉ mock input sensor), kết quả ở `tests/e2e/results/s*.csv` + `e2_summary.md`. `scripts/e2_fault_injection/simulate_network_jitter.py` dựng
+Figure 3 (state timeline 7 kịch bản + withdrawal-lock shading) từ đúng dữ liệu đó.
+
+**Đã đo thật (live-docker, 2026-08-08)**: `scripts/e2_fault_injection/live_scenario_matrix.py` chạy đủ S1-S7 nối liền thành 1 lần thật trên cluster
+4-node thật (Pumba netem cho S2/S4/S5, `docker stop/start` thật cho S3/S6/S7), tổng thời lượng thật 1394s. Kết quả thật, không giả lập: cluster **chưa
+từng đạt ANCHORED xuyên suốt cả 7 pha** -- dao động liên tục giữa RECOVERING/SOVEREIGN ngay từ S1 (baseline), đúng khớp phát hiện tiêu cực đã ghi ở mục
+E5 bên dưới (hysteresis không có partial credit, một lần đọc xấu là reset về 0). S7 (chờ ANCHORED thật qua ZK pipeline) timeout sau 600s -- 23 proof thật
+được chấp nhận trong lúc chạy (`watch_and_prove.sh` với bug SIGPIPE đã sửa, xem mục E9), 29 bị từ chối do race điều kiện thật (interval tăng nhanh hơn
+tốc độ N=4 proof theo kịp), nhưng chưa đủ để đuổi kịp toàn bộ interval trong 600s. Dữ liệu thật ở
+`scripts/e2_fault_injection/results_live/s*.csv`. Figure 3 bản live (`scripts/e2_fault_injection/live_figure_builder.py`) thay 2 hình cũ bằng
+`figure3_state_timelines_live.{png,pdf}` (7 panel, mỗi panel chọn node có nhiều sample hợp lệ nhất -- không cố định node01, vì S4/S5 cố tình cô lập
+chính node01 khiến nó mất kết nối RPC phần lớn thời gian, một bug thật tìm được khi vẽ hình lần đầu) và `figure3_summary_bars_live.{png,pdf}` (3 chỉ số
+thật: block thật đã commit, số lần chuyển trạng thái thật, tỉ lệ thời gian ngoài ANCHORED -- không có `time_to_fallback`/`withdrawal_blocked_blocks` vì
+2 trường này không tồn tại trong schema polling trực tiếp qua RPC).
 
 **Baseline vanilla CometBFT (đã đo thật):** `engramd start --vanilla` (cờ mới, `app/app.go`) chạy đúng binary/module nhưng bỏ qua
 `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` -- BaseApp dùng handler mặc định, không có `ExtendedProposal`. Chạy 2 node thật song song
@@ -244,6 +254,34 @@ hysteresis cho chính nó), và SUSPICIOUS→ANCHORED hoàn toàn không có c�
 `if healthy { return ANCHORED }`, vô điều kiện) -- bất đối xứng giữa cạnh phục hồi (có gác cổng) và cạnh thoái lui (không có gì bảo vệ). Vì vậy
 HYSTERESIS_WAIT lớn không hề "lọc nhiễu" như kỳ vọng ban đầu -- nó chỉ đặt ra 1 bài kiểm tra ngày càng khó đỗ, và mỗi lần trượt lại tự nó tạo thêm dao
 động. Đây là một **kết quả tiêu cực (negative result) có giá trị công bố**, không phải lỗi cần sửa hay tham số cần tìm lại "giá trị đúng".
+
+**Đã đo thật (live-docker spot-check, 2026-08-08)**: `scripts/e5_hysteresis_flapping/live_spot_check.py` xác nhận lại đúng chiều hướng trên dưới
+consensus timing THẬT (không phải mock per-block), theo đúng phạm vi đã định trước: spot-check hẹp 2×2 (`HYSTERESIS_WAIT` ∈ {2 (mặc định hiện tại), 10}
+× môi trường ∈ {stable, noisy_da}), không phải sweep 6×5 đầy đủ, vì mỗi tổ hợp cần sửa `params.go` + rebuild image + redeploy sạch riêng. Kết quả thật,
+mỗi combo đo 300s thật trên cluster 4-node:
+
+| HYSTERESIS_WAIT | Môi trường | Flapping (300s) | Transitions | Anchored uptime |
+|---:|---|---:|---:|---:|
+| 2 | stable | 0 | 0 | 0.00% |
+| 2 | noisy_da | 12 | 13 | 0.00% |
+| 10 | stable | 0 | 1 | 0.00% |
+| 10 | noisy_da | **14** | 15 | 0.00% |
+
+**Flapping tăng theo HYSTERESIS_WAIT dưới nhiễu thật** (12→14 khi noisy_da), đúng chiều đã phát hiện ở bản in-process -- xác nhận đây không phải
+artifact của mock harness. `anchored_uptime` bằng 0% ở CẢ 4 combo (khác bản in-process, nơi vẫn đo được uptime dương ở HW thấp) -- lý do thật, không phải
+lỗi: cluster live lúc đo đã ở trạng thái RECOVERING/SOVEREIGN dao động liên tục từ trước do phiên làm việc kéo dài (xem ghi chú E2/E9 cùng ngày), nên cửa
+sổ 300s của spot-check không đủ để quan sát một lần ANCHORED thật nào -- một giới hạn thật của việc đo trên 1 cửa sổ ngắn trên hệ thống đã tích luỹ trạng
+thái xấu từ trước, không phải bằng chứng phủ định phát hiện chính. Figure 4 bản live
+(`scripts/e5_hysteresis_flapping/live_figure_builder.py` → `figure4_hysteresis_live.{png,pdf}`) đọc trực tiếp từ 4 file `*_summary.md` thật do
+`live_spot_check.py` ghi ra, không tính lại từ CSV thô.
+
+**Bug vận hành thật gặp lại khi dựng lại cluster cho combo HW=10** (không phải lỗi code, để lại đây vì tái diễn đúng lớp lỗi đã ghi ở
+`docs/DEVELOPMENT.md`): sau khi wipe+redeploy sạch để đổi `HysteresisWait`, height=1 bị kẹt round-skip vô hạn -- debug thật cho thấy 2 nguyên nhân
+chồng nhau: (1) ví Bitcoin trên `bitcoin-node01` bị unload (do container từng bị restart ở pha trước), khiến `AnchorTracker` không submit được anchor
+tx; (2) SAU KHI reload ví, `bitcoin_miner_loop.sh` hoá ra đã dừng chạy từ trước đó trong phiên -- không có block Bitcoin mới nào để anchor tx vừa submit
+đạt đủ `kDeepFinality=2` xác nhận, nên `h_btc_anchored` không bao giờ tiến được dù ví đã có tiền. Khởi động lại miner loop mới thực sự giải quyết được.
+Đây là bằng chứng thêm cho lý do `docs/DEVELOPMENT.md`'s §3.2 nhấn mạnh thứ tự "ví Bitcoin phải sẵn sàng VÀ tiếp tục mine trước khi/trong suốt lúc
+engramd chạy" -- không chỉ lúc bootstrap lần đầu mà cả những lần redeploy sau này trong cùng phiên.
 
 ---
 

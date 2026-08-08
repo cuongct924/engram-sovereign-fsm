@@ -24,7 +24,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style  # noqa: E402
+from utils import (  # noqa: E402
+    setup_academic_plot_style,
+    figsize_multi_panel,
+    figsize_row,
+    savefig_academic,
+)
 
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -59,7 +64,7 @@ def load_scenario_csv(path):
 def plot_state_timelines(scenarios):
     setup_academic_plot_style()
     n = len(scenarios)
-    fig, axes = plt.subplots(n, 1, figsize=(8, 1.6 * n), sharex=False)
+    fig, axes = plt.subplots(n, 1, figsize=figsize_multi_panel(n), sharex=False)
     if n == 1:
         axes = [axes]
 
@@ -83,9 +88,7 @@ def plot_state_timelines(scenarios):
         y=1.0,
     )
     fig.tight_layout()
-    os.makedirs(OUT_DIR, exist_ok=True)
-    fig.savefig(os.path.join(OUT_DIR, "figure3_state_timelines.pdf"))
-    fig.savefig(os.path.join(OUT_DIR, "figure3_state_timelines.png"), dpi=150)
+    savefig_academic(fig, OUT_DIR, "figure3_state_timelines")
 
 
 def plot_summary_bars(scenarios, metrics_by_scenario):
@@ -93,7 +96,7 @@ def plot_summary_bars(scenarios, metrics_by_scenario):
     names = list(scenarios.keys())
     labels = [SCENARIO_TITLES.get(n, n) for n in names]
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+    fig, axes = plt.subplots(1, 3, figsize=figsize_row(3))
     for ax, key, title in zip(
         axes,
         ("time_to_fallback", "recovery_time", "withdrawal_blocked_blocks"),
@@ -112,8 +115,7 @@ def plot_summary_bars(scenarios, metrics_by_scenario):
 
     fig.suptitle("E2 Summary Metrics (real tests/e2e data; grey = n/a)")
     fig.tight_layout()
-    fig.savefig(os.path.join(OUT_DIR, "figure3_summary_bars.pdf"))
-    fig.savefig(os.path.join(OUT_DIR, "figure3_summary_bars.png"), dpi=150)
+    savefig_academic(fig, OUT_DIR, "figure3_summary_bars")
 
 
 def parse_summary_md(path):

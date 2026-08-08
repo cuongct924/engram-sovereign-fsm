@@ -14,15 +14,17 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style  # noqa: E402
+from utils import (
+    setup_academic_plot_style,
+    figsize_grid,
+    savefig_academic,
+)  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
 RESULTS_DIR = os.path.dirname(__file__) + "/results"
 CSV_IN = os.path.join(RESULTS_DIR, "table6b_scaling.csv")
 TABLE_OUT = os.path.join(RESULTS_DIR, "table6a_6b.md")
-FIGURE_OUT = os.path.join(RESULTS_DIR, "figure6_scaling.pdf")
-FIGURE_PNG = os.path.join(RESULTS_DIR, "figure6_scaling.png")
 
 
 def load_rows():
@@ -89,7 +91,7 @@ def build_table6b(rows):
 def build_figure6(rows):
     setup_academic_plot_style()
     n = [r["n"] for r in rows]
-    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+    fig, axes = plt.subplots(2, 2, figsize=figsize_grid(2, 2))
 
     axes[0, 0].plot(n, [r["acir_opcodes"] for r in rows], marker="o")
     axes[0, 0].set_title("(A) Constraint Count")
@@ -117,8 +119,7 @@ def build_figure6(rows):
         "Figure 6 -- Recovery Proof Scaling (Noir + UltraHonk, real measurements)"
     )
     fig.tight_layout()
-    fig.savefig(FIGURE_OUT)
-    fig.savefig(FIGURE_PNG, dpi=150)
+    savefig_academic(fig, RESULTS_DIR, "figure6_scaling")
 
 
 def main():
@@ -134,7 +135,7 @@ def main():
     print()
     print(table6b)
     print()
-    print(f"Figure 6 written to {FIGURE_OUT} / {FIGURE_PNG}")
+    print(f"Figure 6 written to {RESULTS_DIR}/figure6_scaling.{{pdf,png}}")
     print(f"Tables written to {TABLE_OUT}")
 
 

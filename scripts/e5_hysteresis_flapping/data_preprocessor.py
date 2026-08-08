@@ -35,7 +35,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style  # noqa: E402
+from utils import setup_academic_plot_style, figsize_row, savefig_academic  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -71,7 +71,7 @@ def plot_figure4(rows):
         for env in ENVIRONMENTS
     }
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=figsize_row(3))
 
     for env in ENVIRONMENTS:
         rs = by_env[env]
@@ -115,9 +115,7 @@ def plot_figure4(rows):
         "Figure 4 -- Recovery Stability vs. HYSTERESIS_WAIT (real tests/e2e data, 5 environments)"
     )
     fig.tight_layout()
-    os.makedirs(OUT_DIR, exist_ok=True)
-    fig.savefig(os.path.join(OUT_DIR, "figure4_hysteresis.pdf"))
-    fig.savefig(os.path.join(OUT_DIR, "figure4_hysteresis.png"), dpi=150)
+    savefig_academic(fig, OUT_DIR, "figure4_hysteresis")
 
 
 def build_table(rows):

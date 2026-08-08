@@ -20,7 +20,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style  # noqa: E402
+from utils import (  # noqa: E402
+    setup_academic_plot_style,
+    figsize_multi_panel,
+    savefig_academic,
+)
 
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -55,7 +59,7 @@ def plot_figure2(rows):
     setup_academic_plot_style()
     heights = [r["height"] for r in rows]
 
-    fig, axes = plt.subplots(6, 1, figsize=(9, 11), sharex=True)
+    fig, axes = plt.subplots(6, 1, figsize=figsize_multi_panel(6), sharex=True)
 
     axes[0].step(
         heights,
@@ -113,9 +117,7 @@ def plot_figure2(rows):
         "Figure 2 -- FSM Timeline Under a Combined-Failure Trace (real tests/e2e data)"
     )
     fig.tight_layout()
-    os.makedirs(OUT_DIR, exist_ok=True)
-    fig.savefig(os.path.join(OUT_DIR, "figure2_trace_timeline.pdf"))
-    fig.savefig(os.path.join(OUT_DIR, "figure2_trace_timeline.png"), dpi=150)
+    savefig_academic(fig, OUT_DIR, "figure2_trace_timeline")
 
 
 def main():
