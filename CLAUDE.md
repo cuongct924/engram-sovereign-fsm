@@ -560,10 +560,8 @@ validating cleanly (that was already true before this pass):
   this file's other documented gaps (round=0 tolerance, no `is_btc_spv_failed` field, etc.). Left
   unfixed this pass; worth closing before treating `ExtendedProposal` as spec-complete.
 
-**Not yet done**, tracked as later milestones (ask the repo owner for the current plan file if
-picking this up cold):
-- **M7**: `scripts/`'s Python orchestration (Pumba chaos injection against a real multi-node
-  testnet) is mostly empty stubs, blocked on M5+M6.
+**M7 is now done** -- see "E2-E9 live-Docker completion" below for the full real-data story
+(previously blocked on M5+M6, both since completed).
 
 **Level1** (ZK backend benchmark, lower priority) is done for the mandatory half:
 `scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh` runs a real Noir (1.0.0-beta.22) +
@@ -578,8 +576,185 @@ current stable during this work (`noirup -v 1.0.0-beta.22` + matching `bbup`), a
 Noir needs explicit parens around chained `==`/`|` comparisons (`(a == 2) | (a == 3)`, not
 `a == 2 || a == 3`) due to operator precedence -- not a spec-fidelity issue, just this Noir
 version's grammar.
-**Not done**: Table 6C / Figure 7 (Plonky3 backend comparison) -- explicitly the optional half of
-E6 ("tùy chọn nếu còn thời gian").
+**Table 6C / Figure 7 (Plonky3 backend comparison) is also now done** (was previously the optional
+half of E6, "tùy chọn nếu còn thời gian") -- `scripts/e6_zk_reanchoring_benchmark/benchmark_plonky3.sh`
++ `table6c_collector.py` produce real measured Plonky3 numbers alongside the Noir/UltraHonk ones,
+see `docs/EXPERIMENT.md`'s E6 section.
+
+## E2-E9 live-Docker completion + real Sybil/eclipse P2P defense
+
+Everything below happened across several sessions after the section above was last written --
+read this before assuming E2-E9 are still "mostly in-process/synthetic" as some of the language
+above implies. `docs/EXPERIMENT.md` is the authoritative, continuously-updated record of exactly
+which numbers are real live-Docker data vs. in-process vs. synthetic per experiment/row -- this
+section is a narrative summary of how that state was reached, not a duplicate of it.
+
+**Real active Sybil/eclipse ingress defense** (previously only passive detection existed, found by
+re-reading this project's own early design notes in the fork repo, `lp2p/note02.md`/
+`p2p/note_develop.md`, which sketched an active filter + real RTT that was never implemented):
+- **Ingress filter**: `x/sovereignty/keeper/peer_filter.go`'s `FilterPeerByAddr`, wired via
+  `baseapp.SetAddrPeerFilter` (a stock Cosmos SDK ABCI hook the fork already exposes -- no fork
+  changes needed) -- rejects a new peer connection outright if admitting it would push its `/24`
+  (or `/48` IPv6) subnet's connected-peer count past `Params.MaxPeersPerSubnet` (default 8).
+  `cmd/engramd/main.go`'s `wirePeerFilter` late-binds a live `PeerFilterSource` after
+  `node.NewNode()` constructs the real `*p2p.Switch`, mirroring `wireP2PSensor`'s existing
+  late-binding pattern for the same ordering constraint.
+- **Real per-peer RTT**: piggybacked on the fork's EXISTING `PacketPing`/`PacketPong` keep-alive
+  (`p2p/conn/connection.go`'s `MConnection`, new `RTT()` method) instead of building a whole new
+  Reactor/protobuf message type as originally planned -- this closed `vanillaP2PHealthAdapter`'s
+  previously-hardcoded-0 `Latency` field with real data.
+- Confirmed live against a real 10-22-container attacker swarm (`docker/attacker-peer-swarm.yml`,
+  new, profile-gated `attacker-swarm-a1`/`attacker-swarm-a2`): the filter correctly capped both
+  legs at exactly `MaxPeersPerSubnet=8` peers, real 4-node cluster stayed completely safe
+  (matching AppHash, normal height progression) throughout both attacks. **Real Docker
+  gateway-priority quirk found live and left honestly unresolved**: a multi-homed container with
+  no explicit `gw_priority` consistently routes via the network declared SECOND in its
+  `networks:` block, not first -- this defeated leg A2's genuine multi-subnet-diversity goal (all
+  attackers landed on the same subnet as the real validators regardless of which
+  `attacker-subnet-a/b/c/d` they were assigned) -- see
+  `scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_live_run_20260808_summary.md` for
+  the full writeup. Not a `FilterPeerByAddr` bug -- it held its cap regardless of which subnet
+  peers actually arrived from.
+- **Real double-signing detection, closed cheaper than planned**: `RequestFinalizeBlock.Misbehavior`
+  already carries real `DuplicateVoteEvidence` from CometBFT's own stock evidence pool -- no
+  `x/evidence` (Cosmos SDK) module wiring needed at all, just read the field directly in
+  `PreBlocker` (`x/sovereignty/preblock.go`'s `recordDetectedEvidence`, new
+  `Keeper.DetectedEvidenceCount`/`LastDetectedEvidence`, `x/sovereignty/types/evidence.go`). Safe
+  to commit (unlike a fresh local sensor read) because `Misbehavior` is part of the already-agreed
+  block request, deterministic and identical across every honest validator.
+- **CI was genuinely broken and got fixed twice**: first attempt used `actions/checkout@v4`'s
+  `path: ../engram-consensus-core` to pull in the fork sibling repo for the local
+  `go.mod replace` directive -- confirmed broken by real CI failure output (`checkout`'s sandbox
+  disallows writing outside the initial workspace). Corrected to a plain `git clone` in a `run:`
+  step, pinned to a specific fork commit. Also fixed real `black` formatting debt across
+  `scripts/` (`black --check` checks the WHOLE tree per invocation, not just changed files).
+  `.claude/skills/github-actions-ci/SKILL.md` updated with both lessons.
+
+**E8 full A1-A8 + Double-signing matrix, now 100% real live-Docker (previously in-process only)**:
+every row -- Eclipse, Sybil, Data Withholding, Forged BTC Receipt, Withdrawal-During-SOVEREIGN,
+Malicious Proposer, Censorship, Combined Attack, and Double-signing -- now has a real pass against
+the live 4-node cluster (`scripts/e8_attack_resilience/live_*.py`), driven by a new
+`ENGRAM_BYZANTINE_BEHAVIOR` env var (`x/sovereignty/proposal.go`'s `applyByzantineBehavior`, never
+set on a real validator) that makes `PrepareProposal` deliberately lie about its own proposal
+(`fake_fsm_state:<STATE>`, `forge_btc_hash`, `false_da_attestation`, `censor_tx:<hex>`) so the
+OTHER (honest) validators' real `ProcessProposal` rejection path gets exercised live, not just
+unit-tested. Double-signing itself is real equivocation, not simulated: a second `engramd`
+process holds node04's real signing key but its own separate `priv_validator_state.json`
+(`docker/engram-validator-node04-duplicate.yml`) -- since FilePV's own state file is CometBFT's
+built-in anti-double-sign safety net, NOT sharing it is what lets the second process actually
+equivocate. Confirmed live: all 3 honest validators detected real `DuplicateVoteEvidence` with
+1-block detection latency, reproduced twice independently in the same run.
+
+Getting this live-clean surfaced **6 real bugs, none visible from reading the code, all found by
+actually running it**:
+1. **Withdrawal-tx permanent liveness deadlock**: `ProcessProposal`'s check #4 correctly rejected
+   a withdrawal tx while SOVEREIGN, but `PrepareProposal` never filtered it out of ITS OWN
+   proposal -- the tx just sat in mempool and every subsequent leader kept re-proposing it,
+   getting rejected forever, real round-skip stall observed for dozens of rounds. Fixed:
+   `PrepareProposal` now filters withdrawal-marked txs out of its own proposal while
+   `WithdrawLocked`, not just relying on check #4 as the only guard (`x/sovereignty/proposal.go`).
+2. **`ForcedTxQueue` never dequeued after inclusion -- a second, worse permanent deadlock**:
+   `updateForcedTxTracking` only ever reset `ignoredRounds` to 0 on inclusion, never removed the
+   entry -- but a tx can only ever be included ONCE (consumed from mempool on commit), so every
+   round after that had `included[tx]==false` forever, tripping `IsCensoring` permanently, on
+   EVERY validator, even after reverting the byzantine one back to honest. Fixed: dequeue the
+   entry from `ForcedTxQueue`/`TxIgnoredRounds` entirely once included, not just reset the counter
+   (`x/sovereignty/preblock.go`).
+3. **`SubmitForcedTx` accepted content that could never satisfy inclusion -- an unbounded,
+   no-privilege-required DoS vector**: root cause of a THIRD instance of the same deadlock class --
+   choosing "another `MsgSubmitForcedTxRequest`" as a test's forced-tx target meant broadcasting
+   it re-triggered `SubmitForcedTx`'s OWN handler, queuing its inner payload (a bare string, never
+   a valid raw tx) as an unsatisfiable entry. Real implication: ANY account submitting
+   `MsgSubmitForcedTx` with undecodable content can halt the entire network permanently, no
+   validator privilege needed. Fixed at the source: `SubmitForcedTx` now rejects content that
+   doesn't decode as a real tx via a new optional `Keeper.TxDecoder` (nil-safe, wired from
+   `app.go`'s `txConfig.TxDecoder()`, same pattern as `peerFilterSrc`) --
+   `x/sovereignty/keeper/msg_server.go`, `keeper.go`, `app/app.go`.
+4. **Compose project-identity collision**: `docker/engram-validator-node04-byzantine.yml` had its
+   own top-level `name:` -- Compose merges/forks project identity from the LAST file's `name:`
+   when given multiple `-f` flags, so swapping in this override forked a separate Compose project
+   from the real cluster's, causing a real "container name already in use" crash the first time
+   it was actually invoked. Fixed by removing `name:` from both this file and
+   `engram-validator-node04-duplicate.yml` (which had the same latent bug, non-fatal there only
+   because it creates a new container rather than swapping an existing one).
+5. **Docker Desktop (macOS virtiofs) cannot mount a file whose target path resolves inside a
+   directory that is itself already a bind-mount source** -- `docker/engram-validator-node04-duplicate.yml`'s
+   nested `priv_validator_key.json`/`genesis.json` mounts failed with "mountpoint ... is outside
+   of rootfs", a real environment limitation, not a YAML mistake. Fixed by having the caller
+   (`scripts/e8_attack_resilience/live_double_signing_test.py`'s `stage_duplicate_identity`) copy
+   both files onto the host BEFORE `docker compose up`, landing inside the container for free via
+   the single top-level home-dir mount.
+6. **Missing `priv_validator_state.json` bootstrap for the duplicate-key harness**: `engramd init`
+   bails out early once genesis/key files already exist (staged by fix #5 above), so it never
+   reached the step that creates FilePV's state file -- `engramd start` crashed real
+   ("no such file or directory") the first time this harness actually got far enough to run.
+   Fixed: `stage_duplicate_identity` writes a fresh `{"height":"0","round":0,"step":0}` itself --
+   correct by design, since the whole point of this harness is a validator that has never signed
+   anything, not a copy of the real node04's already-advanced state.
+
+**Prometheus/Grafana monitoring stack removed** (`docker/engram-monitoring.yml`,
+`config/prometheus.yml`, `config/grafana/`, plus a dead `fetch_prometheus_metric` helper in
+`scripts/utils.py`) -- confirmed via grep that no E2-E9 experiment script ever reads the
+Prometheus HTTP API; every real number in this repo comes from `scripts/framework/logger.py`
+polling CometBFT RPC/ABCI-query directly. Each `engram-nodeNN`'s own built-in CometBFT
+Prometheus-format `/metrics` endpoint is unrelated and was left in place (free, always-on, just
+unscraped).
+
+**E9 live combined trace -- includes a real self-correction worth remembering**: Phases 1-6 (BTC
+congestion + DA outage + P2P churn, layered not sequential) passed cleanly against the live
+cluster; Phase 7 (wait for real ANCHORED via the ZK pipeline) legitimately timed out after 600s.
+The FIRST write-up of this in `docs/EXPERIMENT.md` attributed the timeout to "proof rejected by
+the chain, staleness race" -- copied from `watch_and_prove.sh`'s own generic log message on any
+non-zero exit, **never independently verified**. When directly challenged on whether this
+explanation was trustworthy, re-running `prove_and_submit.sh` by hand with `bash -x` showed it
+was dying at Step 1/4 with **SIGPIPE (exit 141)**, never even reaching proof submission:
+`HEADER_LINES=$(echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N")` breaks under `set -o pipefail`
+once the tracked interval is large enough that `head` reads its N lines and exits before `echo`
+finishes writing the rest. Fixed with a here-string (`head -n N <<< "$ALL_HEADER_LINES"`, no live
+pipe to race) -- re-ran and got a real accepted proof submission with a real checkpoint advance.
+**The original explanation was retracted and corrected in `docs/EXPERIMENT.md`** rather than left
+standing. Lesson: a log message explaining a failure is a claim to verify, not a fact to repeat,
+especially one`s own tooling's generic catch-all message. Also found and fixed while chasing this:
+`scripts/framework/injector.py`'s `cleanup_profile` (shared by every chaos script) only ever
+called `docker compose rm -f` without `stop` first -- invisible everywhere else because prior
+callers always ran it AFTER a Pumba profile's own `--duration` had already elapsed naturally, but
+E9's churn-burst phase deliberately cuts a profile short, leaving it stuck "Up" forever and
+correctly triggering `wait_for_no_active_netem`'s refusal to layer a second profile on top.
+
+**Figure regeneration for real academic-paper proportions**: `scripts/utils.py` gained
+`figsize_single`/`figsize_multi_panel`/`figsize_row`/`figsize_grid`/`savefig_academic` --
+IEEE/ACM two-column standard widths (3.5in single-column, 7.16in double-column), golden-ratio
+height, 300 DPI PNG (up from a stale 150 DPI) + vector PDF as the primary format. Applied across
+every figure-generating script (E2/E5/E6/E9). New live-data figure builders
+(`scripts/e{2,5,9}_*/live_figure_builder.py`) replaced the 3 figures that were still sourced from
+in-process/synthetic data with real live-Docker equivalents. Found and fixed while building these,
+each only visible by actually looking at the rendered PNGs, not just checking exit codes:
+- E2's `representative_rows()` originally picked the alphabetically-first node as representative --
+  but S4/S5 specifically isolate `engram-node01`, so its own samples were almost all RPC-error
+  sentinels, collapsing those panels to seconds instead of minutes. Fixed to pick whichever node
+  has the most valid samples in that scenario.
+- Multiple label/title-overlap and suptitle-clipping layout bugs (labels too long for a 3-panel
+  row at double-column width; rotated y-axis labels clipped against the canvas edge) -- fixed with
+  shorter label text, taller figures, and explicit `tight_layout(rect=...)` margins per figure.
+- Redeploying fresh for E5's `HysteresisWait=10` combo hit the SAME operational bugs documented
+  elsewhere in this file (Bitcoin wallet unloaded after a container restart; separately,
+  `bitcoin_miner_loop.sh` had silently stopped running, so a freshly-submitted anchor tx could
+  never accumulate `kDeepFinality` confirmations) -- real, recurring evidence for why
+  `docs/DEVELOPMENT.md` insists the Bitcoin wallet must be funded/mature AND continuously mining
+  before AND throughout every `engramd` run, not just at first bootstrap.
+
+**Documentation overhaul**: `docs/DEVELOPMENT.md` (previously a single narrow section on manual
+Bitcoin regtest fork/reorg testing) rewritten to cover the full real build/test/lint workflow, the
+real multi-node Docker deploy sequence with its load-bearing ordering (Bitcoin/Celestia funded and
+mining BEFORE `engramd`, never burst-mine live, always wipe `testnet-data/` before redeploy, never
+bare `docker compose down`), and the ZK re-anchoring pipeline -- with mermaid diagrams. Root
+`docs/ARCHITECTURE.md` corrected (stale `172.20.0.0/24` IP range, stale celestia-light/vigilante
+sidecar references, stale "mock-controlled" sensor description) and given 2 real mermaid diagrams
+(network topology; the `PrepareProposal`/`ProcessProposal`/`PreBlocker` consensus flow). Root
+`README.md` rewritten in English as a concise, image-driven entry point (repo structure,
+architecture diagram slot, quick start, and a real E1-E9 results gallery linking each figure's
+full-resolution PDF) -- deliberately does NOT link this file, which is written for AI-agent
+session continuity, not human onboarding.
 
 Do not assume any of the above exists just because a directory or file for it is present.
 
