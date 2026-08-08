@@ -1,0 +1,19 @@
+# Example witness for circuit/reanchoring_witness/src/main.nr, at N=4.
+#
+# Same underlying fixture as circuit/reanchoring/Prover.toml.example --
+# running `nargo execute witness` here prints the exact Header lines (with
+# prev_hash filled in) that circuit/reanchoring/Prover.toml.example's
+# [[headers]] entries already contain, since both crates share the same
+# hash_header (real Poseidon2 sponge). This crate's job is only to derive
+# prev_hash from raw per-header data (types.RecoveryHeader, no prev_hash
+# stored) -- it never itself produces a proof.
+#
+# To use: cp Prover.toml.example Prover.toml, then `nargo execute witness`,
+# and grep the printed `Header { ... }` lines into the real circuit's
+# Prover.toml (scripts/reanchoring_prover/prove_and_submit.sh does this
+# automatically against real chain data).
+
+rt_last = "111"
+raw_fsm_state = ["2", "2", "3", "3"]
+raw_withdrawal_locked = ["1", "1", "1", "1"]
+raw_state_root = ["1000", "1001", "1002", "1003"]

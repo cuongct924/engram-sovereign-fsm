@@ -1,26 +1,37 @@
-rt_last = "15434364762196996140549589341552222435606443046533897618586580254812431104081"
-rt_new = "0x20958a06f896d29a6d75ad1c378fbaf8e8c7b5417786b9cbfb0c3b3100220b9e"
+# Example witness for circuit/reanchoring/src/main.nr, at N=4.
+#
+# This is the SAME fixture as the circuit's own valid_chain_satisfies_circuit
+# test (src/main.nr) and matches circuit/reanchoring_witness/Prover.toml.example
+# one-for-one -- running `nargo execute witness` in that sibling crate against
+# its own example reproduces exactly the prev_hash values below. Verified via
+# a real nargo compile/execute + bb prove/verify pass (real Poseidon2 sponge,
+# std::hash::poseidon2_permutation) before committing these numbers.
+#
+# To use: cp Prover.toml.example Prover.toml, then `nargo execute witness`.
+
+rt_last = "111"
+rt_new = "1003"
 
 [[headers]]
-prev_hash = "0x221f8a7714359b6db9baddee936a57af86dea0c27db5d107950dc2cbb852b851"
-fsm_state = "0x02"
-withdrawal_locked = "0x01"
-state_root = "0x221f8a7714359b6db9baddee936a57af86dea0c27db5d107950dc2cbb852b851"
+prev_hash = "111"
+fsm_state = "2"
+withdrawal_locked = "1"
+state_root = "1000"
 
 [[headers]]
-prev_hash = "0x06fd92c67d971adecc73e9f2c456d3d7ed4600fffe6767476c46f36a4caa332c"
-fsm_state = "0x02"
-withdrawal_locked = "0x01"
-state_root = "0x024f719ee6466812826fcffdb53d11b1d56eb774a060f3f8c34ed62ecf4ac80e"
+prev_hash = "0x168c1f5895ad57e0d8257da085aab977ec14ed66699553157cd0bcffcd02bb3c"
+fsm_state = "2"
+withdrawal_locked = "1"
+state_root = "1001"
 
 [[headers]]
-prev_hash = "0x0d2e4a8c5477eb31d235a54c8a7a36d09cd5aab9d49b355fcc9502b93fc02365"
-fsm_state = "0x02"
-withdrawal_locked = "0x01"
-state_root = "0x07df6aeee9f908464194c7a02309ff3c3e505d09c6643e939d6765277da22015"
+prev_hash = "0x1374589c7378e0464473f7555a1be23550b356e5f6fcc2236360794359e40b86"
+fsm_state = "3"
+withdrawal_locked = "1"
+state_root = "1002"
 
 [[headers]]
-prev_hash = "0x1fd4b212f2d467f2cc0887832ccc5f34bc2a1cecd0ee69cb9a9b047a0b6e508d"
-fsm_state = "0x02"
-withdrawal_locked = "0x01"
-state_root = "0x20958a06f896d29a6d75ad1c378fbaf8e8c7b5417786b9cbfb0c3b3100220b9e"
+prev_hash = "0x264dd191a1edb43cb60a045b1f3b7e5db97372cf99c261fe5344237c922f71e1"
+fsm_state = "3"
+withdrawal_locked = "1"
+state_root = "1003"
