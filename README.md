@@ -73,8 +73,9 @@ Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).
 ### E5 — Hysteresis Sensitivity (live)
 [![Figure 4](scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.png?v=1)](scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.pdf?v=1)
 
-### E6 — ZK Re-Anchoring Proof Scaling (Noir + UltraHonk)
-[![Figure 6](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png?v=1)](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.pdf?v=1)
+### E6 — ZK Re-Anchoring Proof Scaling (Noir + UltraHonk vs. Plonky3)
+[![Figure 6](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png?v=2)](scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.pdf?v=2)
+[![Figure 7](scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.png?v=1)](scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.pdf?v=1)
 
 ### E7 — Consensus Overhead of the Extended Proposal
 Table only -- see [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md).

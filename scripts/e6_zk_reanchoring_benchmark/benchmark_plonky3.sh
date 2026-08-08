@@ -11,17 +11,23 @@
 # convention for the Noir/Barretenberg side.
 #
 # Scope note (documented, not silent): circuit/reanchoring/src/main.nr's
-# per-header cost is dominated by one Pedersen hash invocation per header
-# (the continuity check) -- the fsm_state/withdrawal_locked boolean asserts
-# and the two root-binding asserts are O(1) per header and contribute a
-# negligible constraint share (see table6a_6b.md's fixed-overhead/marginal-cost
-# regression). This script benchmarks the same dominant primitive on the
-# Plonky3 side -- N chained Poseidon2 permutations -- via Plonky3's own
-# maintained VectorizedPoseidon2Air example, rather than hand-rolling a custom
-# AIR that reimplements main.nr's exact header struct (a much larger, bug-prone
-# undertaking for a comparison whose point is backend trade-offs, not circuit
-# fidelity). This mirrors the Noir side's own documented simplification
-# (Pedersen chain instead of a real SMT proof, see main.nr's header comment).
+# per-header cost is dominated by one Poseidon2 hash_header invocation per
+# header (the continuity check) -- two Poseidon2 permutations per
+# hash_header call, see main.nr's own hash_header comment -- the
+# fsm_state/withdrawal_locked boolean asserts and the two root-binding
+# asserts are O(1) per header and contribute a negligible constraint share
+# (see table6a_6b.md's fixed-overhead/marginal-cost regression). This script
+# benchmarks the same primitive on the Plonky3 side -- N chained Poseidon2
+# permutations -- via Plonky3's own maintained VectorizedPoseidon2Air
+# example, rather than hand-rolling a custom AIR that reimplements main.nr's
+# exact header struct (a much larger, bug-prone undertaking for a comparison
+# whose point is backend trade-offs, not circuit fidelity). Both sides now
+# genuinely isolate the same underlying primitive (Poseidon2) -- this was
+# not always true: an earlier revision of main.nr used Pedersen hashing, at
+# which point this script's Poseidon2 choice was a documented mismatch
+# (mirroring the Noir side's Pedersen-vs-real-SMT simplification instead);
+# main.nr has since switched to real Poseidon2 as well, so the comparison
+# below is a like-for-like primitive cost comparison, not just a proxy.
 #
 # The vectorized Poseidon2 AIR proves in batches of 8 (P2_VECTOR_LEN in
 # prove_prime_field_31.rs) -- num_hashes = 2^log_trace_length * 8, so N=4 from

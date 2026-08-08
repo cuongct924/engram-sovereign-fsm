@@ -345,10 +345,25 @@ engramd chạy" -- không chỉ lúc bootstrap lần đầu mà cả những l�
 `nargo compile` → `bb gates` → `nargo execute` → `bb prove` → `bb verify` thật (Noir 1.0.0-beta.22 + Barretenberg 5.0.0-nightly.20260522, UltraHonk) trên
 `circuit/reanchoring/src/main.nr` ở N = 4..256 headers, kết quả thô ở `scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`, bảng/biểu đồ dựng
 bởi `stats_collector.py` vào `results/table6a_6b.md` + `results/figure6_scaling.{png,pdf}`. Circuit thật đơn giản hơn Table 6A/6B ở trên (chain
-continuity qua Pedersen hash thay vì SMT inclusion/update proof thật -- xem comment ở đầu `main.nr`), nên số liệu đo được KHÔNG nhằm khớp với các con số
-mục tiêu phía trên, mà xác nhận đúng shape khoa học mà E6 muốn chứng minh: constraint count tăng tuyến tính hoàn hảo (42 ACIR opcodes/header thêm, R²=1.0),
-proving time tăng gần tuyến tính (0.38s → 4.14s từ N=4 → 256), verification time phẳng (20–26ms, không phụ thuộc N), proof size hằng số tuyệt đối (14,656 B
-ở mọi N). Table 6C/Figure 7 (Plonky3 backend so sánh) chưa thực hiện -- đúng như mức ưu tiên "tùy chọn" ở trên.
+continuity qua Poseidon2 hash thay vì SMT inclusion/update proof thật -- xem comment ở đầu `main.nr`), nên số liệu đo được KHÔNG nhằm khớp với các con số
+mục tiêu phía trên, mà xác nhận đúng shape khoa học mà E6 muốn chứng minh: constraint count tăng tuyến tính hoàn hảo (12.00 ACIR opcodes/header thêm,
+R²=1.0000, fixed overhead ≈0), proving time tăng gần tuyến tính (0.130s → 0.684s từ N=4 → 256), verification time phẳng (22–33ms, không phụ thuộc N),
+proof size hằng số tuyệt đối (14,656 B ở mọi N).
+
+*(Circuit này ban đầu dùng `pedersen_hash`; đổi sang `std::hash::poseidon2_permutation` thật (không có wrapper tiện lợi ở version Noir đang pin, nên
+tự dựng sponge cố định-độ-dài đúng chuẩn) khiến ACIR opcode count giảm mạnh so với lần đo trước -- 12.00 opcodes/header thay vì 42, vì black-box gate
+`POSEIDON2_PERMUTATION` rẻ hơn nhiều so với `pedersen_hash`'s field-arithmetic-based construction trong ACIR. VK embedded
+(`x/sovereignty/keeper/zk_assets/vk`) đã regenerate khớp circuit mới, verify lại end-to-end bằng `bb prove`/`bb verify` thật + qua đúng code path Go
+`VerifyZKProof`/`BenchmarkVerifyZKProof` trước khi thay.)*
+
+**Table 6C/Figure 7 (Plonky3 backend so sánh) đã thực hiện** (không còn "tùy chọn/chưa làm" như từng ghi) -- `benchmark_plonky3.sh` chạy Plonky3's
+`prove_prime_field_31` example thật (pinned commit `a31a1443a114c58735850daa5b5fc5c43c138d9d`, BabyBear field, UniStark+FRI, Poseidon2 permutation,
+transparent setup, không trusted setup) ở cùng N=8..256, `table6c_collector.py` gộp với `table6b_scaling.csv` vào `results/table6c_backend_comparison.md`
++ `results/figure7_backend_tradeoff.{png,pdf}`. Ở N=256 (đại diện): Noir+Honk — proof 14,656 B, verify 22.0 ms, prove 0.684 s, trusted setup KZG,
+không PQ-secure; Plonky3 — proof 1,278,939 B (≈87x lớn hơn), verify 32.2 ms, prove 0.044 s (≈15.5x nhanh hơn), transparent/FRI setup, PQ-secure.
+Hai circuit không bit-identical (Plonky3 dùng example có sẵn của họ, không tái tạo tay đúng struct `Header` của `main.nr`, xem comment đầu
+`benchmark_plonky3.sh`), nhưng từ khi circuit Noir đổi sang Poseidon2 thật, cả hai bên giờ đo cùng một primitive thật (Poseidon2 permutation) thay vì
+một bên là proxy gần đúng như trước -- so sánh trade-off (KZG/pairing vs FRI/hash-based, proof size vs prove time) vì vậy đáng tin hơn trước.
 
 > **Scientific claim:** Recovery proofs scale linearly in prover cost while preserving constant-size proofs and constant-time verification — reanchoring is practical, scalable, and incurs bounded overhead.
 

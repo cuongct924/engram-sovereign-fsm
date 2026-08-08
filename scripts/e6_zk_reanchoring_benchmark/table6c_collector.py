@@ -57,16 +57,17 @@ def build_table6c(noir_rows, plonky3_rows):
     lines = [
         "**Table 6C -- Backend Comparison (measured, N=256 sovereign blocks):**",
         "",
-        "Noir+Honk measures circuit/reanchoring/src/main.nr (Pedersen header-chain "
+        "Noir+Honk measures circuit/reanchoring/src/main.nr (Poseidon2 header-chain "
         "continuity, real nargo+bb pipeline, table6b_scaling.csv). Plonky3 measures "
         "the same dominant cost driver -- N chained Poseidon2 permutations -- via "
         "Plonky3's own first-party benchmark example (prove_prime_field_31, pinned "
         "commit a31a1443a114c58735850daa5b5fc5c43c138d9d), NOT a hand-rolled "
         "reimplementation of main.nr's exact header struct; see "
         "benchmark_plonky3.sh's header comment for why. The two circuits are "
-        "therefore not bit-identical, but both isolate the same cost driver "
-        "(one hash invocation per header) that dominates constraint count on "
-        "the Noir side (table6a_6b.md's regression). Trusted setup / PQ secure "
+        "therefore not bit-identical, but both now genuinely isolate the same "
+        "primitive (Poseidon2, two permutations per header on the Noir side) "
+        "that dominates constraint count there (table6a_6b.md's regression). "
+        "Trusted setup / PQ secure "
         "are well-established properties of the underlying commitment scheme "
         "(KZG pairing-based for UltraHonk, FRI hash-based for Plonky3), not a "
         "per-run measurement -- documented here as qualitative facts, not "

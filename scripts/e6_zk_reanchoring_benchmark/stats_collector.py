@@ -45,7 +45,7 @@ def build_table6a(rows):
     The circuit (circuit/reanchoring/src/main.nr) has no separate SMT
     inclusion/update subcircuit like docs/EXPERIMENT.md's original design
     sketch envisioned (documented simplification: header-chain continuity
-    via Pedersen hashing stands in for a real SMT proof -- see the circuit's
+    via Poseidon2 hashing stands in for a real SMT proof -- see the circuit's
     header comment). So instead of an assumed static %-breakdown per
     subcomponent, this derives a real two-term cost model -- fixed overhead
     (Honk's lookup-table setup, independent of N) and marginal per-header
