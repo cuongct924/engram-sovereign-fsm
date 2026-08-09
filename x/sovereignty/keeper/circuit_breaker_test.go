@@ -3,9 +3,8 @@ package keeper
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/stretchr/testify/require"
 )
 
 // healthyMetrics returns a PeripheralMetrics snapshot that satisfies

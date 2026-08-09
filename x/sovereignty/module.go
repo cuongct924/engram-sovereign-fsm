@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+
 	"cosmossdk.io/core/appmodule"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
 // Kiểm tra interface compile-time

@@ -60,7 +60,7 @@ package vigilante
 // materially (e.g. a much slower or faster Bitcoin block time).
 const livenessMargin = 2
 
-func Tolerance(_ uint64, kDeepFinality uint64) uint64 {
+func Tolerance(_, kDeepFinality uint64) uint64 {
 	return kDeepFinality + livenessMargin
 }
 

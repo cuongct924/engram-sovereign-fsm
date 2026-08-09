@@ -20,9 +20,13 @@ build-linux:
 	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux ./cmd/engramd
 
 # 3. Chạy tất cả các test (bao gồm keeper tests, abci tests, x/da, x/vigilante, tests/e2e)
+# -race: lớp phòng thủ cuối cho các struct proto-generated (vd. PeripheralMetrics)
+# nhúng sync.Mutex marker qua protoimpl.MessageState -- bắt các copy-theo-giá-trị
+# ẩn sau unsafe/generic mà go vet's copylocks check có thể bỏ sót (xem
+# docs/DEVELOPMENT.md's pointer-bug note).
 test:
 	@echo "--> Running tests..."
-	go test -v ./...
+	go test -v -race ./...
 
 # 4. Kiểm tra code (Linting)
 lint:

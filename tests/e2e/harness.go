@@ -8,18 +8,19 @@ import (
 	"strconv"
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
-	log "cosmossdk.io/log/v2"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	"github.com/cosmos/cosmos-sdk/codec"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/iden3/go-merkletree-sql/v2/db/memory"
+
+	"cosmossdk.io/collections/colltest"
+	log "cosmossdk.io/log/v2"
+
+	"github.com/cosmos/cosmos-sdk/codec"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // TimelineRow is one logged block-height sample, matching the CSV schema
@@ -175,7 +176,7 @@ func (h *Harness) Timeline() []TimelineRow {
 func (h *Harness) WriteCSV(name string) string {
 	h.t.Helper()
 
-	dir := filepath.Join("results")
+	dir := "results"
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		h.t.Fatalf("mkdir results: %v", err)
 	}
@@ -206,9 +207,9 @@ func (h *Harness) WriteCSV(name string) string {
 	return path
 }
 
-// Metrics computed from the recorded timeline, matching docs/EXPERIMENT.md's
-// E2 metric list (time-to-detection/fallback, recovery time, downtime proxy,
-// withdrawal-blocked count, flapping count).
+// E2Metrics holds the metrics computed from the recorded timeline, matching
+// docs/EXPERIMENT.md's E2 metric list (time-to-detection/fallback, recovery
+// time, downtime proxy, withdrawal-blocked count, flapping count).
 type E2Metrics struct {
 	TimeToFallback    int64 // blocks from height 1 until first entering SOVEREIGN (-1 if never)
 	RecoveryTime      int64 // blocks from entering RECOVERING until ANCHORED (-1 if never completed)

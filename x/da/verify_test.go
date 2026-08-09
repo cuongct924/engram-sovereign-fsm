@@ -3,9 +3,8 @@ package da
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	sovtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTolerance(t *testing.T) {

@@ -21,16 +21,17 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/stretchr/testify/require"
 )
 
 var hysteresisSweepValues = []uint64{0, 1, 3, 5, 10, 20}
 
-const noisyWindowBlocks = 100 // fixed window so all HysteresisWait values get a fair, identical-length shot
-const noiseProbability = 0.2  // per-block chance of a 1-block disturbance in a noisy environment
+const (
+	noisyWindowBlocks = 100 // fixed window so all HysteresisWait values get a fair, identical-length shot
+	noiseProbability  = 0.2 // per-block chance of a 1-block disturbance in a noisy environment
+)
 
 type hysteresisRun struct {
 	HysteresisWait   uint64
@@ -61,6 +62,7 @@ func anchoredUptime(h *Harness) float64 {
 // HysteresisWait blocks -> submit proof -> expect ANCHORED. No noise -- the
 // control group every noisy environment below is compared against.
 func runStableRecovery(t *testing.T, hysteresisWait uint64) hysteresisRun {
+	t.Helper()
 	h := NewHarness(t)
 	h.keeper.Params.HysteresisWait = hysteresisWait
 
@@ -135,6 +137,7 @@ func healSensors(h *Harness) {
 // healed. Uses a fixed per-environment RNG seed so every HysteresisWait value
 // sees the identical noise sequence -- isolating HysteresisWait's effect.
 func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresisRun {
+	t.Helper()
 	h := NewHarness(t)
 	h.keeper.Params.HysteresisWait = hysteresisWait
 	disturb := envDisturbances[env]

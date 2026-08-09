@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {

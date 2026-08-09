@@ -7,11 +7,11 @@ default_verification_config,A3_ChurnBasedRotation,peer_count_only,0.0000,1.0000,
 default_verification_config,A3_ChurnBasedRotation,tri_interface,0.0000,0.0000,1.70,500
 default_verification_config,A4_RelayNodeAttack,peer_count_only,0.0000,1.0000,-1.00,0
 default_verification_config,A4_RelayNodeAttack,tri_interface,0.0000,0.0000,2.71,500
-production_scale,A4_RelayNodeAttack,peer_count_only,0.0000,1.0000,-1.00,0
-production_scale,A4_RelayNodeAttack,tri_interface,0.0000,0.0000,2.71,500
 production_scale,A1_PeerSlotExhaustion,peer_count_only,0.0000,1.0000,-1.00,0
 production_scale,A1_PeerSlotExhaustion,tri_interface,0.0000,0.0000,2.23,500
 production_scale,A2_BGPHijackSybil,peer_count_only,0.0000,1.0000,-1.00,0
 production_scale,A2_BGPHijackSybil,tri_interface,0.0000,0.0000,1.00,500
 production_scale,A3_ChurnBasedRotation,peer_count_only,0.0000,1.0000,-1.00,0
 production_scale,A3_ChurnBasedRotation,tri_interface,0.0000,0.0000,1.70,500
+production_scale,A4_RelayNodeAttack,peer_count_only,0.0000,1.0000,-1.00,0
+production_scale,A4_RelayNodeAttack,tri_interface,0.0000,0.0000,2.71,500

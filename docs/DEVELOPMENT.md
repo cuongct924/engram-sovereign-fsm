@@ -47,7 +47,11 @@ build the fork.
 ### Python scripts (`scripts/`)
 
 ```bash
+# Use python 3.11 or 3.12
+python -m venv .venv
+source .venv/bin/activate 
 pip install -r requirements.txt
+
 black scripts/       # run before committing, not just black --check
 flake8 scripts/
 ```

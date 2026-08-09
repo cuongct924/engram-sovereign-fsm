@@ -50,7 +50,7 @@ const bbBinary = "bb"
 // Fails closed (returns false, never panics) if bb is missing, times out, or
 // exits non-zero -- a misconfigured validator should reject the proof, not
 // silently accept it.
-func (k *Keeper) VerifyZKProof(proof []byte, inputs []byte) bool {
+func (k *Keeper) VerifyZKProof(proof, inputs []byte) bool {
 	dir, err := os.MkdirTemp("", "engram-zkverify-*")
 	if err != nil {
 		fmt.Println("engramd: ZK proof verification failed to allocate temp dir:", err)

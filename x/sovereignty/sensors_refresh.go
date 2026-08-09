@@ -1,13 +1,13 @@
 package sovereignty
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // Sensors bundles the three per-node background sensors (each running

@@ -8,6 +8,10 @@ import (
 	"time"
 
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	"github.com/cosmos/gogoproto/proto"
+	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/spf13/cobra"
+
 	"github.com/cosmos/cosmos-sdk/codec"
 	addresscodec "github.com/cosmos/cosmos-sdk/codec/address"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -15,10 +19,6 @@ import (
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	signingtypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	txsigning "github.com/cosmos/cosmos-sdk/x/tx/signing"
-	"github.com/cosmos/gogoproto/proto"
-	"github.com/spf13/cobra"
-
-	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
 // newSovereigntyInterfaceRegistry builds the same InterfaceRegistry shape as
@@ -198,8 +198,8 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
 	cmd.Flags().StringVar(&proofFile, "proof", "", "path to the bb-generated proof file (required)")
 	cmd.Flags().StringVar(&publicInputsFile, "public-inputs", "", "path to the bb-generated public_inputs file (required)")
-	cmd.MarkFlagRequired("proof")
-	cmd.MarkFlagRequired("public-inputs")
+	_ = cmd.MarkFlagRequired("proof")
+	_ = cmd.MarkFlagRequired("public-inputs")
 	return cmd
 }
 

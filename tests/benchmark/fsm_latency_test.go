@@ -32,20 +32,21 @@ import (
 	"encoding/json"
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
-	log "cosmossdk.io/log/v2"
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	"github.com/cosmos/cosmos-sdk/codec"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
+	"github.com/iden3/go-merkletree-sql/v2/db/memory"
+
+	"cosmossdk.io/collections/colltest"
+	log "cosmossdk.io/log/v2"
+
+	"github.com/cosmos/cosmos-sdk/codec"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // P2PDigestSizeEstimate mirrors the 6 fields IsP2PQualityHealthy reads from
@@ -126,7 +127,6 @@ func BenchmarkProposalSize(b *testing.B) {
 	}
 
 	for _, v := range variants {
-		v := v
 		b.Run(v.name, func(b *testing.B) {
 			encoded, err := json.Marshal(v.payload)
 			if err != nil {

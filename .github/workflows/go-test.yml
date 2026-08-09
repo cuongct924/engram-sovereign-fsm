@@ -54,4 +54,9 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests
-        run: go test -v -coverprofile=coverage.txt ./...
+        # -race: catches value-copies of proto-generated structs (e.g.
+        # PeripheralMetrics, which embeds a sync.Mutex marker via
+        # protoimpl.MessageState -- see docs/DEVELOPMENT.md's pointer-bug
+        # note) that go vet's static copylocks check can miss, by actually
+        # racing concurrent access at runtime instead.
+        run: go test -v -race -coverprofile=coverage.txt ./...

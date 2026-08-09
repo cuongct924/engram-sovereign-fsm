@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	abci "github.com/cometbft/cometbft/abci/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // NewPreBlocker builds the sdk.PreBlocker for this module, mirroring
@@ -62,7 +62,7 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 }
 
 // updateForcedTxTracking ports UpdateIgnoredRounds (spec/core/EngramTendermint.tla:493-503),
-// run once per finalized block -- the natural real-chain analogue of "once
+// run once per finalized block -- the natural real-chain analog of "once
 // per round transition" the spec uses, since vanilla ABCI 2.0 doesn't expose
 // round number to app hooks (see NewProcessProposalHandler's censorship-check
 // comment for the same gap). No-ops when forced_tx_queue is empty.

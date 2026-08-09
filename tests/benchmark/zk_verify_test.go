@@ -14,10 +14,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
+	"cosmossdk.io/collections/colltest"
 )
 
 // BenchmarkVerifyZKProof shells out to the REAL, pinned `bb verify` binary

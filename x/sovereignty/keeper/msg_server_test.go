@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"cosmossdk.io/collections/colltest"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func newTestMsgServer(t *testing.T) (*MsgServerImpl, context.Context) {

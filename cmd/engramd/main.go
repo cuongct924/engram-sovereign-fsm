@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	sdklog "cosmossdk.io/log/v2"
 	"github.com/celestiaorg/smt"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	cmtcrypto "github.com/cometbft/cometbft/crypto"
@@ -24,15 +23,17 @@ import (
 	"github.com/cometbft/cometbft/proxy"
 	cmttypes "github.com/cometbft/cometbft/types"
 	dbm "github.com/cosmos/cosmos-db"
-	"github.com/cosmos/cosmos-sdk/server"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/app"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	sdklog "cosmossdk.io/log/v2"
+
+	"github.com/cosmos/cosmos-sdk/server"
 )
 
 func defaultHome() string {

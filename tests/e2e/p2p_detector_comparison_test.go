@@ -20,9 +20,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/stretchr/testify/require"
 )
 
 const p2pTrials = 2000 // Monte Carlo trials per (attack, detector) cell
@@ -127,6 +126,7 @@ type detectorResult struct {
 }
 
 func runP2PDetectorComparison(t *testing.T, paramSetName string, p types.Params, attack string, gen attackGenerator, detectorName string, healthy func(*types.PeripheralMetrics, types.Params) bool) detectorResult {
+	t.Helper()
 	rng := rand.New(rand.NewSource(42)) // fixed seed: reproducible synthetic trials
 
 	falsePositives := 0

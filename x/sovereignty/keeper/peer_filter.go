@@ -4,7 +4,6 @@ import (
 	"net"
 
 	abci "github.com/cometbft/cometbft/abci/types"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 

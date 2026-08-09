@@ -36,7 +36,7 @@ func Tolerance(round uint64) uint64 {
 // or when the DA sensor is independently healthy -- otherwise (e.g. SOVEREIGN
 // with DA genuinely down) a stale/absent receipt does not itself invalidate
 // the proposal.
-func VerifyReceipt(receipt Receipt, fsmState string, isDAHealthy bool, hEngramCurrent, daThreshold uint64, round uint64) bool {
+func VerifyReceipt(receipt Receipt, fsmState string, isDAHealthy bool, hEngramCurrent, daThreshold, round uint64) bool {
 	requiresCheck := fsmState == sovtypes.StateAnchored || fsmState == sovtypes.StateRecovering || isDAHealthy
 	if !requiresCheck {
 		return true

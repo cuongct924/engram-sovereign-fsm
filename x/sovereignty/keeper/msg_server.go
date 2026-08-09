@@ -16,7 +16,7 @@ func NewMsgServerImpl(k *Keeper) types.MsgServer {
 	return &MsgServerImpl{Keeper: k}
 }
 
-// InjectFault: Dành cho test/thực nghiệm
+// InjectFault ghi đè trực tiếp PeripheralMetrics -- dành cho test/thực nghiệm.
 func (k *MsgServerImpl) InjectFault(ctx context.Context, msg *types.MsgInjectFaultRequest) (*types.MsgInjectFaultResponse, error) {
 	if msg.FaultInputs != nil {
 		if err := k.Metrics.Set(ctx, msg.FaultInputs); err != nil {

@@ -3,15 +3,16 @@ package sovereignty
 import (
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
-	log "cosmossdk.io/log/v2"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"cosmossdk.io/collections/colltest"
+	log "cosmossdk.io/log/v2"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func newRefreshTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {

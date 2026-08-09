@@ -3,9 +3,10 @@ package keeper
 import (
 	"testing"
 
-	"cosmossdk.io/collections/colltest"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
+
+	"cosmossdk.io/collections/colltest"
 )
 
 // fakePeerFilterSource is a test double for PeerFilterSource -- reports a

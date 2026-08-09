@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+
 	"github.com/dgraph-io/badger/v4"
 )
 
@@ -13,7 +14,7 @@ func NewBadgerStorage(db *badger.DB) *BadgerStorage {
 	return &BadgerStorage{db: db}
 }
 
-func (s *BadgerStorage) Put(ctx context.Context, key []byte, value []byte) error {
+func (s *BadgerStorage) Put(ctx context.Context, key, value []byte) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, value)
 	})

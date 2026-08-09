@@ -3,10 +3,10 @@ package app
 import (
 	"errors"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	sovereigntykeeper "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	fsmtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // CircuitBreakerDecorator is an AnteDecorator that runs before transactions are added to the mempool

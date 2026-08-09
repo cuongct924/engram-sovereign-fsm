@@ -136,7 +136,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 	p.submitting = true
 	go func() {
 		// context.Background(), not ctx: ctx is scoped to this single ABCI
-		// call and may be cancelled/reused well before a real Celestia block
+		// call and may be canceled/reused well before a real Celestia block
 		// is produced -- this submission must outlive the call that started it.
 		celestiaHeight, err := p.client.Submit(context.Background(), p.namespace, blockData)
 

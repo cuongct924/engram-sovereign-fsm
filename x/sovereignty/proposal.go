@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	abci "github.com/cometbft/cometbft/abci/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // ExtendedProposal mirrors the extended Proposal fields in

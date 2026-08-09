@@ -15,10 +15,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"github.com/stretchr/testify/require"
 )
 
 type traceRow struct {
