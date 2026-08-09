@@ -10,9 +10,9 @@
 #      keeper.HeaderHistory, via the gRPC-over-ABCI query registered in
 #      app.go).
 #   2. circuit/reanchoring_witness     -- link the raw headers into a real
-#      prev_hash chain (Poseidon/pedersen_hash), WITHOUT a Go-side hash
-#      implementation -- see that crate's own doc for why.
-#   3. circuit/reanchoring             -- the real N=4 circuit: nargo
+#      prev_hash chain (Poseidon2), WITHOUT a Go-side hash implementation --
+#      see that crate's own doc for why.
+#   3. circuit/reanchoring             -- the real N_MAX=256 circuit: nargo
 #      execute + bb prove, against the SAME verification key
 #      (x/sovereignty/keeper/zk_assets/vk) the Go node embeds and checks
 #      proofs against, so a proof produced here is guaranteed to verify
@@ -23,50 +23,26 @@
 # built from THIS checkout (so query-recovery-headers/tx-submit-recovery-proof
 # exist -- both new, see cmd/engramd/reanchor_cli.go).
 #
-# Rolling checkpoint, oldest-EXPECTED_N slice (see
+# Rolling checkpoint, oldest-COUNT slice, COUNT dynamic up to N_MAX=256 (see
 # x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc for the full
-# design): this script proves the OLDEST EXPECTED_N tracked headers after
-# the current checkpoint (rt_last), not "however many are currently
-# tracked". x/sovereignty/keeper.HeaderHistory keeps every header from the
-# checkpoint onward until this exact segment is proven and pruned, so the
-# oldest EXPECTED_N entries are always a valid, provable segment regardless
-# of how many MORE have accumulated past them since -- a real testnet
-# producing a block roughly every ~0.3-1s blows past a fixed count within a
-# couple of polls (confirmed live: the tracked count was already 17 and
-# climbing by the time a watcher's very first poll ran against a
-# just-started node), so requiring an EXACT match (an earlier version of
-# this script) made the window exactly one block wide and, in practice,
-# nearly impossible to hit. Proving the oldest slice instead means a
-# real proof is buildable at ANY point once at least EXPECTED_N headers
-# exist, not just the single block where the count happens to equal
-# EXPECTED_N -- and since the oldest EXPECTED_N headers are already
-# committed and immutable, the interval growing further underneath this
-# script WHILE it's proving no longer invalidates what it's building (the
-# staleness race described below no longer applies to this slice; it only
-# ever applied when proving against the moving tip).
+# design): this script proves the OLDEST min(TOTAL_N, N_MAX) tracked headers
+# after the current checkpoint (rt_last), padding the remaining N_MAX-COUNT
+# circuit slots with zero-valued headers (unconstrained -- see
+# circuit/reanchoring/src/main.nr's `active` gate). Unlike the old fixed-N=4
+# design, COUNT is NOT required to equal N_MAX -- any COUNT from 1 to N_MAX
+# is provable in one proof, which closes two real problems the fixed-N
+# design had: (1) a trailing remainder shorter than a fixed N could never be
+# proven at all once the interval stopped growing (a genuine liveness gap,
+# not just a performance one); (2) the interval racing ahead of a small
+# fixed N=4's coverage (docs/EXPERIMENT.md's E2 S7: 29/52 real proof
+# attempts rejected).
 #
-# Known limitations (see circuit/reanchoring/src/main.nr's `global N`, and
-# CLAUDE.md):
-#   - N is fixed at compile time, so a proof only ever advances the
-#     checkpoint by EXPECTED_N headers per call -- a long interval needs
-#     this script run repeatedly (scripts/reanchoring_prover/watch_and_prove.sh
-#     does this automatically) rather than once.
-#   - The staleness race this replaced: an earlier version proved against
-#     the CURRENT TIP specifically, which meant real wall-clock proving time
-#     (query + nargo execute + bb prove, ~50-200ms of actual proving at N=4
-#     per the E6 benchmark, plus RPC/CLI overhead) spent off the hot path
-#     let the interval grow underneath the proof before submission --
-#     x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof correctly
-#     rejected those (confirmed empirically: multiple real end-to-end runs
-#     against a continuously-producing test node were rejected this way,
-#     exactly as designed -- this is the same anti-staleness protection
-#     RealProofSubmittedHeight enforces for the "proof already accepted,
-#     then interval grew before
-#     RECOVERING was reached" case, just observed here at submission time
-#     instead). This is not a bug: a real operator needs to submit while the
-#     interval is genuinely stable (e.g. once BTC/DA/P2P conditions clearly
-#     aren't recovering further within the current window), not race a
-#     continuously-growing one.
+# x/sovereignty/keeper.HeaderHistory keeps every header from the checkpoint
+# onward until the proven segment is pruned, so the oldest COUNT entries are
+# always a valid, provable segment regardless of how many MORE have
+# accumulated past them since (up to N_MAX -- beyond that, a long interval
+# still needs this script run repeatedly, scripts/reanchoring_prover/watch_and_prove.sh
+# does this automatically).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,10 +53,10 @@ EMBEDDED_VK="$REPO_ROOT/x/sovereignty/keeper/zk_assets/vk"
 
 ENGRAMD="${ENGRAMD_BIN:-$REPO_ROOT/engramd}"
 NODE_URL="${NODE_URL:-http://127.0.0.1:26657}"
-# Must match circuit/reanchoring/src/main.nr's `global N` AND
-# circuit/reanchoring_witness/src/main.nr's `global N` (kept in sync by
+# Must match circuit/reanchoring/src/main.nr's `global N_MAX` AND
+# circuit/reanchoring_witness/src/main.nr's `global N_MAX` (kept in sync by
 # hand across both files, see their headers).
-EXPECTED_N=4
+N_MAX=256
 
 if [ ! -x "$ENGRAMD" ]; then
   echo "[reanchoring_prover] building engramd from $REPO_ROOT..." >&2
@@ -98,58 +74,51 @@ RT_LAST=$(echo "$HEADERS_OUT" | grep '^rt_last=' | cut -d= -f2)
 ALL_HEADER_LINES=$(echo "$HEADERS_OUT" | grep '^height=')
 TOTAL_N=$(echo "$ALL_HEADER_LINES" | grep -c '^height=' || true)
 
-if [ "$TOTAL_N" -lt "$EXPECTED_N" ]; then
-  echo "[reanchoring_prover] ERROR: currently tracked interval has only $TOTAL_N header(s), circuit needs at least $EXPECTED_N -- no proof attempted." >&2
+if [ "$TOTAL_N" -lt 1 ]; then
+  echo "[reanchoring_prover] ERROR: currently tracked interval has 0 headers -- no proof attempted." >&2
   exit 1
 fi
 
-# Prove only the FIRST EXPECTED_N headers after the checkpoint (rt_last),
-# not "however many are currently tracked": x/sovereignty/keeper.HeaderHistory
-# keeps every header from the checkpoint onward until this exact segment is
-# proven and pruned (x/sovereignty/keeper/msg_server.go's
-# pruneHeaderHistoryUpTo), so the oldest EXPECTED_N entries are always a
-# valid, provable segment regardless of how many MORE have accumulated past
-# them since. Requiring TOTAL_N to equal EXPECTED_N exactly (the previous
-# version of this script) made the window exactly one block wide -- on a
-# real testnet producing a block roughly every ~0.3-1s, that window was
-# consistently missed entirely before any watcher could react (confirmed
-# live: TOTAL_N was already 17 and climbing by the time watch_and_prove.sh's
-# very first poll ran against a just-started node). Slicing to the oldest
-# EXPECTED_N instead means a proof is buildable at ANY point once at least
-# EXPECTED_N headers exist, not just the single block where the count is
-# exactly EXPECTED_N.
-N="$EXPECTED_N"
-# Here-string, NOT `echo ... | head -n "$EXPECTED_N"` -- found live (real
-# bug, not a proof rejection): once TOTAL_N grows large enough that
-# ALL_HEADER_LINES exceeds the OS pipe buffer (~64KB, i.e. a few hundred
-# tracked headers), `head` reads its N lines and exits BEFORE `echo`
-# finishes writing the rest, so `echo` gets SIGPIPE -- under `set -o
-# pipefail` that aborts this entire script with exit 141, before Step 4
-# ever submits anything to the chain. This was silently masquerading as
-# "proof rejected by the chain (staleness race)" in watch_and_prove.sh's
-# generic non-zero-exit handling for potentially every single one of this
-# session's rejected attempts once the interval grew past a few hundred
-# headers -- confirmed by reproducing manually with `bash -x`: execution
-# never reached "2/4" at all. A here-string has no live pipe to race;
-# `head` just reads from it directly.
-HEADER_LINES=$(head -n "$EXPECTED_N" <<< "$ALL_HEADER_LINES")
+# COUNT = min(TOTAL_N, N_MAX) -- unlike the old fixed-N design, ANY COUNT
+# from 1 to N_MAX is provable in one proof; no need to wait for an exact or
+# minimum count. A long interval (TOTAL_N > N_MAX) is still capped to the
+# oldest N_MAX headers per proof, same rolling-checkpoint mechanism as
+# before, just with a much larger per-proof window.
+COUNT="$TOTAL_N"
+if [ "$COUNT" -gt "$N_MAX" ]; then
+  COUNT="$N_MAX"
+fi
+
+# Here-string, NOT `echo ... | head -n "$COUNT"` -- found live (real bug,
+# not a proof rejection) in the old fixed-N version of this script: once
+# TOTAL_N grows large enough that ALL_HEADER_LINES exceeds the OS pipe
+# buffer (~64KB, i.e. a few hundred tracked headers), `head` reads its N
+# lines and exits BEFORE `echo` finishes writing the rest, so `echo` gets
+# SIGPIPE -- under `set -o pipefail` that aborts this entire script with
+# exit 141, before Step 4 ever submits anything to the chain. A here-string
+# has no live pipe to race; `head` just reads from it directly.
+HEADER_LINES=$(head -n "$COUNT" <<< "$ALL_HEADER_LINES")
 
 field() {
   # field <line-number 1-indexed> <field-name>
   echo "$HEADER_LINES" | sed -n "${1}p" | grep -o "${2}=[^ ]*" | cut -d= -f2
 }
 
-echo "[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness..."
+echo "[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=$COUNT, N_MAX=$N_MAX)..."
 {
   echo "rt_last = \"$RT_LAST\""
+  echo "count = \"$COUNT\""
   printf 'raw_fsm_state = ['
-  for ((i = 1; i <= N; i++)); do printf '"%s",' "$(field "$i" fsm_state)"; done
+  for ((i = 1; i <= COUNT; i++)); do printf '"%s",' "$(field "$i" fsm_state)"; done
+  for ((i = COUNT; i < N_MAX; i++)); do printf '"0",'; done
   printf ']\n'
   printf 'raw_withdrawal_locked = ['
-  for ((i = 1; i <= N; i++)); do printf '"%s",' "$(field "$i" withdrawal_locked)"; done
+  for ((i = 1; i <= COUNT; i++)); do printf '"%s",' "$(field "$i" withdrawal_locked)"; done
+  for ((i = COUNT; i < N_MAX; i++)); do printf '"0",'; done
   printf ']\n'
   printf 'raw_state_root = ['
-  for ((i = 1; i <= N; i++)); do printf '"%s",' "$(field "$i" state_root)"; done
+  for ((i = 1; i <= COUNT; i++)); do printf '"%s",' "$(field "$i" state_root)"; done
+  for ((i = COUNT; i < N_MAX; i++)); do printf '"0",'; done
   printf ']\n'
 } > "$WITNESS_CIRCUIT_DIR/Prover.toml"
 
@@ -159,18 +128,29 @@ linked_field() {
   echo "$LINKED_CHAIN" | sed -n "${1}p" | grep -o "${2}: [^,}]*" | awk '{print $2}'
 }
 
-echo "[reanchoring_prover] 3/4: building real Prover.toml + running nargo execute + bb prove..."
-RT_NEW=$(linked_field "$N" "state_root")
+echo "[reanchoring_prover] 3/4: building real Prover.toml (count=$COUNT real + $((N_MAX - COUNT)) padding) + running nargo execute + bb prove..."
+RT_NEW=$(linked_field "$COUNT" "state_root")
 {
   echo "rt_last = \"$RT_LAST\""
   echo "rt_new = \"$RT_NEW\""
-  for ((i = 1; i <= N; i++)); do
+  echo "count = \"$COUNT\""
+  for ((i = 1; i <= COUNT; i++)); do
     echo ""
     echo "[[headers]]"
     echo "prev_hash = \"$(linked_field "$i" prev_hash)\""
     echo "fsm_state = \"$(linked_field "$i" fsm_state)\""
     echo "withdrawal_locked = \"$(linked_field "$i" withdrawal_locked)\""
     echo "state_root = \"$(linked_field "$i" state_root)\""
+  done
+  # Padding slots -- unconstrained by the circuit's `active` gate once
+  # i >= count, so their values are irrelevant; zero-filled for simplicity.
+  for ((i = COUNT; i < N_MAX; i++)); do
+    echo ""
+    echo "[[headers]]"
+    echo 'prev_hash = "0"'
+    echo 'fsm_state = "0"'
+    echo 'withdrawal_locked = "0"'
+    echo 'state_root = "0"'
   done
 } > "$MAIN_CIRCUIT_DIR/Prover.toml"
 

@@ -1,13 +1,32 @@
 // circuit/reanchoring/src/main.nr
 //
-// Recovery proof circuit -- proves a SOVEREIGN/RECOVERING interval of N
-// headers is well-formed before re-anchoring to ANCHORED, mirroring
-// VerifyZkProof's intent (spec/core/EngramTendermint.tla:257-260). N is the
-// number of sovereign blocks in the recovery interval; docs/EXPERIMENT.md's
-// E6 Table 6B scales this from 10 to 5,000 by recompiling with different N
-// (see scripts/zk_bench.sh).
+// Recovery proof circuit -- proves a SOVEREIGN/RECOVERING interval of up to
+// N_MAX headers is well-formed before re-anchoring to ANCHORED, mirroring
+// VerifyZkProof's intent (spec/core/EngramTendermint.tla:257-260) and
+// spec/README.md's formal relation x = (rt_last, rt_new, n) -- `count`
+// below IS that `n`: a real public input, not implicit in a fixed circuit
+// size. N_MAX=256 is a compile-time ceiling (chosen because Engram blocks
+// are produced well under 2s, so an unhealthy interval can accumulate
+// headers fast -- see the design note this replaced for the full
+// reasoning); `count` (1..=N_MAX) is the ACTUAL number of real headers in
+// THIS proof, checked at runtime. Slots at index >= count are padding: no
+// constraint is enforced on them (see the `active` gate below), so their
+// values are irrelevant and can be anything, including all-zero.
+//
+// This replaces the earlier fixed-N=4 design (global N: u32 = 4, every
+// proof had to cover EXACTLY 4 headers) -- that design had two real
+// problems, found by actually operating it: (1) docs/EXPERIMENT.md's E2 S7
+// showed a genuinely unhealthy interval outgrows what fixed-size rolling
+// checkpoints can keep pace with (29/52 real proof attempts rejected); (2)
+// a trailing remainder shorter than N could never be proven at all if the
+// interval stopped growing before a full N-block chunk accumulated -- a
+// real liveness gap, not just a performance one. A prior recursive-proof
+// (proof-of-proofs) alternative was investigated for real and found to be
+// a clear NO-GO (circuit/reanchoring_recursion_spike/RESULTS.md) --
+// verifying even one inner proof recursively costs orders of magnitude
+// more than just proving more headers directly in this same circuit shape.
 
-global N: u32 = 4;
+global N_MAX: u32 = 256;
 
 struct Header {
     prev_hash: Field,
@@ -46,67 +65,112 @@ fn hash_header(h: Header) -> Field {
 fn main(
     rt_last: pub Field,   // Root of the last anchored block
     rt_new: pub Field,    // Root of the proposed recovery block
-    headers: [Header; N],
+    count: pub u32,       // spec/README.md's `n`: real number of headers in this proof, 1..=N_MAX
+    headers: [Header; N_MAX],
 ) {
-    // (a) Header continuity (E6's C1): each header's prev_hash must be the
-    // Poseidon2 hash of the previous header.
-    for i in 1..N {
-        assert(headers[i].prev_hash == hash_header(headers[i - 1]));
+    assert(count >= 1);
+    assert(count <= N_MAX);
+
+    // (a) Header continuity (E6's C1): each REAL header's prev_hash must be
+    // the Poseidon2 hash of the previous REAL header. Gated: for i >= count
+    // (padding), `active` is false, so the assertion is vacuously satisfied
+    // regardless of headers[i]'s actual (irrelevant) contents.
+    for i in 1..N_MAX {
+        let active = i < count;
+        assert(!active | (headers[i].prev_hash == hash_header(headers[i - 1])));
     }
 
     // (b)/(c) FSM legality + withdrawal-lock invariant (E6's C2/C3): every
-    // header in the interval must be SOVEREIGN/RECOVERING with withdrawals
-    // locked.
-    for i in 0..N {
-        assert((headers[i].fsm_state == 2) | (headers[i].fsm_state == 3));
-        assert(headers[i].withdrawal_locked == 1);
+    // REAL header in the interval must be SOVEREIGN/RECOVERING with
+    // withdrawals locked. Same padding gate as above.
+    for i in 0..N_MAX {
+        let active = i < count;
+        assert(!active | ((headers[i].fsm_state == 2) | (headers[i].fsm_state == 3)));
+        assert(!active | (headers[i].withdrawal_locked == 1));
     }
 
     // (d) Root binding (E6's C4/C5): the interval starts at rt_last and ends
-    // at rt_new.
+    // at rt_new. headers[0] is always real (count >= 1 checked above), so
+    // this stays unconditional. headers[count - 1] is a dynamic (witness-
+    // valued) array index, not a compile-time constant -- Noir compiles
+    // this to a selector chain over all N_MAX slots.
     assert(headers[0].prev_hash == rt_last);
-    assert(headers[N - 1].state_root == rt_new);
+    assert(headers[count - 1].state_root == rt_new);
 }
 
-#[test]
-fn valid_chain_satisfies_circuit() {
-    let h0 = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
-    let h1 = Header { prev_hash: hash_header(h0), fsm_state: 2, withdrawal_locked: 1, state_root: 1001 };
-    let h2 = Header { prev_hash: hash_header(h1), fsm_state: 3, withdrawal_locked: 1, state_root: 1002 };
-    let h3 = Header { prev_hash: hash_header(h2), fsm_state: 3, withdrawal_locked: 1, state_root: 1003 };
-    main(111, 1003, [h0, h1, h2, h3]);
-}
-
-#[test(should_fail)]
-fn wrong_fsm_state_fails_circuit() {
-    let h0 = Header { prev_hash: 111, fsm_state: 1, withdrawal_locked: 1, state_root: 1000 }; // 1 = ANCHORED, not allowed
-    let h1 = Header { prev_hash: hash_header(h0), fsm_state: 2, withdrawal_locked: 1, state_root: 1001 };
-    let h2 = Header { prev_hash: hash_header(h1), fsm_state: 3, withdrawal_locked: 1, state_root: 1002 };
-    let h3 = Header { prev_hash: hash_header(h2), fsm_state: 3, withdrawal_locked: 1, state_root: 1003 };
-    main(111, 1003, [h0, h1, h2, h3]);
-}
-
-// dump_chain is a one-off generator, not a real test: it prints a long
-// valid hash-chain to stdout so scripts/e6_zk_reanchoring_benchmark's
-// benchmark script can slice prefixes of it into per-N Prover.toml files
-// without reimplementing Noir's pedersen_hash in another language. Run via
-// `nargo test dump_chain --show-output`, not part of CI.
-global CHAIN_LEN: u32 = 256;
-
-#[test]
-fn dump_chain() {
-    let mut chain = [Header { prev_hash: 0, fsm_state: 2, withdrawal_locked: 1, state_root: 0 }; CHAIN_LEN];
-    chain[0] = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
-    for i in 1..CHAIN_LEN {
+// build_chain builds a real, valid, hash-linked chain of exactly COUNT
+// headers (COUNT is a compile-time numeric generic, e.g. build_chain::<4>()),
+// padded with zero-valued Header entries up to N_MAX, for use as test
+// fixtures below -- mirrors the shape prove_and_submit.sh builds for real
+// chain data (real headers first, zero-padding after), just generated
+// in-circuit instead of from real Go/RPC data.
+fn build_chain<let COUNT: u32>() -> ([Header; N_MAX], Field, Field) {
+    let mut headers = [Header { prev_hash: 0, fsm_state: 0, withdrawal_locked: 0, state_root: 0 }; N_MAX];
+    let rt_last = 111;
+    headers[0] = Header { prev_hash: rt_last, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
+    for i in 1..COUNT {
         let fsm = if i % 2 == 0 { 2 } else { 3 };
-        chain[i] = Header {
-            prev_hash: hash_header(chain[i - 1]),
+        headers[i] = Header {
+            prev_hash: hash_header(headers[i - 1]),
             fsm_state: fsm,
             withdrawal_locked: 1,
             state_root: 1000 + i as Field,
         };
     }
-    for i in 0..CHAIN_LEN {
-        println(chain[i]);
-    }
+    let rt_new = headers[COUNT - 1].state_root;
+    (headers, rt_last, rt_new)
+}
+
+#[test]
+fn count_1_satisfies_circuit() {
+    let (headers, rt_last, rt_new) = build_chain::<1>();
+    main(rt_last, rt_new, 1, headers);
+}
+
+#[test]
+fn count_4_satisfies_circuit() {
+    // The old fixed-N=4 design's exact case -- must still work identically.
+    let (headers, rt_last, rt_new) = build_chain::<4>();
+    main(rt_last, rt_new, 4, headers);
+}
+
+#[test]
+fn count_130_satisfies_circuit() {
+    let (headers, rt_last, rt_new) = build_chain::<130>();
+    main(rt_last, rt_new, 130, headers);
+}
+
+#[test]
+fn count_n_max_satisfies_circuit() {
+    let (headers, rt_last, rt_new) = build_chain::<N_MAX>();
+    main(rt_last, rt_new, N_MAX, headers);
+}
+
+#[test(should_fail)]
+fn count_zero_fails_circuit() {
+    let (headers, rt_last, rt_new) = build_chain::<1>();
+    main(rt_last, rt_new, 0, headers);
+}
+
+#[test(should_fail)]
+fn count_above_n_max_fails_circuit() {
+    let (headers, rt_last, rt_new) = build_chain::<N_MAX>();
+    main(rt_last, rt_new, N_MAX + 1, headers);
+}
+
+#[test(should_fail)]
+fn wrong_fsm_state_fails_circuit() {
+    let (mut headers, rt_last, rt_new) = build_chain::<4>();
+    headers[0].fsm_state = 1; // 1 = ANCHORED, not allowed
+    main(rt_last, rt_new, 4, headers);
+}
+
+#[test(should_fail)]
+fn padding_cannot_extend_real_coverage() {
+    // A proof claiming count=8 but whose headers[4..8) are NOT a real
+    // continuation of the count=4 chain (still zero-valued padding) must be
+    // rejected -- confirms the gate genuinely enforces continuity up to the
+    // CLAIMED count, not just up to whatever happens to be non-zero.
+    let (headers, rt_last, _) = build_chain::<4>();
+    main(rt_last, 1000, 8, headers);
 }

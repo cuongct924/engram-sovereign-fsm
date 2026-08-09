@@ -1,16 +1,22 @@
-# Example witness for circuit/reanchoring/src/main.nr, at N=4.
+# Example witness for circuit/reanchoring/src/main.nr, at count=4 (padded to N_MAX=256).
 #
-# This is the SAME fixture as the circuit's own valid_chain_satisfies_circuit
-# test (src/main.nr) and matches circuit/reanchoring_witness/Prover.toml.example
+# This is the SAME fixture as the circuit's own build_chain::<4>() test fixture
+# (src/main.nr) and matches circuit/reanchoring_witness/Prover.toml.example
 # one-for-one -- running `nargo execute witness` in that sibling crate against
-# its own example reproduces exactly the prev_hash values below. Verified via
-# a real nargo compile/execute + bb prove/verify pass (real Poseidon2 sponge,
-# std::hash::poseidon2_permutation) before committing these numbers.
+# its own example reproduces exactly the prev_hash values below for the first 4
+# (real) headers. Verified via a real nargo compile/execute + bb prove/verify pass
+# (real Poseidon2 sponge, std::hash::poseidon2_permutation) before committing these
+# numbers -- real, measured cost at this exact fixture:
+# circuit/reanchoring/RESULTS_MAXN_PADDING.md.
+#
+# Slots 5..256 are padding (unconstrained once count=4 -- see main.nr's `active`
+# gate): their values are irrelevant, zero-filled here for clarity.
 #
 # To use: cp Prover.toml.example Prover.toml, then `nargo execute witness`.
 
 rt_last = "111"
 rt_new = "1003"
+count = "4"
 
 [[headers]]
 prev_hash = "111"
@@ -35,3 +41,1515 @@ prev_hash = "0x264dd191a1edb43cb60a045b1f3b7e5db97372cf99c261fe5344237c922f71e1"
 fsm_state = "3"
 withdrawal_locked = "1"
 state_root = "1003"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"
+
+[[headers]]
+prev_hash = "0"
+fsm_state = "0"
+withdrawal_locked = "0"
+state_root = "0"

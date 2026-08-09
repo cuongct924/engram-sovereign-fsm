@@ -67,28 +67,34 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 // the hysteresis dwell time, via a second, unguarded FSM-state writer.
 //
 // Rolling checkpoint (not a fixed interval-start-to-tip proof): the
-// circuit's N is fixed at compile time (circuit/reanchoring/src/main.nr's
-// `global N: u32 = 4`), but a real SOVEREIGN/RECOVERING interval's length is
-// environment-controlled and unbounded -- requiring one proof to span the
-// ENTIRE interval (rt_last = the point ANCHORED was last left, rt_new = the
-// CURRENT tip) makes the circuit permanently unusable the moment the
-// interval exceeds N blocks, since the tip keeps moving before a proof can
-// even be built. Confirmed live: HeaderHistory grew past 2,000 tracked
-// blocks across a single never-yet-ANCHORED run this session, with the
-// N=4 circuit unable to prove any of it.
+// circuit covers up to N_MAX=256 headers per proof (circuit/reanchoring/src/main.nr's
+// `global N_MAX: u32 = 256`, with the ACTUAL count as a real public input --
+// see spec/README.md's x = (rt_last, rt_new, n)), but a real
+// SOVEREIGN/RECOVERING interval's length is environment-controlled and
+// unbounded -- requiring one proof to span the ENTIRE interval (rt_last =
+// the point ANCHORED was last left, rt_new = the CURRENT tip) makes the
+// circuit unusable the moment the interval exceeds N_MAX blocks, since the
+// tip keeps moving before a proof can even be built. Confirmed live:
+// HeaderHistory grew past 2,000 tracked blocks across a single
+// never-yet-ANCHORED run in an earlier session, with the (then-fixed) N=4
+// circuit unable to prove any of it -- N_MAX=256 with a dynamic count
+// closes most of that gap directly (one proof can now cover up to 256
+// headers, not just exactly 4), and the rolling-checkpoint mechanism below
+// still closes the rest for intervals longer than N_MAX.
 //
 // Fixed by NOT requiring rt_new to match the absolute tip: instead, rt_new
 // only needs to match the state_root of SOME tracked header (found via
 // findHeaderByStateRoot) -- the proof itself, having already verified
-// against the fixed-N circuit's VK above, is what guarantees exactly N real
-// headers connect rt_last to that point (Go never needs to know or hardcode
-// N to trust this). Once a match is found, the checkpoint (LastAnchoredRoot)
-// advances to it and everything at or below that height is pruned (a FUTURE
-// proof only ever needs to link forward from the new checkpoint). This lets
-// checkpoints advance every N blocks throughout an arbitrarily long
-// interval via a sequence of real, independently-verified N-sized proofs,
-// rather than needing one proof to catch the tip in a single-block-wide
-// window. refreshReanchoringProofValid's existing "proof height == current
+// against the circuit's VK above, is what guarantees exactly `count` real
+// headers connect rt_last to that point (Go never needs to know or trust
+// the claimed count to rely on this -- see check 2 below). Once a match is
+// found, the checkpoint (LastAnchoredRoot) advances to it and everything at
+// or below that height is pruned (a FUTURE proof only ever needs to link
+// forward from the new checkpoint). This lets checkpoints advance by up to
+// N_MAX headers at a time throughout an arbitrarily long interval via a
+// sequence of real, independently-verified proofs, rather than needing one
+// proof to catch the tip in a single-block-wide window.
+// refreshReanchoringProofValid's existing "proof height == current
 // tip height" check is UNCHANGED and still correct under this scheme: it
 // naturally becomes true (and can trigger a real ANCHORED transition,
 // gated on SafeBlocks == HysteresisWait as before) exactly when a
@@ -101,15 +107,21 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 		return nil, types.ErrInvalidZKProof
 	}
 
-	// 2. Cross-check the proof's public inputs (rt_last, rt_new -- two
-	// 32-byte big-endian Field values, matching circuit/reanchoring's
-	// public_inputs file layout) against on-chain tracked state. Proof math
-	// alone only proves "some self-consistent N-header chain links SOME
-	// rt_last to SOME rt_new" -- without this check, any previously
-	// generated valid proof (e.g. the one checked into
-	// circuit/reanchoring/target/proof/) could be replayed against this
+	// 2. Cross-check the proof's public inputs (rt_last, rt_new, count --
+	// three 32-byte big-endian Field values, matching circuit/reanchoring's
+	// public_inputs file layout and spec/README.md's formal relation
+	// x = (rt_last, rt_new, n)) against on-chain tracked state. Proof math
+	// alone only proves "some self-consistent chain of `count` headers
+	// links SOME rt_last to SOME rt_new" -- without this check, any
+	// previously generated valid proof could be replayed against this
 	// chain regardless of whether it reflects this chain's actual history.
-	if len(msg.PublicInputs) != 64 {
+	// `count` is parsed for spec fidelity (it's a real public circuit
+	// input, not implicit) but not otherwise required below: the circuit
+	// itself already guarantees `count` real, chained headers link
+	// rt_last to rt_new, and findHeaderByStateRoot below re-derives the
+	// checkpoint height by matching rt_new against real tracked state
+	// rather than trusting a claimed count.
+	if len(msg.PublicInputs) != 96 {
 		return nil, types.ErrInvalidZKProof
 	}
 	rtLast, rtNew := msg.PublicInputs[0:32], msg.PublicInputs[32:64]

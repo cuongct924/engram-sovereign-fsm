@@ -365,6 +365,28 @@ Hai circuit không bit-identical (Plonky3 dùng example có sẵn của họ, kh
 `benchmark_plonky3.sh`), nhưng từ khi circuit Noir đổi sang Poseidon2 thật, cả hai bên giờ đo cùng một primitive thật (Poseidon2 permutation) thay vì
 một bên là proxy gần đúng như trước -- so sánh trade-off (KZG/pairing vs FRI/hash-based, proof size vs prove time) vì vậy đáng tin hơn trước.
 
+**Circuit redesign: max-N=256 + padding/count (2026-08-09), supersedes the fixed-N-per-compile deployment above.** The
+Table 6B/6C scaling curve above was produced by *recompiling* `circuit/reanchoring/src/main.nr` at each N (a real,
+valid way to measure how cost scales with header count in the abstract, and Table 6C's Plonky3 comparison still
+rests on it) -- but the circuit actually **deployed** (embedded VK, `x/sovereignty/keeper/zk_assets/vk`) only ever
+compiled one fixed N at a time, forcing every re-anchoring proof to cover EXACTLY that many headers. Real E2 S7 data
+(§ above, "chưa từng đạt ANCHORED... 29 bị từ chối do race điều kiện thật") showed this genuinely couldn't keep pace
+with an unhealthy interval at N=4, and a second, independent bug was found re-reading `scripts/reanchoring_prover/`:
+a trailing remainder shorter than the fixed N could never be proven at all once the interval stopped growing --
+`RECOVERING` could get permanently stuck just short of the tip. Fixed by compiling **once** for a large ceiling
+(`N_MAX=256`, chosen because Engram blocks are produced well under 2s, and 256 is Table 6B's own largest already-
+measured, still-cheap data point) with a real, public `count` witness (1..=256) gating which of the 256 header slots
+are constrained -- matching `spec/README.md`'s own formal relation `x = (rt_last, rt_new, n)` literally for the
+first time (`n` was previously implicit in the compiled circuit size, never a real input). Real measured cost
+(`circuit/reanchoring/RESULTS_MAXN_PADDING.md`, count ∈ {1, 4, 130, 256}, all real `nargo`/`bb` runs): **6,143 ACIR
+opcodes, 47,613 circuit size, ~1.06s prove, ~22ms verify, 14,656 B proof, 96 B public inputs -- all CONSTANT
+regardless of `count`** (confirmed: count=1's prove time, 1.054s, is statistically indistinguishable from count=256's,
+1.059s). This is real, quantified overhead versus the old fixed-N=256 compile (2.0x opcodes, 1.55x prove time) --
+the cost of the padding-gate logic and a dynamic array index -- but still comfortably under one block time, in
+exchange for a real, previously-impossible capability: any interval length from 1 to 256 headers, submittable
+immediately, in one proof. `x/sovereignty/keeper/msg_server.go`'s public-input parsing updated (64 → 96 bytes) to
+match; `findHeaderByStateRoot`'s rolling-checkpoint logic needed no changes (never depended on a fixed N).
+
 > **Scientific claim:** Recovery proofs scale linearly in prover cost while preserving constant-size proofs and constant-time verification — reanchoring is practical, scalable, and incurs bounded overhead.
 
 **Ưu tiên thực hiện:**

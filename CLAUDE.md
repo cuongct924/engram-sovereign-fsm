@@ -423,16 +423,42 @@ upstream or downstream of it real:
   using the SAME embedded VK the Go node checks against -> submit), mirroring
   `scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh`'s style. Every stage confirmed working
   with 100% real components against a real running node (real query, real Noir/bb proving, real
-  submission). **Known, documented, inherent limitation** (see the script's own header comment): `N`
-  is fixed at compile time (currently 4), so this only works when exactly `N` headers are tracked;
-  and because querying-then-proving-then-submitting takes real wall-clock time (tens to low hundreds
-  of ms of actual proving per the E6 numbers, plus RPC/CLI overhead) while a still-unhealthy
+  submission). Because querying-then-proving-then-submitting takes real wall-clock time (tens to low
+  hundreds of ms of actual proving per the E6 numbers, plus RPC/CLI overhead) while a still-unhealthy
   SOVEREIGN/RECOVERING interval keeps growing underneath it, a proof can legitimately go stale
   between query and submission -- confirmed by repeated real end-to-end runs against a continuously-
   producing test node being correctly rejected this way. This is the same anti-replay protection
   working as designed (see `RealProofSubmittedHeight` above), just observed from the submission side
   instead of the already-latched side; a real deployment needs to submit while the interval is
   genuinely stable, not race a continuously-growing one.
+- **Max-N=256 + padding/count circuit redesign (2026-08-09)**, closing the fixed-N=4 limitation the
+  paragraph above used to describe: `circuit/reanchoring/src/main.nr`'s `global N: u32 = 4` (every
+  proof had to cover EXACTLY 4 headers) is now `global N_MAX: u32 = 256` with a real, public `count`
+  witness (1..=256) gating which header slots are constrained -- matching `spec/README.md`'s formal
+  relation `x = (rt_last, rt_new, n)` literally for the first time (`n` was previously implicit in
+  the compiled circuit size). Motivated by two real problems found operating the fixed-N design:
+  `docs/EXPERIMENT.md`'s E2 S7 showed a genuinely unhealthy interval outgrows what N=4 rolling
+  checkpoints can keep pace with (29/52 real proof attempts rejected), and a second, independent bug
+  found re-reading `prove_and_submit.sh`: a trailing remainder shorter than the fixed N could never
+  be proven at all once the interval stopped growing -- a real liveness gap, not just a performance
+  one (`RECOVERING` could get stuck permanently just short of the tip). A recursive/aggregated-proof
+  alternative was investigated first and found to be a clear NO-GO
+  (`circuit/reanchoring_recursion_spike/RESULTS.md`) -- verifying even one inner proof recursively
+  costs orders of magnitude more than proving more headers directly in this same circuit shape.
+  Real measured cost of the new design (`circuit/reanchoring/RESULTS_MAXN_PADDING.md`, count in
+  {1, 4, 130, 256}, all real `nargo`/`bb` runs): 6,143 ACIR opcodes, 47,613 circuit size, ~1.06s
+  prove, ~22ms verify, 14,656 B proof, 96 B public inputs (`rt_last‖rt_new‖count`) -- all CONSTANT
+  regardless of `count` (every proof pays the N_MAX=256 ceiling's fixed cost, ~2x the old fixed-N=256
+  compile's opcode count and ~1.55x its prove time, the real price of the padding-gate logic and a
+  dynamic array index) -- still comfortably under Engram's sub-2s block time. `circuit/reanchoring_witness/`
+  mirrors the same N_MAX/count shape (kept in sync by hand, as before). `x/sovereignty/keeper/msg_server.go`'s
+  `SubmitRecoveryProof` public-input parsing updated 64 -> 96 bytes; `findHeaderByStateRoot`'s
+  rolling-checkpoint logic needed no changes (never depended on a fixed N to trust a proof).
+  `prove_and_submit.sh`/`watch_and_prove.sh` updated: `count = min(TOTAL_N, 256)` replaces the old
+  hard `TOTAL_N >= EXPECTED_N` requirement (any tracked interval, even 1 header, is now provable
+  immediately) -- the embedded VK (`x/sovereignty/keeper/zk_assets/vk`) was regenerated for the new
+  circuit and reverified end-to-end through the real Go code path (`VerifyZKProof`/
+  `BenchmarkVerifyZKProof`) before replacing the old one.
 - **The keeper's `Tree` (SMT, `iden3/go-merkletree-sql`) and `x/sovereignty/keeper/smt_storage.go`'s
   `BadgerStorage` have been removed entirely** (previously dead code -- confirmed via exhaustive grep
   before removal: `Tree` was constructed in `NewKeeper` and never read/written anywhere else;

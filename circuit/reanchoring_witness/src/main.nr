@@ -11,16 +11,22 @@
 // deliberately mirrors main.nr's Header/hash_header verbatim (kept in sync
 // by hand -- same "compile-time constant kept in sync manually across
 // files" pattern already used by circuit/reanchoring/src/main.nr's own E6
-// benchmark scripting; N below MUST match circuit/reanchoring/src/main.nr's
-// global N).
+// benchmark scripting; N_MAX below MUST match circuit/reanchoring/src/main.nr's
+// global N_MAX).
 //
-// scripts/reanchoring_prover.sh (A6) writes this crate's Prover.toml from
-// real chain data (rt_last plus raw {fsm_state, withdrawal_locked,
+// Only links the REAL `count` headers (1..=N_MAX) -- unlike the main
+// circuit, this crate does not itself need to understand padding: it only
+// ever prints real, linked headers; scripts/reanchoring_prover/prove_and_submit.sh
+// (the caller) is the one that pads the remaining N_MAX - count slots with
+// zero-valued Header entries when building the real circuit's Prover.toml.
+//
+// scripts/reanchoring_prover/prove_and_submit.sh writes this crate's Prover.toml
+// from real chain data (rt_last plus raw {fsm_state, withdrawal_locked,
 // state_root} per header, deliberately WITHOUT prev_hash -- that's exactly
 // what this crate derives), runs `nargo execute witness --show-output`, and
 // greps the printed, now-linked chain into the REAL circuit's Prover.toml.
 
-global N: u32 = 4;
+global N_MAX: u32 = 256;
 
 struct Header {
     prev_hash: Field,
@@ -47,32 +53,39 @@ fn hash_header(h: Header) -> Field {
 
 // raw_fsm_state / raw_withdrawal_locked / raw_state_root are the per-header
 // fields as tracked by the Go keeper (types.RecoveryHeader) -- no prev_hash,
-// since that's what this crate derives. rt_last seeds the chain, matching
+// since that's what this crate derives. Only the first `count` entries are
+// real; entries at index >= count are never read (count is public so the
+// caller script can rely on it, but this crate has no reason to validate an
+// upper bound the way the real circuit does -- it just links what's real
+// and ignores the rest). rt_last seeds the chain, matching
 // circuit/reanchoring/src/main.nr's own headers[0].prev_hash == rt_last
 // binding.
 fn main(
     rt_last: pub Field,
-    raw_fsm_state: [Field; N],
-    raw_withdrawal_locked: [Field; N],
-    raw_state_root: [Field; N],
+    count: pub u32,
+    raw_fsm_state: [Field; N_MAX],
+    raw_withdrawal_locked: [Field; N_MAX],
+    raw_state_root: [Field; N_MAX],
 ) {
     let mut prev_hash = rt_last;
-    for i in 0..N {
-        let h = Header {
-            prev_hash,
-            fsm_state: raw_fsm_state[i],
-            withdrawal_locked: raw_withdrawal_locked[i],
-            state_root: raw_state_root[i],
-        };
-        println(h);
-        prev_hash = hash_header(h);
+    for i in 0..N_MAX {
+        if i < count {
+            let h = Header {
+                prev_hash,
+                fsm_state: raw_fsm_state[i],
+                withdrawal_locked: raw_withdrawal_locked[i],
+                state_root: raw_state_root[i],
+            };
+            println(h);
+            prev_hash = hash_header(h);
+        }
     }
 }
 
 #[test]
 fn hash_header_matches_main_circuit_fixture() {
     // Cross-check against circuit/reanchoring/src/main.nr's own
-    // valid_chain_satisfies_circuit fixture -- this crate's hash_header is a
+    // build_chain::<1>() fixture -- this crate's hash_header is a
     // hand-kept copy of the real circuit's (Noir has no cross-crate import
     // for a single tiny function without a shared library package), so a
     // failure here means the two have drifted and this crate's output would

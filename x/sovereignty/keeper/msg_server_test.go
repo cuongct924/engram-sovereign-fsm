@@ -79,7 +79,7 @@ func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	// toolchain being installed in this environment).
 	_, err := srv.SubmitRecoveryProof(ctx, &types.MsgSubmitRecoveryProofRequest{
 		ZkProof:      []byte("not-a-real-proof"),
-		PublicInputs: make([]byte, 64),
+		PublicInputs: make([]byte, 96),
 	})
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 
@@ -92,15 +92,15 @@ func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 }
 
 // TestSubmitRecoveryProof_RejectsMalformedPublicInputs covers the new
-// rt_last/rt_new binding check's length guard -- a non-64-byte
-// PublicInputs can't possibly decode into (rt_last, rt_new), so it must be
-// rejected before any on-chain state comparison is attempted.
+// rt_last/rt_new/count binding check's length guard -- a non-96-byte
+// PublicInputs can't possibly decode into (rt_last, rt_new, count), so it
+// must be rejected before any on-chain state comparison is attempted.
 func TestSubmitRecoveryProof_RejectsMalformedPublicInputs(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 
 	_, err := srv.SubmitRecoveryProof(ctx, &types.MsgSubmitRecoveryProofRequest{
 		ZkProof:      []byte("irrelevant-fails-verify-first"),
-		PublicInputs: make([]byte, 32), // wrong length
+		PublicInputs: make([]byte, 64), // wrong length (old 2-field layout)
 	})
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 }
