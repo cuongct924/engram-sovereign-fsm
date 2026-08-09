@@ -6,7 +6,6 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	sovereigntykeeper "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	fsmtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 	protov2 "google.golang.org/protobuf/proto"
 
@@ -32,7 +31,7 @@ func (s stubTx) GetMsgsV2() ([]protov2.Message, error) { return nil, nil }
 func newTestAnteFixture(t *testing.T) (CircuitBreakerDecorator, sdk.Context, *sovereigntykeeper.Keeper) {
 	t.Helper()
 	storeService, mockCtx := colltest.MockStore()
-	k := sovereigntykeeper.NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := sovereigntykeeper.NewKeeper(storeService, nil)
 	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(mockCtx)
 	return NewCircuitBreakerDecorator(k), sdkCtx, k
 }

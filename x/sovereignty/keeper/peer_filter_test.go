@@ -3,7 +3,6 @@ package keeper
 import (
 	"testing"
 
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections/colltest"
@@ -23,7 +22,7 @@ func (f fakePeerFilterSource) PeerCountInSubnet(string) uint64 {
 func newPeerFilterTestKeeper(t *testing.T, maxPerSubnet uint64) *Keeper {
 	t.Helper()
 	storeService, _ := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 	k.Params.MaxPeersPerSubnet = maxPerSubnet
 	return k
 }

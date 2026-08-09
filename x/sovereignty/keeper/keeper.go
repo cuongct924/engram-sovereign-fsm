@@ -1,10 +1,7 @@
 package keeper
 
 import (
-	"context"
-
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	merkletree "github.com/iden3/go-merkletree-sql/v2"
 
 	"cosmossdk.io/collections"
 	"cosmossdk.io/core/store"
@@ -87,9 +84,6 @@ type Keeper struct {
 	LastAnchoredRoot         collections.Item[[]byte]
 	RealProofSubmittedHeight collections.Item[uint64]
 
-	// SMT Tree
-	Tree *merkletree.MerkleTree
-
 	// peerFilterSrc backs FilterPeerByAddr (peer_filter.go) -- nil until
 	// SetPeerFilterSource is called (cmd/engramd's wirePeerFilter, late-bound
 	// after node.NewNode() constructs the real *p2p.Switch, since
@@ -127,7 +121,7 @@ type Keeper struct {
 	LastDetectedEvidence  collections.Item[types.EvidenceRecord]
 }
 
-func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merkletree.Storage) *Keeper {
+func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 	sb := collections.NewSchemaBuilder(storeService)
 
 	k := &Keeper{
@@ -152,13 +146,6 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec, smtStore merk
 		DetectedEvidenceCount:    collections.NewItem(sb, collections.NewPrefix(16), "detected_evidence_count", collections.Uint64Value),
 		LastDetectedEvidence:     collections.NewItem(sb, collections.NewPrefix(17), "last_detected_evidence", collections.NewJSONValueCodec[types.EvidenceRecord]()),
 	}
-
-	// Khởi tạo SMT với storage adapter được inject vào
-	tree, err := merkletree.NewMerkleTree(context.Background(), smtStore, 256)
-	if err != nil {
-		panic(err)
-	}
-	k.Tree = tree
 
 	schema, err := sb.Build()
 	if err != nil {

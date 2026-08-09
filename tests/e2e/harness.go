@@ -13,7 +13,6 @@ import (
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 
 	"cosmossdk.io/collections/colltest"
 	log "cosmossdk.io/log/v2"
@@ -62,7 +61,7 @@ func NewHarness(t *testing.T) *Harness {
 
 	storeService, ctx := colltest.MockStore()
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry())
-	k := keeper.NewKeeper(storeService, cdc, memory.NewMemoryStorage())
+	k := keeper.NewKeeper(storeService, cdc)
 
 	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx)
 

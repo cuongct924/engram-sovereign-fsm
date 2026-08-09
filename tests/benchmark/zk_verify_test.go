@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 
 	"cosmossdk.io/collections/colltest"
 )
@@ -43,7 +42,7 @@ func BenchmarkVerifyZKProof(b *testing.B) {
 	}
 
 	storeService, _ := colltest.MockStore()
-	k := keeper.NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := keeper.NewKeeper(storeService, nil)
 
 	// One real verification first, outside the timed loop, both as a
 	// warm-up and to fail loudly (not just report a misleadingly-fast

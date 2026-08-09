@@ -6,7 +6,6 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections/colltest"
@@ -18,7 +17,7 @@ import (
 func newRefreshTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
-	k := keeper.NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := keeper.NewKeeper(storeService, nil)
 	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx)
 	return k, sdkCtx
 }

@@ -341,8 +341,9 @@ upstream or downstream of it real:
   per-block witness data the circuit needs, populated in `preblock.go`'s `CommitFSMTransition` only
   while `fsm_state ∈ {SOVEREIGN, RECOVERING}` (pruned on return to ANCHORED). `state_root` is
   CometBFT's real per-block `AppHash` (one-block-lagged, the standard ABCI lag already documented
-  elsewhere in this repo), NOT the keeper's `Tree` (SMT) -- that field is unrelated dead code (see
-  below), and this prototype has no `x/bank`/account state to put in an SMT leaf yet regardless.
+  elsewhere in this repo), NOT an SMT -- the keeper's `Tree`/SMT scaffold was unwired dead code and
+  has since been removed entirely (see below), and this prototype has no `x/bank`/account state to
+  put in an SMT leaf yet regardless.
   Both `state_root` and `rt_last` are reduced into the circuit's BN254 scalar field
   (`types.ReduceToField`) before storage -- a raw 32-byte hash has roughly a 1-in-16 chance of
   exceeding the field modulus if used verbatim, which Noir/bb reject outright ("non-canonical...
@@ -432,19 +433,30 @@ upstream or downstream of it real:
   working as designed (see `RealProofSubmittedHeight` above), just observed from the submission side
   instead of the already-latched side; a real deployment needs to submit while the interval is
   genuinely stable, not race a continuously-growing one.
-- **Not done / explicitly out of scope for this pass**: the keeper's `Tree` (SMT,
-  `iden3/go-merkletree-sql`) and `x/sovereignty/keeper/smt_storage.go`'s `BadgerStorage` remain
-  completely unwired dead code (confirmed via exhaustive grep -- `Tree` is constructed in
-  `NewKeeper` and never read/written anywhere else; `BadgerStorage` isn't even passed as `NewKeeper`'s
-  `smtStore` argument, which uses an in-memory store instead). Deliberately NOT pressed into service
-  for `state_root` here: this prototype has no real account/balance state to put in SMT leaves yet,
-  and forcing fabricated leaves in would violate this repo's own "don't fabricate data" convention.
-  Reviving this SMT for a real future purpose (or removing it) is separate, unstarted work. Also not
-  done: replacing the app's KVStore backend (`cosmos-db`, currently GoLevelDB) with BadgerDB was
-  investigated and rejected -- `cosmos-db` only implements goleveldb/memdb/pebbledb/rocksdb, and
-  Badger's WiscKey (value-separated) architecture is designed for large values, not IAVL's
-  small-node/random-access pattern; no ecosystem precedent either. Variable-length/recursive re-
-  anchoring proofs (removing the fixed-N limitation) are also out of scope.
+- **The keeper's `Tree` (SMT, `iden3/go-merkletree-sql`) and `x/sovereignty/keeper/smt_storage.go`'s
+  `BadgerStorage` have been removed entirely** (previously dead code -- confirmed via exhaustive grep
+  before removal: `Tree` was constructed in `NewKeeper` and never read/written anywhere else;
+  `BadgerStorage` was never even passed as `NewKeeper`'s real storage backend, which used an in-memory
+  store instead everywhere, production included). It was never pressed into service for `state_root`:
+  this prototype has no real account/balance state to put in SMT leaves, and forcing fabricated leaves
+  in would have violated this repo's own "don't fabricate data" convention. Reviving it would only have
+  mattered for a real future purpose (cryptographically verifying `withdrawal_locked` against actual
+  balance leaves instead of trusting a Go-computed flag) -- explicitly decided against for this
+  research's scope, since that needs `x/auth`+`x/bank` (still unmounted) and is a distinct,
+  much larger research thread (state-transition-validity ZK proofs), not a natural next step here.
+  `NewKeeper`'s signature dropped its `smtStore merkletree.Storage` parameter accordingly (now just
+  `storeService, cdc`); all ~10 call sites (production `app/app.go` + test helpers) updated;
+  `github.com/dgraph-io/badger/v4` and `github.com/iden3/go-merkletree-sql/v2` removed from `go.mod`
+  via `go mod tidy`. Separately, replacing the app's KVStore backend (`cosmos-db`, currently
+  GoLevelDB) with BadgerDB was investigated and rejected on its own merits -- `cosmos-db` only
+  implements goleveldb/memdb/pebbledb/rocksdb, and Badger's WiscKey (value-separated) architecture is
+  designed for large values, not IAVL's small-node/random-access pattern; no ecosystem precedent
+  either. Variable-length/recursive re-anchoring proofs (removing the fixed-N limitation) were
+  investigated for real via a feasibility spike (`circuit/reanchoring_recursion_spike*/`,
+  `RESULTS.md`) and found to be a clear NO-GO: recursively verifying even 1 leaf proof costs orders of
+  magnitude more (real measured circuit size ~700K-3M, prove time 74-191s for M=2/M=4 leaves) than
+  just proving more headers directly in one circuit (Table 6B's N=256: 39,298 circuit size, 0.684s) --
+  raising N directly or adding max-N padding/count remain the right direction, not recursion.
 
 **Real 4-node Docker testnet (M6's remaining verification)** is now done, confirmed by actually
 running 4 `engram-nodeNN` containers to 20+ blocks with matching `AppHash` at every height,

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections/colltest"
@@ -17,7 +16,7 @@ import (
 func newTestMsgServer(t *testing.T) (*MsgServerImpl, context.Context) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 	return &MsgServerImpl{Keeper: k}, ctx
 }
 
@@ -112,7 +111,7 @@ func TestSubmitRecoveryProof_RejectsMalformedPublicInputs(t *testing.T) {
 // zero rt_new) when no SOVEREIGN/RECOVERING interval is currently tracked.
 func TestLatestTrackedHeader_EmptyHistory(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 
 	_, _, err := k.LatestTrackedHeader(ctx)
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
@@ -122,7 +121,7 @@ func TestLatestTrackedHeader_EmptyHistory(t *testing.T) {
 // returns the header at the greatest tracked height, not just any entry.
 func TestLatestTrackedHeader_PicksHighestHeight(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 
 	require.NoError(t, k.HeaderHistory.Set(ctx, 5, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h5")}))
 	require.NoError(t, k.HeaderHistory.Set(ctx, 7, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h7")}))
@@ -173,7 +172,7 @@ func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) 
 // whatever height this finds.
 func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 
 	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
 	require.NoError(t, k.HeaderHistory.Set(ctx, 8, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h8")}))
@@ -191,7 +190,7 @@ func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
 // same replay gap LatestTrackedHeader's exact-tip check used to close.
 func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 
 	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
 
@@ -209,7 +208,7 @@ func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
 // is always a prefix trim.
 func TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
-	k := NewKeeper(storeService, nil, memory.NewMemoryStorage())
+	k := NewKeeper(storeService, nil)
 
 	for h := uint64(1); h <= 6; h++ {
 		require.NoError(t, k.HeaderHistory.Set(ctx, h, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte{byte(h)}}))

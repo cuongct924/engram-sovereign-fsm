@@ -11,7 +11,6 @@ import (
 	sovereigntykeeper "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	memoryzk "github.com/iden3/go-merkletree-sql/v2/db/memory"
 
 	"cosmossdk.io/collections"
 	store "cosmossdk.io/core/store"
@@ -125,7 +124,7 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	bApp.SetInterfaceRegistry(interfaceRegistry)
 	bApp.SetParamStore(newConsensusParamStore(runtime.NewKVStoreService(consensusParamsKey)))
 
-	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc, memoryzk.NewMemoryStorage())
+	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc)
 
 	// Lets SubmitForcedTx reject content that can never appear as real
 	// block-tx bytes before it ever enters ForcedTxQueue -- see
