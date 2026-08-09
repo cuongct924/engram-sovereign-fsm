@@ -1,0 +1,19 @@
+[package]
+name = "reanchoring_recursion_spike_aggregator"
+type = "bin"
+authors = ["CuongCT <cuongct0902@gmail.com>"]
+compiler_version = ">=0.31.0"
+
+[dependencies]
+# Pinned to the EXACT tag matching this repo's locally installed `bb`
+# (`bb --version` -> 5.0.0-nightly.20260522) -- aztec-packages tags its
+# monorepo (including barretenberg/bb itself) with the same version string
+# bb reports, confirmed via `git ls-remote --tags` finding a tag literally
+# named v5.0.0-nightly.20260522. Picking the exact matching release instead
+# of "something recent" is the whole point of this compatibility check (see
+# the approved plan's Step 1) -- this repo's other external pin (the
+# CometBFT fork in go.mod) is similarly commit-pinned, not left floating.
+bb_proof_verification = { git = "https://github.com/AztecProtocol/aztec-packages", tag = "v5.0.0-nightly.20260522", directory = "barretenberg/noir/bb_proof_verification" }
+
+[bin]
+name = "reanchoring_recursion_spike_aggregator"
