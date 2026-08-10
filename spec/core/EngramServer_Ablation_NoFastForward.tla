@@ -286,6 +286,17 @@ ServerInit ==
 \* is a strictly narrower (and, per RefinementSafety, incorrect) condition:
 \* it let the clock advance past an honest OR a fully-formed Byzantine E_QC+
 \* M_QC pair at the current round, which Elapse itself forbids.
+\*
+\* NOTE: an earlier revision of this guard also unblocked on a T_QC
+\* existing for the round, on the theory that this mirrors the abstract
+\* TimeoutSkipNext. That was wrong: Elapse's own guard only ever checks
+\* for E/M-type tree entries, never T -- letting a T_QC unblock THIS
+\* action (which maps to Elapse, a pure decrement, round UNCHANGED) has no
+\* abstract counterpart and was caught by RefinementSafety. The real fix
+\* for the Byzantine-silent-leader deadlock is ServerHonestTimeout +
+\* ServerHonestRoundSkip below, which advance round directly (mapping to
+\* Timeout(n) then TimeoutSkipNext) without ever needing this guard to
+\* loosen -- see LIVENESS_DEADLOCK_FINDING.md.
 \* @type: Bool;
 ServerAdvanceRealTime ==
     /\ AdvanceRealTime
@@ -320,6 +331,16 @@ ServerByzantinePull ==
         /\ Proposer[r] \in ByzantineNodes
         /\ msgs_propose[r] = {}
         /\ ~\E q \in quorum_certs : q.type = "E_QC" /\ q.round = r /\ q.caller = Proposer[r]
+        \* Guard against synthesizing a Pull for a round that has already
+        \* closed: a round can be decided via an all-NIL precommit quorum
+        \* (timeout-driven) without msgs_propose[r] ever receiving a real
+        \* message, so the two conjuncts above alone don't exclude it. If
+        \* any honest node has already moved past round r, an abstract
+        \* Pull(E) for r is no longer justified by any Next disjunct once
+        \* the concrete round advance is mapped through -- found via
+        \* RefinementSafety (see LIVENESS_DEADLOCK_FINDING.md's Hướng A+B
+        \* re-verification).
+        /\ \A p \in HonestNodes : round[p] <= r
         /\ LET new_EQC == [
                 type |-> "E_QC",
                 round |-> r,
@@ -332,6 +353,84 @@ ServerByzantinePull ==
         /\ UNCHANGED <<temporalVars, bookkeepingVars, invariantVars>>
         /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars>>
 
+\* Bootstrap-deadlock fix, split into two steps mirroring the abstract
+\* model's own two-step structure exactly (Timeout(n), then a separate
+\* later TimeoutSkipNext that CONSUMES the T-cache Timeout(n) created --
+\* see LIVENESS_DEADLOCK_FINDING.md).
+\*
+\* Step 1/2 -- ServerHonestTimeout: the abstract Timeout(n) can fire at
+\* any time (no rem_time gate), but the concrete ServerUponTimeoutCert(p)
+\* needs a real f+1 TIMEOUT-message quorum, which needs local_rem_time to
+\* reach 0, which needs ServerAdvanceRealTime to fire -- exactly what's
+\* frozen while a stalled Byzantine E_QC (from ServerByzantinePull, which
+\* msgs_propose staying empty means can never complete via a real Push)
+\* is pending. This action gives honest nodes a direct, abstract-cache-
+\* style way to register a T_QC for the stalled round, mirroring how
+\* ServerByzantinePull/ServerByzantineDataWithholding already synthesize
+\* E_QC/M_QC directly, bypassing real message flow. Deliberately does NOT
+\* touch round -- that's ServerHonestRoundSkip's job below.
+\* @type: Bool;
+ServerHonestTimeout ==
+    \E r \in Rounds :
+        /\ Proposer[r] \in ByzantineNodes
+        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
+        /\ ~\E q \in quorum_certs : q.type = "M_QC" /\ q.round = r /\ q.caller = Proposer[r]
+        /\ ~\E tqc \in timeout_certs : tqc.round = r
+        /\ \E p \in HonestNodes : round[p] = r
+        /\ \E p \in HonestNodes :
+               LET new_TQC == [
+                       type         |-> "T_QC",
+                       round        |-> r,
+                       caller       |-> p,
+                       btc_anchored |-> h_btc_current
+                   ]
+               IN timeout_certs' = timeout_certs \cup {new_TQC}
+        /\ UNCHANGED <<tendermintCoreVars, quorum_certs>>
+        /\ UNCHANGED <<temporalVars, bookkeepingVars, invariantVars>>
+        /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars>>
+
+\* Step 2/2 -- ServerHonestRoundSkip(p): given a T_QC ALREADY exists for
+\* the round p is stuck at (created by ServerHonestTimeout in a prior,
+\* separate step), p advances past it. Maps to the abstract
+\* TimeoutSkipNext, which requires tree UNCHANGED (round advances by
+\* consuming an existing T-cache, not creating a new one) -- so
+\* quorum_certs/timeout_certs stay UNCHANGED here, unlike
+\* ServerHonestTimeout above which creates the T_QC.
+\*
+\* Deliberately does NOT call StartRound(p, round[p]+1) directly (unlike
+\* UponfPlusOneTimeoutsAny(p), which this otherwise mirrors) -- StartRound
+\* bundles UpdateIgnoredRounds(p), which reads msgs_propose[round[p]] and
+\* increments tx_ignored_rounds[p][tx] for every forced tx not found
+\* there. Round `round[p]` here was never a real round with a real
+\* proposal pipeline (msgs_propose[round[p]] = {} is exactly why this
+\* bootstrap path exists at all -- see ServerByzantinePull), so counting
+\* it as "the proposer ignored my forced tx" is wrong: it inflates
+\* tx_ignored_rounds off of a synthetic, not a real, round, which was
+\* observed to spuriously trip IsCensoring's MAX_IGNORE_ROUNDS threshold
+\* after a single skip and self-trigger a second, unmapped round advance
+\* inside UponProposalInPropose (see LIVENESS_DEADLOCK_FINDING.md §10).
+\* Every other StartRound effect is still replicated exactly.
+\* @type: (Str) => Bool;
+ServerHonestRoundSkip(p) ==
+    /\ p \in HonestNodes
+    /\ \E tqc \in timeout_certs : tqc.round = round[p]
+    /\ step[p] /= "DECIDED"
+    /\ LET r == round[p] + 1 IN
+       /\ r \in Rounds
+       /\ round' = [round EXCEPT ![p] = r]
+       /\ step' = [step EXCEPT ![p] = "PROPOSE"]
+       /\ begin_round' = [begin_round EXCEPT ![r] = Min2(@, local_clock[p])]
+       /\ last_begin_round' = [last_begin_round EXCEPT ![r] = Max2(@, local_clock[p])]
+       /\ local_rem_time' = [local_rem_time EXCEPT ![p] = TIMEOUT_DURATION]
+    /\ UNCHANGED <<tx_ignored_rounds>>
+    /\ UNCHANGED <<msgsBroadcastVars, propAuditVars, evidence, action>>
+    /\ UNCHANGED <<local_clock, real_time>>
+    /\ UNCHANGED <<end_consensus, proposal_time, proposal_received_time>>
+    /\ UNCHANGED <<decision, locked_value, locked_round, valid_value, valid_round>>
+    /\ UNCHANGED <<forced_tx_queue>>
+    /\ UNCHANGED <<quorum_certs, timeout_certs>>
+    /\ UNCHANGED <<fsmVars, networkSensorVars>>
+
 
 \* @type: Bool;
 ServerByzantineDataWithholding ==
@@ -341,6 +440,14 @@ ServerByzantineDataWithholding ==
        IN 
        \* Toán học LiDO ép buộc: Phải có E_QC từ bước 1 rồi mới được chạy tiếp
        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
+       \* Same class of guard as ServerByzantinePull (see its comment and
+       \* LIVENESS_DEADLOCK_FINDING.md §7): a round can close via an
+       \* all-NIL timeout-driven precommit quorum without msgs_propose[r]
+       \* ever having received anything, so without this, a late Byzantine
+       \* proposal (and the M_QC synthesized from it) could target a round
+       \* honest nodes have already exited -- an abstract Invoke(M) with
+       \* no Next disjunct to justify it once mapped through.
+       /\ \A p \in HonestNodes : round[p] <= r
        \* Sinh M_QC để hoàn thiện hồ sơ
        /\ LET new_MQC == [ 
                 type |-> "M_QC", 
@@ -362,6 +469,8 @@ ServerNext ==
        /\ \E p \in HonestNodes : ServerMessageProcessing(p)
     \/ ServerByzantinePull
     \/ ServerByzantineDataWithholding
+    \/ ServerHonestTimeout
+    \/ \E p \in HonestNodes : ServerHonestRoundSkip(p)
 
 \* @type: Bool;
 ServerSpec == ServerInit /\ [][ServerNext]_serverVars

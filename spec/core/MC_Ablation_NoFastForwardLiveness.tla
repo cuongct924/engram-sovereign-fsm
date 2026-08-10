@@ -10,6 +10,19 @@
  *
  * This is a liveness-only ablation (Apalache has no temporal+fairness
  * support, so this one is TLC-only, unlike the other ablations).
+ *
+ * MC_ServerFairness and EngramServer_Ablation_NoFastForward.tla itself
+ * (2026-08-09): both re-synced against EngramServer.tla's Hướng A+B
+ * bootstrap-deadlock fix (see LIVENESS_DEADLOCK_FINDING.md) -- the ablated
+ * copy had silently drifted stale (missing ServerHonestTimeout/
+ * ServerHonestRoundSkip entirely, along with the ServerByzantinePull/
+ * ServerByzantineDataWithholding already-closed-round guards), and this
+ * driver's own fairness formula never required the two new actions to
+ * fire even once the base module gained them. Without this sync, a run
+ * against this driver cannot distinguish "liveness fails because f+1 was
+ * removed" from "liveness fails because of the unrelated, already-fixed
+ * Byzantine-silent-leader bootstrap deadlock" -- both would stutter at the
+ * same state (ServerByzantinePull, then nothing else ever enabled).
  *)
 EXTENDS EngramServer_Ablation_NoFastForward, TLC, Sequences
 
@@ -31,6 +44,8 @@ MC_ServerNext == ServerNext
 MC_ServerFairness ==
     /\ WF_serverVars(ServerAdvanceRealTime)
     /\ \A p \in MC_Honest : WF_serverVars(ServerMessageProcessing(p))
+    /\ WF_serverVars(ServerHonestTimeout)
+    /\ \A p \in MC_Honest : WF_serverVars(ServerHonestRoundSkip(p))
 
 MC_ServerSpec ==
     MC_ServerInit /\ [][MC_ServerNext]_serverVars /\ MC_ServerFairness

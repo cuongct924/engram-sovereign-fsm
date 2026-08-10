@@ -13,21 +13,14 @@ services:
       engram-net:
         ipv4_address: 172.28.0.100
       # bitcoin-net: needed so BITCOIN_HOST=bitcoin-node01 (live BTC sensor
-      # wiring, x/vigilante/rpc.go) is actually DNS-resolvable -- found by
-      # actually running the 4-node testnet: without this, EVERY
-      # PrepareProposal call failed ("dial tcp: lookup bitcoin-node01 ...
-      # no such host"), so no leader could ever produce a valid proposal
-      # and consensus round-skipped forever at height 1, never committing
-      # a single block. bitcoin-node01/02 are bitcoin-net-only (docker/
-      # bitcoin-regtest-cluster.yml), completely unreachable from
-      # engram-net's separate Docker network without this.
+      # wiring, x/vigilante/rpc.go) is DNS-resolvable -- without this join,
+      # every PrepareProposal fails to reach bitcoin-node01 and consensus
+      # round-skips forever at height 1.
       bitcoin-net:
         ipv4_address: 172.21.0.100
-      # celestia-net: needed so CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
-      # (live DA sensor wiring, x/da/rpc.go's wireDASensor) is DNS-resolvable --
-      # same class of issue bitcoin-net's comment above documents: celestia-bridge
-      # (docker/celestia-local-cluster.yml) is celestia-net-only, unreachable
-      # from engram-net's separate Docker network without this join.
+      # celestia-net: needed so CELESTIA_BRIDGE_URL is DNS-resolvable (live
+      # DA sensor wiring, x/da/rpc.go's wireDASensor) -- same reason as
+      # bitcoin-net above.
       celestia-net:
         ipv4_address: 172.22.0.100
     volumes:
@@ -41,36 +34,27 @@ services:
       - MINIMUM_GAS_PRICES=0uengram
       - MONIKER=engram-node01
       - NODE_ID=0
-      # Live BTC sensor wiring (x/vigilante/rpc.go, cmd/engramd/main.go's
-      # wireBTCSensor) -- bitcoin-node01 is reachable by its Docker-network
-      # service name/internal port (not the host-mapped 18443, which is a
-      # different network namespace from inside this container).
+      # Live BTC sensor wiring (wireBTCSensor) -- bitcoin-node01 is reached
+      # via its Docker-network service name/internal port, not the
+      # host-mapped 18443.
       - BITCOIN_HOST=bitcoin-node01
       - BITCOIN_RPC_PORT=18443
       - BITCOIN_RPC_USER=${BITCOIN_RPC_USER:-engram_admin}
       - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD:-secure_password_123}
-      # Live DA sensor wiring (x/da/rpc.go, cmd/engramd/main.go's
-      # wireDASensor) -- celestia-bridge is reachable by its Docker-network
-      # service name/internal port 26658 (not the host-mapped 26658, a
-      # different network namespace from inside this container).
-      # CELESTIA_BRIDGE_AUTH_TOKEN is the bridge's own admin/write JWT
-      # (celestia-bridge's entrypoint writes it to
-      # /home/celestia/bridge_auth.txt on first init) -- pinned here rather
-      # than regenerated per node, since all 4 validators talk to the SAME
-      # celestia-bridge instance and its JWT is signed against that
-      # instance's own node identity, not per-caller.
+      # Live DA sensor wiring (wireDASensor) -- celestia-bridge is reached
+      # via its Docker-network service name/internal port, not the
+      # host-mapped one. CELESTIA_BRIDGE_AUTH_TOKEN is the bridge's own
+      # admin/write JWT (written to /home/celestia/bridge_auth.txt on first
+      # init) -- pinned here since all 4 validators share one bridge instance.
       - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
       - CELESTIA_NAMESPACE_ID=engramda01
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN}
     command: ["start"]
     restart: unless-stopped
-    # No depends_on celestia-light01 here (deliberately removed): x/da's
-    # Publisher/RPCClient talk to celestia-bridge directly (CELESTIA_BRIDGE_URL),
-    # never to celestia-lightNN -- that service is unused scaffolding for a
-    # future DAS light-client integration (see CLAUDE.md), and its "OLD,
-    # unfixed buggy command pattern" leaves it permanently unhealthy today.
-    # Gating engramd's startup on it blocked the entire 4-node testnet from
-    # ever coming up for a dependency this binary doesn't actually have.
+    # No depends_on celestia-light01 (deliberately removed): x/da's
+    # Publisher/RPCClient talk to celestia-bridge directly, never to
+    # celestia-lightNN -- unused scaffolding that would otherwise block
+    # startup on a dependency this binary doesn't have.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
       interval: 30s
@@ -88,17 +72,11 @@ services:
 
 
 # engram-net/bitcoin-net/celestia-net are declared once in the root
-# compose.yml, which owns them; services above reference them by name
-# directly. Redeclaring them here (even as `external: true`) makes
-# `docker compose config` fail with "conflicts with imported resource"
-# once this file is resolved via compose.yml's `include:` (see M6).
+# compose.yml, which owns them -- redeclaring them here (even as
+# `external: true`) makes `docker compose config` fail with "conflicts
+# with imported resource" once resolved via compose.yml's `include:`.
 
 # celestia-light01 (a Celestia DAS light-client service) previously lived
-# here -- removed at the repo owner's request: it was never functional (its
-# command pattern predates the celestia-app/bridge fixes, crash-looped on
-# every start) and, more importantly, nothing in this repo's Go code ever
-# used it -- x/da's Publisher/RPCClient talk to celestia-bridge directly
-# (CELESTIA_BRIDGE_URL), and DA_ENDPOINT (which pointed here) was never
-# read by any code either (see CLAUDE.md). A real DAS light-client
-# integration remains a documented, not-yet-done future item if ever
-# pursued -- this was pure non-functional scaffolding, not that feature.
+# here -- removed: never functional, and nothing in this repo's Go code
+# used it (x/da talks to celestia-bridge directly). A real DAS
+# light-client integration remains a documented future item if pursued.

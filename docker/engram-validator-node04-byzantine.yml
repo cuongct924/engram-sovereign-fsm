@@ -1,42 +1,24 @@
 # Deliberately no top-level `name:` here -- Compose merges the LAST file's
-# `name:` when given multiple `-f` flags, so an override file declaring its
-# own project name silently forks this into a SEPARATE Compose project from
-# compose.yml's `engram-validator-cluster`. That's fatal for this file
-# specifically (it swaps the SAME container, engram-node04 -- found live:
-# "Conflict. The container name /engram-node04 is already in use" once the
-# stray `name:` here caused `up` to treat it as a second project trying to
-# create a container the first project already owns). Confirmed the fix
-# resolves it: omitting `name:` here lets this override inherit
-# compose.yml's project name via Compose's normal merge, matching how a
-# `-f a -f b` merge is supposed to behave for an override, not a fork.
+# `name:` when given multiple `-f` flags, so declaring one here would fork
+# this into a separate Compose project and fail to swap engram-node04
+# ("container name already in use"). Omitting it lets this override
+# inherit compose.yml's project name.
 #
 # Byzantine-mode override for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 attack
-# rows -- NOT included via compose.yml's `include:` list (that would make
-# byzantine mode always active on every deploy). Applied explicitly, on top
-# of the normal cluster, via:
+# rows -- not in compose.yml's `include:` list (that would make byzantine
+# mode always active). Applied explicitly on top of the normal cluster:
 #
 #   docker compose -f compose.yml -f docker/engram-validator-node04-byzantine.yml \
 #     up -d --no-deps engram-node04
 #
-# Docker Compose merges `environment:` as a mapping (by key), not a list
-# replacement, so this only needs to declare the ONE new variable --
-# engram-validator-node04.yml's existing BITCOIN_HOST/CELESTIA_BRIDGE_URL/etc.
-# are preserved unchanged; only ENGRAM_BYZANTINE_BEHAVIOR is added.
+# Compose merges `environment:` by key, so this only needs to declare
+# ENGRAM_BYZANTINE_BEHAVIOR -- node04's other env vars are preserved.
+# node04 stays in the real N=4,f=1 validator set the whole time (no 5th
+# node added). scripts/e8_attack_resilience/live_byzantine_attacks.py swaps
+# this override in per scenario, then reverts to the plain node04 definition.
 #
-# node04 stays IN the real 4-node validator set (N=4, f=1) the whole time --
-# this deliberately does NOT add a 5th node, matching this repo's tuned
-# N=4,f=1 Byzantine-fault assumption (see x/sovereignty/types/params.go's
-# MinAnchorPeers/MinSubnetDiversity comments referencing this exact model).
-# scripts/e8_attack_resilience/live_byzantine_attacks.py swaps this override
-# in for one scenario at a time, then reverts to the plain
-# engram-validator-node04.yml definition afterward.
-#
-# See x/sovereignty/proposal.go's applyByzantineBehavior for the full list
-# of recognized ENGRAM_BYZANTINE_BEHAVIOR values -- the actual value used
-# for a given run is set at `docker compose up` time via this file's
-# environment substitution (${ENGRAM_BYZANTINE_BEHAVIOR}, exported by the
-# orchestrating script before invoking compose), not hardcoded here, so one
-# override file covers every A3/A4/A6/A7 scenario.
+# See applyByzantineBehavior (x/sovereignty/proposal.go) for recognized
+# ENGRAM_BYZANTINE_BEHAVIOR values, set at `up` time via env substitution.
 
 services:
   engram-node04:

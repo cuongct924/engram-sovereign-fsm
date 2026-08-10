@@ -17,35 +17,25 @@ import (
 
 // ExtendedProposal mirrors the extended Proposal fields in
 // spec/core/EngramTendermint.tla:143-150 (fsm_state, da_receipt, btc_receipt,
-// zk_proof_ref) beyond the raw tx value. It is JSON-encoded and placed as
-// Txs[0] of the block by the PrepareProposal handler below.
+// zk_proof_ref) beyond the raw tx value. JSON-encoded and placed as Txs[0]
+// by PrepareProposal below.
 //
-// This repo does not yet wire full ABCI++ Vote Extensions
-// (ExtendVote/VerifyVoteExtension) -- that would be the more idiomatic
-// Cosmos SDK mechanism for consensus-level metadata like this. Using a
-// leading pseudo-tx is a deliberate simplification that avoids needing a
-// full TxConfig/signing pipeline for what is leader-computed system data,
-// not a user transaction. Revisit if/when M0-series CometBFT fork work
-// (see the Phase 5 plan) exposes vote extensions cleanly to this layer.
+// Simplification: this repo does not yet wire ABCI++ Vote Extensions
+// (the more idiomatic mechanism for consensus-level metadata); a leading
+// pseudo-tx avoids needing a full TxConfig/signing pipeline for
+// leader-computed system data.
 type ExtendedProposal struct {
 	FSMState   string            `json:"fsm_state"`
 	DAReceipt  da.Receipt        `json:"da_receipt"`
 	BTCReceipt vigilante.Receipt `json:"btc_receipt"`
-	// ZKProofRef carries rt_new (the field-reduced new state root the
-	// accepted re-anchoring proof attests to, keeper.LastAnchoredRoot) when
-	// the leader claims a proof backs this round, nil otherwise -- a
-	// concrete refinement of spec/core/EngramTendermint.tla:150's abstract
-	// zk_proof_ref: BOOLEAN (also spec/core/EngramServer.tla:153's
-	// prop.zk_proof_ref = TRUE test). The spec itself is NOT widened: every
-	// site that reads this abstract field (VerifyZkProof, IsValidProposal,
-	// EngramServer.tla:523's ZKProofConsistency) only ever tests presence,
-	// never identity, so non-nil here refines to abstract TRUE and nil
-	// refines to abstract FALSE -- a sound over-abstraction, not a gap (see
-	// spec/README.md's Sec 6.1 for the refinement note). Carrying the real
-	// hash instead of a bare bool is purely an audit-traceability upgrade:
-	// it lets a later query point at exactly which proof (among potentially
-	// several submitted across a rolling-checkpoint RECOVERING interval,
-	// see msg_server.go's SubmitRecoveryProof) backed a given transition.
+	// ZKProofRef carries rt_new (the accepted re-anchoring proof's new state
+	// root, keeper.LastAnchoredRoot) when the leader claims a proof backs
+	// this round, nil otherwise -- a refinement of the abstract spec's
+	// zk_proof_ref: BOOLEAN (spec/core/EngramTendermint.tla:150). Every site
+	// that reads the abstract field only tests presence, never identity, so
+	// this is a sound over-abstraction (spec/README.md's Sec 6.1). Carrying
+	// the real hash (not a bare bool) lets a later query trace exactly which
+	// proof backed a given transition.
 	ZKProofRef []byte `json:"zk_proof_ref"`
 }
 
@@ -60,8 +50,8 @@ func EncodeExtendedProposal(p ExtendedProposal) ([]byte, error) {
 }
 
 // DecodeExtendedProposal returns ok=false (no error) if tx isn't a
-// marker-prefixed extended proposal at all -- callers should treat that as
-// "not present", not as a decode failure.
+// marker-prefixed extended proposal -- callers should treat that as "not
+// present", not a decode failure.
 func DecodeExtendedProposal(tx []byte) (p ExtendedProposal, ok bool, err error) {
 	marker := []byte(extendedProposalMarker)
 	if len(tx) < len(marker) || !bytes.Equal(tx[:len(marker)], marker) {
@@ -74,8 +64,8 @@ func DecodeExtendedProposal(tx []byte) (p ExtendedProposal, ok bool, err error) 
 }
 
 // currentFSMInput reads the keeper's current sensor/counter state into a
-// keeper.FSMInput, defaulting to FSMInit's values (spec/core/EngramFSM.tla:143-165)
-// when nothing has been persisted yet.
+// keeper.FSMInput, defaulting to FSMInit's values
+// (spec/core/EngramFSM.tla:143-165) when nothing has been persisted yet.
 func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in keeper.FSMInput) {
 	metrics, err := k.Metrics.Get(ctx)
 	if err != nil {
@@ -99,12 +89,10 @@ func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in ke
 
 // byzantineFakeFSMStatePrefix / byzantineForgeBTCHash / byzantineFalseDA /
 // byzantineCensorTxPrefix are ENGRAM_BYZANTINE_BEHAVIOR's recognized values
-// (cmd/engramd/main.go), each a deliberate, controlled misbehavior for
-// docs/EXPERIMENT.md's E8 A3/A4/A6/A7 attack rows -- exercising the real
-// live ProcessProposal rejection path on the OTHER (honest) validators,
-// rather than only proposal_test.go's in-process coverage. Never active
-// unless this exact env var is set, which docker/engram-validator-node04-byzantine.yml
-// is the only compose service that ever sets.
+// (cmd/engramd/main.go): controlled misbehavior for docs/EXPERIMENT.md's E8
+// A3/A4/A6/A7 rows, exercising the real ProcessProposal rejection path on
+// honest validators. Only docker/engram-validator-node04-byzantine.yml ever
+// sets this env var.
 const (
 	byzantineFakeFSMStatePrefix = "fake_fsm_state:"
 	byzantineForgeBTCHash       = "forge_btc_hash"
@@ -112,45 +100,32 @@ const (
 	byzantineCensorTxPrefix     = "censor_tx:"
 )
 
-// applyByzantineBehavior mutates ext (and, for censor_tx, the outgoing txs
-// slice) according to behavior, called only from the leader path
-// (NewPrepareProposalHandler) right before encoding -- this never runs on a
-// non-leader validator's ProcessProposal, matching a real malicious
-// PROPOSER's actual capability (it can only lie about ITS OWN proposal
-// content, never rewrite what other validators independently compute).
+// applyByzantineBehavior mutates ext (and, for censor_tx, txs) per behavior.
+// Only called from the leader path (NewPrepareProposalHandler), matching a
+// real malicious proposer's actual capability: it can only lie about its
+// own proposal, never rewrite what other validators independently compute.
 func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte) [][]byte {
 	switch {
 	case strings.HasPrefix(behavior, byzantineFakeFSMStatePrefix):
-		// A6: claim a healthier state than local sensors actually support
-		// (docs/EXPERIMENT.md's "Byzantine proposer set fake fsm_state = ANCHORED").
+		// A6: claim a healthier state than local sensors actually support.
 		ext.FSMState = strings.TrimPrefix(behavior, byzantineFakeFSMStatePrefix)
 	case behavior == byzantineForgeBTCHash:
-		// A4: claim the checkpoint height advanced, but with a hash that
-		// does not match ExpectedBlockHash -- vigilante.VerifyReceipt on
-		// every honest validator must reject this via its own independent
-		// bitcoind check (proposal.go's check #3/#3b), not trust the claim.
+		// A4: claim the checkpoint advanced with a hash that doesn't match
+		// ExpectedBlockHash -- every honest validator's own bitcoind check
+		// (checks #3/#3b below) must reject this independently.
 		ext.BTCReceipt.CheckpointBlockHash = vigilante.BlockHash{
 			Tag: "FORGED", Height: ext.BTCReceipt.CheckpointBlockHeight,
 		}
 	case behavior == byzantineFalseDA:
-		// A3: claim DA attestation succeeded and the verified height
-		// advanced, without a real Publisher submission backing it.
+		// A3: claim DA attestation succeeded without a real submission backing it.
 		ext.DAReceipt.Attestation = true
 		ext.DAReceipt.PublishedBlockHeight++
 	case strings.HasPrefix(behavior, byzantineCensorTxPrefix):
-		// A7 (adversarial half): deliberately omit one specific tx even
-		// though it's present in the mempool/ForcedTxQueue -- gives the
-		// existing IsCensoring/ForcedTxQueue machinery (already exercised
-		// from the honest side by TestProcessProposal_RejectsCensoringProposal)
-		// a real adversary to detect, live.
-		//
-		// The target is hex-encoded in ENGRAM_BYZANTINE_BEHAVIOR, not a raw
-		// byte string -- a real forced tx's identifier is arbitrary raw tx
-		// bytes (ForcedTxQueue stores msg.Tx verbatim, matched against real
-		// req.Txs[1:] block-tx content), which is not guaranteed valid UTF-8
-		// and does not survive Docker Compose's env-var/YAML interpolation
-		// unscathed (found live wiring up A7's driver script -- hex keeps
-		// the env var plain ASCII while still matching byte-for-byte).
+		// A7: omit one specific tx despite it being in the mempool/
+		// ForcedTxQueue, exercising IsCensoring against a real adversary.
+		// Target is hex-encoded since a real forced tx's raw bytes aren't
+		// guaranteed valid UTF-8 and don't survive Compose env/YAML
+		// interpolation unscathed.
 		targetHex := strings.TrimPrefix(behavior, byzantineCensorTxPrefix)
 		target, err := hex.DecodeString(targetHex)
 		if err != nil {
@@ -170,16 +145,12 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 
 // NewPrepareProposalHandler builds the sdk.PrepareProposalHandler for this
 // module, mirroring ServerInsertProposal (spec/core/EngramServer.tla:52-102):
-// first refreshes k.Metrics from this node's own live sensors (RefreshMetrics,
-// Phase 7 -- previously missing, so target_state was always computed from
-// stale keeper state), then the leader computes target_state via
-// CalculateNextState (reused verbatim from Phase 1, not reimplemented),
-// builds da_receipt/btc_receipt from the tracked heights, and only attempts
-// zk_proof_ref once hysteresis is satisfied. Wiring this onto a real BaseApp
-// via SetPrepareProposal is M5's job -- this function only builds the handler.
+// refreshes k.Metrics from live sensors, computes target_state via
+// CalculateNextState, builds da_receipt/btc_receipt from tracked heights,
+// and only attempts zk_proof_ref once hysteresis is satisfied.
 //
-// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR (cmd/engramd/main.go),
-// empty on every real validator -- see applyByzantineBehavior's doc.
+// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
+// validator (see applyByzantineBehavior's doc).
 func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
 		if err := RefreshMetrics(ctx, k, s); err != nil {
@@ -190,23 +161,17 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		// Adopt our own AnchorTracker's confirmed height if it has advanced
-		// past what's already committed -- this is the ONLY place
-		// h_btc_anchored gets a chance to move forward at all (PreBlocker's
-		// CommitFSMTransition just re-persists whatever height ends up in
-		// the winning proposal's btc_receipt); without this, hBtcAnchored
-		// above is always just an echo of the last-committed value and can
-		// never advance (see sensors_refresh.go's btcGapMetric doc for the
-		// liveness bug this closes).
+		// The only place h_btc_anchored can advance: PreBlocker just
+		// re-persists whatever height lands in the winning proposal's
+		// btc_receipt, so without adopting AnchorTracker's own confirmed
+		// height here, it can never move forward (sensors_refresh.go's
+		// btcGapMetric doc).
 		if s != nil && s.Anchor != nil {
 			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored {
 				hBtcAnchored = confirmed
 			}
 		}
-		// Same liveness fix, same reason, for DA: without this, hEngramVerified
-		// above is always just an echo of the last-committed value and can
-		// never advance (see sensors_refresh.go's daGapMetric doc -- this is
-		// the exact same bug class the BTC fix above closes).
+		// Same fix, same reason, for DA (sensors_refresh.go's daGapMetric doc).
 		if s != nil && s.DAPublisher != nil {
 			if verified, ok := s.DAPublisher.VerifiedHeight(); ok && verified > hEngramVerified {
 				hEngramVerified = verified
@@ -222,16 +187,11 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			CheckpointBlockHash:   vigilante.ExpectedBlockHash(hBtcAnchored),
 		}
 
-		// zk_proof_ref: mirrors ServerInsertProposal's proof_search_space
-		// (EngramServer.tla:73-76), which is only ever non-trivially TRUE once
-		// state=RECOVERING and safe_blocks has reached HysteresisWait. Unlike
-		// the spec's nondeterministic choice, a concrete leader must decide
-		// deterministically -- it claims a proof once the receipt backing it
-		// (VerifyZkProof's conditions, EngramTendermint.tla:257-260) is
-		// actually satisfiable, not before. The claimed value is this
-		// validator's own LastAnchoredRoot (rt_new of the most recently
-		// accepted real proof) -- nil if the DA conditions aren't satisfied,
-		// or if no proof has ever been accepted yet despite them being.
+		// zk_proof_ref mirrors ServerInsertProposal's proof_search_space
+		// (EngramServer.tla:73-76): only claimed once RECOVERING and
+		// safe_blocks == HysteresisWait, and only once VerifyZkProof's
+		// conditions (EngramTendermint.tla:257-260) are actually satisfiable.
+		// The claimed value is this validator's own LastAnchoredRoot.
 		var zkProofRef []byte
 		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait &&
 			daReceipt.Attestation && daReceipt.PublishedBlockHeight > hEngramVerified {
@@ -247,21 +207,11 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			ZKProofRef: zkProofRef,
 		}
 		innerTxs := req.Txs
-		// Filter out any withdrawal-marked tx BEFORE it ever reaches
-		// ProcessProposal's check #4 (WithdrawLocked, below) -- mirrors
-		// IsValidProposal's intent (hold withdrawals during SOVEREIGN/
-		// RECOVERING, not halt the chain). Found live (E8's A5/A7 runs,
-		// same session): without this, a withdrawal tx that entered ANY
-		// node's mempool while locked sits there indefinitely (CheckTx
-		// alone doesn't reject it, see containsWithdrawal's doc), and
-		// since every leader used to pass req.Txs through unfiltered,
-		// EVERY subsequent proposal from EVERY validator kept
-		// re-including it and getting rejected by check #4 below --
-		// a permanent liveness deadlock (endless round-skip), not just a
-		// single rejected proposal, since nothing ever removed the tx
-		// from contention. This filter is the leader-side fix; check #4
-		// stays as defense-in-depth against a byzantine leader that
-		// deliberately includes one anyway.
+		// Filter withdrawal-marked txs out of our own proposal before
+		// ProcessProposal's check #4 ever sees them -- otherwise a locked
+		// withdrawal tx sitting in mempool gets re-proposed and rejected by
+		// every leader forever (a permanent round-skip deadlock). Check #4
+		// stays as defense-in-depth against a byzantine leader.
 		if types.WithdrawLocked(targetState) {
 			filtered := innerTxs[:0:0]
 			for _, tx := range innerTxs {
@@ -289,30 +239,25 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 }
 
 // verifyZkProofFlag ports VerifyZkProof (spec/core/EngramTendermint.tla:257-260).
-// zkProofRef's presence (non-nil), not its specific value, is what's
-// safety-relevant here -- matching the abstract spec's BOOLEAN check; see
-// ExtendedProposal.ZKProofRef's doc for the refinement rationale.
+// zkProofRef's presence (non-nil), not its value, is safety-relevant here,
+// matching the abstract spec's BOOLEAN check.
 func verifyZkProofFlag(zkProofRef []byte, receipt da.Receipt, hEngramVerified uint64) bool {
 	return len(zkProofRef) > 0 && receipt.Attestation && receipt.PublishedBlockHeight > hEngramVerified
 }
 
-// containsWithdrawal is a placeholder for ContainsWithdrawal (spec/core/EngramTendermint.tla:253):
-// the spec treats tx values as an opaque ValidValues enum where "TX_WITHDRAWAL"
-// is a distinguished member. Real tx classification (bank MsgSend, IBC
-// MsgTransfer, ...) belongs to app/ante.go's isHighRiskTransaction once real
-// Msg decoding is wired here -- this raw-byte marker check is a stand-in until
-// M5 gives ProcessProposal access to a real TxDecoder.
+// containsWithdrawal is a placeholder for ContainsWithdrawal
+// (spec/core/EngramTendermint.tla:253), which treats tx values as an opaque
+// enum with a distinguished TX_WITHDRAWAL member. Real Msg-based
+// classification belongs to app/ante.go once a TxDecoder is wired here.
 func containsWithdrawal(tx []byte) bool {
 	return bytes.Contains(tx, []byte("TX_WITHDRAWAL"))
 }
 
 // NewProcessProposalHandler builds the sdk.ProcessProposalHandler for this
 // module, porting IsValidProposal (spec/core/EngramTendermint.tla:281-307)
-// branch-for-branch against the ExtendedProposal decoded from Txs[0]. Like
-// PrepareProposal, it refreshes k.Metrics from this node's own live sensors
-// (RefreshMetrics, Phase 7) before computing expectedState -- each validator
-// cross-checks the proposal against ITS OWN current readings, never the
-// leader's, matching "sensors propose, consensus decides."
+// branch-for-branch. Refreshes k.Metrics from this validator's own live
+// sensors before computing expectedState -- never the leader's readings,
+// matching "sensors propose, consensus decides."
 func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	accept := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}
@@ -329,17 +274,14 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return nil, err
 		}
 
-		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315), evaluated
-		// before IsValidProposal per UponProposalInPropose's IF/ELSE branch order
-		// (EngramTendermint.tla:579-590): a proposal that still omits a forced tx
-		// past its ignore-round threshold is rejected regardless of everything else.
+		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315),
+		// evaluated before IsValidProposal per UponProposalInPropose's
+		// IF/ELSE order (EngramTendermint.tla:579-590).
 		//
-		// Gap vs. spec: the spec's censoring branch also forces an immediate round
-		// advance (StartRound(p, r+1)) alongside the reject. Vanilla ABCI 2.0 gives
-		// ProcessProposal no lever to shorten CometBFT's round timer -- REJECT here
-		// only causes a nil prevote, so the round still advances on the existing
-		// local timeout rather than immediately. Closing this gap needs the M0b
-		// fork-level round-skip work (see CLAUDE.md's "Not yet done" section).
+		// Gap vs. spec: the spec's censoring branch also forces an immediate
+		// round advance (StartRound(p, r+1)); vanilla ABCI 2.0 gives
+		// ProcessProposal no lever to shorten CometBFT's round timer, so
+		// REJECT here only yields a nil prevote, not an immediate skip.
 		forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 		if err != nil {
 			return reject, nil
@@ -357,25 +299,18 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 
 		currState, in := currentFSMInput(ctx, k)
 
-		// 1. fsm_state cross-check (IsValidProposal:288 -- prop.fsm_state = CalculateNextFSMState).
+		// 1. fsm_state cross-check (IsValidProposal:288).
 		expectedState := keeper.CalculateNextState(currState, in, k.Params)
 		if ext.FSMState != expectedState {
 			return reject, nil
 		}
 
-		// 2. DA pipeline check (IsValidProposal:290-294). Round-based tolerance
-		// widening (DATolerance) now uses the real consensus round (Phase 7):
-		// req.Round, a fork-level addition to RequestProcessProposal (vanilla
-		// ABCI 2.0 does not expose this -- see the fork's
-		// proto/tendermint/abci/types.proto and consensus/state.go's
-		// CreateProposalBlock/ProcessProposal callers, which now thread
-		// cs.Round through). Previously hardcoded to 0 (no widening, the
-		// strictest case) -- harmless for DA (whose freshness window was
-		// static anyway pre-Phase-7) but load-bearing for BTC below, where a
-		// real, continuously-advancing chain height combined with a
-		// K-deep-confirmed (hence inherently lagging) anchor made round=0's
-		// zero tolerance permanently unsatisfiable (see
-		// x/vigilante/verify.go's Tolerance doc).
+		// 2. DA pipeline check (IsValidProposal:290-294). req.Round is a
+		// fork-level addition to RequestProcessProposal (vanilla ABCI 2.0
+		// doesn't expose consensus round) that DATolerance's round-based
+		// tolerance widening needs -- load-bearing for the BTC check below,
+		// where a K-deep-confirmed (inherently lagging) anchor makes
+		// zero tolerance permanently unsatisfiable otherwise.
 		round := uint64(req.Round)
 		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
 		isDAHealthy := types.IsDAHealthy(in.Metrics, k.Params)
@@ -390,17 +325,12 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 3b. Real anchor advance verification (Phase 7, no spec line -- this
-		// repo's concrete addition, not present in the abstract model since
-		// EngramConsensus.tla's CanElect/IsKDeep are refinement-proof-only,
-		// never called by the concrete layer; see vigilante.VerifySPVProof's
-		// doc). If the leader's btc_receipt claims h_btc_anchored has moved
-		// forward, don't just trust it (check #3 above only bounds it near
-		// h_btc_current and checks the spec-abstracted hash) -- independently
-		// confirm, via OUR OWN bitcoind connection, that a real,
-		// kDeepFinality-confirmed checkpoint transaction actually exists at
-		// that height. Matches "sensors propose, consensus decides": this
-		// validator never accepts another node's word for what Bitcoin says.
+		// 3b. Real anchor advance verification -- this repo's concrete
+		// addition (no spec line; EngramConsensus.tla's CanElect/IsKDeep are
+		// refinement-proof-only). If the leader claims h_btc_anchored moved
+		// forward, independently confirm via our OWN bitcoind connection
+		// rather than trusting the claim, matching "sensors propose,
+		// consensus decides."
 		if s != nil && s.Anchor != nil && ext.BTCReceipt.CheckpointBlockHeight > hBtcAnchored {
 			verified, verr := s.Anchor.VerifyAnchor(ctx, ext.BTCReceipt.CheckpointBlockHeight)
 			if verr != nil || !verified {

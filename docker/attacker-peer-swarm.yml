@@ -1,33 +1,27 @@
 name: engram-attacker-swarm
 
-# Live docker Sybil/slot-exhaustion attacker swarm for E4/E8's A1 (Peer Slot
+# Live Sybil/slot-exhaustion attacker swarm for E4/E8's A1 (Peer Slot
 # Exhaustion) and A2 (Sybil via simulated multi-subnet swarm) -- verifies
-# Part 1a's real ingress filter (x/sovereignty/keeper/peer_filter.go's
-# FilterPeerByAddr, Params.MaxPeersPerSubnet) against real attacker traffic,
-# not just synthetic Monte Carlo simulation.
+# the real ingress filter (x/sovereignty/keeper/peer_filter.go's
+# FilterPeerByAddr, Params.MaxPeersPerSubnet) against real attacker
+# traffic, not just synthetic Monte Carlo simulation.
 #
-# Every attacker* service here is a real `engramd` full-node process -- same
-# image/Dockerfile as the 4 real validators (docker/engram-validator-node0N.yml),
-# same real CometBFT P2P handshake -- but deliberately NOT part of the genesis
-# validator set (no stake, never asked to sign or propose), pure P2P
-# participants whose only job is to dial the target validator(s) aggressively.
-# Real BTC/DA sensor env vars are deliberately omitted: wireBTCSensor/
-# wireDASensor (cmd/engramd/main.go) both no-op cleanly when their env vars
-# are unset, which is exactly what a pure-P2P attacker needs (it still
-# participates in ProcessProposal for consensus bookkeeping, using the
-# static sensor mock, but never claims a real anchor/DA state).
+# Every attacker* service is a real `engramd` full-node process -- same
+# image as the 4 real validators, same real CometBFT P2P handshake -- but
+# not part of the genesis validator set (no stake, never signs/proposes),
+# pure P2P participants that dial the target validator(s) aggressively.
+# BTC/DA sensor env vars are deliberately omitted: wireBTCSensor/
+# wireDASensor no-op cleanly when unset, exactly what a pure-P2P attacker
+# needs.
 #
 # Profile-gated (attacker-swarm-a1 / attacker-swarm-a2) so neither leg runs
-# with a plain `docker compose up` -- must be explicitly requested via
+# with a plain `docker compose up` -- must be requested explicitly via
 # `docker compose --profile attacker-swarm-a1 up` (or -a2).
 #
-# Requires: the real 4-node cluster's shared genesis already generated at
-# ../testnet-data/engram-node01/config/genesis.json (via `engramd testnet
-# init-files --v 4`, this repo's existing bootstrap step) -- bind-mounted
-# read-only into each attacker so its CometBFT handshake's chain-id/network
-# matches the real cluster (a mismatched genesis would fail the handshake
-# immediately and the attacker could never even attempt a connection, making
-# this whole experiment a no-op).
+# Requires the real 4-node cluster's shared genesis already generated at
+# ../testnet-data/engram-node01/config/genesis.json (`engramd testnet
+# init-files --v 4`) -- bind-mounted read-only into each attacker so its
+# CometBFT handshake matches the real cluster's chain-id/network.
 
 x-attacker-common: &attacker-common
   build:
@@ -36,21 +30,18 @@ x-attacker-common: &attacker-common
     additional_contexts:
       - cometbft-fork=../../engram-consensus-core
   restart: "no"
-  # entrypoint: run `engramd init` first (idempotent -- generates a fresh
-  # node_key.json/priv_validator_key.json only if this attacker's own volume
-  # doesn't already have one; SKIPS genesis generation entirely because the
-  # real shared genesis is already bind-mounted at the path init checks
-  # before generating its own, per initHome's `if _, err := os.Stat(genesisFile)`
-  # early-return), then attempt to connect to the target and start.
+  # entrypoint: run `engramd init` first (idempotent -- only generates keys
+  # if this attacker's volume doesn't already have them; skips genesis
+  # generation since the real shared genesis is already bind-mounted),
+  # then dial the target and start.
   entrypoint: ["/bin/sh", "-c"]
 
 services:
   # ===========================================================
-  # A1 leg -- Peer Slot Exhaustion: all attackers on engram-net,
-  # dialing engram-node01 directly, exceeding MaxPeersPerSubnet
-  # (Params default 8) well before CometBFT's own MaxNumInboundPeers
-  # (default 40) would ever trip -- this leg's real point is showing
-  # Part 1a's filter as the BINDING constraint, not the CometBFT-level cap.
+  # A1 leg -- Peer Slot Exhaustion: all attackers on engram-net, dialing
+  # engram-node01 directly, exceeding MaxPeersPerSubnet (default 8) well
+  # before CometBFT's own MaxNumInboundPeers (default 40) would trip --
+  # shows the ingress filter as the binding constraint, not CometBFT's cap.
   # ===========================================================
   attacker-a1-01: &attacker-a1
     <<: *attacker-common
@@ -249,11 +240,10 @@ services:
 
   # ===========================================================
   # A2 leg -- Sybil via simulated multi-subnet swarm: 3 attackers per new
-  # subnet x 4 subnets = 12 total, deliberately spread across DISTINCT
-  # Docker bridge networks (attacker-subnet-a/b/c/d, declared in compose.yml)
-  # so Part 1a's real subnet-masking (types.SubnetOf) sees genuine diversity
-  # -- the honest, buildable analog of A2 (real BGP-level route hijacking is
-  # out of scope, see compose.yml's own note on this).
+  # subnet x 4 subnets = 12 total, spread across distinct Docker bridge
+  # networks (attacker-subnet-a/b/c/d, compose.yml) so the real
+  # subnet-masking (types.SubnetOf) sees genuine diversity -- the
+  # buildable analog of A2 (real BGP-level hijacking is out of scope).
   # ===========================================================
   attacker-a2-a1: &attacker-a2
     <<: *attacker-common

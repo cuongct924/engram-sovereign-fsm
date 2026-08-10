@@ -56,10 +56,10 @@ func TestRefreshReanchoringProofValid_ExactMatchStillValid(t *testing.T) {
 // the time it lands (the committing block's own header is appended in
 // PreBlocker, strictly after the proof's DeliverTx already ran) -- an exact
 // match was found live to be structurally almost unreachable. A gap within
-// Params.MaxUnprovenTailBlocks (default 4) must now count as valid.
+// Params.MaxUnprovenTailBlocks (default 8) must now count as valid.
 func TestRefreshReanchoringProofValid_WithinBoundedGapIsValid(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
-	setUpRecoveringWithProof(t, k, ctx, 26, 10) // gap = 16 = MaxUnprovenTailBlocks
+	setUpRecoveringWithProof(t, k, ctx, 18, 10) // gap = 8 = MaxUnprovenTailBlocks
 
 	require.NoError(t, refreshReanchoringProofValid(ctx, k))
 	valid, err := k.ReanchoringProofValid.Get(ctx)
@@ -73,7 +73,7 @@ func TestRefreshReanchoringProofValid_WithinBoundedGapIsValid(t *testing.T) {
 // must NOT be treated as covering the current tip.
 func TestRefreshReanchoringProofValid_BeyondBoundedGapIsInvalid(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
-	setUpRecoveringWithProof(t, k, ctx, 27, 10) // gap = 17 > MaxUnprovenTailBlocks(16)
+	setUpRecoveringWithProof(t, k, ctx, 19, 10) // gap = 9 > MaxUnprovenTailBlocks(8)
 
 	require.NoError(t, refreshReanchoringProofValid(ctx, k))
 	valid, err := k.ReanchoringProofValid.Get(ctx)

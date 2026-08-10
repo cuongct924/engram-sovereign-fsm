@@ -1,33 +1,22 @@
 # Deliberately no top-level `name:` here -- see
-# docker/engram-validator-node04-byzantine.yml's comment for why: Compose
-# merges/forks project identity from a sub-file's own `name:`, which is
-# fatal when a `-f`-merged override swaps an existing container (confirmed
-# live for that file) and pointless dead weight here even though this file
-# is pulled in via compose.yml's `include:` (which keeps the root project
-# name regardless) rather than `-f` -- harmless today, but a `-f`-based
-# invocation of this file directly would hit the exact same bug.
+# engram-validator-node04-byzantine.yml's comment for why (Compose forks
+# project identity from a sub-file's own `name:`).
 #
 # Duplicate-key harness for docs/EXPERIMENT.md's E8 "Double-signing" row --
-# NOT included via compose.yml's `include:` list (only started explicitly,
-# same convention as attacker-peer-swarm.yml/engram-validator-node04-byzantine.yml).
+# not in compose.yml's `include:` list, only started explicitly.
 #
-# Runs a SECOND, independent `engramd` process holding the EXACT SAME
+# Runs a SECOND, independent `engramd` process holding the exact same
 # priv_validator_key.json as the real engram-node04 -- same validator
-# identity, same voting power, same place in the genesis validator set.
-# CometBFT's own detection (stock, unmodified evidence pool) is what
-# produces real DuplicateVoteEvidence once both processes vote differently
-# for the same height/round -- no fork changes needed for detection, see
-# x/sovereignty/preblock.go's recordDetectedEvidence for the consuming side.
+# identity, same voting power. CometBFT's own stock evidence pool detects
+# the resulting DuplicateVoteEvidence once both processes vote differently
+# for the same height/round (see recordDetectedEvidence, the consuming side).
 #
 # CRITICAL: this container gets its own FRESH priv_validator_state.json
-# (data/ is NOT shared with the real node04's volume) -- FilePV's own state
-# file (tracking last-signed height/round) is CometBFT's BUILT-IN anti-
-# double-sign safety net in normal single-process operation; sharing it
-# here would make this harness structurally unable to ever double-sign
-# (the whole point of a SEPARATE process is that it doesn't know what the
-# real node04 already signed). This is a deliberate safety-net bypass for
-# testing double-signing DETECTION -- never do this outside a controlled
-# experiment, and never point this at anything but a disposable test
+# (not shared with the real node04's volume) -- FilePV's state file is
+# CometBFT's built-in anti-double-sign safety net; sharing it would make
+# this harness structurally unable to double-sign. A deliberate safety-net
+# bypass for testing double-signing DETECTION -- never do this outside a
+# controlled experiment, and never against anything but a disposable test
 # genesis/network.
 
 services:
@@ -44,34 +33,28 @@ services:
       engram-net:
         ipv4_address: 172.28.0.220
     volumes:
-      # Own, separate home -- NOT engram-node04's volume (see module doc:
-      # sharing data/priv_validator_state.json would prevent the double-sign
-      # this harness exists to produce).
+      # Own, separate home, not engram-node04's volume -- sharing
+      # priv_validator_state.json would prevent the double-sign this
+      # harness exists to produce.
       #
-      # priv_validator_key.json/genesis.json are NOT separate nested bind
-      # mounts here (an earlier version had them as their own
-      # `source:target:ro` lines) -- found live: Docker Desktop's macOS
-      # virtiofs backend fails to mount a specific file whose target path
-      # resolves INSIDE a directory that is itself already a bind-mount
-      # source ("mountpoint ... is outside of rootfs"), a real, reproducible
-      # limitation, not a YAML mistake (reproduced twice, including after
-      # deleting stale placeholder files Docker had created at the target).
-      # Fixed by having the caller (scripts/e8_attack_resilience/
-      # live_double_signing_test.py's start_duplicate) copy both files onto
-      # the HOST at ../testnet-data/engram-node04-duplicate/config/ BEFORE
-      # `docker compose up` -- they then arrive inside the container for
-      # free as part of this single top-level mount, no nested remount
-      # needed.
+      # priv_validator_key.json/genesis.json are not separate nested bind
+      # mounts (Docker Desktop's macOS virtiofs backend can't mount a file
+      # whose target resolves inside a directory that's itself already a
+      # bind-mount source). Fixed by having the caller
+      # (scripts/e8_attack_resilience/live_double_signing_test.py's
+      # start_duplicate) copy both files onto the host at
+      # ../testnet-data/engram-node04-duplicate/config/ before `docker
+      # compose up` -- they arrive inside the container for free via this
+      # single top-level mount.
       - ../testnet-data/engram-node04-duplicate:/root/.engramd
     environment:
       # :- (default), not :? (required) -- a required var with no default
-      # makes docker compose fail interpolation for the WHOLE merged config
-      # file (compose.yml's include: list), breaking commands like `docker
-      # compose build` that never touch this profile-gated service at all
-      # (confirmed live). Falls back to an obviously-wrong placeholder that
-      # fails fast and loud INSIDE this container specifically if the caller
-      # (scripts/e8_attack_resilience/live_double_signing_test.py, which
-      # always sets this for real) forgot to set it.
+      # fails interpolation for the WHOLE merged compose.yml config,
+      # breaking commands that never touch this profile-gated service.
+      # Falls back to a placeholder that fails fast and loud inside this
+      # container if the caller
+      # (scripts/e8_attack_resilience/live_double_signing_test.py) forgot
+      # to set it.
       - PERSISTENT_PEERS=${DUPLICATE_PERSISTENT_PEERS:-SET_DUPLICATE_PERSISTENT_PEERS_BEFORE_USE}
     entrypoint: ["/bin/sh", "-c"]
     command:

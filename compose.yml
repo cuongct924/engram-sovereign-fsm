@@ -82,15 +82,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     profiles:
       - chaos-btc-delay
-    # SCENARIO: BTC congestion (docs/EXPERIMENT.md's E2 S2) -- no existing
-    # profile above targets a bitcoin-net container at all (chaos-delay's
-    # re2 pattern is anchored to ^engram-node.*). Delay/jitter applied
-    # directly to bitcoin-node01 (the only RPC target every validator's
-    # AnchorTracker/btcGapMetric actually points at -- bitcoin-node02 is
-    # only bitcoin-node01's own regtest sync peer, never dialed by any
-    # engramd), duration matched to scripts/e2_fault_injection's staged-ramp
-    # orchestration rather than a single fixed window (see that script's
-    # own doc on why a single Pumba window can't itself express a ramp).
+    # BTC congestion (docs/EXPERIMENT.md's E2 S2): delay/jitter applied
+    # directly to bitcoin-node01, the only RPC target every validator's
+    # AnchorTracker/btcGapMetric points at (bitcoin-node02 is only
+    # bitcoin-node01's regtest sync peer, never dialed by engramd). Duration
+    # matched to scripts/e2_fault_injection's staged-ramp orchestration, not
+    # a single fixed window.
     command:
       - "netem"
       - "--duration=2m"
@@ -136,14 +133,12 @@ networks:
         - subnet: 172.22.0.0/24
           gateway: 172.22.0.1
 
-  # attacker-subnet-a/b/c/d: 4 DISTINCT bridge networks for E4/E8's A2
+  # attacker-subnet-a/b/c/d: 4 distinct bridge networks for E4/E8's A2
   # (Sybil via simulated multi-subnet swarm, docker/attacker-peer-swarm.yml).
-  # engram-net's own 4 real validators all sit on ONE /24 by construction
-  # (see MinSubnetDiversity's doc in x/sovereignty/types/params.go) -- these
-  # give an attacker swarm genuine multi-subnet diversity to test Part 1a's
-  # real ingress filter (FilterPeerByAddr) against, honestly distinct from
-  # real BGP-level route hijacking (attacking real internet routing
-  # infrastructure, categorically out of scope for a docker testnet).
+  # engram-net's own 4 validators sit on one /24 by construction (see
+  # MinSubnetDiversity's doc in x/sovereignty/types/params.go) -- these give
+  # an attacker swarm genuine multi-subnet diversity to test the real
+  # ingress filter (FilterPeerByAddr) against.
   attacker-subnet-a:
     name: attacker-subnet-a
     driver: bridge

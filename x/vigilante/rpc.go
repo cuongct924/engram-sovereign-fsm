@@ -148,27 +148,17 @@ type utxoRef struct {
 
 // SubmitOpReturn broadcasts a zero-value transaction carrying payload in an
 // OP_RETURN output -- this fork's minimal stand-in for Babylon's Vigilante
-// Submitter (github.com/babylonlabs-io/vigilante), which converts a raw
-// Babylon checkpoint into OP_RETURN transactions (see anchor.go's doc for
-// what "minimal" means here). Requires a wallet loaded on the connected
-// bitcoind with spendable funds (regtest: `createwallet` + mine to one of
-// its addresses). Returns the broadcast transaction's txid.
+// Submitter. Requires a wallet loaded on the connected bitcoind with
+// spendable funds (regtest: `createwallet` + mine to one of its addresses).
+// Returns the broadcast transaction's txid.
 //
 // Locks the coins `fundrawtransaction` selected (via `lockunspent`) before
-// signing/broadcasting, and always releases the lock afterward. This repo's
-// 4 validators all share ONE bitcoind wallet (docker/bitcoin-regtest-cluster.yml
-// only provisions 2 bitcoind instances for 4 validators, a documented
-// prototype simplification) -- `fundrawtransaction` alone does NOT reserve
-// its chosen inputs, so two validators calling it within the same ~block
-// window can select the SAME UTXO; whichever broadcasts second then
-// conflicts with the first's already-mempooled tx and bitcoind rejects it as
-// an underpriced BIP125 replacement ("insufficient fee, rejecting
-// replacement ... new feerate <= old feerate"). Confirmed happening for
-// real, persistently (not occasionally) against the live 4-node testnet --
-// frequently enough that NO submission from ANY validator was ever actually
-// reaching kDeepFinality confirmations, so h_btc_anchored never advanced at
-// all and btc_gap grew unbounded. `lockunspent` is the standard fix for
-// exactly this class of concurrent-wallet-access race.
+// signing/broadcasting, releasing the lock afterward: this repo's 4
+// validators share bitcoind wallets (2 instances for 4 validators), so
+// `fundrawtransaction` alone doesn't reserve its chosen inputs -- two
+// validators calling it in the same window can select the same UTXO, and
+// whichever broadcasts second gets rejected as an underpriced BIP125
+// replacement. `lockunspent` is the standard fix for this race.
 func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string, error) {
 	dataHex := fmt.Sprintf("%x", payload)
 

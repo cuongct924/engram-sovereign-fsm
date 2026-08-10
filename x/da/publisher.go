@@ -26,26 +26,21 @@ func HeightMarker(engramHeight uint64) []byte {
 }
 
 // Publisher is this app's DA-availability tracker -- the concrete mechanism
-// giving h_engram_verified somewhere to actually come from, mirroring
-// x/vigilante/anchor.go's AnchorTracker for h_btc_anchored. Per the user's
-// directive to keep every Go development decision closely aligned with
-// spec/core, this follows DANormalUpdate / DAFailure exactly
-// (spec/core/EngramFSM.tla:196-212):
+// giving h_engram_verified somewhere to come from, mirroring
+// x/vigilante/anchor.go's AnchorTracker for h_btc_anchored. Follows
+// DANormalUpdate/DAFailure exactly (spec/core/EngramFSM.tla:196-212):
 //
 //	DANormalUpdate: h_engram_verified' = h_engram_current'   (exact equality)
 //	DAFailure:      h_engram_verified' = h_engram_verified   (frozen)
 //
-// Unlike AnchorTracker, there is deliberately NO confirmation-depth
-// (K-deep-style) waiting period here: Celestia's DAS is binary per the spec
-// (da_gap == h_engram_current - h_engram_verified, no depth term anywhere
-// in DANormalUpdate), so once a submitted block's blob is independently
-// confirmed retrievable via Available, h_engram_verified is set EQUAL to
-// that block's height immediately -- not just "advanced past" it.
+// Unlike AnchorTracker, deliberately no confirmation-depth waiting period:
+// Celestia's DAS is binary per spec (no depth term in DANormalUpdate), so
+// once a submission is confirmed retrievable, h_engram_verified is set
+// EQUAL to that height immediately.
 //
-// Each validator runs its own Publisher against its own celestia-node
-// connection, matching "sensors propose, consensus decides" (CLAUDE.md):
-// VerifyAvailable never trusts a peer's claimed da_receipt, it independently
-// re-derives availability from this validator's own view of Celestia.
+// Each validator runs its own Publisher against its own celestia-node --
+// VerifyAvailable never trusts a peer's claimed da_receipt ("sensors
+// propose, consensus decides").
 type Publisher struct {
 	client    *RPCClient
 	namespace Namespace
@@ -65,23 +60,17 @@ func NewPublisher(client *RPCClient, namespace Namespace) *Publisher {
 	return &Publisher{client: client, namespace: namespace}
 }
 
-// MaybePublish checks our previous submission's availability and, once it
-// is confirmed retrievable, records engramHeight as the new VerifiedHeight
-// (per DANormalUpdate) and starts submitting blockData as a new blob.
+// MaybePublish checks the previous submission's availability and, once
+// confirmed retrievable, records engramHeight as the new VerifiedHeight
+// (DANormalUpdate) before starting to submit blockData as a new blob.
 //
-// Unlike AnchorTracker.MaybeSubmit (whose bitcoind SubmitOpReturn call
-// returns as soon as the tx is broadcast, not confirmed -- fast), a real
-// celestia-node's blob.Submit blocks until the blob is actually INCLUDED in
-// a Celestia block, i.e. up to one full Celestia block time (~12s by
-// default). Calling that synchronously from here would block whichever
-// ABCI hook called RefreshMetrics -- PrepareProposal or ProcessProposal --
-// for longer than a consensus round's own timeouts (found by actually
-// running a live node against a live celestia-bridge: every round timed
-// out and round-skipped via M0b's f+1-timeout quorum before the leader's
-// own proposal was even ready, forever, since submitting blocked ~9-12s
-// against 3-4.5s round timeouts). So Submit runs in a background goroutine
-// here -- MaybePublish itself always returns near-instantly, and the
-// submission's result is picked up on a LATER call once it completes.
+// Unlike AnchorTracker.MaybeSubmit (bitcoind returns as soon as a tx is
+// broadcast), a real celestia-node's blob.Submit blocks until the blob is
+// actually included in a Celestia block (~12s by default) -- calling that
+// synchronously here would block PrepareProposal/ProcessProposal past a
+// consensus round's own timeout. Submit runs in a background goroutine
+// instead; MaybePublish always returns near-instantly, and the result is
+// picked up on a later call.
 func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, blockData []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -92,32 +81,16 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 			// DAFailure: is_das_failed'/is_attestation_failed' may become
 			// TRUE while h_engram_current still advances -- record the
 			// failure but leave verifiedHeight frozen (DAFailure's
-			// h_engram_verified' = h_engram_verified), and keep the pending
-			// submission in place to retry against on the next call.
+			// h_engram_verified' = h_engram_verified), keeping the pending
+			// submission to retry.
 			//
-			// Returning nil here (not err) is load-bearing, found by
-			// actually running a real celestia-bridge outage against a live
-			// 4-node testnet: this error used to propagate all the way up
-			// through RefreshMetrics into PrepareProposal/ProcessProposal,
-			// which BaseApp treats as a hard ABCI failure ("failed to
-			// prepare/process proposal") -- not the graceful "reject this
-			// proposal, prevote nil, try next round" path, but a condition
-			// severe enough that block production stalled for minutes
-			// (round after round of f+1-timeout quorum skips) instead of
-			// cleanly degrading through SUSPICIOUS as designed. By the time
-			// a proposal finally succeeded (only once ALL 4 validators
-			// happened to have no pending submission in flight
-			// simultaneously, sidestepping this code path entirely), so
-			// much real time had passed that da_gap had already blown past
-			// SUSPICIOUS straight into IsCriticalCondition territory,
-			// observed live as ANCHORED jumping directly to SOVEREIGN with
-			// SUSPICIOUS never appearing at all -- exactly the "halt
-			// instead of gracefully degrade" failure mode this whole
-			// protocol exists to avoid. A DA availability-check error is
-			// sensor data, not a block-production fault: the failure
-			// belongs in is_das_failed/is_attestation_failed (already
-			// recorded above via lastSubmitFailed), which the FSM already
-			// has a well-defined, tested response to.
+			// Returning nil (not err) is load-bearing: propagating a DA
+			// availability-check error up through RefreshMetrics is a hard
+			// ABCI failure (block production stalls) rather than the
+			// graceful "reject this proposal, degrade through SUSPICIOUS"
+			// path this protocol depends on -- the failure belongs in
+			// is_das_failed/is_attestation_failed, which the FSM already
+			// has a well-defined response to.
 			p.lastSubmitFailed = true
 			return nil
 		}

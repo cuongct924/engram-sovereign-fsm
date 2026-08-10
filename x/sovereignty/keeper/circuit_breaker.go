@@ -15,10 +15,9 @@ type FSMInput struct {
 }
 
 // CalculateNextState ports CalculateNextFSMState (spec/core/EngramFSM.tla:309-329)
-// branch-for-branch, in the same order. Do NOT reintroduce a "jump directly to
-// SOVEREIGN from any state" shortcut: StrictFSMTransitionSafety in the spec
-// forbids skipping SUSPICIOUS on the way down from ANCHORED, and this exact
-// bug was the reason the previous version of this function was rewritten.
+// branch-for-branch, in the same order. Do not add a direct-to-SOVEREIGN
+// shortcut from any state -- StrictFSMTransitionSafety forbids skipping
+// SUSPICIOUS on the way down from ANCHORED.
 func CalculateNextState(currentState string, in FSMInput, p types.Params) string {
 	critical := types.IsCriticalCondition(in.Metrics, p, in.SuspiciousDuration)
 	warning := types.IsWarningCondition(in.Metrics, p)
@@ -76,16 +75,10 @@ func NextSafeBlocks(currentState, targetState string, safeBlocks uint64, p types
 }
 
 // NextSuspiciousDuration mirrors the suspicious_duration' update
-// (spec/core/EngramFSM.tla:337-340): increments, capped at MaxSuspiciousTime+1,
-// whenever the TARGET state is SUSPICIOUS -- including the very first block
-// entering SUSPICIOUS from ANCHORED, not just while already staying in
-// SUSPICIOUS. The spec's formula only guards on target_state, not on
-// currentState also being SUSPICIOUS (unlike NextSafeBlocks, which
-// deliberately does guard on both -- see its own doc); an earlier version of
-// this function copied that two-state guard here too, which made the
-// counter lag the spec by exactly one block for the entire SUSPICIOUS dwell,
-// delaying the MAX_SUSPICIOUS_TIME gray-failure escalation to SOVEREIGN by
-// one block. currentState is unused now but kept in the signature to match
+// (spec/core/EngramFSM.tla:337-340): increments, capped at
+// MaxSuspiciousTime+1, whenever the TARGET state is SUSPICIOUS -- including
+// the block that enters it, unlike NextSafeBlocks which guards on both
+// current and target state. currentState is unused but kept to match
 // NextSafeBlocks' call shape.
 func NextSuspiciousDuration(currentState, targetState string, duration uint64, p types.Params) uint64 {
 	_ = currentState

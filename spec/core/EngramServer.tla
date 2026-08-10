@@ -171,16 +171,10 @@ ServerUponProposalInPrecommitNoDecision(p) ==
                   /\ UNCHANGED <<h_btc_current, is_btc_spv_failed>> 
                   /\ UNCHANGED <<h_engram_current, is_das_failed, is_attestation_failed>>
 
-           \* BUG FIX: this used to also assert UNCHANGED <<safe_blocks,
-           \* suspicious_duration>> here, directly contradicting
-           \* ExecuteFSMTransition above (which computes safe_blocks'/
-           \* suspicious_duration' via formula, not identity) -- two
-           \* deterministic equations on the same primed variables,
-           \* satisfiable only when they coincidentally agreed. That made
-           \* this whole action unsatisfiable (silently disabled, no TLC
-           \* error) whenever the hysteresis counter actually needed to
-           \* change, artificially narrowing the reachable state space.
-           \* ExecuteFSMTransition already fully determines both variables.
+           \* ExecuteFSMTransition already fully determines safe_blocks'/
+           \* suspicious_duration' via formula -- do not also assert them
+           \* UNCHANGED here (an unsatisfiable contradiction whenever the
+           \* hysteresis counter actually needs to change).
            /\ UNCHANGED <<p2pHealthSensorVars>>
 
     \* Step 6: Keep pacemaker certificates unchanged (censorshipVars is
@@ -207,23 +201,17 @@ ServerUponTimeoutCert(p) ==
 
 
 (* ======================== ACTION AGGREGATION ============================== *)
-\* Apalache note: the 11 pass-through branches below used to be a separate
-\* ServerPassThrough(p) operator, wrapped here with one shared UNCHANGED
-\* conjunct (`ServerPassThrough(p) /\ UNCHANGED <<certificateVars, fsmVars,
-\* networkSensorVars>>`). That's a 2-level-nested disjunction (this 5-way
-\* one, wrapping ServerPassThrough's own 11-way one), and Apalache's
-\* assignment analysis cannot resolve it: each of the 4 server hooks passes
-\* its OWN assignment analysis fine in isolation (bisected individually),
-\* but combining all 5 branches together fails with "Manual assignment is
-\* spurious, state is already assigned" -- TLC has no such requirement since
-\* it evaluates the formula directly rather than statically analyzing it.
-\* Flattened to one level (mirroring TendermintNext/MC_TendermintNext's own
-\* working structure) by distributing the UNCHANGED into each of the 11
-\* leaves directly instead of wrapping the group. ServerPassThrough itself
-\* is gone (it had no other caller) to avoid a second copy of this list.
+\* Apalache note: the 11 pass-through branches below were flattened from a
+\* separate ServerPassThrough(p) operator (wrapped with one shared
+\* UNCHANGED conjunct) into one level, distributing UNCHANGED into each
+\* leaf directly -- Apalache's assignment analysis cannot resolve the
+\* resulting 2-level-nested disjunction (each of the 4 server hooks passes
+\* its own assignment analysis in isolation, but combining all 5 branches
+\* fails as "spurious"); TLC has no such requirement, mirroring
+\* TendermintNext/MC_TendermintNext's own flat structure.
 \* @type: (Str) => Bool;
 ServerMessageProcessing(p) ==
-    \* 1. Các hành động Pass-through (formerly ServerPassThrough(p))
+    \* 1. Pass-through actions (formerly ServerPassThrough(p))
     \/ ReceiveProposal(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ UponProposalInPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ UponProposalInProposeAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
@@ -238,24 +226,20 @@ ServerMessageProcessing(p) ==
     \/ UponfPlusOneTimeoutsAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ OnLocalTimerExpire(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
 
-    \* 2. Hook 1: Leader tạo block (Sinh E_QC)
-    \* ServerInsertProposal already asserts UNCHANGED <<fsmVars,
-    \* networkSensorVars>> itself (see its own body) -- repeating it here
-    \* was the actual root cause of the Apalache assignment-analysis
-    \* failure this whole section was earlier suspected of (a real bisected
-    \* minimal repro: {ServerInsertProposal, ServerUponTimeoutCert} alone
-    \* failed; every other pair/solo combination not involving this
-    \* redundant wrapper passed).
+    \* 2. Hook 1: leader creates block (emits E_QC). ServerInsertProposal
+    \* already asserts UNCHANGED <<fsmVars, networkSensorVars>> itself --
+    \* repeating it here was the actual root cause of the Apalache
+    \* assignment-analysis failure noted above.
     \/ ServerInsertProposal(p)
 
-    \* 3. Hook 2: Leader vote cho chính nó (Sinh M_QC)
+    \* 3. Hook 2: leader votes for itself (emits M_QC)
     \/ /\ ServerProposerVotes(p)
        /\ UNCHANGED <<fsmVars, networkSensorVars>>
 
-    \* 4. Hook 3: Chốt khối (Sinh C_QC và cập nhật FSM)
+    \* 4. Hook 3: block decision (emits C_QC, syncs FSM)
     \/ ServerUponProposalInPrecommitNoDecision(p)
-    
-    \* 5. Hook 4: Timeout (Sinh T_QC)
+
+    \* 5. Hook 4: timeout (emits T_QC)
     \/ ServerUponTimeoutCert(p)
 
 
@@ -267,36 +251,19 @@ ServerInit ==
     /\ quorum_certs = {} 
     /\ timeout_certs = {}
 
-\* Pure clock tick: advances real_time/local_clock/local_rem_time only, leaving
-\* every sensor/FSM variable untouched. Split from ServerUpdateEnvironment
-\* below so each concrete step maps to exactly one abstract LiDO action under
-\* the refinement in EngramServerRefinement.tla — a single step doing both
-\* (the original ServerAdvanceRealTime, which optionally ran UpdateSensors in
-\* the same transition as the clock tick) was found via RefinementSafety to
-\* violate [][Next]_vars at depth 2: no single abstract action (Elapse/
-\* TimeoutStartNext vs. UpdateEnv) permits changing both rem_time and
-\* h_btc_current at once, since rem_time <- MIN_REM_TIME tracks the clock
-\* tick and h_btc_current tracks the sensor update.
-\* Guard mirrors the abstract Elapse precondition exactly: block the clock
-\* while an E_QC or M_QC (E-cache/M-cache once mapped, regardless of caller —
-\* Elapse's own guard does not distinguish honest from Byzantine) already
-\* exists for the current round, i.e. Pull or Invoke has started and the
-\* pacemaker must wait for Push before elapsing further. The previous guard
-\* only blocked on a Byzantine E_QC lacking a matching Byzantine M_QC, which
-\* is a strictly narrower (and, per RefinementSafety, incorrect) condition:
-\* it let the clock advance past an honest OR a fully-formed Byzantine E_QC+
-\* M_QC pair at the current round, which Elapse itself forbids.
-\*
-\* NOTE: an earlier revision of this guard also unblocked on a T_QC
-\* existing for the round, on the theory that this mirrors the abstract
-\* TimeoutSkipNext. That was wrong: Elapse's own guard only ever checks
-\* for E/M-type tree entries, never T -- letting a T_QC unblock THIS
-\* action (which maps to Elapse, a pure decrement, round UNCHANGED) has no
-\* abstract counterpart and was caught by RefinementSafety. The real fix
-\* for the Byzantine-silent-leader deadlock is ServerHonestTimeout +
-\* ServerHonestRoundSkip below, which advance round directly (mapping to
-\* Timeout(n) then TimeoutSkipNext) without ever needing this guard to
-\* loosen -- see LIVENESS_DEADLOCK_FINDING.md.
+\* Pure clock tick: advances real_time/local_clock/local_rem_time only,
+\* leaving every sensor/FSM variable untouched -- split from
+\* ServerUpdateEnvironment so each concrete step maps to exactly one
+\* abstract LiDO action under EngramServerRefinement.tla's refinement (no
+\* single abstract action permits changing both rem_time and h_btc_current
+\* at once).
+\* Guard mirrors the abstract Elapse precondition: blocks the clock while
+\* an E_QC or M_QC already exists for the current round (Pull or Invoke has
+\* started, pacemaker waits for Push), regardless of honest/Byzantine
+\* caller -- Elapse's own guard makes no such distinction, and does not
+\* check for T_QC either (a T_QC unblocking this action has no abstract
+\* counterpart; ServerHonestTimeout/ServerHonestRoundSkip below handle the
+\* Byzantine-silent-leader case instead, by advancing round directly).
 \* @type: Bool;
 ServerAdvanceRealTime ==
     /\ AdvanceRealTime
@@ -332,14 +299,9 @@ ServerByzantinePull ==
         /\ msgs_propose[r] = {}
         /\ ~\E q \in quorum_certs : q.type = "E_QC" /\ q.round = r /\ q.caller = Proposer[r]
         \* Guard against synthesizing a Pull for a round that has already
-        \* closed: a round can be decided via an all-NIL precommit quorum
-        \* (timeout-driven) without msgs_propose[r] ever receiving a real
-        \* message, so the two conjuncts above alone don't exclude it. If
-        \* any honest node has already moved past round r, an abstract
-        \* Pull(E) for r is no longer justified by any Next disjunct once
-        \* the concrete round advance is mapped through -- found via
-        \* RefinementSafety (see LIVENESS_DEADLOCK_FINDING.md's Hướng A+B
-        \* re-verification).
+        \* closed via an all-NIL timeout-driven precommit quorum (which
+        \* doesn't touch msgs_propose[r]) -- once any honest node has moved
+        \* past round r, an abstract Pull(E) for r is no longer justified.
         /\ \A p \in HonestNodes : round[p] <= r
         /\ LET new_EQC == [
                 type |-> "E_QC",
@@ -354,21 +316,18 @@ ServerByzantinePull ==
         /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars>>
 
 \* Bootstrap-deadlock fix, split into two steps mirroring the abstract
-\* model's own two-step structure exactly (Timeout(n), then a separate
-\* later TimeoutSkipNext that CONSUMES the T-cache Timeout(n) created --
-\* see LIVENESS_DEADLOCK_FINDING.md).
+\* model's own two-step structure (Timeout(n), then a separate
+\* TimeoutSkipNext consuming the T-cache Timeout(n) created).
 \*
-\* Step 1/2 -- ServerHonestTimeout: the abstract Timeout(n) can fire at
-\* any time (no rem_time gate), but the concrete ServerUponTimeoutCert(p)
-\* needs a real f+1 TIMEOUT-message quorum, which needs local_rem_time to
-\* reach 0, which needs ServerAdvanceRealTime to fire -- exactly what's
-\* frozen while a stalled Byzantine E_QC (from ServerByzantinePull, which
-\* msgs_propose staying empty means can never complete via a real Push)
-\* is pending. This action gives honest nodes a direct, abstract-cache-
-\* style way to register a T_QC for the stalled round, mirroring how
-\* ServerByzantinePull/ServerByzantineDataWithholding already synthesize
-\* E_QC/M_QC directly, bypassing real message flow. Deliberately does NOT
-\* touch round -- that's ServerHonestRoundSkip's job below.
+\* Step 1/2 -- ServerHonestTimeout: the abstract Timeout(n) can fire any
+\* time (no rem_time gate), but the concrete ServerUponTimeoutCert(p) needs
+\* a real f+1 TIMEOUT-message quorum, which needs local_rem_time to reach
+\* 0 via ServerAdvanceRealTime -- exactly what's frozen while a stalled
+\* Byzantine E_QC (msgs_propose staying empty) is pending. This gives
+\* honest nodes a direct, abstract-cache-style way to register a T_QC for
+\* the stalled round, mirroring how ServerByzantinePull/
+\* ServerByzantineDataWithholding already synthesize E_QC/M_QC directly.
+\* Deliberately does NOT touch round -- that's ServerHonestRoundSkip's job.
 \* @type: Bool;
 ServerHonestTimeout ==
     \E r \in Rounds :
@@ -438,7 +397,7 @@ ServerByzantineDataWithholding ==
     /\ LET r == CHOOSE rnd \in Rounds : msgs_propose[rnd] /= msgs_propose'[rnd]
            m == CHOOSE msg \in msgs_propose'[r] : msg.src = Proposer[r]
        IN 
-       \* Toán học LiDO ép buộc: Phải có E_QC từ bước 1 rồi mới được chạy tiếp
+       \* LiDO's math requires an E_QC from step 1 before this can proceed.
        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
        \* Same class of guard as ServerByzantinePull (see its comment and
        \* LIVENESS_DEADLOCK_FINDING.md §7): a round can close via an
@@ -448,8 +407,8 @@ ServerByzantineDataWithholding ==
        \* honest nodes have already exited -- an abstract Invoke(M) with
        \* no Next disjunct to justify it once mapped through.
        /\ \A p \in HonestNodes : round[p] <= r
-       \* Sinh M_QC để hoàn thiện hồ sơ
-       /\ LET new_MQC == [ 
+       \* Emits M_QC to complete the record.
+       /\ LET new_MQC == [
                 type |-> "M_QC", 
                 round |-> r, 
                 caller |-> Proposer[r], 

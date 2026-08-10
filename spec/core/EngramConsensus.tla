@@ -101,14 +101,12 @@ EarlyStartNext ==
     /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
 
 \* Round advances once f+1 honest nodes give up on it (a T-cache exists),
-\* independent of whether the leader (honest or Byzantine) ever completes
-\* Push. Without this, Elapse's block on a pending Pull/Invoke has no
-\* escape valve other than Push -- meaning WF_vars(Push(n)) for EVERY node
-\* (Byzantine included) becomes a load-bearing liveness assumption, which
-\* is incompatible with a leader that Pulls and then stays silent forever
-\* (see LIVENESS_DEADLOCK_FINDING.md). This operator gives the abstract
-\* model a formal counterpart to the concrete f+1 fast-forward mechanism
-\* (UponfPlusOneTimeoutsAny / ServerUponTimeoutCert -> T_QC).
+\* independent of whether the leader ever completes Push -- otherwise
+\* Elapse's block on a pending Pull/Invoke has no escape but Push, making
+\* WF_vars(Push(n)) for every node (Byzantine included) a load-bearing
+\* liveness assumption, incompatible with a leader that Pulls then stays
+\* silent forever. Formal counterpart to the concrete f+1 fast-forward
+\* mechanism (UponfPlusOneTimeoutsAny / ServerUponTimeoutCert -> T_QC).
 TimeoutSkipNext ==
     /\ \E c \in tree : c.type = "T" /\ c.cert_round = round
     /\ round' = round + 1
@@ -162,14 +160,12 @@ Pull(n) ==
        /\ CanElect(tree, Cmax, Q, fsm_state)
        /\ round > local_times[n]
        /\ local_times' = [s \in Nodes |-> IF s \in Q THEN round ELSE local_times[s]]
-       \* Boundary-value reduction: chosen_anchor only feeds IsKDeep, which is
-       \* monotonic in c.btc_anchored (smaller = safer, both for the
-       \* not-lost-to-reorg check and the depth check) -- so the two extremes
-       \* {h_btc_anchored, h_btc_current} dominate every value in between for
-       \* safety-checking purposes. Was the full inclusive range
-       \* h_btc_anchored..h_btc_current, a major state-space driver repeated
-       \* across Pull/Invoke/Push/Timeout; narrowed after L1's standalone
-       \* Safety check exhausted disk at 115M+ distinct states without this.
+       \* Boundary-value reduction: chosen_anchor only feeds IsKDeep, monotonic
+       \* in c.btc_anchored (smaller = safer for both the not-lost-to-reorg
+       \* and depth checks), so the two extremes {h_btc_anchored,
+       \* h_btc_current} dominate every value in between for safety-checking
+       \* purposes -- narrowed from the full inclusive range after standalone
+       \* Safety checking exhausted disk at 115M+ distinct states without this.
        /\ \E chosen_anchor \in {h_btc_anchored, h_btc_current} :
            LET new_E_cache == [ 
                type             |-> "E",
@@ -224,15 +220,13 @@ Push(n) ==
 
 
 \* Timeout(n): a stake-quorum of processes gives up on the current round
-\* (mirrors Server_UponTimeoutCert -> T_QC, per the four server hooks in
-\* EngramServer.tla / EngramServerRefinement.tla's MappedTCaches). Structured
-\* like Push: adds exactly one new cache to tree, round/rem_time untouched —
-\* a T_QC does not itself force the concrete round to advance (that still
-\* happens via a precommit quorum), so neither does its abstract counterpart.
-\* Added after RefinementSafety caught a real gap: MappedTCaches already
-\* mapped T_QCs into tree as "T"-typed caches, but no Next action produced
-\* one, so any concrete Server_UponTimeoutCert step had no matching abstract
-\* action and vacuously violated [][Next]_vars.
+\* (mirrors Server_UponTimeoutCert -> T_QC). Structured like Push: adds
+\* exactly one new cache to tree, round/rem_time untouched -- a T_QC does
+\* not itself force the concrete round to advance, so neither does its
+\* abstract counterpart. Needed because MappedTCaches maps T_QCs into tree
+\* as "T"-typed caches, but without this action no Next disjunct produces
+\* one, leaving a concrete Server_UponTimeoutCert step with no matching
+\* abstract action.
 Timeout(n) ==
     LET Q == CHOOSE q \in SUBSET Nodes : IsSQuorum(q) IN
     /\ ~\E c \in tree : c.type = "T" /\ c.cert_round = round

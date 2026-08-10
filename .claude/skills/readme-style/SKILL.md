@@ -27,7 +27,7 @@ description: Writing/editing style rules for spec/README.md (the TLA+ formal-spe
 5. **One command block per distinct action.** Don't bundle unrelated steps (e.g., "install X" and "run Y") into a single fenced block just to save vertical space — the reader should be able to copy one block and know exactly what it does.
 
 6. **Explain the "why" only when it is non-obvious.** A sentence justifying an unusual design choice, a tool limitation, or a counter-intuitive number earns its place — in the architecture/methodology sections (e.g. §3, §10.1) where design rationale belongs. A sentence restating what the adjacent code or table already shows does not earn its place anywhere — cut it.
-   - **"How to run X" sections get zero rationale, full stop.** They exist so a reader can copy a command and get a result. Confirmed by direct user feedback: a first pass that kept "why" paragraphs (tool-limitation rationale, directory-layout history, a footgun anecdote) next to the Apalache run commands was still judged too long; cutting all of it to prerequisites → command → expected output was the right call.
+   - **"How to run X" sections get zero rationale, full stop.** They exist so a reader can copy a command and get a result — prerequisites → command → expected output, nothing else.
 
 7. **Uniform shape for parallel sections.** Every "how to run X" section follows: Prerequisites → Command → Expected outcome → (optional) notes/troubleshooting. A reader who has read one such section should be able to skim the next by pattern-matching structure, not re-reading prose.
 

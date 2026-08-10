@@ -61,40 +61,26 @@ type EngramApp struct {
 }
 
 // NewEngramApp constructs a real, runnable EngramApp: BaseApp + codec +
-// store + keeper + ante handler + the M4 ABCI++ handlers, loaded and ready.
+// store + keeper + ante handler + the ABCI++ handlers, loaded and ready.
 // chainID must match the genesis file's chain_id -- BaseApp's InitChain
-// handshake rejects a mismatch (this was found by actually running the node,
-// not by inspection: the first `engramd start` failed with "invalid chain-id
-// on InitChain; expected: , got: engram-dev-1" because this parameter was
-// missing entirely).
+// handshake rejects a mismatch.
 //
 // vanilla, when true, skips SetPrepareProposal/SetProcessProposal/
 // SetPreBlocker entirely -- BaseApp falls back to its own default handlers
-// (default PrepareProposal just packs mempool txs up to MaxTxBytes, default
-// ProcessProposal always accepts, no PreBlocker runs at all), i.e. plain
-// CometBFT/Cosmos SDK consensus with no ExtendedProposal. This is docs/
+// (plain CometBFT/Cosmos SDK consensus with no ExtendedProposal), docs/
 // EXPERIMENT.md's E2/E3/E7 vanilla-CometBFT baseline: same binary, same
-// x/sovereignty module mounted (so genesis/store layout doesn't diverge),
-// only the ABCI hook wiring differs.
+// x/sovereignty module mounted, only the ABCI hook wiring differs.
 //
-// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR (cmd/engramd/main.go),
-// empty ("") on every real validator -- forwarded to
-// sovereignty.NewPrepareProposalHandler, see applyByzantineBehavior's doc
-// (x/sovereignty/proposal.go) for the recognized values and docs/
-// EXPERIMENT.md's E8 A3/A4/A6/A7 attack rows this exercises live.
+// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
+// validator -- forwarded to NewPrepareProposalHandler, see
+// applyByzantineBehavior's doc for the recognized values.
 func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, byzantineBehavior string) *EngramApp {
-	// "engram" bech32 HRP -- this app never previously configured one
-	// (no sdk.Config.SetBech32Prefix* call anywhere in this repo, since
-	// there is no x/auth/x/bank wired). A real address codec is required
-	// here regardless: message types with a `cosmos.msg.v1.signer` proto
+	// "engram" bech32 HRP: message types with a `cosmos.msg.v1.signer` proto
 	// option (MsgSubmitRecoveryProofRequest's `authority` field included)
 	// have their GetSigners() auto-derived by decoding that field as a
 	// bech32 address, which BaseApp's tx handling invokes even without a
-	// SigVerificationDecorator to cryptographically check it -- found by
-	// actually broadcasting a real tx: CheckTx failed with "InterfaceRegistry
-	// requires a proper address codec implementation to do address
-	// conversion" using the bare codectypes.NewInterfaceRegistry() this used
-	// before.
+	// SigVerificationDecorator to cryptographically check it -- a real
+	// address codec is required regardless of signature verification.
 	interfaceRegistry, err := codectypes.NewInterfaceRegistryWithOptions(codectypes.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
 		SigningOptions: txsigning.Options{
@@ -133,14 +119,10 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	// below.
 	sovKeeper.TxDecoder = txConfig.TxDecoder()
 
-	// Real active Sybil/eclipse ingress defense (x/sovereignty/keeper/peer_filter.go's
+	// Real active Sybil/eclipse ingress defense (peer_filter.go's
 	// FilterPeerByAddr) -- fails open until cmd/engramd's wirePeerFilter
 	// late-binds a live PeerFilterSource after node.NewNode() constructs the
-	// real *p2p.Switch, mirroring wireP2PSensor's existing late-binding
-	// pattern for the exact same NewEngramApp-runs-before-node.NewNode()
-	// ordering constraint. No CometBFT fork changes needed: this hook is a
-	// stock cosmos-sdk BaseApp mechanism the fork already wires (see
-	// FilterPeerByAddr's own doc).
+	// real *p2p.Switch (NewEngramApp runs before that).
 	bApp.SetAddrPeerFilter(sovKeeper.FilterPeerByAddr)
 
 	sensorBundle := &sovereignty.Sensors{
@@ -154,16 +136,9 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 
 	// Route x/sovereignty's Msg/Query services directly against BaseApp's
 	// routers -- this app has no module.Manager (InitChain is a hand-rolled
-	// InitChainer below, not module.Manager's InitGenesis), so
-	// x/sovereignty/module.go's AppModule.RegisterServices(module.Configurator)
-	// is never called and was, until now, entirely dead code: no Msg
-	// (MsgInjectFaultRequest/MsgSubmitForcedTxRequest/
-	// MsgSubmitRecoveryProofRequest) or Query (Query.State/RecoveryHeaders)
-	// was actually routable via a real submitted tx -- only reachable by
-	// calling MsgServerImpl/QueryServerImpl methods directly in Go, which is
-	// all every existing test did. Found while building a real `engramd tx
-	// sovereignty submit-recovery-proof` CLI: CheckTx returned "no message
-	// handler found for *types.MsgSubmitRecoveryProofRequest".
+	// InitChainer below), so AppModule.RegisterServices(module.Configurator)
+	// is never called; without this, no Msg/Query is routable via a real
+	// submitted tx, only by calling MsgServerImpl/QueryServerImpl directly.
 	sovereigntytypes.RegisterMsgServer(bApp.MsgServiceRouter(), sovereigntykeeper.NewMsgServerImpl(sovKeeper))
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
@@ -201,11 +176,9 @@ func newConsensusParamStore(storeService store.KVStoreService) collections.Item[
 }
 
 // newInitChainer seeds FSM genesis state (types.DefaultGenesis, unless
-// AppState overrides it) and echoes back req.Validators as-is: BaseApp's ABCI
-// handshake requires ResponseInitChain.Validators to match the genesis
-// validator count exactly (found by actually running the node -- an earlier
-// version omitted this, assuming CometBFT would default to the genesis list
-// on its own; it does not).
+// AppState overrides it) and echoes back req.Validators as-is: BaseApp's
+// ABCI handshake requires ResponseInitChain.Validators to match the genesis
+// validator count exactly.
 func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 	return func(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
 		gs := sovereigntytypes.DefaultGenesis()

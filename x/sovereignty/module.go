@@ -18,7 +18,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 )
 
-// Kiểm tra interface compile-time
+// Compile-time interface checks.
 var (
 	_ appmodule.AppModule        = AppModule{}
 	_ module.HasConsensusVersion = AppModule{}
@@ -72,15 +72,14 @@ func NewAppModule(cdc codec.Codec, k *keeper.Keeper) AppModule {
 
 func (a AppModule) ConsensusVersion() uint64 { return 1 }
 
-// RegisterServices đăng ký MsgServer và QueryServer của module.
+// RegisterServices registers the module's MsgServer and QueryServer.
 func (a AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(a.keeper))
 	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQueryServerImpl(a.keeper))
 }
 
-// BeginBlock được gọi tại mỗi block, đây là nơi "bộ não" FSM vận hành
+// BeginBlock drives the FSM state transition (abci.go) every block.
 func (a AppModule) BeginBlock(ctx context.Context) error {
-	// Gọi hàm FSMTransitionEngine từ abci.go để cập nhật trạng thái FSM
 	return BeginBlocker(ctx, a.keeper)
 }
 

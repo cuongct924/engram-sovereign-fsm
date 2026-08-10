@@ -12,12 +12,8 @@ import (
 
 // namespaceUserIDLen mirrors Celestia's v0 namespace format: a 1-byte
 // version prefix + 28-byte ID, where a v0 (user-specifiable) namespace's ID
-// is left-padded with 18 zero bytes and only the last 10 bytes are caller-
-// chosen -- confirmed by a real "invalid namespace length: expected 29, got
-// 27" rejection from a live celestia-bridge when this was first attempted
-// with a 27-byte namespace, and by the exact byte layout that was then
-// manually verified to work end-to-end (blob.Submit followed by a
-// blob.GetAll round-trip returning the submitted data back).
+// is left-padded with 18 zero bytes and only the last 10 bytes are
+// caller-chosen.
 const (
 	namespaceVersion    = 0
 	namespaceTotalLen   = 29
@@ -123,12 +119,10 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 	return nil
 }
 
-// blobSubmitParam mirrors the blob.Submit request shape confirmed against a
-// real celestia-bridge (v0.14.1): [{namespace, data, share_version}], not
-// the `state.TxConfig` object the latest upstream docs describe -- this
-// version's gas-price param is a plain float, confirmed by a real
-// "unmarshaling params ... *blob.GasPrice" rejection when an object was
-// tried first.
+// blobSubmitParam mirrors the blob.Submit request shape for this
+// celestia-node version (v0.14.1): [{namespace, data, share_version}], with
+// gas price as a plain float parameter (not the `state.TxConfig` object
+// newer upstream docs describe).
 type blobSubmitParam struct {
 	Namespace    string `json:"namespace"`
 	Data         string `json:"data"`

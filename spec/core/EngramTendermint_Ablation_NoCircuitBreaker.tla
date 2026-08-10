@@ -347,14 +347,11 @@ Decision(prop, r) ==
 \* Only T × MAX_ROUND messages total — negligible state space cost.
 
 \* Apalache note: every message record below carries all 6 fields
-\* (type/src/round/proposal/valid_round/id) regardless of message type, with
-\* Nil sentinels on the fields a given type doesn't use. This keeps
-\* msgs_propose/msgs_prevote/msgs_precommit/msgs_timeout structurally
-\* identical so Apalache's Snowcat can unify sets built from different
-\* message kinds (e.g. msgs_propose[r] \union msgs_prevote[r] \union
-\* msgs_precommit[r] in OnRoundCatchup) without needing a Variant type.
-\* Behaviorally inert: no existing comparison reads a field outside its
-\* message kind's original set, so this changes representation only.
+\* (type/src/round/proposal/valid_round/id), with Nil sentinels on fields a
+\* given type doesn't use -- keeps msgs_propose/msgs_prevote/msgs_precommit/
+\* msgs_timeout structurally identical so Apalache's Snowcat can unify sets
+\* built from different message kinds without needing a Variant type.
+\* Behaviorally inert: no comparison reads a field outside its own kind.
 \* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
 FaultyTimeouts(r) ==
     { [type |-> "TIMEOUT",    src |-> f, round |-> r,

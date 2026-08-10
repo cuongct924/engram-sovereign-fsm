@@ -13,27 +13,18 @@ import (
 // Babylon's "BBNT" tag (x/btccheckpoint's checkpoint_tag parameter).
 var AnchorTag = []byte("ENGR")
 
-// AnchorTracker is this fork's minimal stand-in for the real Babylon
-// Vigilante Submitter+Reporter pair (github.com/babylonlabs-io/vigilante):
-// it periodically submits a checkpoint marker to Bitcoin via OP_RETURN
-// (Submitter's role) and tracks that submission's confirmation depth
-// against K_DEEP_FINALITY to decide when it's safe to treat as anchored
-// (Reporter's role). It deliberately does NOT implement Babylon's real
-// BLS-aggregated multi-validator checkpoint or the full Checkpointing/
-// BTCLightClient/BTCCheckpoint module state machine (SEALED -> SUBMITTED ->
-// CONFIRMED -> FINALIZED) -- this repo has no staking/epoching module to
-// source a real multi-validator-signed checkpoint from (see app/app.go's
-// TODO on BankKeeper/StakingKeeper). The checkpoint content here is simply
-// AnchorTag + the submitting node's current Engram block height, which is
-// sufficient for this repo's actual need: giving h_btc_anchored a REAL,
-// independently-Bitcoin-verifiable value instead of one that never advances
-// (see x/sovereignty/sensors_refresh.go's discovery of that liveness bug).
+// AnchorTracker is this fork's minimal stand-in for Babylon's real Vigilante
+// Submitter+Reporter pair: periodically submits a checkpoint marker to
+// Bitcoin via OP_RETURN and tracks its confirmation depth against
+// K_DEEP_FINALITY. Deliberately does not implement Babylon's BLS-aggregated
+// multi-validator checkpoint or its full Checkpointing/BTCLightClient state
+// machine -- this repo has no staking module to source a real
+// multi-validator-signed checkpoint from. Checkpoint content is simply
+// AnchorTag + the submitting node's Engram height.
 //
-// Each validator runs its own AnchorTracker against its own bitcoind
-// connection. VerifyAnchor's answer is never trusted from a peer -- every
-// validator that wants to accept a claimed anchor advance re-derives it from
-// its OWN view of Bitcoin, matching "sensors propose, consensus decides"
-// (see x/sovereignty/proposal.go's ProcessProposal wiring).
+// Each validator runs its own tracker against its own bitcoind. VerifyAnchor
+// never trusts a peer's claimed anchor -- every validator re-derives it from
+// its own view of Bitcoin ("sensors propose, consensus decides").
 type AnchorTracker struct {
 	client        *RPCClient
 	kDeepFinality uint64
@@ -52,50 +43,28 @@ func NewAnchorTracker(client *RPCClient, kDeepFinality uint64) *AnchorTracker {
 	return &AnchorTracker{client: client, kDeepFinality: kDeepFinality, tag: AnchorTag}
 }
 
-// MaybeSubmit checks our previous submission's status and, once it has
-// either reached kDeepFinality confirmations (recording it via
-// ConfirmedAnchorHeight) or none is pending at all, broadcasts a new
-// checkpoint marker for engramHeight. Safe to call every block -- it only
-// actually issues bitcoind RPCs, at most one new broadcast per call.
+// MaybeSubmit checks the previous submission's status and, once it has
+// either reached kDeepFinality+1 confirmations (recorded via
+// ConfirmedAnchorHeight) or none is pending, broadcasts a new checkpoint
+// marker for engramHeight. Safe to call every block -- at most one new
+// broadcast per call.
 //
-// A SubmitOpReturn failure is logged and swallowed here, NOT propagated as
-// an error -- this repo's 4 validators all share the same bitcoind wallet
-// (docker/bitcoin-regtest-cluster.yml only provisions 2 bitcoind instances
-// for 4 validators, a documented prototype simplification), and concurrent
-// fundrawtransaction/sendrawtransaction calls from different validators can
-// race on the same UTXO before either tx confirms: bitcoind's mempool then
-// rejects the second one as an underpriced BIP125 replacement
-// ("insufficient fee, rejecting replacement ... new feerate <= old
-// feerate"). Confirmed happening for real, repeatedly (2-5 times per 5min
-// per node), against the live 4-node testnet. Before this fix, that error
-// propagated all the way up through RefreshMetrics into
-// PrepareProposal/ProcessProposal, aborting that block's proposal handling
-// entirely ("failed to process proposal" in real node logs) -- a transient,
-// single-validator wallet contention issue should not do that; the next
-// block's retry almost always succeeds once the earlier tx confirms.
-// pendingTxid deliberately stays "" on failure (not the failed attempt's
-// txid) so the very next call retries a fresh submission rather than
-// polling a txid that was never actually accepted.
+// A SubmitOpReturn/confirmation-check failure is logged and swallowed, not
+// propagated as an error: this repo's 4 validators share bitcoind wallets
+// (docker/bitcoin-regtest-cluster.yml provisions only 2 for 4 validators),
+// so concurrent fundrawtransaction/sendrawtransaction calls can race on the
+// same UTXO and get rejected as an underpriced BIP125 replacement --
+// treating this as sensor data (btc_gap simply stops shrinking) rather than
+// a block-production fault lets the next block's retry recover on its own.
+// pendingTxid stays "" on failure so the next call retries fresh.
 //
-// Requires confirmations >= kDeepFinality+1, NOT kDeepFinality -- a real,
-// deterministic off-by-one found live against the 4-node testnet, distinct
-// from the wallet-race fix above. bitcoind's `confirmations` field is
-// INCLUSIVE (a tx mined in the current tip already has confirmations=1), so
-// "confirmations >= kDeepFinality" is equivalent to
-// "h_btc_current - txHeight >= kDeepFinality - 1". But VerifyAnchor below
-// (and every other validator's independent ProcessProposal re-check of a
-// claimed anchor) implements the SPEC's IsKDeep verbatim
-// (spec/core/EngramConsensus.tla:130-132: h_btc_current - c.btc_anchored >=
-// k, an EXCLUSIVE depth, no +1) -- one block stricter. The two conventions
-// previously didn't match: the instant this tracker reported a height as
-// "confirmed" via the old `>= kDeepFinality` check, EVERY validator's
-// VerifyAnchor re-check of that exact height was guaranteed to fail, since
-// it needed h_btc_current one block higher than what this tracker itself
-// had just required. Confirmed live: 100% of claimed anchor advances across
-// many consecutive real blocks were rejected this way, always short by
-// exactly 1, with no live node ever able to close the gap on its own
-// (waiting a block doesn't help once a NEW claim is made at the same fixed
-// offset). Requiring one extra real confirmation here closes it exactly.
+// Requires confirmations >= kDeepFinality+1, not kDeepFinality: bitcoind's
+// `confirmations` field is INCLUSIVE (a tx mined in the current tip already
+// has confirmations=1), while VerifyAnchor/IsKDeep implements the spec's
+// EXCLUSIVE depth check (h_btc_current - c.btc_anchored >= k, no +1) -- one
+// block stricter. Matching bitcoind's own convention here would make every
+// height this tracker reports "confirmed" fail every other validator's
+// independent re-check by exactly one block.
 func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -103,16 +72,9 @@ func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) er
 	if a.pendingTxid != "" {
 		confirmations, blockHeight, mined, err := a.client.TxConfirmation(ctx, a.pendingTxid)
 		if err != nil {
-			// Same class of bug as x/da/publisher.go's MaybePublish (see its
-			// doc for the full live-reproduction story): propagating this
-			// error up through RefreshMetrics used to make a bitcoind
-			// outage a hard PrepareProposal/ProcessProposal failure --
-			// BaseApp-level, stalling block production entirely -- instead
-			// of the intended graceful degrade through the FSM's own
-			// btc_gap/IsCriticalCondition handling. A confirmation-check
-			// RPC error is sensor data (btc_gap will simply stop shrinking
-			// via h_btc_anchored, which the FSM already reacts to), not a
-			// block-production fault.
+			// A confirmation-check RPC error degrades through btc_gap (via
+			// h_btc_anchored no longer advancing) rather than failing
+			// PrepareProposal/ProcessProposal outright.
 			fmt.Println("engramd: anchor confirmation check failed this block, will retry next block:", err)
 			return nil
 		}
@@ -189,10 +151,8 @@ func (c *RPCClient) BlockContainsTag(ctx context.Context, height uint64, tag []b
 
 	// An OP_RETURN script is opcode 0x6a followed by a single-byte push
 	// length (valid for our <= 76-byte payloads) then the pushed data --
-	// "6a" + 1-byte length + data, all hex-encoded. Matching on the tag hex
-	// appearing right after that prefix is precise enough for our own
-	// fixed-length (tag + 8-byte height) payloads without a full script
-	// parser.
+	// matching the tag hex right after that prefix is precise enough for
+	// our fixed-length (tag + 8-byte height) payloads without a full script parser.
 	tagHex := fmt.Sprintf("%x", tag)
 	for _, tx := range block.Tx {
 		for _, vout := range tx.Vout {

@@ -18,7 +18,7 @@ java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
   core/MC_ServerRefinementSafety.tla
 ```
 
-There is no separate `mc/` directory and no symlinks anywhere — specs and every `MC_*` driver (TLC and Apalache alike) all live directly in `core/`. This is deliberate, not just tidiness: TLC and Apalache both resolve `EXTENDS` relative to the directory of the file being checked, and Apalache has no search-path flag to point at modules living elsewhere (its launcher runs `java -jar`, which ignores `CLASSPATH`). An earlier layout kept `core/` and a separate `mc/` bridged by symlinks; that was dropped because a symlink is a standing footgun (a checkout with `git config core.symlinks false`, or certain editors' save behavior, silently turns a symlink into a disconnected copy) — one real directory removes the risk instead of managing it.
+There is no separate `mc/` directory and no symlinks anywhere — specs and every `MC_*` driver (TLC and Apalache alike) live directly in `core/`. Deliberate: TLC and Apalache both resolve `EXTENDS` relative to the file being checked, and Apalache has no search-path flag to point elsewhere. An earlier symlinked `core/`+`mc/` split was dropped since a symlink is a standing footgun (silently becomes a disconnected copy under `git config core.symlinks false` or certain editors) — one real directory removes the risk.
 
 The four spec layers each have their own `MC_*` model-checking pair, all living directly in `core/` — swap the filename below for the layer under test:
 

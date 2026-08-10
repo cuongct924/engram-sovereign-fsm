@@ -703,7 +703,7 @@ IsCriticalCondition ==
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 ```
 
-The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. One open item remains: a dedicated scenario constructing the full execution trace that shows an eclipsed proposer's fabricated `fsm_state` is deterministically rejected via `FSMStateConsistency` combined with `VerifySPVProof` — tracked as future work (see [Future Work](#future-work)).
+The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` conjunct (`EngramTendermint.tla:288`), independent of `VerifySPVProof`, which guards the BTC receipt field, not `fsm_state`.
 
 **Lemma 7.6 (EOTS Accountability).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, enabling EOTS-based BTC slashing without smart contract execution.
 
@@ -959,7 +959,7 @@ sequenceDiagram
 ##### D. Remove f+1 timeout fast-forward
 
 * **Ablated:** neutered `UponfPlusOneTimeoutsAny(p) == FALSE` (`core/EngramTendermint_Ablation_NoFastForward.tla`). Liveness-only — Apalache has no temporal+fairness support, so this ablation is TLC-only.
-* **Result:** `EventualDecisionUnderGSTLiveness` violated at depth **4**, after 227,099 states generated (6,315 distinct), in **66s** (`core/MC_Ablation_NoFastForwardLiveness.{tla,cfg}`). Trace: `spec/traces/ablation_no_fastforward.trace.txt`. TLC reports the counterexample as `State 4: Stuttering`, its notation for "the system can loop here forever."
+* **Result (superseded, see Caveat below):** `EventualDecisionUnderGSTLiveness` violated at depth **4**, after 227,099 states generated (6,315 distinct), in **66s** (`core/MC_Ablation_NoFastForwardLiveness.{tla,cfg}`). Trace: `spec/traces/ablation_no_fastforward.trace.txt`. TLC reports the counterexample as `State 4: Stuttering`, its notation for "the system can loop here forever." This number was measured against a driver later found to be missing an unrelated fairness fix (see Caveat) — it is real TLC output, but may reflect that separate, already-known bug rather than f+1 specifically.
 
 ```mermaid
 sequenceDiagram
@@ -978,7 +978,9 @@ sequenceDiagram
     V-->>V: EventualDecisionUnderGSTLiveness violated
 ```
 
-* **Caveat:** unlike the other four ablations, this one has **not** been cross-checked against the non-ablated spec with the same schedule and fairness formula, so attributing the stall specifically to removing f+1 fast-forward — rather than some other fairness gap this schedule happens to trigger — is not yet independently confirmed.
+* **Caveat (updated 2026-08-10, investigation still open):** this ablation's cross-check against the non-ablated spec was attempted for real, and surfaced a real, independent finding along the way: `core/EngramServer_Ablation_NoFastForward.tla` (and, it turned out, all four other `EngramServer_Ablation_*.tla` copies) had silently drifted stale relative to `core/EngramServer.tla`, missing the `ServerHonestTimeout`/`ServerHonestRoundSkip` bootstrap-deadlock fix documented in `LIVENESS_DEADLOCK_FINDING.md` (Hướng A+B, merged 2026-08-03) — and this driver's own `MC_ServerFairness` never required the two new actions to fire even where the base module had them. Without that fix, a single silent Byzantine proposer (`ServerByzantinePull`, unrelated to f+1) freezes `real_time`/`local_rem_time` for every honest node, which independently produces the exact same "stutter after `ServerByzantinePull`" counterexample shape as the Result above — meaning the original 66s/depth-4 number cannot be trusted to isolate f+1's effect on its own.
+
+  Both `core/EngramServer_Ablation_NoFastForward.tla` and this driver's `MC_ServerFairness` were re-synced with the fix, and a byte-for-byte control-run driver (`core/MC_ControlRun_FastForwardLiveness.{tla,cfg}`, `EXTENDS EngramServer` instead of the ablated module, otherwise identical) was written and committed. Re-running the ablated driver post-fix twice (2026-08-10) reached **80,165,311 states generated, 1,491,702 distinct, depth 8, zero violations found** on the longer of the two attempts, before each run was interrupted by the local environment (not by TLC finding a violation or exhausting the state space) — inconclusive so far in both directions. The corrected control run has not yet completed a full pass. **Status: genuinely open** — a real methodological gap was found and partially fixed, but neither an ablated-only violation nor a clean control-run pass has been confirmed to completion; both need an uninterrupted multi-hour-plus run to reach a real verdict. Tracked as follow-up work, not resolved by this pass.
 
 ##### E. Remove DA Consistency
 
@@ -999,6 +1001,34 @@ sequenceDiagram
 ```
 
 * **Why it matters:** the DA attestation check is the only thing stopping a withheld-data block from entering the vote pipeline — once it's ablated, a Byzantine leader needs no other cooperation to get a data-withholding proposal broadcast.
+
+##### F. Eclipse Attack — Forged `fsm_state` Rejection (attack scenario, not an ablation)
+
+Unlike A–E, nothing is neutered here — `core/EngramServer_EclipseForgedProposal.tla` `EXTENDS EngramServer` unmodified. This closes the open item from Lemma 7.5 (§7.2): `P2PAdversaryAttack` (`EngramFSM.tla`, the only check previously verified against a real eclipse condition) is pure FSM-sensor-layer mechanics and never touches `IsValidProposal`/`FSMStateConsistency`, which live in `EngramTendermint.tla`/`EngramServer.tla` — no existing check combined a real eclipse condition with a proposer forging `fsm_state`. The new action `ByzantineForgedFSMState`, gated on `~IsP2PQualityHealthy`, lets a Byzantine proposer under eclipse broadcast an otherwise well-formed, honestly-attested proposal whose `fsm_state` field is any value other than the real `CalculateNextFSMState` — isolating fsm_state forgery as the only defect under test.
+
+Two checks against the same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
+
+* **Check 1 — `Sanity_ForgedProposalReachable`** (expect violation, proves the attack is actually attempted): violated at depth **2**, in **30.792s**. Trace: `spec/traces/eclipse_forged_proposal.{itf.json,trace.tla}`.
+* **Check 2 — `Sanity_ForgedFSMStateRejectedUnderEclipse`** (expect no violation — a thin alias for `FSMStateConsistency`, `EngramServer.tla`): no violation found while exhaustively checking every enabled transition through depth **7**, plus 6 of the 39 transitions enabled at depth 8, before the run was interrupted by the local environment after ~123 minutes (09:34–11:37) — **not completed to the full length=12 bound**. Per-step wall-clock time grew roughly 3–4x per step (steps 1–7: 5s, 8s, 21s, 77s, 326s, 1,319s, 3,990s), the same full-stack cost class (all of Tendermint's messaging/certificate state, not FSM-only) already flagged for `MC_ServerRefinementSafety` in §9.2. **Status: partial, not exhaustive** — every state actually reached was violation-free, but the bound was not reached.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Adv as Sybil Adversary
+    participant B as Byzantine Proposer n1 (round 0)
+    participant Q as msgs_propose
+    participant V as Honest Nodes n2, n3, n4
+
+    Adv->>V: active_peers = {sybil_n1, sybil_n2, sybil_n3}; anchor_peers unreachable
+    Note over V: is_btc_spv_failed, is_das_failed, is_attestation_failed = TRUE -- full eclipse
+    B->>Q: BroadcastProposal(fsm_state="SUSPICIOUS", btc_receipt/da_receipt honestly attested)
+    Note over Q: each honest node independently recomputes CalculateNextFSMState -- not "SUSPICIOUS"
+    Q-->>V: UponProposalInPropose(p): IsValidProposal(prop) evaluated per node
+    Note over V: prop.fsm_state /= CalculateNextFSMState -- IsValidProposal fails
+    V-->>V: vote_target = NilProposal -- no honest node ever decides the forged block
+```
+
+* **Why it matters:** eclipsing a proposer doesn't let it fabricate consensus-relevant state — every honest node recomputes `CalculateNextFSMState` from its own view, not the proposer's, so "the leader is isolated" cannot make honest receivers agree with a wrong claim. The rejection is structural (`IsValidProposal`'s `fsm_state` conjunct, `EngramTendermint.tla:288`), not merely unobserved within the depth Check 2 actually reached.
 
 ## References
 

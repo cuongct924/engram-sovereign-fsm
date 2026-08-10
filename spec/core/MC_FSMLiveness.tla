@@ -34,7 +34,7 @@ MC_FSMUpdateSensors ==
     /\ h_engram_current' \in {0, 5}
     /\ h_engram_verified' \in {0, h_engram_current'}
     /\ is_das_failed' \in BOOLEAN
-    \* Mô phỏng xáo trộn P2P
+    \* Simulates P2P churn/disruption.
     /\ active_peers' \in { anchor_peers, anchor_peers \cup {"honest_n1"}, {"sybil_n1"} }
     /\ peer_churn_rate' \in {0, MAX_CHURN_RATE + 1}
     /\ avg_peer_tenure' \in {0, MIN_AVG_TENURE + 1}

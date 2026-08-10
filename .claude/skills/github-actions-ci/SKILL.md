@@ -12,11 +12,9 @@ adding jobs; don't make every workflow run on every push.
 ## Hard rules
 
 1. **Go version comes from `go.mod`, never a hardcoded string.** Use
-   `go-version-file: 'go.mod'` in every `actions/setup-go` step, not `go-version: 'X.Y'`. A
-   hardcoded version silently drifts from `go.mod`'s `go` directive and breaks CI the next time
-   someone bumps the module's Go version without remembering to also edit every workflow file —
-   this exact bug (`go-version: '1.21'` against a `go 1.26.1` module) was found and fixed once
-   already; don't reintroduce it.
+   `go-version-file: 'go.mod'` in every `actions/setup-go` step, not `go-version: 'X.Y'` — a
+   hardcoded version silently drifts from `go.mod`'s `go` directive whenever the module's Go
+   version is bumped without updating every workflow file too.
 
 2. **`.golangci.yml`'s `version:` key is the config schema version, not a version pin for the
    linter binary.** This repo's config uses `version: "2"` (the v2 schema). `golangci-lint-action`
@@ -41,42 +39,23 @@ adding jobs; don't make every workflow run on every push.
    than assuming one is already wired.
 
 6. **`go.mod`'s local `replace github.com/cometbft/cometbft => ../engram-consensus-core` needs the
-   fork checked out in CI too, or `go mod download`/`go vet`/golangci-lint all fail immediately at
-   module-resolution time.** That path is relative to the repo root and only exists on a machine
-   that also has the sibling `engram-consensus-core` checkout — `actions/checkout@v4` only fetches
-   the one repo it's pointed at, so a bare `go-test.yml`/`go-lint.yml` breaks the instant this
-   `replace` directive was added (confirmed as the actual root cause of a real CI failure, not
-   guessed).
-   **`actions/checkout@v4` with `path: ../engram-consensus-core` does NOT work for this** — a
-   second `actions/checkout` step with a `path:` that escapes the initial working directory fails
-   live with `Repository path '.../engram-consensus-core' is not under '.../engram-sovereign-fsm'`.
-   This is a deliberate, unconditional security sandbox the action enforces (relevant for reusable/
-   third-party-triggered workflows); no input on the action bypasses it. (An earlier version of
-   this rule recommended the `path:` approach without having actually run it in CI — wrong,
-   corrected here after seeing the real failure.)
-   Fix: a plain `git clone` in a normal `run:` step, which has no such sandboxing and can place the
-   fork anywhere the runner's filesystem allows, including `../engram-consensus-core` — exactly
-   matching `go.mod`'s relative path with zero `go.mod` changes needed and zero divergence from how
-   every developer's local sibling checkout already works:
+   fork checked out in CI too**, or `go mod download`/`go vet`/golangci-lint fail at
+   module-resolution time. `actions/checkout@v4` with a `path:` that escapes the initial working
+   directory does NOT work (its sandbox rejects `path: ../engram-consensus-core` outright, no
+   override) — use a plain `git clone` in a `run:` step instead:
    ```yaml
    - name: Checkout CometBFT fork (go.mod's local replace directive)
      run: |
        git clone --quiet https://github.com/cuongct924/engram-consensus-core.git ../engram-consensus-core
        git -C ../engram-consensus-core checkout --quiet <pinned-commit-sha>
    ```
-   Pin the commit to the same one the local sibling checkout is actually on, not just "whatever
-   `main` happens to be" — a moving target there makes CI depend on a fork commit nobody
-   deliberately chose for that run. If the fork's remote or the pinned commit changes, update this
-   step in lockstep, in both workflow files (`go-test.yml` and `go-lint.yml` both need it —
-   golangci-lint resolves the module graph too, not just the test job).
+   Pin the commit to the same one the local sibling checkout is on — not a moving `main`. Update
+   this step in lockstep in both `go-test.yml` and `go-lint.yml` (golangci-lint resolves the module
+   graph too).
 
-7. **Run `black scripts/` locally before committing any Python change under `scripts/`, don't wait
-   for CI to report formatting failures.** `black --check` fails the whole job on a single
-   unformatted file, and it does not selectively check only the files you touched — the whole
-   `scripts/` tree needs to already be black-clean before you push, including files you didn't
-   personally edit this round (confirmed live: `black --check scripts/` failed on 24 files
-   simultaneously, most never touched in the change that surfaced the failure). Don't hand-fix
-   formatting to satisfy black by eye — run the formatter itself and let it be idempotent.
+7. **Run `black scripts/` locally before committing any Python change under `scripts/`.**
+   `black --check` fails the whole CI job on a single unformatted file anywhere in the tree, not
+   just files you touched — run the formatter itself rather than hand-fixing to satisfy it by eye.
 
 ## Before submitting a workflow change
 

@@ -171,16 +171,10 @@ ServerUponProposalInPrecommitNoDecision(p) ==
                   /\ UNCHANGED <<h_btc_current, is_btc_spv_failed>> 
                   /\ UNCHANGED <<h_engram_current, is_das_failed, is_attestation_failed>>
 
-           \* BUG FIX: this used to also assert UNCHANGED <<safe_blocks,
-           \* suspicious_duration>> here, directly contradicting
-           \* ExecuteFSMTransition above (which computes safe_blocks'/
-           \* suspicious_duration' via formula, not identity) -- two
-           \* deterministic equations on the same primed variables,
-           \* satisfiable only when they coincidentally agreed. That made
-           \* this whole action unsatisfiable (silently disabled, no TLC
-           \* error) whenever the hysteresis counter actually needed to
-           \* change, artificially narrowing the reachable state space.
-           \* ExecuteFSMTransition already fully determines both variables.
+           \* ExecuteFSMTransition already fully determines safe_blocks'/
+           \* suspicious_duration' via formula -- do not also assert them
+           \* UNCHANGED here (an unsatisfiable contradiction whenever the
+           \* hysteresis counter actually needs to change).
            /\ UNCHANGED <<p2pHealthSensorVars>>
 
     \* Step 6: Keep pacemaker certificates unchanged (censorshipVars is
@@ -207,23 +201,17 @@ ServerUponTimeoutCert(p) ==
 
 
 (* ======================== ACTION AGGREGATION ============================== *)
-\* Apalache note: the 11 pass-through branches below used to be a separate
-\* ServerPassThrough(p) operator, wrapped here with one shared UNCHANGED
-\* conjunct (`ServerPassThrough(p) /\ UNCHANGED <<certificateVars, fsmVars,
-\* networkSensorVars>>`). That's a 2-level-nested disjunction (this 5-way
-\* one, wrapping ServerPassThrough's own 11-way one), and Apalache's
-\* assignment analysis cannot resolve it: each of the 4 server hooks passes
-\* its OWN assignment analysis fine in isolation (bisected individually),
-\* but combining all 5 branches together fails with "Manual assignment is
-\* spurious, state is already assigned" -- TLC has no such requirement since
-\* it evaluates the formula directly rather than statically analyzing it.
-\* Flattened to one level (mirroring TendermintNext/MC_TendermintNext's own
-\* working structure) by distributing the UNCHANGED into each of the 11
-\* leaves directly instead of wrapping the group. ServerPassThrough itself
-\* is gone (it had no other caller) to avoid a second copy of this list.
+\* Apalache note: the 11 pass-through branches below were flattened from a
+\* separate ServerPassThrough(p) operator (wrapped with one shared
+\* UNCHANGED conjunct) into one level, distributing UNCHANGED into each
+\* leaf directly -- Apalache's assignment analysis cannot resolve the
+\* resulting 2-level-nested disjunction (each of the 4 server hooks passes
+\* its own assignment analysis in isolation, but combining all 5 branches
+\* fails as "spurious"); TLC has no such requirement, mirroring
+\* TendermintNext/MC_TendermintNext's own flat structure.
 \* @type: (Str) => Bool;
 ServerMessageProcessing(p) ==
-    \* 1. Các hành động Pass-through (formerly ServerPassThrough(p))
+    \* 1. Pass-through actions (formerly ServerPassThrough(p))
     \/ ReceiveProposal(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ UponProposalInPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ UponProposalInProposeAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
@@ -238,24 +226,20 @@ ServerMessageProcessing(p) ==
     \/ UponfPlusOneTimeoutsAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
     \/ OnLocalTimerExpire(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
 
-    \* 2. Hook 1: Leader tạo block (Sinh E_QC)
-    \* ServerInsertProposal already asserts UNCHANGED <<fsmVars,
-    \* networkSensorVars>> itself (see its own body) -- repeating it here
-    \* was the actual root cause of the Apalache assignment-analysis
-    \* failure this whole section was earlier suspected of (a real bisected
-    \* minimal repro: {ServerInsertProposal, ServerUponTimeoutCert} alone
-    \* failed; every other pair/solo combination not involving this
-    \* redundant wrapper passed).
+    \* 2. Hook 1: leader creates block (emits E_QC). ServerInsertProposal
+    \* already asserts UNCHANGED <<fsmVars, networkSensorVars>> itself --
+    \* repeating it here was the actual root cause of the Apalache
+    \* assignment-analysis failure noted above.
     \/ ServerInsertProposal(p)
 
-    \* 3. Hook 2: Leader vote cho chính nó (Sinh M_QC)
+    \* 3. Hook 2: leader votes for itself (emits M_QC)
     \/ /\ ServerProposerVotes(p)
        /\ UNCHANGED <<fsmVars, networkSensorVars>>
 
-    \* 4. Hook 3: Chốt khối (Sinh C_QC và cập nhật FSM)
+    \* 4. Hook 3: block decision (emits C_QC, syncs FSM)
     \/ ServerUponProposalInPrecommitNoDecision(p)
-    
-    \* 5. Hook 4: Timeout (Sinh T_QC)
+
+    \* 5. Hook 4: timeout (emits T_QC)
     \/ ServerUponTimeoutCert(p)
 
 
@@ -339,9 +323,9 @@ ServerByzantineDataWithholding ==
     /\ LET r == CHOOSE rnd \in Rounds : msgs_propose[rnd] /= msgs_propose'[rnd]
            m == CHOOSE msg \in msgs_propose'[r] : msg.src = Proposer[r]
        IN 
-       \* Toán học LiDO ép buộc: Phải có E_QC từ bước 1 rồi mới được chạy tiếp
+       \* LiDO's math requires an E_QC from step 1 before this can proceed.
        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
-       \* Sinh M_QC để hoàn thiện hồ sơ
+       \* Emits M_QC to complete the record.
        /\ LET new_MQC == [ 
                 type |-> "M_QC", 
                 round |-> r, 

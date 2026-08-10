@@ -105,16 +105,10 @@ func boolToField(b bool) int {
 
 // txSubmitRecoveryProofCmd builds and broadcasts a real
 // MsgSubmitRecoveryProofRequest. There is no x/auth/x/bank in this
-// prototype (app/app.go's own doc) and the ante chain
-// (app.NewCircuitBreakerDecorator only) never checks a signature -- so
-// rather than a real signed tx (which would need a keyring and an account
-// this chain has no way to query), this builds the minimal structurally
-// valid tx envelope BaseApp's TxDecoder requires: one SignerInfo/one
-// (empty) signature, matching what nothing here actually verifies. Found
-// and confirmed by actually broadcasting against a running node (not
-// guessed): an empty AuthInfo/Fee decodes and routes fine once app.go's
-// MsgServiceRouter/QueryServer registration and address codec (both fixed
-// alongside this command, see app.go's doc) are in place.
+// prototype and the ante chain never checks a signature, so rather than a
+// real signed tx (which would need a keyring and account this chain can't
+// query), this builds the minimal structurally valid tx envelope BaseApp's
+// TxDecoder requires: one SignerInfo, one empty signature.
 func txSubmitRecoveryProofCmd() *cobra.Command {
 	var nodeURL, proofFile, publicInputsFile string
 	cmd := &cobra.Command{
@@ -155,19 +149,13 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 				return err
 			}
 
-			// BroadcastTxCommit blocks the RPC server itself for a fixed,
-			// non-configurable ~10s waiting for DeliverTx (CometBFT's own
-			// internal poll loop) -- found live to be a real bottleneck
-			// against this testnet's occasional round-skip stalls (up to
-			// 50s+ observed): a single submission attempt can burn the
-			// ENTIRE 10s budget on a block that was always going to land
-			// a few seconds later anyway, starving watch_and_prove.sh's
-			// retry loop of the time it needs to catch the next real
-			// opportunity. BroadcastTxSync returns as soon as CheckTx
-			// passes (near-instant in practice) -- DeliverTx's real result
-			// is then polled here directly, with a timeout matched to this
-			// testnet's OBSERVED worst-case block latency rather than
-			// CometBFT's hardcoded default.
+			// BroadcastTxCommit blocks the RPC server for a fixed,
+			// non-configurable ~10s waiting for DeliverTx -- a real
+			// bottleneck against this testnet's occasional round-skip
+			// stalls. BroadcastTxSync returns as soon as CheckTx passes;
+			// DeliverTx's real result is polled here directly instead, with
+			// a timeout matched to this testnet's observed worst-case block
+			// latency.
 			syncResult, err := client.BroadcastTxSync(context.Background(), txBytes)
 			if err != nil {
 				return err

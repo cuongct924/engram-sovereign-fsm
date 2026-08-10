@@ -13,16 +13,15 @@ import (
 func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
 
-	// 1. Lấy dữ liệu ngoại vi hiện tại từ Storage (đã đồng thuận qua các block trước)
+	// 1. Read current peripheral metrics (agreed upon in a prior block).
 	metrics, err := k.Metrics.Get(ctx)
 	if err != nil {
-		// Nếu chưa có dữ liệu, coi như healthy (khớp FSMInit trong spec: mọi gap = 0)
-		metrics = &types.PeripheralMetrics{}
+		metrics = &types.PeripheralMetrics{} // no data yet: treat as healthy (FSMInit's all-gaps-zero)
 	}
 
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {
-		currState = types.StateAnchored // Default State
+		currState = types.StateAnchored
 	}
 
 	safeBlocks, err := k.SafeBlocks.Get(ctx)
@@ -38,7 +37,7 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		proofValid = false
 	}
 
-	// 2. Tính toán trạng thái tiếp theo dựa trên logic FSM (TLA+ Refinement)
+	// 2. Compute the next FSM state (spec/core/EngramFSM.tla's CalculateNextFSMState).
 	in := keeper.FSMInput{
 		Metrics:               metrics,
 		SafeBlocks:            safeBlocks,
@@ -47,13 +46,12 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	}
 	nextState := keeper.CalculateNextState(currState, in, k.Params)
 
-	// 3. Nếu có sự thay đổi trạng thái, thực hiện cập nhật và emit event
+	// 3. On a state change, persist it and emit an event/log for the timeline.
 	if nextState != currState {
 		if err := k.FSMState.Set(ctx, nextState); err != nil {
 			return err
 		}
 
-		// Emit event để log lại timeline thực nghiệm (RQ4)
 		sdkCtx.EventManager().EmitEvent(
 			sdk.NewEvent(
 				types.EventTypeFSMTransition,
@@ -63,7 +61,6 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 			),
 		)
 
-		// Log ra console để tiện theo dõi lúc chạy test
 		sdkCtx.Logger().Info("Engram FSM Transition",
 			"from", currState,
 			"to", nextState,
@@ -71,7 +68,7 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		)
 	}
 
-	// 4. Cập nhật hai bộ đếm hysteresis/gray-failure-timeout (spec/core/EngramFSM.tla:337-346)
+	// 4. Update the hysteresis/gray-failure-timeout counters (spec/core/EngramFSM.tla:337-346).
 	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, nextState, safeBlocks, k.Params)); err != nil {
 		return err
 	}

@@ -12,33 +12,18 @@ import (
 
 // NewPreBlocker builds the sdk.PreBlocker for this module, mirroring
 // ServerUponProposalInPrecommitNoDecision (spec/core/EngramServer.tla:135-189):
-// the FSM state committed here is the ALREADY-AGREED fsm_state embedded in the
-// decided block's extended proposal (Txs[0]) -- it is never recomputed
-// locally at this point, matching the "sensors propose, consensus decides"
-// separation the spec depends on (see CLAUDE.md's FSM-layer notes). Wiring
-// this onto a real BaseApp via SetPreBlocker is M5's job -- this function
-// only builds the handler.
+// commits the ALREADY-AGREED fsm_state from the decided block's extended
+// proposal (Txs[0]), never recomputed locally -- "sensors propose,
+// consensus decides."
 //
-// A prior version of this function took a *Sensors and called RefreshMetrics
-// here to make k.Metrics query-visible in committed state (Query.State
-// otherwise only ever saw the genesis-default zero value, since
-// PrepareProposal/ProcessProposal only write it to their own throwaway
-// state branches per BaseApp's ABCI 2.0 separation). That was a real
-// consensus-safety bug, found by actually running a 4-node Docker testnet:
-// RefreshMetrics reads live, node-LOCAL sensor data (P2P peer snapshot,
-// live bitcoind height) -- writing that into PreBlocker's COMMITTED state
-// makes it part of AppHash, so any two validators with even a slightly
-// different local view (e.g. differing P2P peer sets) compute a DIFFERENT
-// AppHash for the identical agreed block. 3 of 4 nodes in that testnet
-// coincidentally matched (near-identical peer views); the 4th diverged and
-// permanently crashed its consensus engine with "CONSENSUS FAILURE!!!
-// +2/3 prevoted for an invalid block: wrong Block.Header.AppHash". Reverted:
-// this function commits ONLY the fields already deterministically embedded
-// in the agreed proposal (ext.BTCReceipt/ext.DAReceipt, via
-// CommitFSMTransition below) -- never a live local sensor re-read. Making
-// live BTC/DA/P2P telemetry safely query-visible would need a channel
-// outside the hashed state tree entirely (e.g. an in-memory, non-committed
-// field queried directly rather than through Query.State) -- not built here.
+// Must never call RefreshMetrics (live, node-LOCAL sensor data) from here:
+// committing it would make each validator's local view part of AppHash,
+// causing honest validators with even slightly different local readings
+// (e.g. differing P2P peer sets) to diverge on AppHash for the identical
+// agreed block -- a real consensus-safety failure reproduced on a live
+// 4-node testnet. This function commits only fields already
+// deterministically embedded in the agreed proposal (ext.BTCReceipt/
+// ext.DAReceipt, via CommitFSMTransition below).
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
 		if err := recordDetectedEvidence(ctx, k, req); err != nil {
@@ -62,28 +47,14 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 }
 
 // updateForcedTxTracking ports UpdateIgnoredRounds (spec/core/EngramTendermint.tla:493-503),
-// run once per finalized block -- the natural real-chain analog of "once
-// per round transition" the spec uses, since vanilla ABCI 2.0 doesn't expose
-// round number to app hooks (see NewProcessProposalHandler's censorship-check
-// comment for the same gap). No-ops when forced_tx_queue is empty.
+// run once per finalized block (vanilla ABCI 2.0 exposes no round number to
+// app hooks). No-op when forced_tx_queue is empty.
 //
-// Dequeues a forced tx entirely once it's actually included, rather than
-// just resetting its ignored-round counter to 0 and leaving it queued --
-// the spec's forced_tx_queue (a TLA+ SET) is checked over a bounded,
-// finite model run where "never shrinks" is an unobserved simplification,
-// not a real liveness property; a real chain keeps running indefinitely,
-// and this app's txs are one-shot/consumed once committed (no resubmission
-// path), so an entry that stays queued after its one and only possible
-// inclusion is guaranteed to have included[tx]==false on every subsequent
-// round forever, tripping IsCensoring (check #0, ProcessProposal) and
-// permanently deadlocking the chain -- found live (E8's A7 test, this
-// session): once the target forced tx was naturally included and
-// consumed from every node's mempool, ALL 4 validators (not just a
-// byzantine one) rejected every subsequent proposal from every leader,
-// forever, since the tx could never appear in req.Txs again to satisfy
-// the check. Confirmed via docker logs: "prevote step: state machine
-// rejected a proposed block" repeating across dozens of rounds with no
-// recovery, even after the byzantine validator was reverted to honest.
+// Dequeues a forced tx entirely once included, rather than just resetting
+// its ignored-round counter: this app's txs are one-shot (no resubmission),
+// so a tx left queued after its only possible inclusion has
+// included[tx]==false forever, permanently tripping IsCensoring (check #0)
+// on every future proposal from every validator.
 func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) error {
 	forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 	if err != nil || len(forcedTxQueue) == 0 {
@@ -112,13 +83,12 @@ func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) err
 }
 
 // CommitFSMTransition ports ServerUponProposalInPrecommitNoDecision's state
-// writes (spec/core/EngramServer.tla:135-189, steps 3-5; steps 1-2 --
-// extracting the decided proposal -- already happened via DecodeExtendedProposal).
+// writes (spec/core/EngramServer.tla:135-189, steps 3-5; steps 1-2 already
+// happened via DecodeExtendedProposal).
 //
-// Note: the spec's step 5 also clears is_btc_spv_failed, which this Go port's
-// PeripheralMetrics has no equivalent field for (only is_das_failed /
-// is_attestation_failed were ported from EngramFSM.tla's networkSensorVars in
-// Phase 1) -- documented gap, not a silent omission.
+// Gap: the spec's step 5 also clears is_btc_spv_failed, which this port's
+// PeripheralMetrics has no field for (only is_das_failed/
+// is_attestation_failed were ported).
 func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal) error {
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {
@@ -176,31 +146,25 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		}
 	}
 
-	// Step 5b: a real ZK proof (keeper.MsgServerImpl.SubmitRecoveryProof)
-	// only ever applies to the SOVEREIGN/RECOVERING interval it was proven
-	// against. Once RECOVERING is left -- whether successfully to ANCHORED
-	// or back down to SOVEREIGN on a fresh setback -- that latch is stale:
-	// a NEW interval (if any) needs a NEW proof. See
-	// sensors_refresh.go's refreshReanchoringProofValid, the only reader.
+	// Step 5b: a real ZK proof only applies to the SOVEREIGN/RECOVERING
+	// interval it was proven against -- reset once RECOVERING is left, so a
+	// stale latch can't apply to a new interval (see
+	// refreshReanchoringProofValid, the only reader).
 	if currState == types.StateRecovering && ext.FSMState != types.StateRecovering {
 		if err := k.RealProofSubmittedHeight.Set(ctx, 0); err != nil {
 			return err
 		}
 	}
 
-	// Step 6: track real per-block header history for the ZK re-anchoring
+	// Step 6: track per-block header history for the ZK re-anchoring
 	// circuit's witness (spec/README.md's §Re-anchoring via ZK-Proof of
-	// Recovery; circuit/reanchoring/src/main.nr's Header{fsm_state,
-	// withdrawal_locked, state_root}). Only meaningful while the FSM is
-	// SOVEREIGN/RECOVERING -- see types.RecoveryHeader's doc for why
-	// StateRoot is CometBFT's real AppHash rather than the keeper's (dead,
-	// unwired) SMT.
+	// Recovery), only while SOVEREIGN/RECOVERING. StateRoot is CometBFT's
+	// real AppHash, not the keeper's SMT (see types.RecoveryHeader's doc).
 	if types.WithdrawLocked(ext.FSMState) {
 		if !types.WithdrawLocked(currState) {
-			// Entering the interval for the first time: rt_last (README:
-			// "the state root of the last Bitcoin-anchored block") is this
-			// block's incoming AppHash -- the state right before the
-			// interval starts, which headers[0].prev_hash must bind to.
+			// Entering the interval for the first time: rt_last is this
+			// block's incoming AppHash, the state right before the interval
+			// starts, which headers[0].prev_hash must bind to.
 			if err := k.LastAnchoredRoot.Set(ctx, types.ReduceToField(ctx.BlockHeader().AppHash)); err != nil {
 				return err
 			}
@@ -214,9 +178,8 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 			return err
 		}
 	} else if types.WithdrawLocked(currState) {
-		// Interval just ended (back to ANCHORED): this history is no
-		// longer needed for a proof -- a future interval starts its own
-		// LastAnchoredRoot from scratch above.
+		// Interval just ended (back to ANCHORED): a future interval starts
+		// its own LastAnchoredRoot from scratch above.
 		if err := pruneHeaderHistory(ctx, k); err != nil {
 			return err
 		}
@@ -246,16 +209,11 @@ func pruneHeaderHistory(ctx sdk.Context, k *keeper.Keeper) error {
 	return nil
 }
 
-// recordDetectedEvidence is docs/EXPERIMENT.md's E8 "Double-signing" row's
-// "Evidence extracted/logged" mechanism: req.Misbehavior is CometBFT's
-// stock, unmodified evidence pool's report of DuplicateVote/LightClientAttack
-// misbehavior it independently detected at the consensus layer -- no fork
-// changes needed for detection itself, this only consumes what's already
-// there. Safe to commit (unlike a live local sensor read, see NewPreBlocker's
-// own doc on the AppHash-divergence bug that lesson came from):
-// req.Misbehavior is part of RequestFinalizeBlock itself, deterministic and
-// identical across every honest validator for a given block, exactly like
-// req.Txs.
+// recordDetectedEvidence logs req.Misbehavior -- CometBFT's own evidence
+// pool's DuplicateVote/LightClientAttack detections (docs/EXPERIMENT.md's
+// E8 "Double-signing" row). Safe to commit: Misbehavior is part of
+// RequestFinalizeBlock itself, deterministic across every honest validator,
+// exactly like req.Txs (unlike a live local sensor read; see NewPreBlocker's doc).
 func recordDetectedEvidence(ctx sdk.Context, k *keeper.Keeper, req *abci.RequestFinalizeBlock) error {
 	for _, m := range req.Misbehavior {
 		record := types.EvidenceRecord{

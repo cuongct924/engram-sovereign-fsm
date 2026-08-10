@@ -15,23 +15,21 @@ type Keeper struct {
 	storeService store.KVStoreService
 	Schema       collections.Schema
 
-	// FSM thresholds -- defaulted to spec/core/MC_StressC1Safety.cfg's verified
-	// values (types.DefaultParams). Genesis only carries HysteresisWaitLimit
-	// today (see module.go's InitGenesis); the rest of Params is not yet
-	// genesis-configurable.
+	// Params defaults to spec/core/MC_StressC1Safety.cfg's verified values
+	// (types.DefaultParams). Not yet genesis-configurable beyond HysteresisWaitLimit.
 	Params types.Params
 
-	// State lưu trữ FSM
+	// FSM state, mirroring spec/core/EngramFSM.tla's state variables.
 	FSMState              collections.Item[string]
 	SafeBlocks            collections.Item[uint64]
 	SuspiciousDuration    collections.Item[uint64]
 	ReanchoringProofValid collections.Item[bool]
 	Metrics               collections.Item[*types.PeripheralMetrics]
 
-	// Height tracking, mirroring spec/core/EngramFSM.tla / EngramTendermint.tla's
-	// h_btc_current/h_btc_anchored/h_btc_submitted/h_engram_current/h_engram_verified.
-	// Used to build and verify btc_receipt/da_receipt in PrepareProposal/
-	// ProcessProposal (see x/sovereignty/proposal.go).
+	// Height tracking, mirroring spec/core/EngramFSM.tla/EngramTendermint.tla's
+	// h_btc_current/h_btc_anchored/h_btc_submitted/h_engram_current/
+	// h_engram_verified. Built/verified in PrepareProposal/ProcessProposal
+	// (x/sovereignty/proposal.go).
 	HBtcCurrent     collections.Item[uint64]
 	HBtcAnchored    collections.Item[uint64]
 	HBtcSubmitted   collections.Item[uint64]
@@ -40,83 +38,40 @@ type Keeper struct {
 
 	// Censorship-resistance state, mirroring spec/core/EngramTendermint.tla's
 	// forced_tx_queue / tx_ignored_rounds[self][tx] (M0d). Keys are raw tx
-	// byte content, matching x/sovereignty/proposal.go's containsWithdrawal
-	// raw-byte-marker convention. See x/sovereignty/types/censorship.go for
-	// the pure IsCensoring/NextIgnoredRounds functions that consume these.
+	// byte content. See types/censorship.go for the pure functions consuming these.
 	ForcedTxQueue   collections.KeySet[string]
 	TxIgnoredRounds collections.Map[string, uint64]
 
-	// Re-anchoring ZK proof state, mirroring spec/README.md's §Re-anchoring
-	// via ZK-Proof of Recovery: HeaderHistory tracks the witness headers
-	// (types.RecoveryHeader) for the CURRENT SOVEREIGN/RECOVERING interval
-	// only (populated by preblock.go's CommitFSMTransition; pruned there in
-	// full on a full return to ANCHORED, and pruned incrementally by
-	// keeper.MsgServerImpl.pruneHeaderHistoryUpTo on each rolling checkpoint
-	// advance below). LastAnchoredRoot is rt_last -- initially captured when
-	// the interval starts, but a ROLLING checkpoint from then on: it also
-	// advances every time keeper.MsgServerImpl.SubmitRecoveryProof accepts a
-	// real proof, since the circuit's N is fixed at compile time
-	// (circuit/reanchoring/src/main.nr) while a real interval's length is
-	// environment-controlled and unbounded -- one proof spanning the entire
-	// interval-start-to-tip range would make the circuit unusable the
-	// moment the interval outgrows N (confirmed live: this happened for
-	// real, HeaderHistory grew past 2,000 entries in a single never-yet-
-	// ANCHORED run). Rolling checkpoints let a sequence of real, independent
-	// N-sized proofs cover an arbitrarily long interval instead.
-	// RealProofSubmittedHeight is set by the same handler, once a real proof
-	// verifies AND its public inputs match on-chain state, to the HEIGHT the
-	// checkpoint was just advanced to (0 = no real proof accepted yet for
-	// the current interval) -- storing the height, not just a bool, is
-	// load-bearing: the interval can keep growing (new headers appended)
-	// after a proof is submitted but before RECOVERING is reached, and a
-	// proof only covers headers up to the height it was built against, so a
-	// flat bool would stay stale-true even once newer, never-proven headers
-	// have been appended (confirmed by actually running this pipeline: a
-	// proof submitted while 4 headers were tracked must NOT still read as
-	// valid once a 5th has been appended). Consumed (and reset to 0 only
-	// when RECOVERING is left) by sensors_refresh.go's
-	// refreshReanchoringProofValid, which requires this to equal the
-	// CURRENT latest tracked header's height, not just be nonzero -- which
-	// is exactly what makes a rolling-checkpoint proof landing with no
-	// further headers appended since double as the final proof that
-	// completes RECOVERING -> ANCHORED.
+	// Re-anchoring ZK proof state (spec/README.md's §Re-anchoring via
+	// ZK-Proof of Recovery). HeaderHistory tracks witness headers for the
+	// CURRENT SOVEREIGN/RECOVERING interval only (preblock.go's
+	// CommitFSMTransition). LastAnchoredRoot is rt_last, a rolling
+	// checkpoint that advances every time SubmitRecoveryProof accepts a
+	// proof (the circuit's N_MAX is fixed at compile time; a real interval
+	// isn't, so one proof can't always span the whole interval).
+	// RealProofSubmittedHeight stores the HEIGHT the checkpoint was last
+	// advanced to (not just a bool) so a stale proof can't read as valid
+	// once newer, unproven headers are appended -- see
+	// refreshReanchoringProofValid, its consumer.
 	HeaderHistory            collections.Map[uint64, types.RecoveryHeader]
 	LastAnchoredRoot         collections.Item[[]byte]
 	RealProofSubmittedHeight collections.Item[uint64]
 
 	// peerFilterSrc backs FilterPeerByAddr (peer_filter.go) -- nil until
 	// SetPeerFilterSource is called (cmd/engramd's wirePeerFilter, late-bound
-	// after node.NewNode() constructs the real *p2p.Switch, since
-	// NewEngramApp registers FilterPeerByAddr on BaseApp before that).
+	// after node.NewNode() constructs the real *p2p.Switch).
 	peerFilterSrc PeerFilterSource
 
-	// TxDecoder backs SubmitForcedTx's validation (msg_server.go) that a
-	// forced tx's content is at least a syntactically valid, decodable tx --
-	// nil until SetTxDecoder is called (app.go wires txConfig.TxDecoder()
-	// right after NewKeeper). Optional/nil-safe like peerFilterSrc above:
-	// tests that never call SetTxDecoder skip the check rather than needing
-	// a full TxConfig just to construct a keeper. Found live (E8's A7 test,
-	// this session): SubmitForcedTx previously queued ANY byte content
-	// unconditionally, including content that could never itself appear as
-	// real block-tx bytes (e.g. a bare marker string, or a MsgSubmitForcedTx
-	// envelope whose OWN broadcast-and-inclusion just re-registers a new,
-	// equally-unsatisfiable entry) -- once ignoredRounds for such an entry
-	// reaches MaxIgnoreRounds, IsCensoring (ProcessProposal check #0) trips
-	// on EVERY future proposal from EVERY validator FOREVER, since the
-	// content can never appear in req.Txs to satisfy it. Confirmed via a
-	// live repro: a single such MsgSubmitForcedTx permanently halted a
-	// healthy 4-node cluster (endless round-skip, tens of rounds, no
-	// recovery even after reverting the one validator being tested).
-	// Rejecting undecodable content at submission time closes this
-	// unbounded self-DoS/DoS vector at its source, rather than trying to
-	// recover from it after the fact.
+	// TxDecoder backs SubmitForcedTx's validation that queued content
+	// decodes as a real tx -- nil until SetTxDecoder is called (app.go).
+	// Without it, undecodable content can permanently trip IsCensoring on
+	// every future proposal, since it can never appear in req.Txs.
 	TxDecoder sdk.TxDecoder
 
-	// Double-signing detection (docs/EXPERIMENT.md's E8, "Double-signing"
-	// row), written from preblock.go's NewPreBlocker reading
-	// RequestFinalizeBlock.Misbehavior directly -- see types.EvidenceRecord's
-	// doc for why this is safe to commit (deterministic, agreed block data,
-	// not a local sensor read).
+	// Double-signing detection (docs/EXPERIMENT.md's E8), written from
+	// preblock.go's NewPreBlocker reading RequestFinalizeBlock.Misbehavior
+	// directly -- safe to commit since it's deterministic, agreed block data
+	// (see types.EvidenceRecord's doc).
 	DetectedEvidenceCount collections.Item[uint64]
 	LastDetectedEvidence  collections.Item[types.EvidenceRecord]
 }

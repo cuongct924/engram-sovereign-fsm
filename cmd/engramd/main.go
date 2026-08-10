@@ -254,14 +254,10 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 		config.P2P.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%d", p2pPort)
 		config.P2P.AddrBookStrict = false // container-internal IPs/hostnames aren't publicly routable
 		config.P2P.AllowDuplicateIP = true
-		// RPC defaults to 127.0.0.1 (cmtcfg.DefaultConfig()), which is
-		// unreachable through a Docker port mapping from the host -- found by
-		// actually running this in Docker: `docker compose ps` showed the
-		// port mapped and the container healthy (the healthcheck runs
-		// curl from inside the same container, so 127.0.0.1 works there),
-		// but curl from the host got "Connection reset by peer" on the
-		// mapped port. 0.0.0.0 is safe here since these are isolated
-		// Docker networks, not public-internet-facing.
+		// RPC defaults to 127.0.0.1 (cmtcfg.DefaultConfig()), unreachable
+		// through a Docker port mapping from the host -- 0.0.0.0 is safe
+		// here since these are isolated Docker networks, not
+		// public-internet-facing.
 		config.RPC.ListenAddress = "tcp://0.0.0.0:26657"
 		config.Instrumentation.Prometheus = true
 		// See initHome's identical FilterPeers comment.
@@ -301,14 +297,11 @@ func startCmd(homeFlag *string) *cobra.Command {
 }
 
 // loadConfig reads config/config.toml from home and unmarshals it onto
-// cmtcfg's defaults via viper -- cmtcfg.DefaultConfig() alone does NOT read
+// cmtcfg's defaults via viper -- cmtcfg.DefaultConfig() alone does not read
 // anything from disk, so per-node customization (RPC/P2P ports, seeds,
-// persistent_peers, instrumentation) written by `engramd init` or hand-edited
-// for a multi-node testnet was previously silently ignored at `start` time
-// (found by actually running two nodes with different config.toml ports
-// side by side: the second one failed to bind, still trying the hardcoded
-// default port). This mirrors CometBFT's own cmd/cometbft/commands bootstrap
-// pattern (viper + mapstructure tags already on cmtcfg.Config's fields).
+// persistent_peers) written by `engramd init` would otherwise be silently
+// ignored at `start` time. Mirrors CometBFT's own cmd/cometbft/commands
+// bootstrap pattern.
 func loadConfig(home string) (*cmtcfg.Config, error) {
 	v := viper.New()
 	v.SetConfigFile(filepath.Join(home, "config", "config.toml"))
@@ -419,54 +412,29 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 // vanillaP2PHealthAdapter computes real P2PSnapshot readings from the
 // STANDARD (non-libp2p) CometBFT p2p.Switch -- the transport actually
 // carrying consensus traffic in every deployment of this repo to date
-// (docker/engram-validator-node0N.yml's generated config.toml has
-// `[p2p.libp2p] enabled = false`, confirmed by actually running the 4-node
-// testnet and finding lp2pHealthAdapter's type assertion always failed, so
-// wireP2PSensor silently no-op'd and the P2P sensor read its static
-// zero-value mock forever -- the FSM was stuck reporting SOVEREIGN, driven
-// entirely by Cardinality(ActiveAnchors) = 0, without any real Eclipse
-// condition). This reads real, already-flowing p2p.Switch data (Peers(),
-// IsPersistent(), Status().Duration) -- it does not touch the active
-// consensus data plane, only observes it.
+// (libp2p is disabled in every generated config.toml). Reads real,
+// already-flowing p2p.Switch data (Peers(), IsPersistent(),
+// Status().Duration); does not touch the active consensus data plane, only
+// observes it.
 //
-// ActiveAnchors mirrors persistent_peers (config.toml, already the trusted
-// bootstrap set every validator dials on startup -- see node.go's
-// AddPersistentPeers/DialPeersAsync): a known, pre-designated peer, as
+// ActiveAnchors mirrors persistent_peers (config.toml's trusted bootstrap
+// set every validator dials on startup): a known, pre-designated peer, as
 // opposed to one discovered dynamically via PEX and therefore more exposed
-// to Sybil/Eclipse manipulation.
-//
-// Counted by matching each connected peer's ID against persistentPeerIDs
-// (parsed from config.toml's persistent_peers), NOT via p2p.Peer's own
-// IsPersistent() -- a real, structural bug found live against the 4-node
-// testnet: p2p.Switch.IsPeerPersistent(na) matches by NetAddress (IP:port),
-// and only the DIALING side of a connection ever has a NetAddress that can
-// match a persistent_peers entry (host:26656, the listen address) --
-// acceptRoutine sees the REMOTE peer's actual TCP source, which for an
-// outbound connection is an OS-assigned ephemeral port, never 26656.
-// Confirmed live: in a real, fully-connected 4-node mesh, ActiveAnchors via
-// IsPersistent() summed to exactly 6 across all 4 nodes (the number of
-// undirected edges in a 4-node mesh, each attributed to only its dialing
-// side) and was distributed unevenly/unpredictably per node depending on
-// dial-race timing -- e.g. one run showed {0,3,2,1} across the 4 nodes, a
-// simultaneous clean restart reshuffled it to {3,1,0,2} (same sum, different
-// distribution) -- meaning MinAnchorPeers could structurally fail on
-// whichever node(s) happened to accept more connections than they dialed,
-// with no relation to real network health. ID-based matching is symmetric:
-// a peer's ID doesn't depend on which side dialed.
+// to Sybil/Eclipse manipulation. Counted by matching each connected peer's
+// ID against persistentPeerIDs, NOT via p2p.Peer's own IsPersistent() --
+// IsPersistent() matches by NetAddress (IP:port), and only the DIALING side
+// of a connection has a NetAddress that can match a persistent_peers entry;
+// the ACCEPTING side sees the remote peer's ephemeral source port instead,
+// so IsPersistent() undercounts asymmetrically depending on who dialed whom.
+// ID-based matching is symmetric.
 //
 // CleanPeers has no independent "blacklist" concept in this app yet (the
-// fork's own HealthMonitor.Blacklist is likewise never called anywhere) --
-// counts total connected peers, a documented simplification matching that.
+// fork's own HealthMonitor.Blacklist is likewise never called) -- counts
+// total connected peers, a documented simplification matching that.
 //
-// Latency is now real (Part 1b follow-up): p2p.Peer.RTT() (engram-consensus-core's
-// p2p/conn/connection.go) piggybacks on MConnection's existing PacketPing/
-// PacketPong keep-alive exchange (already running every PingInterval,
-// default 60s, on every real connection) rather than adding a new reactor
-// or protobuf message type -- 0 per-peer until that peer's first exchange
-// completes. This closes the gap the fork's own lp2p.HealthSnapshot still
-// has (libp2p transport is dormant on every real deployment to date, so
-// that side was left at its existing documented limitation, not worth
-// fixing on a code path nothing runs).
+// Latency piggybacks on MConnection's existing PacketPing/PacketPong
+// keep-alive (p2p.Peer.RTT()) rather than a new reactor/protobuf message --
+// 0 per-peer until that peer's first exchange completes.
 type vanillaP2PHealthAdapter struct {
 	sw                *p2p.Switch
 	persistentPeerIDs map[p2p.ID]bool
@@ -529,16 +497,10 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 		}
 		cleanPeers++
 		tenureSum += p.Status().Duration
-		// Real RTT (Phase M0-followup, fork's p2p.Peer.RTT() -- see
-		// engram-consensus-core's connection.go doc): piggybacks on
-		// MConnection's existing PacketPing/PacketPong keep-alive, 0 until
-		// that peer's first exchange completes (up to one PingInterval,
-		// default 60s, after connecting) -- excluded from the max rather
-		// than counted as "0ms, perfectly healthy" during that warm-up
-		// window. Worst-case (max, not average) across peers, matching
-		// this snapshot's other fields' conservative posture (a single
+		// Worst-case (max, not average) across peers: a single
 		// degraded/attacked peer is itself the signal IsP2PQualityHealthy
-		// exists to catch, not something an average should dilute).
+		// exists to catch, not something an average should dilute. 0 until
+		// a peer's first ping/pong exchange completes.
 		if rtt := p.RTT(); rtt > maxRTT {
 			maxRTT = rtt
 		}
@@ -592,20 +554,15 @@ func (a *vanillaP2PHealthAdapter) PeerCountInSubnet(subnet string) uint64 {
 	return count
 }
 
-// wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot-
-// based mock to a live source. n.Switch() only exists after node.NewNode()
-// returns -- NewEngramApp runs before that, so this late-binds the real
-// source in rather than passing it at construction time. Runs before
-// n.Start(), so no real proposal is ever processed with the mock source
-// still active.
+// wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot
+// mock to a live source. n.Switch() only exists after node.NewNode()
+// returns, so this late-binds the source in rather than passing it at
+// construction time -- runs before n.Start(), so no real proposal is ever
+// processed with the mock source still active.
 //
-// Tries the fork's lp2p.Switch first (Phase 7's original wiring, for if
-// libp2p networking is ever actually enabled -- config.toml's
-// `[p2p.libp2p] enabled = true`); falls back to vanillaP2PHealthAdapter
-// against the standard p2p.Switch otherwise, which is what every real
-// deployment of this repo has actually used to date. Only if NEITHER type
-// assertion matches (shouldn't happen -- n.Switch() is always one of these
-// two concrete types) does this stay a no-op on the static mock.
+// Tries the fork's lp2p.Switch first (for if libp2p networking is ever
+// enabled); falls back to vanillaP2PHealthAdapter against the standard
+// p2p.Switch, which every real deployment has actually used to date.
 func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers string) {
 	if lsw, ok := n.Switch().(*lp2p.Switch); ok {
 		engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: lsw})
@@ -623,22 +580,14 @@ func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers strin
 }
 
 // wirePeerFilter upgrades engramApp's ingress peer filter
-// (x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr, registered on
-// BaseApp by app.NewEngramApp before n exists) from its fail-open default to
-// a live PeerFilterSource, mirroring wireP2PSensor's exact late-binding
-// pattern and the same n.Switch() type-switch. Only the vanilla *p2p.Switch
-// case is wired (per this repo's confirmed live topology: lp2p is dormant on
-// every real deployment to date, config.toml's `[p2p.libp2p] enabled =
-// false`) -- if lp2p is ever actually enabled, this silently stays a no-op
-// (fail-open) on that path.
+// (peer_filter.go's FilterPeerByAddr) from its fail-open default to a live
+// PeerFilterSource, mirroring wireP2PSensor's late-binding pattern. Only the
+// vanilla *p2p.Switch case is wired (lp2p is dormant on every real
+// deployment) -- stays a no-op (fail-open) if lp2p is ever enabled instead.
 //
-// Builds its own small vanillaP2PHealthAdapter (sw set, no
-// persistentPeerIDs/firstSeen) rather than reusing wireP2PSensor's instance
-// -- PeerCountInSubnet only ever reads a.sw.Peers() fresh, none of the
-// stateful churn-tracking fields wireP2PSensor's instance carries, so a
-// second lightweight instance is simpler than threading the first one
-// through and avoids the two call sites racing on the same mutex-protected
-// churn state for an unrelated purpose.
+// Builds its own lightweight vanillaP2PHealthAdapter rather than reusing
+// wireP2PSensor's instance, since PeerCountInSubnet only reads a.sw.Peers()
+// fresh and needs none of the stateful churn-tracking fields.
 func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
 	sw, ok := n.Switch().(*p2p.Switch)
 	if !ok {
@@ -647,29 +596,17 @@ func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
 	engramApp.SovereigntyKeeper.SetPeerFilterSource(&vanillaP2PHealthAdapter{sw: sw})
 }
 
-// wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap-based
-// mock to a real bitcoind JSON-RPC connection (x/vigilante/rpc.go, Phase 7),
-// and wires an AnchorTracker against the same connection (x/vigilante/
-// anchor.go) so h_btc_anchored has a real submission-and-confirmation
-// pipeline behind it instead of a value that never advances -- both when
-// BITCOIN_HOST is set (e.g. docker/bitcoin-regtest-cluster.yml's
-// bitcoin-node01). Left unwired (silent no-op) when unset, e.g. local dev
-// with no Bitcoin node running -- BTCSensor just stays on its static mock
-// reading, and no checkpoints get submitted.
+// wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap mock
+// to a real bitcoind JSON-RPC connection, and wires an AnchorTracker against
+// the same connection so h_btc_anchored has a real submission-and-confirmation
+// pipeline behind it -- when BITCOIN_HOST is set. Left unwired (silent
+// no-op) when unset.
 //
 // Requires a wallet with spendable funds already loaded on the connected
-// bitcoind (AnchorTracker.MaybeSubmit's OP_RETURN broadcasts need to pay a
-// fee) -- regtest: `bitcoin-cli createwallet <name>` + mine some blocks to
-// one of its addresses first. This repo does not run the real
-// babylonlabs/babylond vigilante images (docker/engram-validator-node0N.yml
-// previously scaffolded vigilante-submitter0N/reporter0N/
-// checkpointing-monitor0N) -- those daemons expect a real Babylon chain's
-// x/checkpointing/x/btccheckpoint/x/btclightclient modules to pull a
-// BLS-aggregated epoch checkpoint from, which engram-node (x/sovereignty
-// only, see app/app.go's TODO on staking) does not have, so they would not
-// actually function against this app; AnchorTracker is a minimal in-process
-// stand-in achieving the same submit-and-confirm goal without that
-// dependency.
+// bitcoind. This repo does not run the real babylonlabs/babylond vigilante
+// images -- those expect a real Babylon chain's checkpointing modules this
+// app doesn't have; AnchorTracker is a minimal in-process stand-in achieving
+// the same submit-and-confirm goal without that dependency.
 func wireBTCSensor(engramApp *app.EngramApp) {
 	host := os.Getenv("BITCOIN_HOST")
 	if host == "" {
@@ -687,21 +624,14 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 	engramApp.Sensors.Anchor = vigilante.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
 }
 
-// wireDASensor upgrades engramApp's DA sensor from its static
-// SetAvailable-based mock to a real celestia-bridge JSON-RPC connection
-// (x/da/rpc.go, Phase 7), and wires a Publisher against the same connection
-// (x/da/publisher.go) so h_engram_verified has a real submission-and-
-// retrieval pipeline behind it instead of a value that never advances (the
-// exact same liveness-bug class wireBTCSensor's AnchorTracker closes for
-// h_btc_anchored) -- when CELESTIA_BRIDGE_URL is set (e.g.
-// docker/celestia-local-cluster.yml's celestia-bridge, http://127.0.0.1:26658).
-// Left unwired (silent no-op) when unset -- DASensor just stays on its
-// static mock reading.
+// wireDASensor upgrades engramApp's DA sensor from its static SetAvailable
+// mock to a real celestia-bridge JSON-RPC connection, and wires a Publisher
+// against the same connection so h_engram_verified has a real
+// submission-and-retrieval pipeline behind it -- when CELESTIA_BRIDGE_URL is
+// set. Left unwired (silent no-op) when unset.
 //
-// CELESTIA_BRIDGE_AUTH_TOKEN must be the bridge's admin/write JWT
-// (celestia bridge auth admin --p2p.network private inside the container,
-// docker/celestia-local-cluster.yml writes it to /home/celestia/bridge_auth.txt)
-// -- blob.Submit is a write call celestia-node rejects unauthenticated.
+// CELESTIA_BRIDGE_AUTH_TOKEN must be the bridge's admin/write JWT --
+// blob.Submit is a write call celestia-node rejects unauthenticated.
 func wireDASensor(engramApp *app.EngramApp) {
 	url := os.Getenv("CELESTIA_BRIDGE_URL")
 	if url == "" {

@@ -17,32 +17,22 @@ import (
 // arbitrary raw payload, for docs/EXPERIMENT.md's E8 live tests:
 //
 //   - A5 (Withdrawal During SOVEREIGN): --payload containing the literal
-//     "TX_WITHDRAWAL" marker x/sovereignty/proposal.go's containsWithdrawal
-//     scans for -- containsWithdrawal is a raw-byte substring check against
-//     the WHOLE encoded tx (a documented stand-in until this app gets a real
-//     TxDecoder-based classifier, see its own doc), so embedding the marker
-//     inside this Msg's Tx field is sufficient to trigger it once this tx
-//     lands in a block, without needing a real bank/withdrawal Msg type this
-//     app doesn't have.
-//   - A7 (Censorship): --payload identifying a tx content to force into the
-//     ForcedTxQueue, for a byzantine-mode leader (ENGRAM_BYZANTINE_BEHAVIOR=
-//     censor_tx:<payload>) to then be observed deliberately omitting.
+//     "TX_WITHDRAWAL" marker containsWithdrawal scans for.
+//   - A7 (Censorship): --payload identifying tx content to force into
+//     ForcedTxQueue, for a byzantine leader (ENGRAM_BYZANTINE_BEHAVIOR=
+//     censor_tx:<payload>) to then be observed omitting.
 //
 // Reuses buildMinimalTx/newSovereigntyInterfaceRegistry (reanchor_cli.go) --
-// same minimal, intentionally-unsigned tx envelope, for the same reason
-// (this prototype has no x/auth-backed signing flow, see that file's doc).
+// same minimal, intentionally-unsigned tx envelope (no x/auth signing flow
+// in this prototype).
 //
-// --payload-hex and --dry-run exist for A7's live censorship driver
-// specifically: ForcedTxQueue stores msg.Tx verbatim, and IsCensoring's
-// "included" check compares that verbatim content against real req.Txs[1:]
-// block-tx bytes (x/sovereignty/proposal.go's ProcessProposal check #0) --
-// so the tx actually being "forced" must be some OTHER real, independently
-// decodable tx's raw bytes, not a plain string. --dry-run builds that other
-// tx (deterministically -- buildMinimalTx has no timestamp/nonce/random
-// field) and prints its hex WITHOUT broadcasting it, so a driver script can
-// capture the exact bytes to (a) register via a second, separate
-// --payload-hex call and (b) broadcast for real as its own tx -- both must
-// carry byte-identical content for the forced-inclusion check to ever match.
+// --payload-hex and --dry-run exist for A7's censorship driver: ForcedTxQueue
+// stores msg.Tx verbatim, matched against real req.Txs[1:] bytes -- so the
+// "forced" tx must be some OTHER real, independently decodable tx's raw
+// bytes, not a plain string. --dry-run builds that other tx deterministically
+// and prints its hex without broadcasting, so a driver script can capture
+// byte-identical content for both a --payload-hex registration call and a
+// separate real broadcast.
 func txSubmitForcedTxCmd() *cobra.Command {
 	var nodeURL, payload, payloadHex string
 	var dryRun bool
