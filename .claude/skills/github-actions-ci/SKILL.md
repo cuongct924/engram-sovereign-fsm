@@ -51,7 +51,8 @@ adding jobs; don't make every workflow run on every push.
    ```
    Pin the commit to the same one the local sibling checkout is on — not a moving `main`. Update
    this step in lockstep in both `go-test.yml` and `go-lint.yml` (golangci-lint resolves the module
-   graph too).
+   graph too). Run `scripts/check-fork-pin.sh` to verify both files agree and flag drift against
+   the local `../engram-consensus-core` checkout.
 
 7. **Run `black scripts/` locally before committing any Python change under `scripts/`.**
    `black --check` fails the whole CI job on a single unformatted file anywhere in the tree, not
@@ -62,6 +63,7 @@ adding jobs; don't make every workflow run on every push.
 - Confirm every `paths:` filter still matches real files in the repo (a stale glob that matches
   nothing means the workflow silently never runs — same failure class as a stale Go version, just
   quieter).
+- If the change touched the CometBFT fork pin, run `scripts/check-fork-pin.sh` from the repo root.
 - If you changed `go-version-file`, `golangci-lint-action` version, or added a new job, there's no
   local way to fully dry-run GitHub Actions — read the action's own version-compatibility notes
   (e.g. golangci-lint-action's README) rather than guessing at a version number.

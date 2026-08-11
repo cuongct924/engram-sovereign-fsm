@@ -8,10 +8,13 @@ description: Conventions for writing/editing Go code in x/sovereignty, x/da, x/v
 Code in `x/sovereignty`, `x/da`, `x/vigilante` is a **reference implementation** of
 `spec/core/*.tla` — a formally verified TLA+ spec (see `spec/README.md`, `spec/CLAUDE.md`). The
 value of this codebase depends on that traceability staying exact. A Go function that "improves
-on" or diverges from its spec operator without saying so is a defect, not a stylistic choice — this
-has been the actual root cause of real bugs found this session (a prior `CalculateNextState` had a
-branch — "jump directly to SOVEREIGN from any state" — that doesn't exist in `CalculateNextFSMState`,
-silently violating `StrictFSMTransitionSafety`).
+on" or diverges from its spec operator without saying so is a defect, not a stylistic choice — a
+prior `CalculateNextState` had a branch ("jump directly to SOVEREIGN from any state") that doesn't
+exist in `CalculateNextFSMState`, silently violating `StrictFSMTransitionSafety`.
+
+`references/tla-operator-map.md` indexes every operator already ported and which Go function/file
+carries it — check it before rule 3's grep to jump straight to a candidate, then confirm against
+the function's own citation comment.
 
 ## Hard rules
 
