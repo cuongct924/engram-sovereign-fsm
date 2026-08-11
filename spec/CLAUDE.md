@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-A TLA+ formal specification and TLC model-checking harness for the **Engram Hybrid Adaptive Consensus** protocol — a modular blockchain consensus that treats peripheral network health (Bitcoin settlement finality, Celestia data availability, P2P health) as a first-class consensus variable, and degrades gracefully into a local-PoS "Sovereign" fallback mode instead of halting when those layers fail. There is no application source code here — the deliverable is the spec files (`.tla`), their model-checking configs (`.cfg`), and `README.md`, which is the full paper describing the design and proofs. Read `README.md` before making non-trivial spec changes — it is the authoritative description of intended semantics, invariants, and liveness properties, and any change to `core/*.tla` should keep the corresponding README section (invariant statement, transition table, sensor formula) in sync.
+A TLA+ formal specification and TLC model-checking harness for **Engram Hybrid Adaptive Consensus** — a modular blockchain consensus that treats peripheral network health (Bitcoin settlement finality, Celestia data availability, P2P health) as a first-class consensus variable, degrading gracefully into a local-PoS "Sovereign" fallback instead of halting when those layers fail.
 
-Every `core/*.tla` file has an identical `.tla.txt` twin (e.g. `EngramFSM.tla` / `EngramFSM.tla.txt`) — these are plain-text mirrors for viewing outside a TLA+-aware editor. **When editing a `core/*.tla` file, make the same edit to its `.tla.txt` twin** (or regenerate it via `cp`) so the two never drift.
+There is no application source code here: the deliverable is the spec files (`.tla`), their model-checking configs (`.cfg`), and `README.md` — the full paper describing the design and proofs. Read `README.md` before non-trivial spec changes; it is authoritative on semantics, invariants, and liveness properties. Keep the corresponding README section (invariant statement, transition table, sensor formula) in sync with any `core/*.tla` change.
 
 ## Running the verification
 
@@ -18,7 +18,7 @@ java -cp /path/to/tla2tools.jar tlc2.TLC -workers 8 \
   core/MC_ServerRefinementSafety.tla
 ```
 
-There is no separate `mc/` directory and no symlinks anywhere — specs and every `MC_*` driver (TLC and Apalache alike) live directly in `core/`. Deliberate: TLC and Apalache both resolve `EXTENDS` relative to the file being checked, and Apalache has no search-path flag to point elsewhere. An earlier symlinked `core/`+`mc/` split was dropped since a symlink is a standing footgun (silently becomes a disconnected copy under `git config core.symlinks false` or certain editors) — one real directory removes the risk.
+No separate `mc/` directory, no symlinks — specs and every `MC_*` driver (TLC and Apalache alike) live directly in `core/`. Deliberate: both tools resolve `EXTENDS` relative to the file being checked, and Apalache has no search-path flag. A prior symlinked `core/`+`mc/` split was dropped because a symlink silently becomes a disconnected copy under `git config core.symlinks false` or certain editors.
 
 The four spec layers each have their own `MC_*` model-checking pair, all living directly in `core/` — swap the filename below for the layer under test:
 
