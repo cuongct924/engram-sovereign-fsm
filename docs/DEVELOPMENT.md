@@ -79,6 +79,30 @@ Brings up 4 validators + real `bitcoind` regtest + real Celestia (app + bridge) 
 behind every E2–E9 live-data result in `docs/EXPERIMENT.md`. Topology/IPs: see
 `docs/ARCHITECTURE.md`.
 
+`make testnet-up`/`make testnet-down` automate the sequence below (correct ordering, idempotent
+wallet funding, miner-loop lifecycle, Celestia token fetch). `make byzantine-on
+BEHAVIOR=...`/`byzantine-off`, `make double-sign-on`/`double-sign-off`, `make chaos-delay` (or
+`-loss`/`-crash`/`-eclipse`/`-btc-delay`), and `make attacker-a1-up`/`attacker-a2-up` (+ their
+`-down` counterparts) control the E8/E4 attack-behavior toggles — `make help` lists all of them.
+The manual walkthrough below is the reference these targets wrap; use it directly when debugging
+a step in isolation.
+
+### Changing `x/sovereignty.Params` (thresholds, hysteresis, peer limits, ...)
+
+`Params` (`x/sovereignty/types/params.go`) is a consensus-critical value — every validator must
+compute an identical `expectedState` from the same sensor reading, so it is genesis-configured,
+not read from each node's own `.env` at `start` time (a per-process env var could silently
+diverge between validators; genesis is generated once and copied identically to all 4 nodes).
+
+Set `ENGRAM_PARAM_<FIELD>` in `.env` before `make testnet-up` (or before `engramd init`/
+`testnet init-files` run directly) — see `.env.example` for the full list of 15 fields and their
+`DefaultParams()` values. `engramd testnet init-files`/`init` read these, fall back to
+`DefaultParams()` per-field when unset, and reject the whole genesis with a clear error
+(`Params.Validate`) if the result violates a documented cross-field constraint (e.g.
+`SOVEREIGN_THRESHOLD` not exceeding `SUSPICIOUS_THRESHOLD`) — invalid input fails genesis
+generation, never a silently-deployed unsafe chain. `start` never reads `ENGRAM_PARAM_*` itself;
+it only ever loads whatever landed in `genesis.json`.
+
 **The order below is load-bearing, not a preference.** Starting `engramd` before Bitcoin has a
 funded, mature wallet — or mining in bursts while `engramd` is already running — desyncs
 `h_btc_current` from `h_btc_anchored` past `vigilante.VerifyReceipt`'s tolerance window and
@@ -120,10 +144,8 @@ docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
 ./scripts/bitcoin_miner_loop.sh &     # steady cadence from here on, never manual bursts
 
 # 3.3 — the 4 validators
-docker compose --env-file .env -f docker/engram-validator-node01.yml \
-  -f docker/engram-validator-node02.yml -f docker/engram-validator-node03.yml \
-  -f docker/engram-validator-node04.yml up -d --build
-# or: docker compose up -d --build (compose.yml's include: already covers all 4)
+docker compose --env-file .env -f docker/engram-validator-cluster.yml up -d --build
+# or: docker compose up -d --build (compose.yml's include: already covers this)
 ```
 
 Verify: `curl -s http://localhost:26657/status | jq .result.sync_info`, and confirm `AppHash`
@@ -186,8 +208,8 @@ Profile-gated extras, never started by a plain `docker compose up`:
 |---|---|
 | `chaos-delay`/`-loss`/`-crash`/`-eclipse`/`-btc-delay` (in `compose.yml`) | Pumba fault injection |
 | `docker/attacker-peer-swarm.yml` | E4/E8's A1 (slot exhaustion) / A2 (Sybil) attacker containers |
-| `docker/engram-validator-node04-byzantine.yml` | E8's A3/A4/A6/A7 — swaps node04 for a byzantine build |
-| `docker/engram-validator-node04-duplicate.yml` | E8's Double-signing test — a 2nd process on node04's key |
+| `docker/engram-node04-byzantine.yml` | E8's A3/A4/A6/A7 — swaps node04 for a byzantine build |
+| `docker/engram-node04-double-sign.yml` | E8's Double-signing test — a 2nd process on node04's key |
 
 ## 6. Manual Bitcoin regtest walkthrough (fork / reorg / double-spend)
 

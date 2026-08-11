@@ -31,8 +31,8 @@ type GenesisState struct {
 	SafeBlocksCounter     uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`             // Bộ đếm biến `safe_blocks` trong TLA+
 	SuspiciousDuration    uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`            // Bộ đếm biến `suspicious_duration` trong TLA+
 	ReanchoringProofValid bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"` // Biến `reanchoring_proof_valid` trong TLA+
-	HysteresisWaitLimit   uint64                 `protobuf:"varint,5,opt,name=hysteresis_wait_limit,json=hysteresisWaitLimit,proto3" json:"hysteresis_wait_limit,omitempty"`       // Tham số hệ thống giới hạn HYSTERESIS_WAIT
 	InitialMetrics        *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                         // Trạng thái sensor lúc khởi tạo
+	Params                *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                               // Tham số vận hành, xem GenesisParams
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -95,13 +95,6 @@ func (x *GenesisState) GetReanchoringProofValid() bool {
 	return false
 }
 
-func (x *GenesisState) GetHysteresisWaitLimit() uint64 {
-	if x != nil {
-		return x.HysteresisWaitLimit
-	}
-	return 0
-}
-
 func (x *GenesisState) GetInitialMetrics() *PeripheralMetrics {
 	if x != nil {
 		return x.InitialMetrics
@@ -109,18 +102,205 @@ func (x *GenesisState) GetInitialMetrics() *PeripheralMetrics {
 	return nil
 }
 
+func (x *GenesisState) GetParams() *GenesisParams {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+// GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
+// genesis-time configuration -- every validator's genesis.json is generated
+// once and copied identically to all nodes (cmd/engramd/main.go's
+// testnetInitFiles), so values set here are guaranteed uniform across the
+// validator set, unlike a per-process env var. See DefaultParams() for the
+// meaning and cross-field constraints of each value; Params.Validate()
+// enforces those constraints on whatever lands here.
+type GenesisParams struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	SuspiciousThreshold   uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`
+	SovereignThreshold    uint64                 `protobuf:"varint,2,opt,name=sovereign_threshold,json=sovereignThreshold,proto3" json:"sovereign_threshold,omitempty"`
+	DaThreshold           uint64                 `protobuf:"varint,3,opt,name=da_threshold,json=daThreshold,proto3" json:"da_threshold,omitempty"`
+	HysteresisWait        uint64                 `protobuf:"varint,4,opt,name=hysteresis_wait,json=hysteresisWait,proto3" json:"hysteresis_wait,omitempty"`
+	MinPeers              uint64                 `protobuf:"varint,5,opt,name=min_peers,json=minPeers,proto3" json:"min_peers,omitempty"`
+	MinSubnetDiversity    uint64                 `protobuf:"varint,6,opt,name=min_subnet_diversity,json=minSubnetDiversity,proto3" json:"min_subnet_diversity,omitempty"`
+	MinAnchorPeers        uint64                 `protobuf:"varint,7,opt,name=min_anchor_peers,json=minAnchorPeers,proto3" json:"min_anchor_peers,omitempty"`
+	MaxChurnRate          uint64                 `protobuf:"varint,8,opt,name=max_churn_rate,json=maxChurnRate,proto3" json:"max_churn_rate,omitempty"`
+	MinAvgTenure          uint64                 `protobuf:"varint,9,opt,name=min_avg_tenure,json=minAvgTenure,proto3" json:"min_avg_tenure,omitempty"`
+	MaxPeerLatency        uint64                 `protobuf:"varint,10,opt,name=max_peer_latency,json=maxPeerLatency,proto3" json:"max_peer_latency,omitempty"`
+	MaxSuspiciousTime     uint64                 `protobuf:"varint,11,opt,name=max_suspicious_time,json=maxSuspiciousTime,proto3" json:"max_suspicious_time,omitempty"`
+	MaxIgnoreRounds       uint64                 `protobuf:"varint,12,opt,name=max_ignore_rounds,json=maxIgnoreRounds,proto3" json:"max_ignore_rounds,omitempty"`
+	KDeepFinality         uint64                 `protobuf:"varint,13,opt,name=k_deep_finality,json=kDeepFinality,proto3" json:"k_deep_finality,omitempty"`
+	MaxUnprovenTailBlocks uint64                 `protobuf:"varint,14,opt,name=max_unproven_tail_blocks,json=maxUnprovenTailBlocks,proto3" json:"max_unproven_tail_blocks,omitempty"`
+	MaxPeersPerSubnet     uint64                 `protobuf:"varint,15,opt,name=max_peers_per_subnet,json=maxPeersPerSubnet,proto3" json:"max_peers_per_subnet,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *GenesisParams) Reset() {
+	*x = GenesisParams{}
+	mi := &file_engram_sovereignty_v1_genesis_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenesisParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenesisParams) ProtoMessage() {}
+
+func (x *GenesisParams) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_genesis_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenesisParams.ProtoReflect.Descriptor instead.
+func (*GenesisParams) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_genesis_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GenesisParams) GetSuspiciousThreshold() uint64 {
+	if x != nil {
+		return x.SuspiciousThreshold
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetSovereignThreshold() uint64 {
+	if x != nil {
+		return x.SovereignThreshold
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetDaThreshold() uint64 {
+	if x != nil {
+		return x.DaThreshold
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetHysteresisWait() uint64 {
+	if x != nil {
+		return x.HysteresisWait
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMinPeers() uint64 {
+	if x != nil {
+		return x.MinPeers
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMinSubnetDiversity() uint64 {
+	if x != nil {
+		return x.MinSubnetDiversity
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMinAnchorPeers() uint64 {
+	if x != nil {
+		return x.MinAnchorPeers
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxChurnRate() uint64 {
+	if x != nil {
+		return x.MaxChurnRate
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMinAvgTenure() uint64 {
+	if x != nil {
+		return x.MinAvgTenure
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxPeerLatency() uint64 {
+	if x != nil {
+		return x.MaxPeerLatency
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxSuspiciousTime() uint64 {
+	if x != nil {
+		return x.MaxSuspiciousTime
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxIgnoreRounds() uint64 {
+	if x != nil {
+		return x.MaxIgnoreRounds
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetKDeepFinality() uint64 {
+	if x != nil {
+		return x.KDeepFinality
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxUnprovenTailBlocks() uint64 {
+	if x != nil {
+		return x.MaxUnprovenTailBlocks
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxPeersPerSubnet() uint64 {
+	if x != nil {
+		return x.MaxPeersPerSubnet
+	}
+	return 0
+}
+
 var File_engram_sovereignty_v1_genesis_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\n" +
-	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\xcb\x02\n" +
+	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\xf2\x02\n" +
 	"\fGenesisState\x12\x1b\n" +
 	"\tfsm_state\x18\x01 \x01(\tR\bfsmState\x12.\n" +
 	"\x13safe_blocks_counter\x18\x02 \x01(\x04R\x11safeBlocksCounter\x12/\n" +
 	"\x13suspicious_duration\x18\x03 \x01(\x04R\x12suspiciousDuration\x126\n" +
-	"\x17reanchoring_proof_valid\x18\x04 \x01(\bR\x15reanchoringProofValid\x122\n" +
-	"\x15hysteresis_wait_limit\x18\x05 \x01(\x04R\x13hysteresisWaitLimit\x12Q\n" +
-	"\x0finitial_metrics\x18\x06 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\x0einitialMetricsBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x17reanchoring_proof_valid\x18\x04 \x01(\bR\x15reanchoringProofValid\x12Q\n" +
+	"\x0finitial_metrics\x18\x06 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\x0einitialMetrics\x12<\n" +
+	"\x06params\x18\a \x01(\v2$.engram.sovereignty.v1.GenesisParamsR\x06paramsJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\x9c\x05\n" +
+	"\rGenesisParams\x121\n" +
+	"\x14suspicious_threshold\x18\x01 \x01(\x04R\x13suspiciousThreshold\x12/\n" +
+	"\x13sovereign_threshold\x18\x02 \x01(\x04R\x12sovereignThreshold\x12!\n" +
+	"\fda_threshold\x18\x03 \x01(\x04R\vdaThreshold\x12'\n" +
+	"\x0fhysteresis_wait\x18\x04 \x01(\x04R\x0ehysteresisWait\x12\x1b\n" +
+	"\tmin_peers\x18\x05 \x01(\x04R\bminPeers\x120\n" +
+	"\x14min_subnet_diversity\x18\x06 \x01(\x04R\x12minSubnetDiversity\x12(\n" +
+	"\x10min_anchor_peers\x18\a \x01(\x04R\x0eminAnchorPeers\x12$\n" +
+	"\x0emax_churn_rate\x18\b \x01(\x04R\fmaxChurnRate\x12$\n" +
+	"\x0emin_avg_tenure\x18\t \x01(\x04R\fminAvgTenure\x12(\n" +
+	"\x10max_peer_latency\x18\n" +
+	" \x01(\x04R\x0emaxPeerLatency\x12.\n" +
+	"\x13max_suspicious_time\x18\v \x01(\x04R\x11maxSuspiciousTime\x12*\n" +
+	"\x11max_ignore_rounds\x18\f \x01(\x04R\x0fmaxIgnoreRounds\x12&\n" +
+	"\x0fk_deep_finality\x18\r \x01(\x04R\rkDeepFinality\x127\n" +
+	"\x18max_unproven_tail_blocks\x18\x0e \x01(\x04R\x15maxUnprovenTailBlocks\x12/\n" +
+	"\x14max_peers_per_subnet\x18\x0f \x01(\x04R\x11maxPeersPerSubnetBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_genesis_proto_rawDescOnce sync.Once
@@ -134,18 +314,20 @@ func file_engram_sovereignty_v1_genesis_proto_rawDescGZIP() []byte {
 	return file_engram_sovereignty_v1_genesis_proto_rawDescData
 }
 
-var file_engram_sovereignty_v1_genesis_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_engram_sovereignty_v1_genesis_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_engram_sovereignty_v1_genesis_proto_goTypes = []any{
 	(*GenesisState)(nil),      // 0: engram.sovereignty.v1.GenesisState
-	(*PeripheralMetrics)(nil), // 1: engram.sovereignty.v1.PeripheralMetrics
+	(*GenesisParams)(nil),     // 1: engram.sovereignty.v1.GenesisParams
+	(*PeripheralMetrics)(nil), // 2: engram.sovereignty.v1.PeripheralMetrics
 }
 var file_engram_sovereignty_v1_genesis_proto_depIdxs = []int32{
-	1, // 0: engram.sovereignty.v1.GenesisState.initial_metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: engram.sovereignty.v1.GenesisState.initial_metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
+	1, // 1: engram.sovereignty.v1.GenesisState.params:type_name -> engram.sovereignty.v1.GenesisParams
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_engram_sovereignty_v1_genesis_proto_init() }
@@ -160,7 +342,7 @@ func file_engram_sovereignty_v1_genesis_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engram_sovereignty_v1_genesis_proto_rawDesc), len(file_engram_sovereignty_v1_genesis_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

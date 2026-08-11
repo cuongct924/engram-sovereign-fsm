@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -119,8 +120,12 @@ func initHome(home, moniker string) error {
 		return nil
 	}
 
+	params, err := paramsFromEnv()
+	if err != nil {
+		return fmt.Errorf("ENGRAM_PARAM_* override: %w", err)
+	}
 	appStateBytes, err := json.Marshal(map[string]json.RawMessage{
-		"sovereignty": mustMarshalGenesis(sovereigntytypes.DefaultGenesis()),
+		"sovereignty": mustMarshalGenesis(sovereigntytypes.DefaultGenesisWithParams(params)),
 	})
 	if err != nil {
 		return err
@@ -154,6 +159,55 @@ func mustMarshalGenesis(gs *sovereigntytypes.GenesisState) json.RawMessage {
 		panic(err)
 	}
 	return bz
+}
+
+// paramsFromEnv builds x/sovereignty's consensus-critical Params from
+// ENGRAM_PARAM_* env vars, falling back to DefaultParams() per-field when
+// unset. Read ONLY here, at genesis-generation time (initHome/
+// testnetInitFiles) -- never by `start`. Every validator's genesis.json is
+// generated once and copied identically to all nodes, so baking an
+// override in at generation time is safe (guaranteed uniform across the
+// validator set); reading these same env vars again at `start` time would
+// let each node's own local .env silently diverge from the others, which
+// for a consensus-compared value like Params is a liveness/safety bug, not
+// a convenience -- see Params.Validate's doc.
+func paramsFromEnv() (sovereigntytypes.Params, error) {
+	p := sovereigntytypes.DefaultParams()
+	fields := []struct {
+		env string
+		dst *uint64
+	}{
+		{"ENGRAM_PARAM_SUSPICIOUS_THRESHOLD", &p.SuspiciousThreshold},
+		{"ENGRAM_PARAM_SOVEREIGN_THRESHOLD", &p.SovereignThreshold},
+		{"ENGRAM_PARAM_DA_THRESHOLD", &p.DAThreshold},
+		{"ENGRAM_PARAM_HYSTERESIS_WAIT", &p.HysteresisWait},
+		{"ENGRAM_PARAM_MIN_PEERS", &p.MinPeers},
+		{"ENGRAM_PARAM_MIN_SUBNET_DIVERSITY", &p.MinSubnetDiversity},
+		{"ENGRAM_PARAM_MIN_ANCHOR_PEERS", &p.MinAnchorPeers},
+		{"ENGRAM_PARAM_MAX_CHURN_RATE", &p.MaxChurnRate},
+		{"ENGRAM_PARAM_MIN_AVG_TENURE", &p.MinAvgTenure},
+		{"ENGRAM_PARAM_MAX_PEER_LATENCY", &p.MaxPeerLatency},
+		{"ENGRAM_PARAM_MAX_SUSPICIOUS_TIME", &p.MaxSuspiciousTime},
+		{"ENGRAM_PARAM_MAX_IGNORE_ROUNDS", &p.MaxIgnoreRounds},
+		{"ENGRAM_PARAM_K_DEEP_FINALITY", &p.KDeepFinality},
+		{"ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS", &p.MaxUnprovenTailBlocks},
+		{"ENGRAM_PARAM_MAX_PEERS_PER_SUBNET", &p.MaxPeersPerSubnet},
+	}
+	for _, f := range fields {
+		raw := os.Getenv(f.env)
+		if raw == "" {
+			continue
+		}
+		v, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return p, fmt.Errorf("%s=%q: %w", f.env, raw, err)
+		}
+		*f.dst = v
+	}
+	if err := p.Validate(); err != nil {
+		return p, err
+	}
+	return p, nil
 }
 
 // testnetInitFilesCmd generates N validator home directories sharing ONE
@@ -226,8 +280,12 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 	for _, nd := range nodes {
 		validators = append(validators, cmttypes.GenesisValidator{Address: nd.pubKey.Address(), PubKey: nd.pubKey, Power: 10, Name: nd.moniker})
 	}
+	params, err := paramsFromEnv()
+	if err != nil {
+		return fmt.Errorf("ENGRAM_PARAM_* override: %w", err)
+	}
 	appStateBytes, err := json.Marshal(map[string]json.RawMessage{
-		"sovereignty": mustMarshalGenesis(sovereigntytypes.DefaultGenesis()),
+		"sovereignty": mustMarshalGenesis(sovereigntytypes.DefaultGenesisWithParams(params)),
 	})
 	if err != nil {
 		return err

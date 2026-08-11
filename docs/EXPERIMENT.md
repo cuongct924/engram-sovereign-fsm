@@ -304,8 +304,9 @@ worth publishing, not a bug to fix or a parameter to retune.
 **Measured (live-Docker spot-check):** `scripts/e5_hysteresis_flapping/live_spot_check.py`
 confirms the same direction under real consensus timing (not per-block mocking), with a narrower
 2×2 scope (`HYSTERESIS_WAIT` ∈ {2 (current default), 10} × environment ∈ {stable, noisy_da}) rather
-than the full 6×5 sweep, since each combination needs a `params.go` edit, rebuild, and clean
-redeploy. Each combo measured over a real 300s window on the 4-node cluster:
+than the full 6×5 sweep, since each combination then needed a `params.go` edit, rebuild, and
+clean redeploy -- now avoidable via `ENGRAM_PARAM_HYSTERESIS_WAIT` at genesis-generation time
+(`docs/DEVELOPMENT.md` §3). Each combo measured over a real 300s window on the 4-node cluster:
 
 | HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
 |---:|---|---:|---:|---:|
@@ -541,13 +542,13 @@ Withholding ≈ Lemma 7.2 — and reuses E4's infrastructure rather than duplica
 |---|---|---|---|---|
 | A1 | Eclipse Attack (isolation) | Filter blocks the slot before it's taken; FSM doesn't degrade incorrectly | **PASS** — filter holds exactly 8/8 (`MaxPeersPerSubnet`), cluster unaffected | `docker/attacker-peer-swarm.yml` leg `a1`, `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py a1` |
 | A2 | Sybil via simulated multi-subnet | Filter blocks by subnet density, not fooled by diversification | **PASS** — filter holds 8/8 despite a larger swarm (12 attackers) | leg `a2` of the same script |
-| A3 | Data Withholding | Honest validators reject a proposal claiming a fake DA attestation | **PASS** — `safety_held=True divergence_events=0`, height progressed normally through 60s attack + 30s recovery | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=false_da_attestation`), `scripts/e8_attack_resilience/live_byzantine_attacks.py a3_false_da_attestation` |
+| A3 | Data Withholding | Honest validators reject a proposal claiming a fake DA attestation | **PASS** — `safety_held=True divergence_events=0`, height progressed normally through 60s attack + 30s recovery | `docker/engram-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=false_da_attestation`), `scripts/e8_attack_resilience/live_byzantine_attacks.py a3_false_da_attestation` |
 | A4 | Forged BTC Receipt | Honest validators reject a checkpoint hash that doesn't match `ExpectedBlockHash` | **PASS** — same verdict, same mechanism | same script, scenario `a4_forge_btc_hash` |
 | A5 | Withdrawal During SOVEREIGN | Tx is withheld (never committed) while SOVEREIGN | **PASS** — `blocked_correctly=True` (real CLI timeout waiting on DeliverTx, tx never commits while SOVEREIGN); cluster recovers normally once celestia-bridge is restored | `engramd tx-submit-forced-tx --payload "TX_WITHDRAWAL..."` (`cmd/engramd/e8_cli.go`), `scripts/e8_attack_resilience/live_withdrawal_test.py` |
 | A6 | Malicious Proposer | Honest validators reject a fake `fsm_state` that doesn't match their own computation | **PASS** — same verdict, same mechanism | same byzantine script, scenario `a6_fake_fsm_state` |
-| A7 | Censorship / Tx Withholding | A leader deliberately omitting a tx is caught by `IsCensoring`/`ForcedTxQueue` | **PASS** (after fixing 3 real bugs, see below) — `safety_held=True divergence_events=0`, height progressed continuously 10→132 throughout the censoring window | `docker/engram-validator-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<hex>`), `scripts/e8_attack_resilience/live_censorship_test.py` |
+| A7 | Censorship / Tx Withholding | A leader deliberately omitting a tx is caught by `IsCensoring`/`ForcedTxQueue` | **PASS** (after fixing 3 real bugs, see below) — `safety_held=True divergence_events=0`, height progressed continuously 10→132 throughout the censoring window | `docker/engram-node04-byzantine.yml` (`ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<hex>`), `scripts/e8_attack_resilience/live_censorship_test.py` |
 | A8 | Combined Attack | Safety holds under multiple overlapping attack vectors | **PASS** — node04 byzantine (`fake_fsm_state:SOVEREIGN`) simultaneous with an A1 swarm of 10 attackers, `safety_held=True divergence_events=0`, height progressed continuously 145→309 through 120s of combined attack | `scripts/e8_attack_resilience/live_combined_attack.py` |
-| — | Double-signing | Evidence extracted/logged | **PASS** — all 3 honest validators detected real `DuplicateVoteEvidence`, 1-block detection latency, confirmed independently twice (offense heights 765 and 773) | `x/sovereignty/types/evidence.go` + `preblock.go`'s `recordDetectedEvidence`, `docker/engram-validator-node04-duplicate.yml`, `scripts/e8_attack_resilience/live_double_signing_test.py` — see below |
+| — | Double-signing | Evidence extracted/logged | **PASS** — all 3 honest validators detected real `DuplicateVoteEvidence`, 1-block detection latency, confirmed independently twice (offense heights 765 and 773) | `x/sovereignty/types/evidence.go` + `preblock.go`'s `recordDetectedEvidence`, `docker/engram-node04-double-sign.yml`, `scripts/e8_attack_resilience/live_double_signing_test.py` — see below |
 
 **Double-signing closed without wiring `x/evidence`:** ABCI 2.0's `RequestFinalizeBlock.Misbehavior`
 already carries real `DuplicateVoteEvidence`/`LightClientAttackEvidence` reports from CometBFT's
@@ -560,7 +561,7 @@ divergence): `req.Misbehavior` is already-agreed, deterministic data, exactly li
 a fresh local read (see the comment in `evidence.go`).
 
 The hardest half (one real, live validator behaving maliciously) is closed via
-`docker/engram-validator-node04-duplicate.yml`: it clones node04's real `priv_validator_key.json`
+`docker/engram-node04-double-sign.yml`: it clones node04's real `priv_validator_key.json`
 into a second container, but deliberately does **not** share `priv_validator_state.json` (FilePV's
 last-signed height/round tracker, its built-in double-sign guard) — sharing it would make the
 second process unable to double-sign, by design. 3 unit tests (`evidence_test.go`) confirm
@@ -583,7 +584,7 @@ offense_height=773/detected=774). Observed via `docker logs` (no dedicated Query
 
 ### Bugs found and fixed during A7/A8/Double-signing (real, found by running live)
 
-1. **`docker/engram-validator-node04-byzantine.yml` had its own top-level `name:`** — when merged
+1. **`docker/engram-node04-byzantine.yml` had its own top-level `name:`** — when merged
    with `compose.yml` via `-f a -f b`, Compose takes the `name:` from the last file, turning this
    override into a *separate* Compose project instead of joining the real cluster's project —
    caused a real "container name /engram-node04 already in use" conflict when swapping this
@@ -619,7 +620,7 @@ offense_height=773/detected=774). Observed via `docker logs` (no dedicated Query
    tx). (`x/sovereignty/keeper/msg_server.go`, `x/sovereignty/keeper/keeper.go`, `app/app.go`)
 5. **Docker Desktop (macOS virtiofs) can't mount a single file nested inside a directory already
    bind-mounted from another source** — a real infrastructure error, hit twice:
-   `docker/engram-validator-node04-duplicate.yml`'s two nested volume lines
+   `docker/engram-node04-double-sign.yml`'s two nested volume lines
    (`priv_validator_key.json`/`genesis.json` from different sources, nested inside
    `/root/.engramd`, itself already a bind mount) → "mountpoint ... is outside of rootfs". Fixed
    by removing the nested volumes and instead having a Python script (`stage_duplicate_identity`)

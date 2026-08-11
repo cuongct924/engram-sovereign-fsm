@@ -118,8 +118,8 @@ func (a AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawM
 		SafeBlocksCounter:     safeBlocks,
 		SuspiciousDuration:    suspiciousDuration,
 		ReanchoringProofValid: proofValid,
-		HysteresisWaitLimit:   a.keeper.Params.HysteresisWait,
 		InitialMetrics:        metrics,
+		Params:                a.keeper.Params.ToGenesisParams(),
 	}
 	return cdc.MustMarshalJSON(gs)
 }

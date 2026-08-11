@@ -16,7 +16,10 @@ type Keeper struct {
 	Schema       collections.Schema
 
 	// Params defaults to spec/core/MC_StressC1Safety.cfg's verified values
-	// (types.DefaultParams). Not yet genesis-configurable beyond HysteresisWaitLimit.
+	// (types.DefaultParams) here at construction time, then gets overridden
+	// by app.go's InitChainer from the genesis-supplied (validated)
+	// GenesisParams -- see GenesisParams.ToParams's doc for why genesis,
+	// not a per-process env var, is the safe place to configure these.
 	Params types.Params
 
 	// FSM state, mirroring spec/core/EngramFSM.tla's state variables.

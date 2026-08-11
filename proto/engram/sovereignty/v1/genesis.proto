@@ -15,6 +15,35 @@ message GenesisState {
   uint64            safe_blocks_counter   = 2; // Bộ đếm biến `safe_blocks` trong TLA+
   uint64            suspicious_duration   = 3; // Bộ đếm biến `suspicious_duration` trong TLA+
   bool              reanchoring_proof_valid = 4; // Biến `reanchoring_proof_valid` trong TLA+
-  uint64            hysteresis_wait_limit = 5; // Tham số hệ thống giới hạn HYSTERESIS_WAIT
+  // field 5 (hysteresis_wait_limit) removed -- superseded by params.hysteresis_wait
+  // below; it was never actually read back into keeper state (dead field).
+  reserved 5;
+  reserved "hysteresis_wait_limit";
   PeripheralMetrics initial_metrics       = 6; // Trạng thái sensor lúc khởi tạo
+  GenesisParams     params                = 7; // Tham số vận hành, xem GenesisParams
+}
+
+// GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
+// genesis-time configuration -- every validator's genesis.json is generated
+// once and copied identically to all nodes (cmd/engramd/main.go's
+// testnetInitFiles), so values set here are guaranteed uniform across the
+// validator set, unlike a per-process env var. See DefaultParams() for the
+// meaning and cross-field constraints of each value; Params.Validate()
+// enforces those constraints on whatever lands here.
+message GenesisParams {
+  uint64 suspicious_threshold     = 1;
+  uint64 sovereign_threshold      = 2;
+  uint64 da_threshold             = 3;
+  uint64 hysteresis_wait          = 4;
+  uint64 min_peers                = 5;
+  uint64 min_subnet_diversity     = 6;
+  uint64 min_anchor_peers         = 7;
+  uint64 max_churn_rate           = 8;
+  uint64 min_avg_tenure           = 9;
+  uint64 max_peer_latency         = 10;
+  uint64 max_suspicious_time      = 11;
+  uint64 max_ignore_rounds        = 12;
+  uint64 k_deep_finality          = 13;
+  uint64 max_unproven_tail_blocks = 14;
+  uint64 max_peers_per_subnet     = 15;
 }

@@ -1,5 +1,7 @@
 package types
 
+import "fmt"
+
 // Params mirrors the CONSTANTS declared in spec/core/EngramFSM.tla.
 type Params struct {
 	SuspiciousThreshold uint64 // BTC gap threshold for Gray Failure warning
@@ -80,5 +82,90 @@ func DefaultParams() Params {
 		// MinSubnetDiversity above) or the ingress filter would reject
 		// their own mesh connections, not just an attacker's.
 		MaxPeersPerSubnet: 8,
+	}
+}
+
+// Validate enforces the cross-field constraints documented on
+// DefaultParams above -- called from InitChain (app/app.go) on whatever
+// genesis actually supplies, whether that's DefaultParams() or a
+// genesis-time ENGRAM_PARAM_* override (cmd/engramd/main.go), so a bad
+// override fails the chain at genesis rather than silently producing
+// unreachable states or self-locking the ingress filter.
+func (p Params) Validate() error {
+	if p.KDeepFinality == 0 {
+		return fmt.Errorf("params: KDeepFinality must be >= 1 (0 confirmations defeats reorg safety)")
+	}
+	// btc_gap sits at [KDeepFinality, KDeepFinality+1] even when Bitcoin is
+	// healthy (AnchorTracker only reports h_btc_anchored once KDeepFinality
+	// confirmations land) -- both thresholds must clear that band, or the
+	// circuit breaker trips on a perfectly healthy chain.
+	floor := p.KDeepFinality + 1
+	if p.SuspiciousThreshold <= floor {
+		return fmt.Errorf("params: SuspiciousThreshold (%d) must be > KDeepFinality+1 (%d)", p.SuspiciousThreshold, floor)
+	}
+	if p.SovereignThreshold <= floor {
+		return fmt.Errorf("params: SovereignThreshold (%d) must be > KDeepFinality+1 (%d)", p.SovereignThreshold, floor)
+	}
+	// IsWarningCondition's band is [SuspiciousThreshold, SovereignThreshold)
+	// (predicates.go) -- if SovereignThreshold doesn't exceed
+	// SuspiciousThreshold, SUSPICIOUS is never reachable at all.
+	if p.SovereignThreshold <= p.SuspiciousThreshold {
+		return fmt.Errorf("params: SovereignThreshold (%d) must be > SuspiciousThreshold (%d)", p.SovereignThreshold, p.SuspiciousThreshold)
+	}
+	if p.DAThreshold == 0 {
+		return fmt.Errorf("params: DAThreshold must be >= 1")
+	}
+	if p.MaxPeersPerSubnet == 0 {
+		return fmt.Errorf("params: MaxPeersPerSubnet must be >= 1 (0 rejects every peer, including honest validators)")
+	}
+	return nil
+}
+
+// ToGenesisParams converts to the genesis wire format (GenesisParams,
+// genesis.proto) -- see that message's doc for why genesis, not an env var
+// read per-process, is the safe place to configure these.
+func (p Params) ToGenesisParams() *GenesisParams {
+	return &GenesisParams{
+		SuspiciousThreshold:   p.SuspiciousThreshold,
+		SovereignThreshold:    p.SovereignThreshold,
+		DaThreshold:           p.DAThreshold,
+		HysteresisWait:        p.HysteresisWait,
+		MinPeers:              p.MinPeers,
+		MinSubnetDiversity:    p.MinSubnetDiversity,
+		MinAnchorPeers:        p.MinAnchorPeers,
+		MaxChurnRate:          p.MaxChurnRate,
+		MinAvgTenure:          p.MinAvgTenure,
+		MaxPeerLatency:        p.MaxPeerLatency,
+		MaxSuspiciousTime:     p.MaxSuspiciousTime,
+		MaxIgnoreRounds:       p.MaxIgnoreRounds,
+		KDeepFinality:         p.KDeepFinality,
+		MaxUnprovenTailBlocks: p.MaxUnprovenTailBlocks,
+		MaxPeersPerSubnet:     p.MaxPeersPerSubnet,
+	}
+}
+
+// ToParams converts a genesis-supplied GenesisParams back to the runtime
+// Params type. Returns DefaultParams() if gp is nil (genesis predates this
+// field, or a test/harness never set it).
+func (gp *GenesisParams) ToParams() Params {
+	if gp == nil {
+		return DefaultParams()
+	}
+	return Params{
+		SuspiciousThreshold:   gp.SuspiciousThreshold,
+		SovereignThreshold:    gp.SovereignThreshold,
+		DAThreshold:           gp.DaThreshold,
+		HysteresisWait:        gp.HysteresisWait,
+		MinPeers:              gp.MinPeers,
+		MinSubnetDiversity:    gp.MinSubnetDiversity,
+		MinAnchorPeers:        gp.MinAnchorPeers,
+		MaxChurnRate:          gp.MaxChurnRate,
+		MinAvgTenure:          gp.MinAvgTenure,
+		MaxPeerLatency:        gp.MaxPeerLatency,
+		MaxSuspiciousTime:     gp.MaxSuspiciousTime,
+		MaxIgnoreRounds:       gp.MaxIgnoreRounds,
+		KDeepFinality:         gp.KDeepFinality,
+		MaxUnprovenTailBlocks: gp.MaxUnprovenTailBlocks,
+		MaxPeersPerSubnet:     gp.MaxPeersPerSubnet,
 	}
 }
