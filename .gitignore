@@ -32,6 +32,7 @@ venv/
 __pycache__/
 *.pyc
 **.DS_Store
+.DS_Store
 
 # Editor/IDE
 .idea/
@@ -94,4 +95,4 @@ build/
 /engramd
 
 .claude/worktrees
-spec/.claude
+.claude/settings.local.json
