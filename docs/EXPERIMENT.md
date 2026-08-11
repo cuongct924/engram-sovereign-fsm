@@ -730,27 +730,12 @@ the shared helper: `stop` before `rm -f`.
 
 ---
 
-## 4. Minimum Viable Experiment Suite
-
-Don't over-scope. These five groups cover all three evidence layers: **formal**, **systems**, and
-**cryptographic microbenchmark**.
-
-| # | Group | Required content |
-|---|---|---|
-| 1 | TLA+ verification + ablation counterexamples | Reproduce safety/liveness; ablations for hysteresis, circuit breaker, P2P gate, DA consistency |
-| 2 | Fault-injection prototype on a 4/7-node local testnet | BTC failure, DA failure, P2P eclipse, combined failure, and recovery |
-| 3 | Consensus overhead benchmark | Vanilla CometBFT vs. extended proposal |
-| 4 | Recovery Proof Evaluation | Circuit composition (Table 6A), scaling benchmark (Table 6B) at 10-5,000 sovereign blocks; Figure 6 scaling plot |
-| 5 | Attack-resilience integration tests | Forged receipt, data withholding, withdrawal during fallback, fake FSM state |
-
----
-
-## 5. Figures & Tables Needed in the Paper
+## 4. Figures & Tables Needed in the Paper
 
 | Figure/Table | Content |
 |---|---|
 | **Fig. 1** | Architecture: Engram execution + BTC settlement + Celestia DA + FSM sensors |
-| **Fig. 2** | FSM timeline under combined failure *(E9, or E2 if E9 isn't available)* |
+| **Fig. 2** | FSM timeline under combined failure *(E9)* |
 | **Fig. 3** | Availability/throughput during outage: Engram FSM vs. vanilla CometBFT *(E2)* |
 | **Fig. 4** | Recovery stability vs. `HYSTERESIS_WAIT` *(E5)* |
 | **Fig. 6** | Recovery Proof Scaling: 4 panels (Constraint Count, Proving Time, Verification Time, Proof Size) *(E6)* |
@@ -759,25 +744,8 @@ Don't over-scope. These five groups cover all three evidence layers: **formal**,
 | **Table 2** | Failure matrix and expected policy *(E3)* |
 | **Table 3** | Attack-resilience tests *(E8)* |
 | **Table 4** | Extended proposal overhead *(E7)* |
-| **Table 5** | Ablation study |
+| **Table 5** | Ablation study *(E1)*|
 | **Table 6** | P2P profiler accuracy *(E4)* |
-
----
-
-## 6. Immediate Repo TODOs
-
-Before running the experiments, the following need finishing:
-
-- [ ] Complete the real `BeginBlock` in `x/sovereignty/abci.go` — no longer a comment.
-- [ ] Complete `CalculateNextFSMState`, `ExecuteFSMTransition`, `IsWarningCondition`,
-      `IsCriticalCondition`, `IsHealthyCondition` in Go to match the TLA+.
-- [ ] Build mock modules for the BTC finality, DA receipt, and P2P health sensors.
-- [ ] Turn `tests/fsm_transition_e2e_test.go` into a real test with failure-matrix scenarios.
-- [ ] Re-enable the `computed_new_root == state_root_new` constraint in Noir, or maintain two
-      versions: an unconstrained demo and a constrained benchmark.
-- [ ] Add reproducibility scripts: `make test-faults`, `make bench-consensus`, `make bench-zk`,
-      `make verify-tla`.
-- [ ] Log every state transition to CSV/JSON to auto-generate timelines.
 
 ---
 
