@@ -1,5 +1,5 @@
 # Deliberately no top-level `name:` here -- see
-# engram-validator-node04-byzantine.yml's comment for why (Compose forks
+# engram-node04-byzantine.yml's comment for why (Compose forks
 # project identity from a sub-file's own `name:`).
 #
 # Duplicate-key harness for docs/EXPERIMENT.md's E8 "Double-signing" row --
@@ -39,13 +39,12 @@ services:
       #
       # priv_validator_key.json/genesis.json are not separate nested bind
       # mounts (Docker Desktop's macOS virtiofs backend can't mount a file
-      # whose target resolves inside a directory that's itself already a
-      # bind-mount source). Fixed by having the caller
-      # (scripts/e8_attack_resilience/live_double_signing_test.py's
-      # start_duplicate) copy both files onto the host at
+      # nested inside an already-bind-mounted directory) -- instead,
+      # scripts/e8_attack_resilience/live_double_signing_test.py's
+      # start_duplicate copies both files onto the host at
       # ../testnet-data/engram-node04-duplicate/config/ before `docker
-      # compose up` -- they arrive inside the container for free via this
-      # single top-level mount.
+      # compose up`, so they arrive inside the container via this one
+      # top-level mount.
       - ../testnet-data/engram-node04-duplicate:/root/.engramd
     environment:
       # :- (default), not :? (required) -- a required var with no default
@@ -67,6 +66,6 @@ services:
         exec engramd start --home /root/.engramd
     restart: "no"
 
-# engram-net is declared once in the root compose.yml (owns it); see the
-# existing engram-validator-node0N.yml/attacker-peer-swarm.yml files for the
-# same "conflicts with imported resource" reason this doesn't redeclare it.
+# engram-net is declared once in the root compose.yml (owns it); see
+# engram-validator-cluster.yml/attacker-peer-swarm.yml for the same
+# "conflicts with imported resource" reason this doesn't redeclare it.

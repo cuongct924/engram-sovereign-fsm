@@ -8,7 +8,7 @@
 # rows -- not in compose.yml's `include:` list (that would make byzantine
 # mode always active). Applied explicitly on top of the normal cluster:
 #
-#   docker compose -f compose.yml -f docker/engram-validator-node04-byzantine.yml \
+#   docker compose -f compose.yml -f docker/engram-node04-byzantine.yml \
 #     up -d --no-deps engram-node04
 #
 # Compose merges `environment:` by key, so this only needs to declare

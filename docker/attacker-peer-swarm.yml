@@ -491,8 +491,8 @@ services:
         exec engramd start --home /root/.engramd
 
 # engram-net is declared once in the root compose.yml (owns it); the A1 leg
-# joins it by name, same convention as docker/engram-validator-node0N.yml.
+# joins it by name, same convention as docker/engram-validator-cluster.yml.
 # attacker-subnet-a/b/c/d are declared in compose.yml too (added alongside
 # engram-net/bitcoin-net/celestia-net) -- redeclaring them here would hit the
-# same "conflicts with imported resource" error engram-validator-node0N.yml's
+# same "conflicts with imported resource" error engram-validator-cluster.yml's
 # own trailing comment already documents for this exact include: pattern.

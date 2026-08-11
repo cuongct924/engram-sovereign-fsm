@@ -9,27 +9,22 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.50
     ports:
-      # Host-side 27656/27657, not 26656/26657: those are CometBFT's
-      # standard P2P/RPC ports, which engram-node01 also needs on the host.
-      # Container-internal ports stay 26656/26657 (celestia-app's own
-      # convention) -- only the host mapping changes; nothing outside this
-      # container reaches celestia-app via its host port.
+      # Host-side 27656/27657, not CometBFT's standard 26656/26657 (which
+      # engram-node01 also needs on the host) -- container-internal ports
+      # are unchanged, only the host mapping shifts.
       - "27656:26656"
       - "27657:26657"
       - "9090:9090"
-    # (No 26658 mapping here -- that's celestia-node's RPC port convention,
-    # used by celestia-bridge below, not celestia-appd's; it conflicts with
-    # celestia-bridge's own 26658:26658.)
+    # No 26658 mapping here -- that's celestia-node's RPC port (used by
+    # celestia-bridge below), not celestia-appd's.
     environment:
       - CELESTIA_CHAIN_ID=private
     volumes:
       - ../data/celestia-app:/home/celestia
     restart: unless-stopped
     healthcheck:
-      # curl isn't installed in this image (only wget). The exec-form CMD
-      # array can't interpret a shell pipe, so a "url | grep ..." test
-      # fails unconditionally regardless of real health -- --spider avoids
-      # needing a shell/pipe at all: exit 0 iff the RPC endpoint answers.
+      # wget only (no curl in this image); --spider needs no shell/pipe,
+      # unlike a piped "url | grep" test under exec-form CMD.
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:26657/status"]
       interval: 30s
       timeout: 10s
@@ -43,30 +38,20 @@ services:
         reservations:
           cpus: '0.2'
           memory: 512M
-    # Override the image's default ENTRYPOINT (/opt/entrypoint.sh) -- it
-    # does `exec /bin/celestia-appd "$@"` unconditionally with no shell
-    # interpretation, so a multi-statement init-then-start script needs a
-    # real shell entrypoint instead.
+    # Overrides the image's default ENTRYPOINT (a bare, non-shell
+    # `exec /bin/celestia-appd "$@"`) -- the multi-statement
+    # init-then-start script below needs a real shell.
     entrypoint: ["/bin/sh", "-c"]
     command:
-      # `init` has no --keyring-backend flag (that's `keys add`), and its
-      # default --home is a subdir of this volume, not the volume root.
-      # `start` needs an explicit minimum gas price or it refuses to boot;
-      # "utia" is the real default bond/fee denom, not "stake". `init`
-      # alone never registers a validator -- needs the standard manual
-      # bootstrap (keys add, add-genesis-account, gentx, collect-gentxs)
-      # `engramd init` does automatically but celestia-appd's `init` does
-      # not, or `start` panics with "validator set is empty after
-      # InitGenesis". Gated on gentx being collected (config/gentx/ removed
-      # by collect-gentxs), not genesis.json's mere existence -- `init`
-      # writes genesis.json (empty validator set) before the gentx steps
-      # run, so gating on existence alone would permanently skip retrying
-      # after a mid-bootstrap crash.
-      #
-      # `init` writes config.toml with [tx_index] indexer = "null" by
-      # default, with no `start`-time flag to override it -- x/da's
-      # blob-submission client needs tx indexing to look up submitted txs
-      # by hash, so patch to "kv" right after init.
+      # celestia-appd's `init` has no --keyring-backend flag (`keys add`
+      # does) and doesn't register a validator on its own -- keys/genesis
+      # account/gentx/collect-gentxs are required manually, or `start`
+      # boots with an empty validator set. Gated on gentx being collected
+      # (config/gentx/ removed by collect-gentxs), not genesis.json's
+      # existence, since `init` writes genesis.json before gentx runs.
+      # `start` also requires an explicit --minimum-gas-prices to boot.
+      # Also patches config.toml's tx indexer to "kv" (default "null") --
+      # x/da's blob-submission client needs it to look up txs by hash.
       - |
         if [ ! -f /home/celestia/.celestia-app/config/genesis.json ] || [ -d /home/celestia/.celestia-app/config/gentx ]; then
           celestia-appd init mynode --chain-id private &&
@@ -93,10 +78,8 @@ services:
     restart: unless-stopped
     healthcheck:
       # celestia-node's RPC is JSON-RPC 2.0 over POST only -- a plain GET
-      # always returns HTTP 400 regardless of real node health. POSTing a
-      # real JSON-RPC call instead; header.NetworkHead needs no params and
-      # works with --rpc.skip-auth (added to bridge start below -- a local
-      # devnet, not public-facing, so skipping the JWT here is fine).
+      # always returns HTTP 400 regardless of real health. --rpc.skip-auth
+      # below is fine here (local devnet, not public-facing).
       test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
              "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
              "http://127.0.0.1:26658/"]
@@ -118,27 +101,21 @@ services:
       - NODE_TYPE=bridge
       - P2P_NETWORK=private
     # Same entrypoint-override reasoning as celestia-app above: this
-    # image's auto-init logic doesn't generate the admin JWT (`celestia
-    # bridge auth admin`) x/da's blob-submission client needs, so a plain
-    # args-only command isn't enough here either.
+    # image's auto-init doesn't generate the admin JWT x/da's
+    # blob-submission client needs, so a plain args-only command isn't
+    # enough here either.
     entrypoint: ["/bin/sh", "-c"]
     command:
-      # `bridge init --help`: --p2p.network must be passed on both init and
-      # start. With --p2p.network private, the node store lands at
-      # /home/celestia/.celestia-bridge-private, not the default-network
-      # path -- gate the skip-init check on that directory.
+      # --p2p.network must be passed to both init and start; with `private`
+      # the node store lands at /home/celestia/.celestia-bridge-private
+      # (not the default path) -- gate the skip-init check on that
+      # directory. --core.ip on init records Core.IP/RPCPort/GRPCPort but
+      # not [Header] TrustedHash (no CLI flag for it in this version),
+      # which start requires -- fetch block 1's real hash from
+      # celestia-app's RPC and patch it into config.toml directly.
       #
-      # --core.ip on init only records Core.IP/RPCPort/GRPCPort -- it does
-      # NOT auto-populate [Header] TrustedHash, and this celestia-node
-      # version has no CLI flag for it either. Without it, start panics
-      # with "core/fetcher: block not found, hash: ". Fetching block 1's
-      # real hash from celestia-app's RPC and patching it into config.toml
-      # via sed is the same fix Celestia's own troubleshooting docs
-      # describe for other versions.
-      #
-      # $$-escaped below (HOME_DIR/TRUSTED_HASH) so Compose passes a
-      # literal $VAR through to the container's shell instead of
-      # interpolating it from the host's environment first.
+      # $$-escaped (HOME_DIR/TRUSTED_HASH) so Compose passes a literal $VAR
+      # through to the container's shell instead of interpolating it first.
       - |
         HOME_DIR=/home/celestia/.celestia-bridge-private
         if [ ! -d "$$HOME_DIR" ]; then

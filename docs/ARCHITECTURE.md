@@ -69,12 +69,15 @@ actually arrive from. Full writeup:
 Each validator uses offset ports to avoid host collisions; only **host-mapped** ports differ --
 every container listens on the same in-network ports.
 
-| Node | Compose file | Engram RPC | Cosmos REST | CometBFT metrics |
-|---|---|---|---|---|
-| `engram-node01` | `docker/engram-validator-node01.yml` | `26657` | `1317` | `26660` |
-| `engram-node02` | `docker/engram-validator-node02.yml` (+100) | `26757` | `1417` | `26760` |
-| `engram-node03` | `docker/engram-validator-node03.yml` (+200) | `26857` | `1517` | `26860` |
-| `engram-node04` | `docker/engram-validator-node04.yml` (+300) | `26957` | `1617` | `26960` |
+All 4 validators are defined in `docker/engram-validator-cluster.yml` (one file, YAML-anchor templated
+-- see that file for the shared base and per-node overrides).
+
+| Node | Engram RPC | Cosmos REST | CometBFT metrics |
+|---|---|---|---|
+| `engram-node01` | `26657` | `1317` | `26660` |
+| `engram-node02` (+100) | `26757` | `1417` | `26760` |
+| `engram-node03` (+200) | `26857` | `1517` | `26860` |
+| `engram-node04` (+300) | `26957` | `1617` | `26960` |
 
 `CometBFT metrics` is CometBFT's own built-in Prometheus-format `/metrics` endpoint
 (`[instrumentation] prometheus = true`) -- free/always-on, but nothing currently scrapes it: no
@@ -235,7 +238,7 @@ The actual mechanism (`x/sovereignty/proposal.go`, `preblock.go`):
   local `CalculateNextState` + `x/da.VerifyReceipt` + `x/vigilante.VerifyReceipt` + the
   withdrawal circuit breaker (mirrors `IsValidProposal`, `spec/core/EngramTendermint.tla:281-307`),
   rejecting the whole proposal on any mismatch. If `ENGRAM_BYZANTINE_BEHAVIOR` is set on a
-  validator (`docker/engram-validator-node04-byzantine.yml` -- never set on a real validator),
+  validator (`docker/engram-node04-byzantine.yml` -- never set on a real validator),
   `PrepareProposal` deliberately corrupts its own claim (fake `fsm_state`, forged BTC hash, false
   DA attestation, or censored tx) to exercise this rejection path live, for docs/EXPERIMENT.md's
   E8 attack-resilience rows.
@@ -266,10 +269,10 @@ purely for live experiment data collection -- never started by a plain `docker c
   `172.28.0.201-210` (peer-slot-exhaustion). A2 leg: `attacker-a2-*` (dynamic), also attached to
   its own `attacker-subnet-a/b/c/d` (`172.30-33.0.0/24`, profile-gated) but reachable via
   `engram-net` too, per §1's routing note.
-* **`docker/engram-validator-node04-byzantine.yml`** (E8's A3/A4/A6/A7): override applied via
-  `docker compose -f compose.yml -f docker/engram-validator-node04-byzantine.yml` (never included
+* **`docker/engram-node04-byzantine.yml`** (E8's A3/A4/A6/A7): override applied via
+  `docker compose -f compose.yml -f docker/engram-node04-byzantine.yml` (never included
   by default) that sets `ENGRAM_BYZANTINE_BEHAVIOR` on node04's real environment.
-* **`docker/engram-validator-node04-duplicate.yml`** (E8's Double-signing, `172.28.0.220`): a
+* **`docker/engram-node04-double-sign.yml`** (E8's Double-signing, `172.28.0.220`): a
   second process holding node04's real signing key but a separate `priv_validator_state.json`, to
   produce a genuine double-sign for CometBFT's stock evidence pool to detect.
 

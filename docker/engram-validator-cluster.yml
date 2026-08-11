@@ -1,0 +1,153 @@
+name: engram-validator-cluster
+
+# Shared shape for all 4 validators -- only what differs per node (hostname/
+# container_name, the 3 network IPs, host-mapped ports, volume path,
+# MONIKER, NODE_ID) is set per-service below; everything else lives here
+# once via the `<<: *engram-node-base` merge key.
+x-engram-node-base: &engram-node-base
+  build:
+    context: ..
+    dockerfile: Dockerfile
+    additional_contexts:
+      - cometbft-fork=../../engram-consensus-core
+  command: ["start"]
+  restart: unless-stopped
+  # No depends_on celestia-lightNN: x/da's Publisher/RPCClient talk to
+  # celestia-bridge directly, never to a per-node light client -- that
+  # scaffolding was removed as unused (a real DAS light-client integration
+  # remains a documented future item if pursued).
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 30s
+  deploy:
+    resources:
+      limits:
+        cpus: '0.5'
+        memory: 768M
+      reservations:
+        cpus: '0.2'
+        memory: 256M
+
+# Shared env: BITCOIN_HOST/CELESTIA_BRIDGE_URL wire the live BTC/DA sensors
+# (x/vigilante/rpc.go, x/da/rpc.go's wireDASensor) to the shared bitcoin-net/
+# celestia-net service names -- all 4 validators point at the same
+# bitcoin-node01 (only 2 bitcoind instances are provisioned for 4
+# validators, a documented prototype simplification) and the same
+# celestia-bridge. CELESTIA_BRIDGE_AUTH_TOKEN is the bridge's own
+# admin/write JWT (written to /home/celestia/bridge_auth.txt on first
+# init), pinned here since all 4 validators share one bridge instance.
+# MONIKER/NODE_ID are per-node, set in each service below.
+x-engram-node-env: &engram-node-env
+  MINIMUM_GAS_PRICES: 0uengram
+  BITCOIN_HOST: bitcoin-node01
+  BITCOIN_RPC_PORT: 18443
+  BITCOIN_RPC_USER: ${BITCOIN_RPC_USER:-engram_admin}
+  BITCOIN_RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD:-secure_password_123}
+  CELESTIA_BRIDGE_URL: http://celestia-bridge:26658
+  CELESTIA_NAMESPACE_ID: engramda01
+  CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_AUTH_TOKEN}
+
+# engram-net/bitcoin-net/celestia-net are declared once in the root
+# compose.yml, which owns them -- redeclaring them here (even as
+# `external: true`) makes `docker compose config` fail with "conflicts
+# with imported resource" once resolved via compose.yml's `include:`.
+#
+# bitcoin-net/celestia-net joins exist so BITCOIN_HOST/CELESTIA_BRIDGE_URL
+# are DNS-resolvable: without them every PrepareProposal fails to reach
+# bitcoin-node01/celestia-bridge and consensus round-skips forever at
+# height 1 (bitcoin-node01/02 are bitcoin-net-only, docker/
+# bitcoin-regtest-cluster.yml; celestia-bridge is celestia-net-only,
+# docker/celestia-local-cluster.yml -- both otherwise unreachable from
+# engram-net's separate Docker network).
+
+services:
+  engram-node01:
+    <<: *engram-node-base
+    hostname: engram-node01
+    container_name: engram-node01
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.100
+      bitcoin-net:
+        ipv4_address: 172.21.0.100
+      celestia-net:
+        ipv4_address: 172.22.0.100
+    volumes:
+      - ../testnet-data/engram-node01:/root/.engramd
+    ports:
+      - "26657:26657"   # Tendermint RPC (exposed)
+      - "1317:1317"     # Cosmos REST API (exposed)
+      - "26660:26660"   # Prometheus Metrics (exposed)
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node01
+      NODE_ID: 0
+
+  engram-node02:
+    <<: *engram-node-base
+    hostname: engram-node02
+    container_name: engram-node02
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.110
+      bitcoin-net:
+        ipv4_address: 172.21.0.110
+      celestia-net:
+        ipv4_address: 172.22.0.110
+    volumes:
+      - ../testnet-data/engram-node02:/root/.engramd
+    ports:                # offset +100 vs. node01, to avoid host collisions
+      - "26757:26657"
+      - "1417:1317"
+      - "26760:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node02
+      NODE_ID: 1
+
+  engram-node03:
+    <<: *engram-node-base
+    hostname: engram-node03
+    container_name: engram-node03
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.120
+      bitcoin-net:
+        ipv4_address: 172.21.0.120
+      celestia-net:
+        ipv4_address: 172.22.0.120
+    volumes:
+      - ../testnet-data/engram-node03:/root/.engramd
+    ports:                # offset +200 vs. node01
+      - "26857:26657"
+      - "1517:1317"
+      - "26860:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node03
+      NODE_ID: 2
+
+  engram-node04:
+    <<: *engram-node-base
+    hostname: engram-node04
+    container_name: engram-node04
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.130
+      bitcoin-net:
+        ipv4_address: 172.21.0.130
+      celestia-net:
+        ipv4_address: 172.22.0.130
+    volumes:
+      - ../testnet-data/engram-node04:/root/.engramd
+    ports:                # offset +300 vs. node01
+      - "26957:26657"
+      - "1617:1317"
+      - "26960:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node04
+      NODE_ID: 3
