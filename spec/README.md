@@ -196,9 +196,9 @@ Instead of modeling infinite continuous time, LiDO discretizes time into finite 
 
 At its core, LiDO defines consensus via an Abstract Pacemaker (`round`, `rem_time`) and three atomic operations
 
-- **Pull**: A leader election establishing an Election Quorum Certificate (`E_QC`). 
-- **Invoke**: Proposing a method (transaction batch), establishing a Method Quorum Certificate (`M_QC`). 
-- **Push**: Committing the method, advancing logical clocks, and establishing a Commit Quorum Certificate (`C_QC`).
+- **Pull**: A leader election establishing an **Election Quorum Certificate** (`E_QC`). 
+- **Invoke**: Proposing a method (transaction batch), establishing a **Method Quorum Certificate** (`M_QC`). 
+- **Push**: Committing the method, advancing logical clocks, and establishing a **Commit Quorum Certificate** (`C_QC`).
 
 #### Mechanized Verification via Refinement Mapping
 
@@ -407,69 +407,20 @@ Read state-by-state:
 
 #### Re-anchoring via ZK-Proof of Recovery
 
-Blocks produced in `SOVEREIGN` mode are secured only by local PoS and lack Bitcoin-anchored finality. To safely restore connectivity and return to `ANCHORED`, the system must reconcile these sovereign blocks with the Bitcoin-anchored history. 
+`SOVEREIGN`-mode blocks carry only local-PoS security, not Bitcoin-anchored finality. Returning to `ANCHORED` requires a **Proof of Recovery**, not a Proof of Execution: it proves the sovereign interval preserved continuity and FSM recovery policy, without re-verifying any transaction — keeping constraint count low for $O(1)$ verification and constant proof size.
 
-Crucially, the objective of the re-anchoring circuit is **not** to prove the correct execution of all state transitions (Proof of Execution), which would require a massive zkVM-like arithmetization. Instead, it is designed as a **Proof of Recovery**. The circuit strictly proves that the sequence of sovereign blocks maintained continuity and adhered to the FSM recovery policies (e.g., locking withdrawals). 
+Built with Noir/UltraHonk (`circuit/reanchoring/src/main.nr`), Poseidon2 as a random oracle, standard knowledge soundness. Public input $x = (rt_{last}, rt_{new}, n)$; witness $w = (H_{k+1}, \dots, H_{k+n})$, lightweight headers rather than transaction bodies. $\Phi_{Recovery}(x, w) = 1$ iff, for every header $i \in [n]$:
 
-This fundamental scoping minimizes the arithmetization size and constraint count, keeping the prover cost practically low while maintaining an $O(1)$ verification time and minimal proof size suitable for on-chain or off-chain DA validation.
+| Condition | Constraint | Guarantee |
+|---|---|---|
+| (a) Continuity | $H_{k+i+1}.\mathrm{prev\_hash} = \mathrm{Poseidon2}(H_{k+i})$ | No injected or reordered blocks |
+| (b) Policy | $H_{k+i}.\mathrm{fsm\_state} \in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | No illegal jump to `ANCHORED` |
+| (c) Circuit breaker | $H_{k+i}.\mathrm{withdrawal\_locked} = \mathrm{true}$ | No withdrawal during reduced security |
+| (d) Root binding | $H_{k+1}.\mathrm{old\_state\_root}=rt_{last}, H_{k+n}.\mathrm{new\_state\_root}=rt_{new}$ | New root bound to the validated chain |
 
-**1. Cryptographic Assumptions**
+`state_root` is CometBFT's own per-block `AppHash`; $\Phi_{Recovery}$ only needs some Merkle-rooted commitment to bind against.
 
-The re-anchoring proof relies on standard cryptographic assumptions:
-
-- **Random Oracle Model (ROM):** The cryptographic hash function (Poseidon2) is modeled as a random oracle to ensure collision resistance within the circuit.
-- **Knowledge Soundness:** There exists a polynomial-time extractor such that if a prover can produce a valid proof $\pi_{RA}$, they must possess the valid underlying witness $w$.
-
-**2. Re-anchoring Relation and Predicate**
-
-We formally define the re-anchoring relation $\mathcal{R}_{RA}$ to separate public inputs $x$ from the private witness $w$. Rather than proving complex transaction bodies, the witness $w$ consists solely of the sequence of lightweight block headers generated during the disconnection.
-
-Let $rt_{last}$ be the state root of the last Bitcoin-anchored block, and $rt_{new}$ be the state root of the proposed recovered block. 
-
-```math
-x = (rt_{last}, rt_{new}, n)
-```
-
-```math
-w = (H_{k+1}, H_{k+2}, \dots, H_{k+n})
-```
-
-The Zero-Knowledge predicate $\Phi_{Recovery}(x, w) = 1$ is satisfied if and only if the following strict conditions hold:
-
-**(a)**
-
-```math
-\forall i \in [n-1],\; H_{k+i+1}.\mathrm{prev\_hash} = \mathrm{Poseidon2}(H_{k+i})
-```
-
-**(b)**
-
-```math
-\forall i \in [n],\; H_{k+i}.\mathrm{fsm\_state} \in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}
-```
-
-**(c)**
-
-```math
-\forall i \in [n],\; H_{k+i}.\mathrm{withdrawal\_locked} = \mathrm{true}
-```
-
-**(d)**
-
-```math
-H_{k+1}.\mathrm{old\_state\_root}=rt_{\mathrm{last}} \land H_{k+n}.\mathrm{new\_state\_root}=rt_{\mathrm{new}}
-```
-
-**3. Circuit Guarantees**
-
-By verifying $\Phi_{Recovery}(x, w) = 1$, the verifier $V(x, \pi_{RA})$ mathematically guarantees four core system invariants without re-executing a single transaction:
-
-- **Condition (1) - Continuity:** Ensures the historical hash-chain is unbroken and no adversarial blocks were injected or reordered.
-- **Condition (2) - Policy Adherence:** Ensures the system strictly followed the FSM transition rules, blocking any illegal jumps to `ANCHORED`.
-- **Condition (3) - Economic Circuit Breaker:** Guarantees that absolutely no cross-chain withdrawals were permitted during the period of reduced security, completely mitigating double-spending extraction risks.
-- **Condition (4) - State Consistency:** Cryptographically anchors the new Merkle state root to the validated unbroken header chain. *Concrete implementation note:* `state_root` is CometBFT's own per-block `AppHash` (already a Merkle root over the app's committed state, one-block-lagged per the standard ABCI lag), not a separate, purpose-built Sparse Merkle Tree constructed specifically for re-anchoring — the keeper does contain an unwired SMT scaffold (`Tree`/`BadgerStorage`, `x/sovereignty/keeper/keeper.go`) reserved for a future purpose where this prototype has real per-account state to put in SMT leaves, but it is not what backs `rt_last`/`rt_new` today. This is a safe refinement, not a widening of the spec: $\Phi_{Recovery}$ only requires *some* Merkle-rooted commitment to bind against, and `AppHash` already satisfies that.
-
-By restricting the circuit to header verification and boolean flag checks, the constraint count remains highly optimized. Each proof (utilizing Noir with an UltraHonk backend) covers a bounded window of up to $N_{max}$ headers and yields a constant-size proof with $O(1)$ verification, negligible overhead on the critical consensus path regardless of how long the sovereign interval has grown. *Concrete implementation note:* $n$ is a real, public circuit input, matching $x = (rt_{last}, rt_{new}, n)$ above literally — bounded by a compile-time ceiling $N_{max} = 256$ (`circuit/reanchoring/src/main.nr`'s `global N_MAX`). Any $n$ from $1$ to $N_{max}$ is provable in a single proof; header slots beyond $n$ stay unconstrained. This has a real, measured cost — every proof pays $N_{max}$'s fixed prove/verify cost regardless of the actual $n$ (`circuit/reanchoring/RESULTS_MAXN_PADDING.md`) — chosen anyway because a fixed $n = N_{max}$ with no bounded-window flexibility (an earlier version of this circuit) left a real liveness gap: a trailing remainder shorter than $N_{max}$ could never be proven once an interval stopped growing. An interval longer than $N_{max}$ still needs a rolling sequence of such proofs, each advancing $rt_{last}$ to the prior proof's $rt_{new}$ (`x/sovereignty/keeper/msg_server.go`'s `SubmitRecoveryProof`) — a safe refinement of $\Phi_{Recovery}$ above, which already only relates one $(rt_{last}, rt_{new})$ pair at a time and never assumed $n$ spans the full interval.
+$n$ (`count` in the circuit) is a real public input, bounded by a compile-time ceiling $N_{max} = 256$; header slots beyond $n$ are unconstrained padding. Every proof pays $N_{max}$'s fixed prove/verify cost regardless of actual $n$ — chosen over a fixed $n = N_{max}$ design, which could never prove a trailing remainder shorter than $N_{max}$ once an interval stopped growing (a liveness gap, not just a cost one). Intervals longer than $N_{max}$ chain a rolling sequence of proofs, each advancing $rt_{last}$ to the prior proof's $rt_{new}$ (`SubmitRecoveryProof`, `x/sovereignty/keeper/msg_server.go`).
 
 #### Hysteresis Mechanism
 
@@ -496,19 +447,14 @@ Proposal := {
                      checkpoint_block_height : Nat,   -- Bitcoin block containing Engram checkpoint 
                      checkpoint_block_hash   : Hash   -- canonical chain hash of the block contains Engram checkpoint
                    },
-    zk_proof_ref : Bool  -- proof submission flag for re-anchoring. The
-                            concrete implementation (x/sovereignty/proposal.go's
-                            ExtendedProposal.ZKProofRef) refines this to a
-                            hash-valued commitment -- the ZK proof's attested
-                            new state root, rt_new -- rather than a bare flag,
-                            for audit traceability of which specific proof
-                            backed a given transition. This is a safe
-                            refinement, not a widening of the spec: every
-                            operator that reads zk_proof_ref below
-                            (VerifyZkProof, IsValidProposal, ZKProofConsistency
-                            in EngramServer.tla) only ever tests presence,
-                            never identity, so a non-nil commitment refines to
-                            abstract TRUE and nil refines to abstract FALSE.
+    zk_proof_ref : Bool  -- proof submission flag for re-anchoring. Concretely
+                            (ExtendedProposal.ZKProofRef, x/sovereignty/proposal.go)
+                            refined to a hash commitment -- the proof's
+                            attested rt_new -- for audit traceability of which
+                            proof backed a transition. A safe refinement: every
+                            consumer (VerifyZkProof, IsValidProposal,
+                            ZKProofConsistency) only tests presence, never
+                            identity, so non-nil/nil still map to TRUE/FALSE.
 }
 ```
 
@@ -569,7 +515,7 @@ stateDiagram-v2
         - Lock on Polka <br>(+2/3 prevotes)
         - Unlock if new Polka <br>in later round
 
-        EOTS Accountability: <br>Any double-signing <br>across voting phases <br>yields slashable evidence.
+        Accountability: <br>Any double-signing <br>across voting phases <br>yields cryptographic evidence.
     end note
 
     note left of Propose
@@ -594,7 +540,7 @@ stateDiagram-v2
 
 The formal correctness of the hybrid consensus protocol is guaranteed across the entire reachable state space. The network is modeled against a Byzantine adversary controlling up to $f$ nodes out of $n = 3f + 1$ total, with adversarial message scheduling and non-deterministic peripheral sensor readings.
 
-**Theorem 7.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes will ever decide on conflicting blocks or conflicting FSM states. Any safety violation mathematically guarantees the extraction of cryptographic double-signing evidence via EOTS.*
+**Theorem 7.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes will ever decide on conflicting blocks or conflicting FSM states. Any safety violation mathematically guarantees the existence of cryptographic double-signing evidence.*
 
 ### 7.1 State Invariants
 
@@ -705,7 +651,7 @@ IsCriticalCondition ==
 
 The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` conjunct (`EngramTendermint.tla:288`), independent of `VerifySPVProof`, which guards the BTC receipt field, not `fsm_state`.
 
-**Lemma 7.6 (EOTS Accountability).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, enabling EOTS-based BTC slashing without smart contract execution.
+**Lemma 7.6 (Accountability via Evidence).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, matching the concrete implementation's use of CometBFT's stock equivocation evidence pool (`DuplicateVoteEvidence`) — no custom slashing cryptography required.
 
 ```tlaplus
 DoubleSigningEvidence ==
@@ -722,6 +668,16 @@ Accountability ==
 ```
 
 Formally specified in `EngramTendermint.tla` as `Accountability`, part of `CoreTendermintInvariant`.
+
+### 7.3 Threat Model Boundary: Bitcoin Reorg Depth
+
+Bitcoin settlement finality is not an assumption-free constant. `EngramConsensus.tla`'s `BitcoinReorg` action explicitly lets `h_btc_anchored` retreat to any earlier height, modeling a checkpoint invalidated by a chain reorganization, and the protocol's guarantees split at the `K_DEEP_FINALITY` boundary:
+
+**Shallow reorg (depth < `K_DEEP_FINALITY`).** Covered by the model itself: `IsKDeep(c, k) == c.btc_anchored <= h_btc_anchored /\ h_btc_current - c.btc_anchored >= k`. Once `h_btc_anchored` retreats, a cached certificate anchored past the new value can no longer be (re-)elected via `CanElect` — the formal counterpart of rejecting a checkpoint that fails independent re-verification against the current canonical chain before commit.
+
+**Deep reorg (depth >= `K_DEEP_FINALITY`).** Deliberately out of scope, matching every Bitcoin-anchoring design in the literature (Babylon included): `K_DEEP_FINALITY` is chosen so that a reorg past that depth is economically infeasible under Bitcoin's honest-majority-hashpower assumption. No protocol mechanism re-verifies an already-K-deep-confirmed checkpoint — if the assumption is violated, the anchoring guarantee itself is void regardless of implementation, and the only lever is choosing `K_DEEP_FINALITY` conservatively (small for development/regtest networks; ~6 confirmations, Bitcoin's own conventional finality bound, for mainnet).
+
+This is a third standing precondition for Theorem 7.1, alongside partial synchrony and the $f$-bounded Byzantine adversary: safety holds *given* Bitcoin reorgs no deeper than `K_DEEP_FINALITY`.
 
 ## 8. Liveness Analysis and Autonomous Recovery
 
@@ -1000,16 +956,16 @@ sequenceDiagram
     Q-->>Q: Sanity_NeverProposeWithheldData violated
 ```
 
-* **Why it matters:** the DA attestation check is the only thing stopping a withheld-data block from entering the vote pipeline — once it's ablated, a Byzantine leader needs no other cooperation to get a data-withholding proposal broadcast.
+* **Why it matters:** the DA attestation check alone stops a withheld-data block from entering the vote pipeline — ablated, a Byzantine leader needs no other cooperation to broadcast one.
 
 ##### F. Eclipse Attack — Forged `fsm_state` Rejection (attack scenario, not an ablation)
 
-Unlike A–E, nothing is neutered here — `core/EngramServer_EclipseForgedProposal.tla` `EXTENDS EngramServer` unmodified. This closes the open item from Lemma 7.5 (§7.2): `P2PAdversaryAttack` (`EngramFSM.tla`, the only check previously verified against a real eclipse condition) is pure FSM-sensor-layer mechanics and never touches `IsValidProposal`/`FSMStateConsistency`, which live in `EngramTendermint.tla`/`EngramServer.tla` — no existing check combined a real eclipse condition with a proposer forging `fsm_state`. The new action `ByzantineForgedFSMState`, gated on `~IsP2PQualityHealthy`, lets a Byzantine proposer under eclipse broadcast an otherwise well-formed, honestly-attested proposal whose `fsm_state` field is any value other than the real `CalculateNextFSMState` — isolating fsm_state forgery as the only defect under test.
+Unlike A–E, nothing is neutered — `core/EngramServer_EclipseForgedProposal.tla` `EXTENDS EngramServer` unmodified. This closes Lemma 7.5's open item: `P2PAdversaryAttack` (`EngramFSM.tla`) only exercises FSM-sensor mechanics, never `IsValidProposal`/`FSMStateConsistency` (`EngramTendermint.tla`/`EngramServer.tla`) — no prior check combined a real eclipse with a proposer forging `fsm_state`. The new action `ByzantineForgedFSMState`, gated on `~IsP2PQualityHealthy`, lets an eclipsed Byzantine proposer broadcast an otherwise honest, well-formed proposal with any `fsm_state` other than the real `CalculateNextFSMState` — isolating forgery as the only defect under test.
 
-Two checks against the same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
+Two checks, same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
 
-* **Check 1 — `Sanity_ForgedProposalReachable`** (expect violation, proves the attack is actually attempted): violated at depth **2**, in **30.792s**. Trace: `spec/traces/eclipse_forged_proposal.{itf.json,trace.tla}`.
-* **Check 2 — `Sanity_ForgedFSMStateRejectedUnderEclipse`** (expect no violation — a thin alias for `FSMStateConsistency`, `EngramServer.tla`): no violation found while exhaustively checking every enabled transition through depth **7**, plus 6 of the 39 transitions enabled at depth 8, before the run was interrupted by the local environment after ~123 minutes (09:34–11:37) — **not completed to the full length=12 bound**. Per-step wall-clock time grew roughly 3–4x per step (steps 1–7: 5s, 8s, 21s, 77s, 326s, 1,319s, 3,990s), the same full-stack cost class (all of Tendermint's messaging/certificate state, not FSM-only) already flagged for `MC_ServerRefinementSafety` in §9.2. **Status: partial, not exhaustive** — every state actually reached was violation-free, but the bound was not reached.
+* **Check 1 — `Sanity_ForgedProposalReachable`** (sanity: attack is reachable): violated at depth **2** in **30.792s**. Trace: `spec/traces/eclipse_forged_proposal.{itf.json,trace.tla}`.
+* **Check 2 — `Sanity_ForgedFSMStateRejectedUnderEclipse`** (the real property — thin alias for `FSMStateConsistency`): no violation through depth **7** plus 6/39 transitions at depth 8, interrupted after ~123 min (per-step cost grew ~3–4x/step: 5s → 3,990s), the same full-stack cost class flagged for `MC_ServerRefinementSafety` in §9.2 — **not completed to `length=12`**. **Status: partial, not exhaustive** — every state reached was clean, but the bound wasn't.
 
 ```mermaid
 sequenceDiagram
@@ -1019,7 +975,7 @@ sequenceDiagram
     participant Q as msgs_propose
     participant V as Honest Nodes n2, n3, n4
 
-    Adv->>V: active_peers = {sybil_n1, sybil_n2, sybil_n3}; anchor_peers unreachable
+    Adv->>V: active_peers = {sybil_n1, sybil_n2, sybil_n3}, no anchor_peers reachable
     Note over V: is_btc_spv_failed, is_das_failed, is_attestation_failed = TRUE -- full eclipse
     B->>Q: BroadcastProposal(fsm_state="SUSPICIOUS", btc_receipt/da_receipt honestly attested)
     Note over Q: each honest node independently recomputes CalculateNextFSMState -- not "SUSPICIOUS"
@@ -1028,7 +984,7 @@ sequenceDiagram
     V-->>V: vote_target = NilProposal -- no honest node ever decides the forged block
 ```
 
-* **Why it matters:** eclipsing a proposer doesn't let it fabricate consensus-relevant state — every honest node recomputes `CalculateNextFSMState` from its own view, not the proposer's, so "the leader is isolated" cannot make honest receivers agree with a wrong claim. The rejection is structural (`IsValidProposal`'s `fsm_state` conjunct, `EngramTendermint.tla:288`), not merely unobserved within the depth Check 2 actually reached.
+* **Why it matters:** eclipsing a proposer can't fabricate consensus-relevant state — every honest node recomputes `CalculateNextFSMState` from its own view, not the proposer's. The rejection is structural (`IsValidProposal`'s `fsm_state` conjunct, `EngramTendermint.tla:288`), not merely unobserved within Check 2's reached depth.
 
 ## References
 

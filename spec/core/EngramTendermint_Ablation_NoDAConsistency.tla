@@ -955,9 +955,9 @@ ExternalValidity ==
         decision[p] /= NilDecision => decision[p].prop.value \in ValidValues
 
 
-(* ======================== EOTS SLASHING / ACCOUNTABILITY ================== *)
+(* ============================ ACCOUNTABILITY =============================== *)
 \* Double-signing evidence: two distinct messages from the same process in the
-\* same round — triggers EOTS slashing in the Babylon layer.
+\* same round — concretely, CometBFT's own DuplicateVoteEvidence detection.
 DoubleSigningEvidence ==
     \E r \in Rounds, p \in AllProcs :
         \/ \E m1, m2 \in msgs_prevote[r] :
