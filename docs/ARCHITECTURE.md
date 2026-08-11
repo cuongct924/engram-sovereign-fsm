@@ -1,8 +1,7 @@
 # Infrastructure Architecture
 
 This document describes the REAL, currently-running Docker Compose topology and the ABCI++
-mechanism actually implemented in this repo -- not an aspirational design. For what's built vs.
-not, see root `CLAUDE.md`'s "Current status". This file is a structural snapshot, refreshed
+mechanism actually implemented in this repo. This file is a structural snapshot, refreshed
 whenever the topology changes materially, verified directly against the live 4-node testnet,
 `docker/*.yml`, and `compose.yml`.
 

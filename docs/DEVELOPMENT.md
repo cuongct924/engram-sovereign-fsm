@@ -68,10 +68,10 @@ go build -o build/engramd ./cmd/engramd
 ./build/engramd start --vanilla    # baseline comparison, skips the ExtendedProposal hooks
 ```
 
-`start` reads `config.toml` from disk (`loadConfig`, viper-based) — worth knowing since an
-earlier version of this code silently ignored it. Without `BITCOIN_HOST`/`CELESTIA_BRIDGE_URL`
-set (see `.env.example`), BTC/DA sensors fall back to static mocks — fine for a quick smoke
-test, not for exercising the real sensor-driven FSM.
+`start` reads `config.toml` from disk (`loadConfig`, viper-based) — per-node settings (ports,
+peers) come from there, not hardcoded defaults. Without `BITCOIN_HOST`/`CELESTIA_BRIDGE_URL` set
+(see `.env.example`), BTC/DA sensors fall back to static mocks — fine for a quick smoke test, not
+for exercising the real sensor-driven FSM.
 
 ## 3. Running the real 4-node Docker testnet
 
@@ -82,7 +82,7 @@ behind every E2–E9 live-data result in `docs/EXPERIMENT.md`. Topology/IPs: see
 **The order below is load-bearing, not a preference.** Starting `engramd` before Bitcoin has a
 funded, mature wallet — or mining in bursts while `engramd` is already running — desyncs
 `h_btc_current` from `h_btc_anchored` past `vigilante.VerifyReceipt`'s tolerance window and
-stalls consensus permanently. This has been rediscovered more than once in this repo's history.
+stalls consensus permanently.
 
 ```mermaid
 flowchart TD
@@ -139,9 +139,9 @@ redeploy — this is standing practice, not a one-off workaround.
 ### Gotcha: `docker compose ... down` with no service names destroys everything
 
 `down` (no service arguments) tears down the **entire compose project**, ignoring any
-`--profile` filter used earlier — profiles only scope `up`'s defaults, not `down`. This
-destroyed a live running cluster mid-experiment once already. To tear down a profile-gated extra
-(attacker swarm, byzantine override, etc.), always name the services explicitly:
+`--profile` filter used earlier — profiles only scope `up`'s defaults, not `down`. A bare `down`
+can destroy a live running cluster mid-experiment. To tear down a profile-gated extra (attacker
+swarm, byzantine override, etc.), always name the services explicitly:
 
 ```bash
 docker compose stop <service names>
@@ -178,7 +178,7 @@ Each experiment group drives the live testnet through a scenario, polling via
 `scripts/framework/logger.py` and injecting faults via `scripts/framework/injector.py`, writing
 real CSV/summary output to its own `results_live/`. `docs/EXPERIMENT.md` is the index of what
 each experiment measures and which numbers are real live-Docker data vs. in-process
-(`tests/e2e/`) data — check its per-section "Đã đo thật" notes.
+(`tests/e2e/`) data — check its per-section "Measured" notes.
 
 Profile-gated extras, never started by a plain `docker compose up`:
 
