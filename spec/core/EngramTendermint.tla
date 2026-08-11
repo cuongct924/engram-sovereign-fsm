@@ -575,8 +575,12 @@ UponProposalInPropose(p) ==
            IN
            IF IsCensoring(p, prop)
            THEN
-               \* Censorship branch: reject and force round advance
-               /\ BroadcastTimeout(p, r)
+               \* Censorship branch: reject and force round advance. Broadcasts
+               \* for r+1, not r, for the same reason as OnLocalTimerExpire's
+               \* round[p]+1 (see its doc) -- guarded by r+1 \in Rounds since
+               \* BroadcastTimeout has no StartRound-style self-guard.
+               /\ r + 1 \in Rounds
+               /\ BroadcastTimeout(p, r + 1)
                /\ StartRound(p, r + 1)
                /\ UNCHANGED <<locked_value, locked_round, valid_value, valid_round, decision>>
                /\ UNCHANGED <<msgs_propose, msgs_prevote, msgs_precommit,
@@ -792,10 +796,19 @@ UponfPlusOneTimeoutsAny(p) ==
             /\ action' = "UponfPlusOneTimeoutsAny"
 
 \* -- OnLocalTimerExpire: local countdown reached zero -> broadcast timeout --
+\* Broadcasts for round[p]+1 (the round being requested), not round[p] (this
+\* node's own current round): if every honest node instead broadcast its own
+\* current round, no message would ever satisfy UponfPlusOneTimeoutsAny's
+\* r > round[p] test for a node also at round[p] -- the pack could time out
+\* together and never advance. Guarded by round[p]+1 \in Rounds, matching
+\* UponQuorumOfPrecommitsAny's round[p]+1 \in Rounds guard, since
+\* BroadcastTimeout indexes msgs_timeout directly (no StartRound-style
+\* self-guard against MAX_ROUND overflow).
 \* @type: (Str) => Bool;
 OnLocalTimerExpire(p) ==
     /\ local_rem_time[p] = 0
-    /\ BroadcastTimeout(p, round[p])
+    /\ round[p] + 1 \in Rounds
+    /\ BroadcastTimeout(p, round[p] + 1)
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, invariantVars, censorshipVars>>
     /\ UNCHANGED <<msgs_propose, msgs_prevote, msgs_precommit, evidence,
                    received_timely_proposal, inspected_proposal>>
