@@ -2,7 +2,7 @@
 """LIVE Byzantine-mode validator test against the real 4-node testnet --
 docs/EXPERIMENT.md's E8 A3 (Data Withholding), A4 (Forged BTC Receipt), A6
 (Malicious Proposer). Swaps engram-node04's compose definition for
-docker/engram-validator-node04-byzantine.yml's override (adds
+docker/engram-node04-byzantine.yml's override (adds
 ENGRAM_BYZANTINE_BEHAVIOR), which x/sovereignty/proposal.go's
 applyByzantineBehavior reads to deliberately misbehave on its own
 PrepareProposal calls, then reverts it back to the honest definition.
@@ -78,7 +78,7 @@ def enable_byzantine(behavior: str) -> None:
             "-f",
             "compose.yml",
             "-f",
-            "docker/engram-validator-node04-byzantine.yml",
+            "docker/engram-node04-byzantine.yml",
             "up",
             "-d",
             "--no-deps",
@@ -132,13 +132,12 @@ class Tracker:
             # AppHash only means anything compared WITHIN the same height --
             # different heights necessarily have different AppHash even
             # under perfectly identical honest execution. Comparing across
-            # heights directly (an earlier version of this script did) is a
-            # false-positive generator: nodes are rarely all sampled at the
-            # exact same height in one poll round, since round-trip timing
-            # differs per node. Found live: this incorrectly flagged a
-            # "SAFETY VIOLATION" during a completely healthy baseline phase
-            # where node03 had simply advanced one block ahead of the others
-            # at sample time.
+            # heights directly is a false-positive generator: nodes are
+            # rarely all sampled at the exact same height in one poll
+            # round, since round-trip timing differs per node -- e.g. a
+            # healthy baseline phase where node03 has simply advanced one
+            # block ahead of the others at sample time would incorrectly
+            # flag as a "SAFETY VIOLATION".
             honest_hashes = {
                 s.node: s.app_hash
                 for s in all_samples

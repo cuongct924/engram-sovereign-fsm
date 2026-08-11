@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LIVE Double-signing detection test against the real 4-node testnet --
 docs/EXPERIMENT.md's E8 "Double-signing" row. Starts a SECOND, independent
-`engramd` process (docker/engram-validator-node04-duplicate.yml) holding the
+`engramd` process (docker/engram-node04-double-sign.yml) holding the
 exact same priv_validator_key.json as the real engram-node04, but with its
 own separate priv_validator_state.json (deliberately NOT sharing node04's
 signing-history file -- see that compose file's own doc for why sharing it
@@ -76,7 +76,7 @@ def compute_persistent_peers() -> str:
 def stage_duplicate_identity() -> None:
     """Copies the real node04 signing key + shared genesis onto the HOST at
     the duplicate's own home dir, BEFORE the container starts -- see
-    docker/engram-validator-node04-duplicate.yml's volumes doc for why this
+    docker/engram-node04-double-sign.yml's volumes doc for why this
     replaced two nested bind-mount lines (a real Docker Desktop virtiofs
     limitation, confirmed live: mounting a specific file whose target path
     resolves inside an already-bind-mounted directory fails with

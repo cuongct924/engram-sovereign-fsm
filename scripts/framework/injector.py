@@ -1,9 +1,8 @@
 """Real Pumba chaos-engineering injection against the live docker testnet --
 wraps the 4 profiles already scaffolded in the root compose.yml
 (pumba-latency/loss/kill/eclipse, profiles chaos-delay/chaos-loss/chaos-crash/
-chaos-eclipse). Those profiles were never actually run before this session
-(M7 was previously blocked -- no Docker daemon available, see CLAUDE.md);
-this module runs them for real, against the real engram-nodeNN containers.
+chaos-eclipse). This module runs them for real, against the real
+engram-nodeNN containers.
 
 Each pumba container's own `command:` already bakes in a --duration (e.g.
 "netem --duration=5m ..."), so once started it exits on its own -- no
@@ -27,16 +26,14 @@ PROFILE_TO_SERVICE = {
 # Real CONTAINER names (compose.yml's `container_name:` override on each
 # pumba service) -- what `docker inspect`/`docker logs`/`docker wait` take.
 # These do NOT match the service names above (e.g. service "pumba-latency"
-# has container_name "pumba-latency-injector") -- an earlier version of this
-# module used the service name for `docker inspect` calls too, which always
-# returned "missing" (no container is ever literally named "pumba-latency"),
-# making every run look like Pumba had already finished before it started.
-# Confirmed for real in this session: two experiments in a row logged zero
-# "during" samples and, worse, that false "already finished" reading let a
-# SECOND netem profile start while the first one's `tc qdisc` rule was still
-# actually active, which then failed for real ("qdisc add ... failed with
-# exit code 2" -- a root qdisc can't coexist with another root qdisc on the
-# same interface).
+# has container_name "pumba-latency-injector") -- using the service name for
+# `docker inspect` calls instead always returns "missing" (no container is
+# ever literally named "pumba-latency"), making every run look like Pumba
+# had already finished before it started. That false "already finished"
+# reading logs zero "during" samples and, worse, lets a SECOND netem profile
+# start while the first one's `tc qdisc` rule is still actually active,
+# which then fails for real ("qdisc add ... failed with exit code 2" -- a
+# root qdisc can't coexist with another root qdisc on the same interface).
 PROFILE_TO_CONTAINER = {
     "chaos-delay": "pumba-latency-injector",
     "chaos-loss": "pumba-loss-injector",
@@ -220,16 +217,14 @@ def cleanup_profile(profile: str) -> None:
     only skips the interactive confirmation prompt -- it does NOT stop a
     still-RUNNING container first (unlike plain `docker rm -f`), so it
     silently no-ops when called on a container whose own `--duration` hasn't
-    elapsed yet. This was invisible everywhere this helper was previously
-    called right after a profile's natural `--duration` expiry (the
-    container had already self-exited by then, so `rm -f` alone worked) --
-    found live via toggle_profile_bursts/E9's live_combined_trace.py Phase 4,
-    which deliberately cuts a still-active chaos-loss profile short (its own
-    --duration is 2m, but the burst cycle only holds it on for 20s): the
-    container stayed stuck "Up" indefinitely, and the next
-    wait_for_no_active_netem() call correctly refused to start a new profile
-    on top of it, surfacing this as a real RuntimeError rather than silently
-    corrupting results.
+    elapsed yet. This only matters when interrupting a still-active profile
+    before its natural `--duration` expiry -- e.g. toggle_profile_bursts/E9's
+    live_combined_trace.py Phase 4 deliberately cuts a still-active
+    chaos-loss profile short (its own --duration is 2m, but the burst cycle
+    only holds it on for 20s). Without `stop` first, the container stays
+    stuck "Up" indefinitely, and the next wait_for_no_active_netem() call
+    correctly refuses to start a new profile on top of it, surfacing this as
+    a real RuntimeError rather than silently corrupting results.
     """
     service = PROFILE_TO_SERVICE[profile]
     subprocess.run(
@@ -258,3 +253,25 @@ def container_status(name: str) -> str:
     if proc.returncode != 0:
         return "missing"
     return proc.stdout.strip()
+
+
+if __name__ == "__main__":
+    # Manual CLI for `make chaos-<profile>`/`make chaos-stop` -- scripted
+    # experiments (scripts/e*/live_*.py) call the functions above directly
+    # and don't go through this.
+    import sys
+
+    if len(sys.argv) != 3 or sys.argv[1] not in ("start", "stop"):
+        print(f"Usage: {sys.argv[0]} start|stop <profile>", file=sys.stderr)
+        print(f"Profiles: {', '.join(PROFILE_TO_SERVICE)}", file=sys.stderr)
+        sys.exit(1)
+    action, profile = sys.argv[1], sys.argv[2]
+    if profile not in PROFILE_TO_SERVICE:
+        print(f"Unknown profile {profile!r}. Profiles: {', '.join(PROFILE_TO_SERVICE)}", file=sys.stderr)
+        sys.exit(1)
+    if action == "start":
+        container = start_pumba_profile(profile)
+        print(f"started {profile} ({container}) -- self-exits on its own --duration")
+    else:
+        cleanup_profile(profile)
+        print(f"stopped {profile}")

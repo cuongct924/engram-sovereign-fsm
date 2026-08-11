@@ -64,17 +64,17 @@ def load_scenario_csv(path):
 
 def representative_rows(rows):
     """Picks whichever node has the MOST height-filtered (real, non-error)
-    samples in this scenario, not just the alphabetically-first one --
-    found live: several of E2's own scenarios deliberately isolate
-    engram-node01 specifically (S4's chaos-loss targets node01+node02, S5's
-    chaos-eclipse targets node01 with 100% packet loss), so an earlier
-    version of this function that always picked node01 produced a
-    near-empty or truncated timeline for exactly the scenarios most worth
-    plotting -- e.g. S5's real ~190s window collapsed to ~3s once node01's
-    almost-entirely-error samples were filtered out. Picking the
-    best-covered node keeps every panel showing the real cluster-wide
-    behavior (3/4 healthy nodes still agree during a partial-isolation
-    scenario) rather than the specific node under direct attack.
+    samples in this scenario, not just the alphabetically-first one:
+    several of E2's own scenarios deliberately isolate engram-node01
+    specifically (S4's chaos-loss targets node01+node02, S5's
+    chaos-eclipse targets node01 with 100% packet loss), so always
+    picking node01 produces a near-empty or truncated timeline for
+    exactly the scenarios most worth plotting -- e.g. S5's real ~190s
+    window collapses to ~3s once node01's almost-entirely-error samples
+    are filtered out. Picking the best-covered node keeps every panel
+    showing the real cluster-wide behavior (3/4 healthy nodes still agree
+    during a partial-isolation scenario) rather than the specific node
+    under direct attack.
     """
     if not rows:
         return []
@@ -152,13 +152,11 @@ def plot_summary_bars(scenarios):
     names = list(scenarios.keys())
     # Short codes ("S1".."S7"), not full scenario names -- a 3-subplot row
     # at double-column width gives each panel only ~2.4in, nowhere near
-    # enough for labels like "S3 DA Unavailable" without colliding with
-    # the panel title above it (found live: an earlier version used the
-    # full names here and every title/tick-label pair overlapped
-    # illegibly). Full names are already the y-axis of
-    # figure3_state_timelines_live, immediately above this figure in the
-    # same section -- this table's own SCENARIO_TITLES mapping is the
-    # legend.
+    # enough for labels like "S3 DA Unavailable" without the tick labels
+    # colliding with the panel title above them. Full names are already
+    # the y-axis of figure3_state_timelines_live, immediately above this
+    # figure in the same section -- this table's own SCENARIO_TITLES
+    # mapping is the legend.
     short_codes = [n.split("_")[0].upper() for n in names]
     metrics = {n: scenario_metrics(rows) for n, rows in scenarios.items()}
 

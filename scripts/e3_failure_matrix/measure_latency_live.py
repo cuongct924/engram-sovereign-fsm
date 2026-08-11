@@ -2,7 +2,7 @@
 """
 E3 LIVE -- External-Dependency Failure Matrix from REAL docker cluster data
 (docs/EXPERIMENT.md's E3, Table 2), reading scripts/e2_fault_injection/
-results_live/s*.csv (Part 5b's live_scenario_matrix.py output) instead of
+results_live/s*.csv (live_scenario_matrix.py's output) instead of
 tests/e2e/results/s*.csv's in-process mock-harness data.
 
 A real, honest limitation vs. the in-process version (measure_latency.py):

@@ -144,12 +144,12 @@ def query_node(node: str, port: Optional[int] = None) -> NodeSample:
         ValueError,
         RuntimeError,
         OSError,  # covers ConnectionResetError/ConnectionRefusedError etc. --
-        # found live (E8's byzantine-mode test): a mid-response reset while
-        # docker compose force-recreates the node being polled raises these
-        # directly from the socket layer, NOT wrapped in urllib.error.URLError
-        # the way a failed connection attempt is, so they escaped this
-        # except clause and crashed every long-running poll loop in this
-        # framework the first time a container was recreated mid-poll.
+        # a mid-response reset while docker compose force-recreates the node
+        # being polled raises these directly from the socket layer, NOT
+        # wrapped in urllib.error.URLError the way a failed connection
+        # attempt is -- without this, they escape the except clause and
+        # crash every long-running poll loop in this framework whenever a
+        # container is recreated mid-poll.
     ) as e:
         return NodeSample(
             timestamp=ts,
@@ -264,8 +264,8 @@ def peer_subnet_counts(node: str, port: Optional[int] = None) -> dict:
 
 def bitcoin_cli(*args: str) -> str:
     """Runs bitcoin-cli inside the real bitcoin-node01 container -- used to
-    independently cross-check anchor state (OP_RETURN scan) the same way
-    this was verified manually earlier in this session.
+    independently cross-check anchor state (OP_RETURN scan) against what a
+    manual bitcoin-cli query would show.
     """
     cmd = [
         "docker",

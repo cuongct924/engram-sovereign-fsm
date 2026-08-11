@@ -188,7 +188,8 @@ def main():
                 f"No blocks matched the heuristic in this scan window (heights {start}..{tip}) -- "
                 f"this scan likely never passed through a real RECOVERING proof-submission cycle. "
                 f"Re-run after driving the cluster through one (e.g. scripts/e3_failure_matrix/"
-                f"live_lifecycle_test.py's phase 7, or Part 5b's S7) to capture a real sample.\n"
+                f"live_lifecycle_test.py's phase 7, or scripts/e2_fault_injection/"
+                f"live_scenario_matrix.py's S7 phase) to capture a real sample.\n"
             )
         f.write("\n")
 

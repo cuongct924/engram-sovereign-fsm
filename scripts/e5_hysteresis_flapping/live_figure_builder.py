@@ -16,7 +16,7 @@ fresh redeploy, so the live matrix is deliberately narrow.
 Reads each run's own *_summary.md (already has real per-node metrics
 tables, written by live_spot_check.py) rather than recomputing from the raw
 CSVs -- avoids duplicating that script's compute_metrics logic, and every
-node's numbers agreed exactly in every run performed this session.
+node's numbers have agreed exactly in every run performed so far.
 
 Usage:
     python3 scripts/e5_hysteresis_flapping/live_figure_builder.py
@@ -44,9 +44,9 @@ ENVIRONMENTS = ["stable", "noisy_da"]
 
 def find_summary_paths():
     """One *_summary.md per (hw, env) combo -- if a combo was run more than
-    once (re-runs during debugging), keep only the LATEST by filename
-    timestamp, matching this session's own results_live/ curation
-    convention (see docs/DEVELOPMENT.md's results/ vs results_live/ note).
+    once, keep only the LATEST by filename timestamp, matching this repo's
+    results_live/ curation convention (see docs/DEVELOPMENT.md's results/
+    vs results_live/ note).
     """
     paths = sorted(
         glob.glob(os.path.join(RESULTS_LIVE_DIR, "live_spot_check_hw*_summary.md"))
@@ -66,7 +66,7 @@ def find_summary_paths():
 
 def parse_summary(path):
     """Averages the per-node table in a *_summary.md across all 4 nodes
-    (real numbers this script itself wrote; every run this session had all
+    (real numbers this script itself wrote; every run so far has had all
     4 nodes agree exactly, but averaging is the honest general case).
     """
     rows = []
@@ -127,9 +127,8 @@ def main():
     # Extra height beyond figsize_row's default (tuned for 3 narrow
     # subplots) -- 2 wider subplots with a 2-line suptitle and rotated
     # y-axis labels need more vertical room, and a shorter label text below
-    # avoids the left-edge clipping a longer rotated label caused here
-    # (found live: an earlier version's full-sentence y-labels overlapped
-    # both the suptitle above and the canvas's own left edge).
+    # avoids the left-edge clipping: a longer, full-sentence y-label
+    # overlaps both the suptitle above and the canvas's own left edge.
     width, height = figsize_row(2)
     fig, axes = plt.subplots(1, 2, figsize=(width, height * 1.4))
 

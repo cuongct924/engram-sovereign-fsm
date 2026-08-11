@@ -13,8 +13,8 @@ in-process harness can't reproduce -- not re-deriving it from scratch.
 A full live sweep is impractical: HysteresisWait is compile-time-fixed
 (x/sovereignty/types/params.go's DefaultParams, genesis never overrides
 Params -- see module.go's InitGenesis), so every value needs an edit +
-image rebuild + fresh teardown/redeploy, several minutes minimum per cycle
-observed this session. This script measures ONE already-deployed cluster
+image rebuild + fresh teardown/redeploy, several minutes minimum per
+cycle. This script measures ONE already-deployed cluster
 per invocation -- the operator edits params.go's HysteresisWait, rebuilds,
 redeploys fresh (wiping testnet-data/ per this repo's standing operational
 practice for priv_validator_state.json round-regression), THEN runs this

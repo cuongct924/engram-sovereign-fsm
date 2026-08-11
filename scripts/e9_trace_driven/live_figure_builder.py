@@ -8,8 +8,8 @@ replacement for simulate_acceptance.py's 6-panel layout: BTC finality gap,
 DA availability, and P2P health score are never written into COMMITTED
 state (x/sovereignty/preblock.go's NewPreBlocker only ever commits the
 already-agreed fsm_state/receipts, never a fresh local sensor read -- see
-that function's own doc on why, a real safety bug this session found and
-reverted), so a live RPC/ABCI-query poll structurally cannot observe them.
+that function's own doc for the real safety bug this restriction fixes),
+so a live RPC/ABCI-query poll structurally cannot observe them.
 
 This script does NOT fabricate those 3 panels. It builds 6 DIFFERENT panels
 from what IS real and observable via CometBFT RPC + Query.State:
@@ -23,8 +23,8 @@ from what IS real and observable via CometBFT RPC + Query.State:
     4. SafeBlocks (real hysteresis counter from Query.State)
     5. ReanchoringProofValid (real boolean flag from Query.State)
     6. Cross-node AppHash agreement (0/1 per sampled tick) -- the real
-       safety signal this session's E8 tests used throughout: did every
-       node that reported a height in this tick agree on AppHash there
+       safety signal E8's tests use throughout: did every node that
+       reported a height in this tick agree on AppHash there
 
 Usage:
     python3 scripts/e9_trace_driven/live_figure_builder.py [csv_path]

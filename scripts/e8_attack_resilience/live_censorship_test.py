@@ -23,10 +23,9 @@ Protocol, real and byte-exact throughout (no mocked queue/tx content):
      IsCensoring/ProcessProposal's check #0 compares ForcedTxQueue entries
      against -- x/sovereignty/proposal.go:305-318).
   4. Set node04 byzantine with censor_tx:<hex of target's raw bytes> --
-     applyByzantineBehavior hex-decodes this (changed from a raw string this
-     session specifically because Docker Compose env-var/YAML interpolation
-     does not survive arbitrary non-UTF8 tx bytes, found live wiring this
-     script up).
+     applyByzantineBehavior hex-decodes this; the target is hex-encoded
+     rather than a raw string because Docker Compose env-var/YAML
+     interpolation does not survive arbitrary non-UTF8 tx bytes.
   5. Poll: whenever node04 leads a round, its proposal should omit the
      target tx (observable as it not landing in a block node04 proposed);
      once MaxIgnoreRounds (Params default: 1) is exceeded, the NEXT
@@ -131,7 +130,7 @@ def enable_byzantine(target_hex: str) -> None:
             "-f",
             "compose.yml",
             "-f",
-            "docker/engram-validator-node04-byzantine.yml",
+            "docker/engram-node04-byzantine.yml",
             "up",
             "-d",
             "--no-deps",
@@ -239,11 +238,11 @@ def main():
 
     # node04 goes byzantine BEFORE the target tx is ever registered/
     # broadcast -- ordering matters: x/sovereignty/preblock.go's
-    # updateForcedTxTracking now dequeues a forced tx the moment ANY leader
-    # (honest or not) includes it (fixed this session -- previously it
-    # stayed queued forever after inclusion, permanently deadlocking the
-    # chain the first time this test ran, since the tx can never reappear
-    # once consumed). If the target were registered while node04 is still
+    # updateForcedTxTracking dequeues a forced tx the moment ANY leader
+    # (honest or not) includes it -- an earlier version left it queued
+    # forever after inclusion, permanently deadlocking the chain, since the
+    # tx can never reappear once consumed. If the target were registered
+    # while node04 is still
     # honest, an honest leader could dequeue it before byzantine mode even
     # activates, and the test would trivially pass without ever exercising
     # node04's censor_tx path. Enabling byzantine first means whichever

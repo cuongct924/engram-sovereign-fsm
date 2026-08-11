@@ -6,9 +6,8 @@ scripts/e3_failure_matrix/live_lifecycle_test.py), matching the doc's intent
 of a genuinely compounding stress trace across all 3 peripheral systems.
 
 Run LAST, after these prerequisite mechanisms have each been individually
-validated in isolation (this session's own risk assessment: betting a long
-combined run on unproven mechanisms compounds the risk of an inconclusive
-result):
+validated in isolation -- betting a long combined run on unproven
+mechanisms compounds the risk of an inconclusive result:
   - scripts/e2_fault_injection/live_scenario_matrix.py's S2 leg (confirms
     whether chaos-btc-delay actually produces a gradual btc_gap ramp).
   - scripts/e4_p2p_eclipse_detection/live_sybil_attack.py or

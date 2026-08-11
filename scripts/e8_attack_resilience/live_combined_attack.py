@@ -4,21 +4,20 @@ docs/EXPERIMENT.md's E8 capstone: overlays MULTIPLE attack vectors from the
 A1-A7 matrix simultaneously, confirming safety holds under compounding
 adversarial pressure rather than testing each vector in isolation.
 
-Depends on mechanisms built by two earlier parts, both required before this
-is meaningful:
-  - Part 1/2 (A1/A2): docker/attacker-peer-swarm.yml's A1 leg (peer-slot
-    exhaustion swarm against engram-node01) -- scripts/e4_p2p_eclipse_detection/
+Depends on two mechanisms, both required for this to be meaningful:
+  - A1/A2: docker/attacker-peer-swarm.yml's A1 leg (peer-slot exhaustion
+    swarm against engram-node01) -- scripts/e4_p2p_eclipse_detection/
     live_sybil_attack.py's mechanism, reused directly here.
-  - Part 4a (A3/A4/A6): docker/engram-validator-node04-byzantine.yml
-    (node04 running with ENGRAM_BYZANTINE_BEHAVIOR set) --
+  - A3/A4/A6: docker/engram-node04-byzantine.yml (node04 running
+    with ENGRAM_BYZANTINE_BEHAVIOR set) --
     scripts/e8_attack_resilience/live_byzantine_attacks.py's mechanism.
 
 This overlay: node04 runs fake_fsm_state:SOVEREIGN (A6) for the whole
 window, WHILE the A1 attacker swarm simultaneously floods engram-node01's
 peer slots -- two independent attack surfaces active at once, neither
-defended against by the other's mitigation (Part 1a's ingress filter
-doesn't touch consensus-layer proposal content; the honest-validator
-rejection path doesn't touch peer admission).
+defended against by the other's mitigation (the ingress filter doesn't
+touch consensus-layer proposal content; the honest-validator rejection
+path doesn't touch peer admission).
 
 Safety bar: the 3 HONEST, non-byzantine, non-swarm-targeted nodes
 (engram-node02, engram-node03 -- engram-node01 is excluded from the
@@ -64,7 +63,7 @@ def enable_byzantine(behavior: str) -> None:
             "-f",
             "compose.yml",
             "-f",
-            "docker/engram-validator-node04-byzantine.yml",
+            "docker/engram-node04-byzantine.yml",
             "up",
             "-d",
             "--no-deps",
@@ -175,8 +174,8 @@ class Tracker:
             self.samples.extend(all_samples)
 
             # Compare AppHash only within the same height -- see
-            # live_byzantine_attacks.py's Tracker.poll_for for the false-
-            # positive this avoids (found live, same bug class here).
+            # live_byzantine_attacks.py's Tracker.poll_for for the
+            # false-positive this avoids (same bug class here).
             witness_hashes = {
                 s.node: s.app_hash
                 for s in all_samples

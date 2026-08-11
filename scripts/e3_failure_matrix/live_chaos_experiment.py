@@ -5,9 +5,8 @@ in-process mock-sensor harness) and scripts/e4_p2p_eclipse_detection/
 simulate_eclipse_attack.py (synthetic Monte Carlo, no live network). This
 script instead drives the REAL 4-node engram-nodeNN testnet, injects a REAL
 Pumba chaos profile (root compose.yml's pumba-latency/loss/kill/eclipse
-services -- scaffolded but never actually run before this session per
-CLAUDE.md's M7 status), and polls the real nodes' RPC/ABCI-query state
-throughout via scripts/framework/logger.py.
+services), and polls the real nodes' RPC/ABCI-query state throughout via
+scripts/framework/logger.py.
 
 Usage:
     python3 scripts/e3_failure_matrix/live_chaos_experiment.py chaos-delay

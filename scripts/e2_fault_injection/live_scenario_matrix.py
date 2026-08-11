@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """LIVE E2 fault-injection scenario matrix against the real 4-node testnet --
 docs/EXPERIMENT.md's S1-S7, driven by REAL docker fault injection (not
-tests/e2e's in-process mock harness), continuing this session's standing
-requirement that scripts/ read from the live cluster.
+tests/e2e's in-process mock harness). scripts/ under this repo read from the
+live cluster, not a mock.
 
 One continuous 7-phase run (chains phases like
 scripts/e3_failure_matrix/live_lifecycle_test.py already does, since a cold
-restabilization between 7 INDEPENDENT runs would cost ~250-300s of peer-
-tenure buildup each, per this session's own empirical numbers -- prohibitive
-seven times over). Each phase's "before" state is the previous phase's
-already-healed "after" state.
+restabilization between 7 INDEPENDENT runs would cost ~250-300s of measured
+peer-tenure buildup each -- prohibitive seven times over). Each phase's
+"before" state is the previous phase's already-healed "after" state.
 
     S1 baseline        -- no injection, confirm ANCHORED
     S2 BTC congestion   -- new chaos-btc-delay Pumba profile on bitcoin-node01.
@@ -30,11 +29,11 @@ already-healed "after" state.
                            phase cross-checks via /net_info peer counts on
                            the isolated node instead (logger.net_info).
     S6 combined BTC+DA failure -- docker stop bitcoin-node01 AND
-                           celestia-bridge simultaneously. Also doubles as
-                           the live regression check for this session's
-                           anchor.go/btcGapMetric error-swallowing fix,
-                           applied earlier but never live-verified for a
-                           real BTC outage specifically.
+                           celestia-bridge simultaneously. Also serves as
+                           the live regression check for anchor.go/
+                           btcGapMetric's error-swallowing fix, previously
+                           only unit-tested, not verified against a real
+                           BTC outage.
     S7 recovery         -- restart everything, run to real ANCHORED via the
                            real ZK re-anchoring pipeline. REQUIRES
                            scripts/reanchoring_prover/watch_and_prove.sh

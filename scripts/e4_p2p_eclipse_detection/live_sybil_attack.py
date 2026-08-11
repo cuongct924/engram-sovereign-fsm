@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """LIVE Docker attacker-swarm test against the real 4-node testnet --
 docs/EXPERIMENT.md's E4/E8 A1 (Peer Slot Exhaustion) and A2 (Sybil via
-simulated multi-subnet swarm), verifying Part 1a's real ingress filter
+simulated multi-subnet swarm), verifying the real ingress filter
 (x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr, Params.
-MaxPeersPerSubnet) against real attacker traffic, per the user's explicit
-requirement that E4 move beyond synthetic Monte Carlo detection data.
+MaxPeersPerSubnet) against real attacker traffic, going beyond E4's
+synthetic Monte Carlo detection data (simulate_eclipse_attack.py).
 
 Two legs, driven by docker/attacker-peer-swarm.yml's two profiles:
   a1 -- 10 attacker containers, all on engram-net (same /24 as the 4 real
