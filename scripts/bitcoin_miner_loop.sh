@@ -56,13 +56,28 @@ echo "[bitcoin_miner_loop] mining 1 block every ${INTERVAL}s to $ADDR on $RPC_HO
 
 while true; do
   bitcoin-cli $CLI_ARGS generatetoaddress 1 "$ADDR" > /dev/null
-  CUR_INTERVAL="$INTERVAL"
-  if [ -f "$OVERRIDE_FILE" ]; then
-    OVERRIDE="$(cat "$OVERRIDE_FILE" 2>/dev/null || true)"
-    case "$OVERRIDE" in
-      ''|*[!0-9]*) : ;; # not a positive integer -- ignore, keep CUR_INTERVAL
-      *) CUR_INTERVAL="$OVERRIDE" ;;
-    esac
-  fi
-  sleep "$CUR_INTERVAL"
+
+  # Sleeps in 1s steps, re-reading OVERRIDE_FILE on every tick, rather than
+  # one single `sleep "$CUR_INTERVAL"` -- a single long sleep can't react to
+  # the override file being REMOVED mid-sleep (a large override, e.g. 99999s
+  # to fully pause mining for a reorg test, commits the process to a ~27hr
+  # sleep that a later `rm -f` can't interrupt). Confirmed live: E10's
+  # reorg-test pause/resume left bitcoin-miner-loop stuck not mining for the
+  # remainder of that stale sleep, well after resume had already run.
+  elapsed=0
+  while true; do
+    target="$INTERVAL"
+    if [ -f "$OVERRIDE_FILE" ]; then
+      OVERRIDE="$(cat "$OVERRIDE_FILE" 2>/dev/null || true)"
+      case "$OVERRIDE" in
+        ''|*[!0-9]*) : ;; # not a positive integer -- ignore, keep target
+        *) target="$OVERRIDE" ;;
+      esac
+    fi
+    if [ "$elapsed" -ge "$target" ]; then
+      break
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
 done
