@@ -277,31 +277,27 @@ a Docker testnet — what `MaxPeersPerSubnet`/`SubnetDiversity` defends against 
 *consequence* (many peers appearing to come from different subnets but controlled by one
 attacker), not its root cause, so simulating the consequence is a faithful enough test.
 
-**Live run results (4-node cluster):** full write-up in
-`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_live_run_20260808_summary.md`.
-Summary:
+**Live run results (4-node cluster, pairwise-link mesh topology):** `scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260812T154911_summary.md` and
+`sybil_attack_a2_20260812T155359_summary.md`. Re-run after the pairwise-link mesh redesign (§1's
+`docs/ARCHITECTURE.md`, 6 dedicated `/29` links replacing the shared `engram-net` for
+validator-to-validator gossip) superseded the earlier 2026-08-08 run below it had been measured
+against the old shared-subnet topology.
 
-- **A1** (10 attackers on `engram-net`): the filter holds at exactly **8/8**
-  (`MaxPeersPerSubnet`), consistent across 2 repeated runs. The 3 honest validators (which appear
-  on the `172.21.0.0` subnet due to the gateway-priority quirk, `docs/ARCHITECTURE.md` §1) are
-  unaffected throughout; block height and AppHash progress normally, matching across all 4 nodes.
-- **A2** (12 attackers, intended to spread across 4 subnets): the filter still holds at **8/8**,
-  but does not achieve the intended subnet diversity — a multi-homed Docker container (attached to
-  both its own subnet and `engram-net`, to reach `engram-node01`) defaults its outbound route to
-  the network declared **second** in the service definition, not the first — the same mechanism
-  that puts the 4 real validators on `bitcoin-net` instead of `engram-net`
-  (`docs/ARCHITECTURE.md` §1). This is a limitation of simulating via Docker's default bridge
-  networking, not a `FilterPeerByAddr` bug: the filter defends correctly on whichever subnet peers
-  actually arrive from, shown by both A1 and A2 holding at 8/8. A `gw_priority` fix was attempted
-  on one container and did not resolve it within the available time.
-- **Fixes applied during the live run:** (1) a bare `docker compose ... down` (no service names)
-  tears down the entire cluster, not just the attacker swarm — fixed by using `stop`+`rm -f` with
-  explicit service names, applied to
-  `live_combined_attack.py`/`live_double_signing_test.py` too; (2) attacker `persistent_peers`
-  lacked the real node ID (CometBFT needs `id@host:port`) — fixed by resolving the real ID via RPC
-  at container start; (3) attacker A2 initially had no route to `engram-node01` (only its own
-  subnet attached) — fixed by attaching both networks, which is what surfaced the gateway-priority
-  finding above.
+- **A1** (10 attackers on `engram-net`): filter holds at exactly **8/8** (`MaxPeersPerSubnet`).
+  The 3 honest peers, now on their own dedicated pairwise-link `/29`s (one per peer, real
+  `SubnetDiversity=3`), are completely absent from `engram-net`'s peer count throughout — the
+  clean isolation the old shared-subnet topology couldn't provide. FSM stays ANCHORED the whole
+  run; height and peer counts on the 3 pairwise links (1 each) never move.
+- **A2** (12 attackers across `attacker-subnet-a/b/c/d`): filter still holds at exactly **8/8** on
+  `engram-net`, this time with NO routing caveat — the earlier "gateway-priority" finding (a
+  multi-homed container defaulting its route to the network declared second, previously conflated
+  with `engram-net`'s dual role as both P2P transport and attacker/external-client network) no
+  longer applies now that `engram-net` carries only non-gossip traffic; attacker admission and
+  honest peer connectivity are structurally independent. Same clean FSM/height behavior as A1.
+
+The 2026-08-08 run's `docker compose ... down`/attacker-`persistent_peers`-ID fixes (applied to
+`live_combined_attack.py`/`live_double_signing_test.py` too) remain in effect and needed no
+further changes for this re-run.
 
 ---
 
