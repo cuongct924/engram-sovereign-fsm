@@ -169,30 +169,50 @@ RT_NEW=$(linked_field "$COUNT" "state_root")
 # is accepted, so without this a late-joining node or external auditor has
 # no way to retrieve the real header chain it was built from. A failure here
 # degrades to skipping --da-height, not aborting the whole proof submission.
-echo "[reanchoring_prover] 4/5: publishing real header chain to Celestia DA..."
-{
-  echo "rt_last = \"$RT_LAST\""
-  echo "rt_new = \"$RT_NEW\""
-  echo "count = \"$COUNT\""
-  for ((i = 1; i <= COUNT; i++)); do
-    echo ""
-    echo "[[headers]]"
-    echo "prev_hash = \"$(linked_field "$i" prev_hash)\""
-    echo "fsm_state = \"$(linked_field "$i" fsm_state)\""
-    echo "withdrawal_locked = \"$(linked_field "$i" withdrawal_locked)\""
-    echo "state_root = \"$(linked_field "$i" state_root)\""
-  done
-} > "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml"
+#
+# Throttled, not on every proof: celestia-bridge signs every blob submission
+# (this AND every validator's own regular block-data publishing) from one
+# shared account -- confirmed live, publishing on every proof (accepted as
+# often as every ~12s) sustained 3-4 account-sequence-mismatch races/sec on
+# that shared account, degrading regular DA health for all 4 validators, not
+# just this script. WITNESS_PUBLISH_MIN_INTERVAL_S bounds how often this
+# script actually publishes; skipped attempts still submit the proof itself
+# (never throttled) with no --da-height.
+WITNESS_PUBLISH_MIN_INTERVAL_S="${WITNESS_PUBLISH_MIN_INTERVAL_S:-120}"
+WITNESS_PUBLISH_MARKER="$MAIN_CIRCUIT_DIR/target/.last_witness_publish"
+NOW_S=$(date +%s)
+LAST_PUBLISH_S=0
+[ -f "$WITNESS_PUBLISH_MARKER" ] && LAST_PUBLISH_S=$(cat "$WITNESS_PUBLISH_MARKER")
 
 DA_HEIGHT_FLAG=()
-if DA_OUT=$("$ENGRAMD" publish-recovery-witness --headers "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml" 2>&1); then
-  DA_HEIGHT=$(echo "$DA_OUT" | grep '^da_celestia_height=' | cut -d= -f2)
-  if [ -n "$DA_HEIGHT" ]; then
-    echo "[reanchoring_prover] witness published at Celestia height $DA_HEIGHT"
-    DA_HEIGHT_FLAG=(--da-height "$DA_HEIGHT")
+if [ $((NOW_S - LAST_PUBLISH_S)) -ge "$WITNESS_PUBLISH_MIN_INTERVAL_S" ]; then
+  echo "[reanchoring_prover] 4/5: publishing real header chain to Celestia DA..."
+  {
+    echo "rt_last = \"$RT_LAST\""
+    echo "rt_new = \"$RT_NEW\""
+    echo "count = \"$COUNT\""
+    for ((i = 1; i <= COUNT; i++)); do
+      echo ""
+      echo "[[headers]]"
+      echo "prev_hash = \"$(linked_field "$i" prev_hash)\""
+      echo "fsm_state = \"$(linked_field "$i" fsm_state)\""
+      echo "withdrawal_locked = \"$(linked_field "$i" withdrawal_locked)\""
+      echo "state_root = \"$(linked_field "$i" state_root)\""
+    done
+  } > "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml"
+
+  if DA_OUT=$("$ENGRAMD" publish-recovery-witness --headers "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml" 2>&1); then
+    DA_HEIGHT=$(echo "$DA_OUT" | grep '^da_celestia_height=' | cut -d= -f2)
+    if [ -n "$DA_HEIGHT" ]; then
+      echo "[reanchoring_prover] witness published at Celestia height $DA_HEIGHT"
+      DA_HEIGHT_FLAG=(--da-height "$DA_HEIGHT")
+      echo "$NOW_S" > "$WITNESS_PUBLISH_MARKER"
+    fi
+  else
+    echo "[reanchoring_prover] WARNING: witness DA publish failed, proceeding without --da-height: $DA_OUT" >&2
   fi
 else
-  echo "[reanchoring_prover] WARNING: witness DA publish failed, proceeding without --da-height: $DA_OUT" >&2
+  echo "[reanchoring_prover] 4/5: skipping witness publish (throttled, last one ${WITNESS_PUBLISH_MIN_INTERVAL_S}s ago not yet elapsed)"
 fi
 
 echo "[reanchoring_prover] 5/5: submitting real proof to $NODE_URL..."

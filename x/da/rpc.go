@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -178,6 +179,24 @@ type blobSubmitParam struct {
 // confirmed to work end-to-end is sufficient.
 const defaultGasPrice = 0.002
 
+// maxSubmitSequenceRetries/submitSequenceRetryBackoff handle blob.Submit's
+// "account sequence mismatch" error -- celestia-bridge signs every blob
+// submission from ONE shared account (all 4 validators' regular block-data
+// publishing plus reanchoring-prover's witness publishing, x/sovereignty/
+// docker/reanchoring-prover.yml's doc), and under concurrent submitters its
+// own sequence-number tracking can race: confirmed live, ~3-4 mismatches/sec
+// sustained once reanchoring-prover started submitting too. A bounded retry
+// with backoff gives the account's tracking time to resync between
+// concurrent submitters rather than failing outright on the first race.
+const (
+	maxSubmitSequenceRetries  = 5
+	submitSequenceRetryBackoff = 400 * time.Millisecond
+)
+
+func isSequenceMismatch(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "account sequence mismatch")
+}
+
 // Submit calls blob.Submit with a single blob of data under namespace,
 // returning the Celestia block height it landed in. This is the app's
 // concrete counterpart of "publish this Engram block to the DA layer" --
@@ -190,10 +209,22 @@ func (c *RPCClient) Submit(ctx context.Context, ns Namespace, data []byte) (uint
 		ShareVersion: 0,
 	}
 	var height uint64
-	if err := c.call(ctx, "blob.Submit", []any{[]blobSubmitParam{param}, defaultGasPrice}, &height); err != nil {
-		return 0, fmt.Errorf("blob.Submit: %w", err)
+	var err error
+	for attempt := 0; attempt <= maxSubmitSequenceRetries; attempt++ {
+		err = c.call(ctx, "blob.Submit", []any{[]blobSubmitParam{param}, defaultGasPrice}, &height)
+		if err == nil {
+			return height, nil
+		}
+		if !isSequenceMismatch(err) || attempt == maxSubmitSequenceRetries {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(submitSequenceRetryBackoff):
+		}
 	}
-	return height, nil
+	return 0, fmt.Errorf("blob.Submit: %w", err)
 }
 
 // blobResult is blob.GetAll's per-blob response shape -- only the fields
