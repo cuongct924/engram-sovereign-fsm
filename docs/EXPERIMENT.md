@@ -963,6 +963,26 @@ replacing the block at the previously-anchored height is caught on the very next
 p) || m.IsBtcSpvFailed || ...`), forcing SOVEREIGN. A real defense-in-depth mechanism the spec
 doesn't require but the concrete implementation provides.
 
+**Follow-up needed before treating this as a settled result.** The direction (fail-safe to
+SOVEREIGN rather than silently trusting an invalidated anchor) is a genuine positive finding, but
+the measurement itself has real limits, honestly flagged rather than glossed over:
+
+- **Single run.** One depth-15 trial, not repeated -- no variance/repeatability check.
+- **Boundary untested.** Depth-15 is far past `KDeepFinality`=2 with a wide safety margin; the two
+  earlier depth-5 attempts don't fill this gap either, since both missed the actually-anchored
+  height entirely (a targeting bug, not evidence about depth 5 itself). The precise minimum depth
+  at which `VerifyAnchor` starts catching a reorg -- particularly right at `KDeepFinality`+1, the
+  smallest case spec/README.md SS7.3 classifies as "deep" -- is still unmeasured.
+  `--reorg-depth 3` (the smallest deep case at the current default `KDeepFinality`=2) is the
+  natural next run.
+- **Not formally verified.** `AnchorTracker.VerifyAnchor` has no spec line and isn't covered by any
+  TLC/Apalache model -- its correctness here rests on this one live observation plus code reading
+  (spec/README.md SS7.3's correction above), not exhaustive proof.
+- **Recovery path after a deep reorg not separately measured.** The cluster was still `SOVEREIGN`
+  when this run ended; how long recovery back to `ANCHORED` takes *specifically following a deep
+  reorg event* (as opposed to the DA/BTC-outage recovery paths E3/E9 already measure) is unmeasured
+  -- worth chaining a settle-and-recover phase onto a future run, mirroring E3/E9's structure.
+
 **Bug found and fixed (infrastructure, not FSM/consensus logic):** `bitcoin_miner_loop.sh`'s pause
 mechanism (added for S2 above) used a single `sleep "$CUR_INTERVAL"`, reading the override file only
 once per iteration before sleeping — setting a large override (99999s, to fully freeze node01's
