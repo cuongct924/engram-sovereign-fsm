@@ -799,45 +799,32 @@ committing blocks even with all 3 failures layered simultaneously.
 real trace on the 4-node cluster (not mocked): `chaos-btc-delay` (BTC congestion) → layered
 `docker stop celestia-bridge` (DA outage, still under BTC pressure) → layered 3 cycles of
 `chaos-loss` (P2P churn burst, all 3 failures at once) → recovery in reverse order → wait for a
-real ANCHORED via the ZK pipeline. Phases 1-6 (baseline → BTC → +DA → +P2P churn → peak
-triple-fault → healing) **passed**: height progressed continuously 1043→1192 across the first
-273s, no stalled round, all 4 nodes stayed height-synced. Phase 7 (waiting for a real ANCHORED via
-`watch_and_prove.sh`/`prove_and_submit.sh`) **timed out after 600s**, never reaching ANCHORED.
-Data: `scripts/e9_trace_driven/results_live/e9_combined_trace_20260808T181408.csv` (1504 samples)
-+ `_summary.md`. No automated 6-panel figure (BTC gap/DA gap/P2P health aren't in committed state,
+real ANCHORED via the ZK pipeline, under a `chaos-wan-latency` per-validator WAN-realism baseline
+and the pairwise-link P2P mesh (§1's `MinSubnetDiversity=2` topology). All 7 phases **passed** in
+a single 319s run: height progressed continuously throughout with no stalled round and all 4 nodes
+height-synced at every sample; all 4 validators transitioned ANCHORED → SOVEREIGN together at
+t=152s (the triple-fault peak), then SOVEREIGN → RECOVERING → ANCHORED together at t=308s/315s
+once healing completed — zero divergence across validators at any transition. Data:
+`scripts/e9_trace_driven/results_live/e9_combined_trace_20260812T140833.csv` (384 samples) +
+`_summary.md`. No automated 6-panel figure (BTC gap/DA gap/P2P health aren't in committed state,
 per the limitation documented in `x/sovereignty/preblock.go`'s `NewPreBlocker`) — only
 `fsm_state`/height/marker are real live data.
 
-**Root cause of the Phase 7 timeout:** running `bash -x scripts/reanchoring_prover/prove_and_submit.sh`
-directly showed the script exiting with **code 141 (SIGPIPE)** at Step 1/4 (header extraction),
-never reaching Step 4 (proof submission) or any chain rejection —
-`HEADER_LINES=$(echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N")` breaks the pipe once
-`$ALL_HEADER_LINES` exceeds the OS pipe buffer (~64 KB, a few hundred headers): `head -n 4` reads
-its 4 lines and exits early while `echo` is still writing, `echo` receives SIGPIPE, and under
-`set -o pipefail` the whole script exits 141. This is a shell-script bug, unrelated to the
-ZK/chain logic. Fixed by replacing the pipe with a here-string
-(`head -n "$EXPECTED_N" <<< "$ALL_HEADER_LINES"`). Re-running manually after the fix succeeded:
-the proof was accepted by the chain (`submitted at height 2517`), the checkpoint advanced
-(`HeaderHistory` now starts at height=5 instead of height=1, `rt_last` updated) — confirming the
-ZK re-anchoring pipeline works correctly when actually invoked. The 518 prior "rejected" log lines
-are almost certainly all this same SIGPIPE bug, not the chain rejecting proofs for staleness.
-Conclusion for the Phase 7 timeout: the ZK re-anchoring mechanism works correctly when called, but
-`watch_and_prove.sh` never successfully called it during this E9 run because of this script bug —
-the timeout is real, but caused by the driver script, not by any design limitation of the
-fixed-N=4 proof mechanism (that limitation is real and still documented at
-`RealProofSubmittedHeight`'s doc, just not the cause of this particular timeout). E9's Phase 7 has
-not yet been re-run with the fixed script (the interval is now past 2500 headers; a successful
-`watch_and_prove.sh` run would still need many N=4 iterations to catch up).
+**Two bugs found and fixed in an earlier E9 run** (both confirmed fixed by the clean 319s run
+above, which needed neither workaround):
 
-**Second bug found running E9:** `scripts/framework/injector.py`'s `cleanup_profile` (shared by
-every chaos script in the repo) only calls `docker compose rm -f`, without `stop` first — `rm -f`
-only skips the confirmation prompt, it does **not** stop a running container (unlike plain
-`docker rm -f`). This had gone unnoticed because every prior call happened after a container's
-own `--duration` had already elapsed. E9's Phase 4 was the first to need interrupting a
-still-running profile mid-flight (`chaos-loss` has `--duration=2m` but each cycle only holds for
-20s) — exposing the bug: the container stayed stuck "Up", and `wait_for_no_active_netem()`
-correctly refused to start the next profile rather than silently stacking two profiles. Fixed at
-the shared helper: `stop` before `rm -f`.
+- `scripts/reanchoring_prover/prove_and_submit.sh`'s header extraction used
+  `echo "$ALL_HEADER_LINES" | head -n "$EXPECTED_N"` — once `$ALL_HEADER_LINES` exceeds the OS
+  pipe buffer (~64 KB), `head` exits after its N lines while `echo` is still writing, `echo` gets
+  SIGPIPE, and `set -o pipefail` makes the whole script exit 141 before ever reaching proof
+  submission. Fixed with a here-string (`head -n "$EXPECTED_N" <<< "$ALL_HEADER_LINES"`), which
+  doesn't create a pipe to break.
+- `scripts/framework/injector.py`'s `cleanup_profile` (shared by every chaos script in the repo)
+  called `docker compose rm -f` without `stop` first — `-f` only skips the confirmation prompt, it
+  does not stop a running container. Any profile interrupted mid-`--duration` (not just left to
+  expire on its own) stayed stuck "Up", and `wait_for_no_active_netem()` correctly refused to
+  start the next profile rather than silently stacking two. Fixed by calling `stop` before
+  `rm -f`.
 
 ---
 
