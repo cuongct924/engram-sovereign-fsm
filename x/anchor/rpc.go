@@ -151,13 +151,19 @@ type utxoRef struct {
 // spendable funds (regtest: `createwallet` + mine to one of its addresses).
 // Returns the broadcast transaction's txid.
 //
-// Locks the coins `fundrawtransaction` selected (via `lockunspent`) before
-// signing/broadcasting, releasing the lock afterward: this repo's 4
-// validators share bitcoind wallets (2 instances for 4 validators), so
-// `fundrawtransaction` alone doesn't reserve its chosen inputs -- two
-// validators calling it in the same window can select the same UTXO, and
-// whichever broadcasts second gets rejected as an underpriced BIP125
-// replacement. `lockunspent` is the standard fix for this race.
+// This repo's 4 validators share one bitcoind wallet, so every validator
+// calls this every block -- fundrawtransaction's coin selection and the
+// lock protecting it must be ATOMIC, or two validators can select the same
+// UTXO before either one locks it (the previous version called
+// fundrawtransaction, THEN decoderawtransaction, THEN a separate
+// lockunspent -- a real TOCTOU window between "select" and "lock" that let
+// concurrent submissions race on the same input in practice, live-confirmed
+// via "lockunspent: -8 Invalid parameter, output already locked"
+// and every submission failing/retrying forever, never actually anchoring).
+// Passing lockUnspents to fundrawtransaction itself makes bitcoind select
+// AND lock the chosen inputs as one atomic RPC call -- no separate
+// lockunspent(false, ...) needed, and no window for another validator's
+// concurrent fundrawtransaction to pick the same input.
 func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string, error) {
 	dataHex := fmt.Sprintf("%x", payload)
 
@@ -169,7 +175,7 @@ func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string,
 	var funded struct {
 		Hex string `json:"hex"`
 	}
-	if err := c.call(ctx, "fundrawtransaction", []any{rawHex}, &funded); err != nil {
+	if err := c.call(ctx, "fundrawtransaction", []any{rawHex, map[string]any{"lockUnspents": true}}, &funded); err != nil {
 		return "", fmt.Errorf("fundrawtransaction: %w", err)
 	}
 
@@ -179,10 +185,10 @@ func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string,
 	if err := c.call(ctx, "decoderawtransaction", []any{funded.Hex}, &decoded); err != nil {
 		return "", fmt.Errorf("decoderawtransaction: %w", err)
 	}
+	// Inputs are already locked (lockUnspents above) -- this only unlocks
+	// them once we're done, whether signing/broadcasting below succeeds or
+	// fails, so a failed attempt's inputs are free for the next retry.
 	if len(decoded.Vin) > 0 {
-		if err := c.call(ctx, "lockunspent", []any{false, decoded.Vin}, nil); err != nil {
-			return "", fmt.Errorf("lockunspent: %w", err)
-		}
 		defer func() {
 			_ = c.call(context.Background(), "lockunspent", []any{true, decoded.Vin}, nil)
 		}()

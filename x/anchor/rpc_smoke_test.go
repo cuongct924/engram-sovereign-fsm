@@ -11,6 +11,7 @@ package anchor_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,6 +100,48 @@ func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
 	verified, err := tracker.VerifyAnchor(ctx, height)
 	require.NoError(t, err)
 	require.True(t, verified, "the height MaybeSubmit just reported confirmed must immediately pass VerifyAnchor -- this is exactly what failed live before the fix")
+}
+
+// TestRPCClient_ConcurrentSubmitOpReturnDoesNotRaceOnSharedUTXOs reproduces
+// the real 4-validator scenario (this repo's 4 validators share one
+// bitcoind wallet, x-engram-node-env's BITCOIN_HOST) by firing 4 concurrent
+// SubmitOpReturn calls against the same wallet. Found live: an earlier
+// version called fundrawtransaction (selects UTXOs, unlocked), THEN
+// decoderawtransaction, THEN a separate lockunspent -- a real TOCTOU window
+// where two concurrent calls could both select the same input before either
+// locked it, failing with "lockunspent: -8 Invalid parameter, output
+// already locked" and, on the real 4-node testnet, NEVER anchoring at all
+// (every validator's submission raced every block, forever). The fix passes
+// lockUnspents to fundrawtransaction itself so selection and locking happen
+// as one atomic RPC call -- every concurrent call here must either succeed
+// outright or fail with a benign "insufficient funds"/"already locked from
+// a DIFFERENT already-broadcast tx" reason, never the TOCTOU race itself.
+func TestRPCClient_ConcurrentSubmitOpReturnDoesNotRaceOnSharedUTXOs(t *testing.T) {
+	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	mineBlocks(t, ctx, c, 5) // ensure enough spendable, mature UTXOs for 4 concurrent funds
+
+	const n = 4
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, errs[i] = c.SubmitOpReturn(ctx, []byte{byte(i)})
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err == nil {
+			continue
+		}
+		require.NotContains(t, err.Error(), "already locked",
+			"validator %d hit the UTXO-selection race the atomic lockUnspents fix should prevent: %v", i, err)
+	}
 }
 
 func mineBlocks(t *testing.T, ctx context.Context, c *anchor.RPCClient, n int) string {
