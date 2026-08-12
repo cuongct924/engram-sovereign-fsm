@@ -30,8 +30,10 @@ Layering, one continuous timeline (not sequential):
 
 Usage:
     python3 -u scripts/e9_trace_driven/live_combined_trace.py
+    python3 -u scripts/e9_trace_driven/live_combined_trace.py --wan-profile none  # old uniform-LAN behavior
 """
 
+import argparse
 import os
 import subprocess
 import sys
@@ -43,6 +45,8 @@ from injector import (
     start_pumba_profile,
     cleanup_profile,
     wait_for_no_active_netem,
+    start_pumba_wan_profile,
+    cleanup_wan_profile,
 )  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
@@ -129,8 +133,29 @@ class Tracker:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--wan-profile",
+        choices=["none", "chaos-wan-latency", "chaos-wan-loss"],
+        default="chaos-wan-latency",
+        help="per-validator WAN-realism baseline (each of the 4 validators gets a DIFFERENT "
+        "delay/jitter or loss%%, approximating distinct real regions) held for the whole trace "
+        "EXCEPT Phase 4, which needs the same root netem qdisc slot for chaos-loss's own P2P "
+        "churn burst -- paused before Phase 4, resumed after. 'none' reproduces the old "
+        "uniform-LAN behavior. The profile's own --duration is 10 minutes; a slow Phase 7 can "
+        "outlast it, silently reverting to uniform-LAN for the remainder -- not fatal, Phase 7 "
+        "only waits for recovery, it doesn't need WAN chaos active to succeed.",
+    )
+    args = parser.parse_args()
+
     os.makedirs(RESULTS_DIR, exist_ok=True)
     tr = Tracker()
+
+    wan_active = False
+    if args.wan_profile != "none":
+        print(f"[{now()}] >>> starting {args.wan_profile} (WAN-realism baseline)")
+        start_pumba_wan_profile(args.wan_profile)
+        wan_active = True
 
     print("=== Phase 1: baseline ===")
     tr.poll(15, phase="P1_baseline")
@@ -151,6 +176,12 @@ def main():
     print(
         "=== Phase 4: layer P2P churn burst on top of both (chaos-loss, 3 short cycles) ==="
     )
+    if wan_active:
+        # chaos-wan-latency/loss and chaos-loss both add a root netem qdisc
+        # on the same engram-node01/02 interfaces -- a second root qdisc add
+        # fails outright, so the WAN baseline must step aside for this phase.
+        print(f"[{now()}] >>> pausing {args.wan_profile} for Phase 4 (root qdisc conflict with chaos-loss)")
+        cleanup_wan_profile(args.wan_profile)
     tr.mark("chaos-loss churn burst starting (3rd simultaneous fault class)")
     for i in range(3):
         wait_for_no_active_netem()
@@ -159,6 +190,10 @@ def main():
         cleanup_profile("chaos-loss")
         tr.poll(10, interval=2.0, phase=f"P4_triple_fault_churn_cycle_{i + 1}_off")
     tr.mark("P2P churn burst complete")
+    if wan_active:
+        print(f"[{now()}] >>> resuming {args.wan_profile} after Phase 4")
+        wait_for_no_active_netem()
+        start_pumba_wan_profile(args.wan_profile)
 
     print("=== Phase 5: hold at peak triple-fault state briefly ===")
     tr.poll(30, phase="P5_peak_triple_fault")
@@ -175,6 +210,10 @@ def main():
     )
     reached = tr.wait_for_state("ANCHORED", 600, phase="P7_recovery")
 
+    if wan_active:
+        print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")
+        cleanup_wan_profile(args.wan_profile)
+
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     csv_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}.csv")
     write_csv(tr.samples, csv_path)
@@ -185,7 +224,8 @@ def main():
             "# LIVE E9 combined-failure trace (BTC + DA + P2P churn, overlapping)\n\n"
         )
         f.write(
-            f"Total duration: {tr.elapsed():.0f}s. Final phase reached ANCHORED: {reached}\n\n"
+            f"Total duration: {tr.elapsed():.0f}s. Final phase reached ANCHORED: {reached}. "
+            f"WAN-realism baseline: {args.wan_profile}.\n\n"
         )
         f.write("## Fault-injection / healing event markers\n\n")
         f.write("| t (s) | Event |\n|---:|---|\n")

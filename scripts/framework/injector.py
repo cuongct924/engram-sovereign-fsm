@@ -54,6 +54,80 @@ PROFILE_DESCRIPTIONS = {
 }
 
 
+# WAN-realism profiles (compose.yml's pumba-wan-latency-0N/pumba-wan-loss-0N,
+# docker/reanchoring... no -- these live in the root compose.yml directly,
+# see its "WAN realism profiles" section): one Pumba container PER
+# validator, each with a DIFFERENT delay/jitter or loss%, approximating 4
+# geographically distinct nodes rather than one uniform condition. Multi-
+# service per profile (4 containers, not 1), unlike every profile above --
+# service name == container_name for these (compose.yml sets both
+# identically), so one list covers both start and stop/rm calls, no separate
+# *_TO_CONTAINER mapping needed.
+#
+# chaos-wan-latency and chaos-wan-loss must never run concurrently on the
+# same validator: both add a ROOT netem qdisc on the same eth0, and a
+# second root qdisc add fails outright (same conflict class documented on
+# cleanup_profile below for the single-service profiles) -- treat them as
+# mutually exclusive WAN-baseline choices, not stackable.
+WAN_PROFILE_TO_SERVICES = {
+    "chaos-wan-latency": [
+        "pumba-wan-latency-01",
+        "pumba-wan-latency-02",
+        "pumba-wan-latency-03",
+        "pumba-wan-latency-04",
+    ],
+    "chaos-wan-loss": [
+        "pumba-wan-loss-01",
+        "pumba-wan-loss-02",
+        "pumba-wan-loss-03",
+        "pumba-wan-loss-04",
+    ],
+}
+
+
+def start_pumba_wan_profile(profile: str, wait_running_timeout_s: float = 15.0) -> list:
+    """Multi-service counterpart to start_pumba_profile -- starts all of
+    profile's per-validator containers together, explicit service names
+    always (see cleanup_wan_profile's doc for why a bare --profile stop/rm
+    is dangerous)."""
+    services = WAN_PROFILE_TO_SERVICES[profile]
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "up", "-d", *services],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    deadline = time.time() + wait_running_timeout_s
+    while time.time() < deadline:
+        if all(container_status(c) in ("running", "exited") for c in services):
+            return services
+        time.sleep(0.3)
+    raise RuntimeError(
+        f"{services} did not all reach running/exited state within {wait_running_timeout_s}s"
+    )
+
+
+def cleanup_wan_profile(profile: str) -> None:
+    """Multi-service counterpart to cleanup_profile. ALWAYS passes explicit
+    service names to stop/rm -- a bare `docker compose --profile X stop`
+    with no service list stops the ENTIRE cluster, not just profile X's own
+    containers (--profile only widens up's defaults, it does not narrow
+    stop/rm's scope). Hit this for real once; see the Makefile's
+    chaos-wan-stop target for the same fix at the make-target level."""
+    services = WAN_PROFILE_TO_SERVICES[profile]
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "stop", *services],
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["docker", "compose", "--profile", profile, "rm", "-f", *services],
+        capture_output=True,
+        text=True,
+    )
+
+
 @dataclass
 class ChaosRunResult:
     profile: str

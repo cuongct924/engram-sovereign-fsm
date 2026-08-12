@@ -44,6 +44,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
 from logger import sample_all_nodes, write_csv  # noqa: E402
+from injector import start_pumba_wan_profile, cleanup_wan_profile  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 CELESTIA_BRIDGE = "celestia-bridge"
@@ -129,17 +130,38 @@ def main():
         default=20.0,
         help="noisy_da: seconds celestia-bridge stays up per cycle",
     )
+    parser.add_argument(
+        "--wan-profile",
+        choices=["none", "chaos-wan-latency", "chaos-wan-loss"],
+        default="chaos-wan-latency",
+        help="per-validator WAN-realism baseline held for the whole run (each of the 4 "
+        "validators gets a DIFFERENT delay/jitter or loss%%, approximating distinct real "
+        "regions rather than one uniform condition) -- 'none' reproduces the old uniform-LAN "
+        "behavior. Mutually exclusive with itself only: never combine latency+loss, both add a "
+        "root netem qdisc on the same interface and the second one fails to apply.",
+    )
     args = parser.parse_args()
+    if args.wan_profile != "none" and args.duration_s > 570:
+        print(
+            f"WARNING: --duration-s={args.duration_s:.0f} exceeds the WAN profile's own "
+            "10-minute (600s) --duration -- it will expire mid-run, silently reverting to "
+            "uniform-LAN conditions for the remainder.",
+            file=sys.stderr,
+        )
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     print(
         f"=== E5 live spot-check: HysteresisWait={args.hysteresis_wait} env={args.env} "
-        f"({ENVIRONMENTS[args.env]['description']}) ==="
+        f"({ENVIRONMENTS[args.env]['description']}) wan_profile={args.wan_profile} ==="
     )
     print(
         "NOTE: this script does NOT verify the deployed cluster actually has this HysteresisWait "
         "value -- confirm the rebuild+redeploy matched --hysteresis-wait before trusting this run's label."
     )
+
+    if args.wan_profile != "none":
+        print(f"[{now()}] >>> starting {args.wan_profile} (WAN-realism baseline)")
+        start_pumba_wan_profile(args.wan_profile)
 
     states_by_node: dict = {}
     all_samples = []
@@ -148,31 +170,36 @@ def main():
     next_noise_toggle = start
     da_currently_down = False
 
-    while time.time() < deadline:
-        t = time.time() - start
-        round_samples = sample_all_nodes()
-        all_samples.extend(round_samples)
-        for s in round_samples:
-            states_by_node.setdefault(s.node, []).append(s.fsm_state)
-        states = {s.node: s.fsm_state for s in round_samples}
-        print(f"[{t:6.0f}s] {states}")
+    try:
+        while time.time() < deadline:
+            t = time.time() - start
+            round_samples = sample_all_nodes()
+            all_samples.extend(round_samples)
+            for s in round_samples:
+                states_by_node.setdefault(s.node, []).append(s.fsm_state)
+            states = {s.node: s.fsm_state for s in round_samples}
+            print(f"[{t:6.0f}s] {states}")
 
-        if args.env == "noisy_da" and time.time() >= next_noise_toggle:
-            if da_currently_down:
-                print(f"[{now()}] >>> restoring celestia-bridge (noise cycle)")
-                docker("start", CELESTIA_BRIDGE)
-                next_noise_toggle = time.time() + args.noise_off_s
-            else:
-                print(f"[{now()}] >>> stopping celestia-bridge (noise cycle)")
-                docker("stop", CELESTIA_BRIDGE)
-                next_noise_toggle = time.time() + args.noise_on_s
-            da_currently_down = not da_currently_down
+            if args.env == "noisy_da" and time.time() >= next_noise_toggle:
+                if da_currently_down:
+                    print(f"[{now()}] >>> restoring celestia-bridge (noise cycle)")
+                    docker("start", CELESTIA_BRIDGE)
+                    next_noise_toggle = time.time() + args.noise_off_s
+                else:
+                    print(f"[{now()}] >>> stopping celestia-bridge (noise cycle)")
+                    docker("stop", CELESTIA_BRIDGE)
+                    next_noise_toggle = time.time() + args.noise_on_s
+                da_currently_down = not da_currently_down
 
-        time.sleep(args.interval_s)
+            time.sleep(args.interval_s)
 
-    if args.env == "noisy_da" and da_currently_down:
-        print(f"[{now()}] >>> restoring celestia-bridge (cleanup)")
-        docker("start", CELESTIA_BRIDGE)
+        if args.env == "noisy_da" and da_currently_down:
+            print(f"[{now()}] >>> restoring celestia-bridge (cleanup)")
+            docker("start", CELESTIA_BRIDGE)
+    finally:
+        if args.wan_profile != "none":
+            print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")
+            cleanup_wan_profile(args.wan_profile)
 
     metrics = compute_metrics(states_by_node)
 
@@ -193,7 +220,7 @@ def main():
         )
         f.write(
             f"{ENVIRONMENTS[args.env]['description']}. Duration: {args.duration_s:.0f}s, "
-            f"polling interval: {args.interval_s:.0f}s.\n\n"
+            f"polling interval: {args.interval_s:.0f}s, WAN-realism baseline: {args.wan_profile}.\n\n"
         )
         f.write(
             "**Granularity caveat:** metrics below are computed from fixed-interval polling, not "
