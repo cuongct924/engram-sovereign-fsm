@@ -199,6 +199,16 @@ networks:
   # cmd/engramd/main.go's pairwiseLinkPeerIP can dial a literal IP instead
   # of a hostname. Index/IP scheme is defined there; both sides must stay
   # in sync by construction.
+  #
+  # A validator's in-container interface index (eth0, eth1, ...) for a given
+  # network is NOT stable or predictable across the 4 validators or across
+  # redeploys -- confirmed by cross-referencing `docker network inspect`'s
+  # per-network MacAddress against each container's /sys/class/net/ethN/address.
+  # A pumba `netem --interface ethN` chaos profile can silently land on the
+  # wrong network (e.g. engram-net instead of a pairwise link) with zero
+  # error. To fault-inject P2P specifically, disconnect/reconnect a
+  # validator-link-* network by NAME (`docker network disconnect`/`connect
+  # --ip`) instead -- see scripts/e3_failure_matrix/live_p2p_lifecycle_test.py.
   validator-link-01-02:
     name: validator-link-01-02
     driver: bridge
