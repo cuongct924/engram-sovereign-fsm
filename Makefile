@@ -13,7 +13,7 @@ VERSION=$(shell git describe --tags --always)
 	attacker-a1-up attacker-a1-down attacker-a2-up attacker-a2-down
 
 ENV_FILE := .env
-CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge \
+CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge celestia-bridge-2 \
 	engram-node01 engram-node02 engram-node03 engram-node04 reanchoring-prover
 WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04
 WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04
@@ -75,12 +75,13 @@ testnet-up: build
 	set -a && . $(ENV_FILE) && set +a && ./$(BUILD_DIR)/$(BINARY_NAME) testnet init-files --v 4
 	@echo "--> Starting Bitcoin + Celestia (must be funded/mature BEFORE any engramd container)"
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-node01 bitcoin-node02
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d celestia-app celestia-bridge
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d celestia-app celestia-bridge celestia-bridge-2
 	set -a && . $(ENV_FILE) && set +a && ./scripts/testnet_fund_wallet.sh
 	@echo "--> Starting the containerized miner loop (engramwallet must already be funded above)"
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-miner-loop
-	@echo "--> Fetching celestia-bridge admin JWT into $(ENV_FILE)"
-	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE)
+	@echo "--> Fetching celestia-bridge/celestia-bridge-2 admin JWTs into $(ENV_FILE)"
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge CELESTIA_BRIDGE_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-2 CELESTIA_BRIDGE2_AUTH_TOKEN
 	@echo "--> Starting the 4 validators"
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
 	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; builds nargo+bb on first run, can take a few minutes)"

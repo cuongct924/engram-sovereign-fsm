@@ -23,8 +23,10 @@ services:
     environment:
       - NODE_URL=http://engram-node01:26657
       - POLL_INTERVAL_S=3
-      - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
-      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN}
+      # celestia-bridge-2, NOT the validators' shared celestia-bridge --
+      # see docker/celestia-local-cluster.yml's celestia-bridge-2 doc.
+      - CELESTIA_BRIDGE_URL=http://celestia-bridge-2:26658
+      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE2_AUTH_TOKEN}
     restart: unless-stopped
     deploy:
       resources:

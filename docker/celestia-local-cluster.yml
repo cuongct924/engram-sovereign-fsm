@@ -126,7 +126,64 @@ services:
         fi
         celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
- 
+  # celestia-bridge-2: a SECOND bridge node against the SAME celestia-app
+  # chain, with its OWN keyring/account -- exists only so
+  # reanchoring-prover's witness-publish (docker/reanchoring-prover.yml) has
+  # a submitter account separate from the 4 validators' shared celestia-bridge
+  # above. Confirmed live: adding reanchoring-prover as a 5th concurrent
+  # submitter on ONE shared account sustained 3-4 account-sequence-mismatch
+  # races/sec, degrading real DA health for all 4 validators, not just the
+  # new feature (x/da/rpc.go's Submit retry mitigates but doesn't eliminate
+  # this under sustained contention). Multiple bridge/light nodes reading
+  # AND writing to one Celestia chain is normal; only the signing ACCOUNT
+  # needs to differ per contending submitter group.
+  celestia-bridge-2:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-2
+    hostname: celestia-bridge-2
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.52
+    ports:
+      - "2122:2121"
+      - "26668:26658"
+    volumes:
+      - ../data/celestia-bridge-2:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+
 # celestia-net is declared once in the root compose.yml, which owns it;
 # services above reference it by name directly. Redeclaring it here (even as
 # `external: true`) makes `docker compose config` fail with "conflicts with
