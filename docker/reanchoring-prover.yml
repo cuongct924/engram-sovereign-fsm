@@ -31,5 +31,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1024M
+          # bb prove (UltraHonk) spawns one worker thread per available CPU
+          # ("Scheme is: ultra_honk, num threads: 8" in its own log line on
+          # an 8-core host) -- capping this container at 1.0 CPU forced all
+          # of bb's own 8 threads to contend for a single core, pure
+          # scheduling overhead with none of the parallel speedup UltraHonk
+          # proving is designed to get from multiple cores. Raised to 6.0
+          # (leaving headroom for the 4 validators + bitcoind + celestia on
+          # the same host) rather than removed entirely -- this is still a
+          # cap, not a guarantee of 6 full cores.
+          cpus: '6.0'
+          memory: 2048M
