@@ -1,10 +1,7 @@
-# Per-Dockerfile override (BuildKit: <dockerfile-path>.dockerignore, keyed
-# off this file's path relative to the build context) for
-# docker/reanchoring-prover/Dockerfile -- same base exclusions as the root
-# .dockerignore, EXCEPT circuit/ and scripts/ are NOT blanket-excluded here
-# (this image needs circuit/reanchoring, circuit/reanchoring_witness, and
-# scripts/reanchoring_prover; the root .dockerignore drops all of it since
-# the validator image needs none of it).
+# Per-Dockerfile override (BuildKit's <dockerfile-path>.dockerignore) for
+# docker/reanchoring-prover/Dockerfile -- same as the root .dockerignore
+# except circuit/ and scripts/ aren't blanket-excluded, since this image
+# needs circuit/reanchoring(_witness) and scripts/reanchoring_prover.
 .git
 .github
 .gitignore
@@ -35,19 +32,16 @@ requirements.txt
 Dockerfile.dev
 .air.toml
 
-# circuit/: only reanchoring + reanchoring_witness are needed (the two the
-# real prove_and_submit.sh pipeline drives) -- the recursion-spike
-# experiments (a NO-GO investigation, see their own RESULTS.md) are dead
-# weight here. Each circuit's own target/ build-artifact dir is excluded so
-# every image build proves fresh via nargo, never reusing a stale witness.
+# circuit/: only reanchoring + reanchoring_witness are needed. The
+# recursion-spike experiments (NO-GO, see their own RESULTS.md) are dead
+# weight; each circuit's target/ is excluded so builds prove fresh.
 circuit/reanchoring_recursion_spike
 circuit/reanchoring_recursion_spike_aggregator
 circuit/reanchoring/target
 circuit/reanchoring_witness/target
 
-# scripts/: only reanchoring_prover is needed. e6's benchmark pulls in a
-# vendored Plonky3 checkout (216M, scripts/e6_zk_reanchoring_benchmark's own
-# doc) that has no business in any Docker build context.
+# scripts/: only reanchoring_prover is needed. e6's benchmark vendors a
+# 216M Plonky3 checkout that has no business in any Docker build context.
 scripts/e2_fault_injection
 scripts/e3_failure_matrix
 scripts/e4_p2p_eclipse_detection

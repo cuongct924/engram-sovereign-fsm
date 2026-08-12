@@ -17,15 +17,11 @@
 # stays inside the tolerance window by the time it's used.
 #
 # Talks to bitcoind over RPC directly (-rpcconnect), not `docker exec` --
-# lets this run AS a container itself (docker/bitcoin-miner-loop.yml)
-# without a docker socket mount, same as any other service reaching
-# bitcoin-node01 over bitcoin-net.
+# lets this run as a container itself (docker/bitcoin-miner-loop.yml)
+# without a docker socket mount.
 #
-# POSIX sh, not bash -- lncm/bitcoind (the image this also runs inside,
-# docker/bitcoin-miner-loop.yml) is Alpine-based with no bash on PATH, only
-# busybox ash. No arrays, no `set -o pipefail`; plain unquoted $CLI_ARGS
-# expansion is safe here since every argument is a fixed flag or a
-# ${VAR:-default} value this script itself controls, never external input.
+# POSIX sh, not bash: the image it also runs inside (lncm/bitcoind, Alpine)
+# has no bash, only busybox ash -- no arrays, no `set -o pipefail`.
 #
 # Usage: scripts/bitcoin_miner_loop.sh [interval_seconds]
 set -eu

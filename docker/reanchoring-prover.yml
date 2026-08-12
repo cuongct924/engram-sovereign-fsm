@@ -1,15 +1,9 @@
 name: reanchoring-prover
 
-# Containerized scripts/reanchoring_prover/watch_and_prove.sh -- previously
-# had to be run manually on the host (needing nargo+bb installed locally),
-# the real reason RECOVERING could never reach ANCHORED against a plain
-# `docker compose up` cluster: zk_proof_ref stayed null in every proposal
-# forever, not because of any hysteresis/timing bug, just because nothing
-# was ever running the prover.
-#
-# Talks to engram-node01's RPC over engram-net (NODE_URL), same as any
-# other client of the cluster -- not part of the validator set, doesn't
-# need bitcoin-net/celestia-net.
+# Containerized scripts/reanchoring_prover/watch_and_prove.sh -- without it
+# running, zk_proof_ref stays null forever and RECOVERING can never reach
+# ANCHORED. Talks to engram-node01's RPC over engram-net; not a validator,
+# doesn't need bitcoin-net/celestia-net.
 services:
   reanchoring-prover:
     build:

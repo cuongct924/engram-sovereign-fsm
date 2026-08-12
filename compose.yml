@@ -96,25 +96,14 @@ services:
       - "bitcoin-node01"
 
   # --- WAN realism profiles (chaos-wan-latency/-loss) -------------------------
-  # pumba-latency/pumba-loss above apply ONE uniform parameter to all/some
-  # engram-node* containers, standing in for "the network" as a single
-  # entity. These 2 profiles instead give each of the 4 real validators its
-  # OWN, DIFFERENT delay/jitter and loss% -- approximating 4 geographically
-  # distinct validators (e.g. node01 nearby, node03 the furthest) rather
-  # than 4 containers on one LAN-like bridge. Illustrative magnitudes, not
-  # measured from real geography; still real tc netem rules applied to the
-  # real containers, not mocked. Does not change engram-net's actual
-  # topology (see its own comment below on why real SubnetDiversity can't
-  # be changed this way) -- this only makes each node's traffic BEHAVE like
-  # it crossed a different real link.
+  # Unlike pumba-latency/-loss above (one uniform value for all/some nodes),
+  # each of the 4 validators gets its OWN delay/jitter or loss%, simulating
+  # distinct real regions. Illustrative magnitudes, real tc netem rules.
   #
-  # A third profile (per-node bandwidth cap via `pumba netem rate`, for
-  # "congestion") was attempted and dropped: `tc qdisc add dev eth0 root
-  # netem rate 5mbit` fails with exit code 2 on this Docker Desktop VM's
-  # kernel (sch_netem build lacks rate-limiting support) -- confirmed via a
-  # live `--log-level=debug` run, not a config mistake. Revisit with a
-  # TBF/HTB qdisc instead of netem's rate extension if bandwidth-cap
-  # realism is needed later; not attempted here.
+  # A third profile (bandwidth cap via `pumba netem rate`, for "congestion")
+  # was dropped: `tc qdisc add ... netem rate 5mbit` fails with exit code 2
+  # on this Docker Desktop VM's kernel (no rate-limiting in its sch_netem
+  # build). Would need a TBF/HTB qdisc instead; not attempted.
   pumba-wan-latency-01:
     image: gaiaadm/pumba:latest
     container_name: pumba-wan-latency-01

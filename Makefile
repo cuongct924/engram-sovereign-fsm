@@ -137,18 +137,13 @@ chaos-stop:
 	done
 
 # --- WAN realism profiles (per-node distinct latency/loss, compose.yml) -----
-# Multi-service profiles (one pumba-wan-* per validator) -- bypass
-# injector.py's one-service-per-profile framework, same reasoning as the
-# attacker swarm targets above: brought up/down directly via `docker
-# compose --profile`, not measured/orchestrated by scripts/framework.
+# One pumba-wan-* container per validator; scripts/framework/injector.py
+# has its own Python-side start/cleanup for these (used by live E5/E9), the
+# targets below are for manual `make chaos-wan-*` use.
 #
-# ALWAYS pass explicit $(WAN_*_SERVICES) to stop/rm, never a bare
-# `--profile X stop` with no service list -- without an explicit service
-# list, `docker compose --profile X stop/rm` treats every service in the
-# whole project as in scope (not just profile X's own services) and
-# stops/removes the entire cluster, not just the chaos containers. Hit this
-# for real once already; the explicit lists below are the fix, not a
-# stylistic choice.
+# ALWAYS pass explicit $(WAN_*_SERVICES) to stop/rm -- a bare
+# `--profile X stop` with no service list stops the ENTIRE cluster, not
+# just profile X's containers. Hit this for real once.
 chaos-wan-latency:
 	docker compose --env-file $(ENV_FILE) --profile chaos-wan-latency up -d $(WAN_LATENCY_SERVICES)
 

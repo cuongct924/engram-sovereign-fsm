@@ -54,21 +54,15 @@ PROFILE_DESCRIPTIONS = {
 }
 
 
-# WAN-realism profiles (compose.yml's pumba-wan-latency-0N/pumba-wan-loss-0N,
-# docker/reanchoring... no -- these live in the root compose.yml directly,
-# see its "WAN realism profiles" section): one Pumba container PER
-# validator, each with a DIFFERENT delay/jitter or loss%, approximating 4
-# geographically distinct nodes rather than one uniform condition. Multi-
-# service per profile (4 containers, not 1), unlike every profile above --
-# service name == container_name for these (compose.yml sets both
-# identically), so one list covers both start and stop/rm calls, no separate
-# *_TO_CONTAINER mapping needed.
+# WAN-realism profiles (compose.yml's "WAN realism profiles" section): one
+# Pumba container per validator, each with a DIFFERENT delay/jitter or
+# loss%. Multi-service per profile, unlike every profile above -- service
+# name == container_name for these, so one list covers start and stop/rm.
 #
 # chaos-wan-latency and chaos-wan-loss must never run concurrently on the
-# same validator: both add a ROOT netem qdisc on the same eth0, and a
-# second root qdisc add fails outright (same conflict class documented on
-# cleanup_profile below for the single-service profiles) -- treat them as
-# mutually exclusive WAN-baseline choices, not stackable.
+# same validator: both add a root netem qdisc on the same eth0, and a
+# second root qdisc add fails outright (same conflict class as
+# cleanup_profile's doc below) -- mutually exclusive, not stackable.
 WAN_PROFILE_TO_SERVICES = {
     "chaos-wan-latency": [
         "pumba-wan-latency-01",
