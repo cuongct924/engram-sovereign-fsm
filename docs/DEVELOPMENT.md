@@ -144,10 +144,16 @@ docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
   -rpcpassword=$BITCOIN_RPC_PASSWORD -rpcwallet=engramwallet generatetoaddress 101 $addr
   # 101: coinbase needs 100 confirmations before it's spendable
 
-./scripts/bitcoin_miner_loop.sh &     # steady cadence from here on, never manual bursts
+docker compose --env-file .env -f compose.yml up -d bitcoin-miner-loop
+  # steady cadence from here on, never manual bursts -- containerized
+  # (docker/bitcoin-miner-loop.yml), no host process/PID file anymore
 
 # 3.3 — the 4 validators
 docker compose --env-file .env -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
+
+# 3.4 — the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; without
+# it zk_proof_ref stays null forever and the FSM can never leave RECOVERING)
+docker compose --env-file .env -f compose.yml up -d --build reanchoring-prover
 ```
 
 Verify: `curl -s http://localhost:26657/status | jq .result.sync_info`, and confirm `AppHash`

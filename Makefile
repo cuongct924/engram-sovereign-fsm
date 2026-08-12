@@ -13,9 +13,8 @@ VERSION=$(shell git describe --tags --always)
 	attacker-a1-up attacker-a1-down attacker-a2-up attacker-a2-down
 
 ENV_FILE := .env
-MINER_PID_FILE := .bitcoin_miner_loop.pid
-CORE_SERVICES := bitcoin-node01 bitcoin-node02 celestia-app celestia-bridge \
-	engram-node01 engram-node02 engram-node03 engram-node04
+CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge \
+	engram-node01 engram-node02 engram-node03 engram-node04 reanchoring-prover
 WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04
 WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04
 ATTACKER_A1_SERVICES := $(shell printf 'attacker-a1-%02d ' $$(seq 1 10))
@@ -78,21 +77,17 @@ testnet-up: build
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-node01 bitcoin-node02
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d celestia-app celestia-bridge
 	set -a && . $(ENV_FILE) && set +a && ./scripts/testnet_fund_wallet.sh
-	@if [ -f $(MINER_PID_FILE) ] && kill -0 "$$(cat $(MINER_PID_FILE))" 2>/dev/null; then \
-		echo "--> Miner loop already running (pid $$(cat $(MINER_PID_FILE)))"; \
-	else \
-		echo "--> Starting steady miner loop (never manual bursts once engramd is up)"; \
-		( set -a && . $(ENV_FILE) && set +a && nohup ./scripts/bitcoin_miner_loop.sh > .bitcoin_miner_loop.log 2>&1 & echo $$! > $(MINER_PID_FILE) ); \
-	fi
+	@echo "--> Starting the containerized miner loop (engramwallet must already be funded above)"
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-miner-loop
 	@echo "--> Fetching celestia-bridge admin JWT into $(ENV_FILE)"
 	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE)
 	@echo "--> Starting the 4 validators"
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
+	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; builds nargo+bb on first run, can take a few minutes)"
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build reanchoring-prover
 	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
-	@echo "--> Stopping miner loop"
-	@if [ -f $(MINER_PID_FILE) ]; then kill "$$(cat $(MINER_PID_FILE))" 2>/dev/null || true; rm -f $(MINER_PID_FILE); fi
 	@echo "--> Stopping core services by name (never a bare 'docker compose down' -- see docs/DEVELOPMENT.md's gotcha)"
 	docker compose --env-file $(ENV_FILE) stop $(CORE_SERVICES)
 	docker compose --env-file $(ENV_FILE) rm -f $(CORE_SERVICES)

@@ -1,0 +1,32 @@
+name: bitcoin-miner-loop
+
+# Containerized scripts/bitcoin_miner_loop.sh -- previously a host `nohup ...
+# &` process (needing a PID file + .gitignore entry to manage). Same image
+# as bitcoin-node01/02 (lncm/bitcoind:v25.0, already has bitcoin-cli), just
+# running the miner script instead of bitcoind itself, reaching
+# bitcoin-node01 over bitcoin-net via RPC -- no docker socket needed, unlike
+# the Pumba chaos containers, since this only ever talks to one already-
+# known RPC endpoint, never manipulates other containers.
+#
+# Requires bitcoin-node01's wallet (engramwallet) to already exist --
+# scripts/testnet_fund_wallet.sh creates+funds it BEFORE this starts (see
+# Makefile's testnet-up ordering); the script's own getwalletinfo retry
+# loop tolerates bitcoin-node01 itself still starting up, but not a
+# not-yet-created wallet.
+services:
+  bitcoin-miner-loop:
+    image: lncm/bitcoind:${BITCOIN_VERSION:-v25.0}
+    container_name: bitcoin-miner-loop
+    hostname: bitcoin-miner-loop
+    networks:
+      - bitcoin-net
+    environment:
+      - BITCOIN_RPC_HOST=bitcoin-node01
+      - BITCOIN_RPC_PORT=18443
+      - BITCOIN_RPC_USER=${BITCOIN_RPC_USER:-engram_admin}
+      - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD:-secure_password_123}
+      - BITCOIN_WALLET=engramwallet
+    entrypoint: ["/bin/sh", "/scripts/bitcoin_miner_loop.sh", "20"]
+    volumes:
+      - ../scripts/bitcoin_miner_loop.sh:/scripts/bitcoin_miner_loop.sh:ro
+    restart: unless-stopped

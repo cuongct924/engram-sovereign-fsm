@@ -1,0 +1,66 @@
+# Per-Dockerfile override (BuildKit: <dockerfile-path>.dockerignore, keyed
+# off this file's path relative to the build context) for
+# docker/reanchoring-prover.Dockerfile -- same base exclusions as the root
+# .dockerignore, EXCEPT circuit/ and scripts/ are NOT blanket-excluded here
+# (this image needs circuit/reanchoring, circuit/reanchoring_witness, and
+# scripts/reanchoring_prover; the root .dockerignore drops all of it since
+# the validator image needs none of it).
+.git
+.github
+.gitignore
+.DS_Store
+.idea
+.vscode
+.claude
+*.log
+node_modules
+dist
+build
+tmp
+testdata
+spec
+tests
+
+# Runtime data bind-mounted from running containers, and generated testnet
+# homes -- unbounded growth, never needed for this build.
+data
+testnet-data
+
+*.md
+LICENSE
+.env.example
+.golangci.yml
+Makefile
+requirements.txt
+Dockerfile.dev
+.air.toml
+
+# circuit/: only reanchoring + reanchoring_witness are needed (the two the
+# real prove_and_submit.sh pipeline drives) -- the recursion-spike
+# experiments (a NO-GO investigation, see their own RESULTS.md) are dead
+# weight here. Each circuit's own target/ build-artifact dir is excluded so
+# every image build proves fresh via nargo, never reusing a stale witness.
+circuit/reanchoring_recursion_spike
+circuit/reanchoring_recursion_spike_aggregator
+circuit/reanchoring/target
+circuit/reanchoring_witness/target
+
+# scripts/: only reanchoring_prover is needed. e6's benchmark pulls in a
+# vendored Plonky3 checkout (216M, scripts/e6_zk_reanchoring_benchmark's own
+# doc) that has no business in any Docker build context.
+scripts/e2_fault_injection
+scripts/e3_failure_matrix
+scripts/e4_p2p_eclipse_detection
+scripts/e5_hysteresis_flapping
+scripts/e6_zk_reanchoring_benchmark
+scripts/e7_consensus_overhead
+scripts/e8_attack_resilience
+scripts/e9_trace_driven
+scripts/framework
+scripts/notebooks
+scripts/__pycache__
+scripts/bitcoin_miner_loop.sh
+scripts/testnet_double_sign_toggle.sh
+scripts/testnet_fetch_celestia_token.sh
+scripts/testnet_fund_wallet.sh
+scripts/utils.py

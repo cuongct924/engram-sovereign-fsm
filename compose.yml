@@ -2,8 +2,10 @@ name: engram-validator-cluster
 
 include:
   - ./docker/bitcoin-regtest-cluster.yml
+  - ./docker/bitcoin-miner-loop.yml
   - ./docker/celestia-local-cluster.yml
   - ./docker/engram-validator-cluster.yml
+  - ./docker/reanchoring-prover.yml
   - ./docker/attacker-peer-swarm.yml
   - ./docker/engram-node04-double-sign.yml
 
