@@ -1,0 +1,22 @@
+# Deliberately no top-level `name:` here -- same reason as
+# engram-node04-byzantine.yml: a `name:` here would fork this into a
+# separate Compose project and fail to swap engram-node04 in place.
+#
+# Timeout-flooding override for docs/EXPERIMENT.md's E8 "Timeout flooding
+# by Byzantine nodes" row -- an active, still-signing validator that
+# repeatedly broadcasts genuinely signed Timeout messages instead of
+# waiting for its real precommit-wait timer (engram-consensus-core's
+# consensus/state.go: timeoutFloodRoutine, gated by
+# ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS). Applied explicitly on top of the normal cluster:
+#
+#   docker compose -f compose.yml -f docker/engram-node04-timeout-flood.yml \
+#     up -d --no-deps engram-node04
+#
+# node04 stays in the real N=4,f=1 validator set the whole time.
+# scripts/e8_attack_resilience/live_timeout_flood_test.py swaps this
+# override in, then reverts to the plain node04 definition.
+
+services:
+  engram-node04:
+    environment:
+      - ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS=${ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS:-50}

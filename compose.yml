@@ -93,8 +93,115 @@ services:
       - "--jitter=100"
       - "bitcoin-node01"
 
+  # --- WAN realism profiles (chaos-wan-latency/-loss) -------------------------
+  # pumba-latency/pumba-loss above apply ONE uniform parameter to all/some
+  # engram-node* containers, standing in for "the network" as a single
+  # entity. These 2 profiles instead give each of the 4 real validators its
+  # OWN, DIFFERENT delay/jitter and loss% -- approximating 4 geographically
+  # distinct validators (e.g. node01 nearby, node03 the furthest) rather
+  # than 4 containers on one LAN-like bridge. Illustrative magnitudes, not
+  # measured from real geography; still real tc netem rules applied to the
+  # real containers, not mocked. Does not change engram-net's actual
+  # topology (see its own comment below on why real SubnetDiversity can't
+  # be changed this way) -- this only makes each node's traffic BEHAVE like
+  # it crossed a different real link.
+  #
+  # A third profile (per-node bandwidth cap via `pumba netem rate`, for
+  # "congestion") was attempted and dropped: `tc qdisc add dev eth0 root
+  # netem rate 5mbit` fails with exit code 2 on this Docker Desktop VM's
+  # kernel (sch_netem build lacks rate-limiting support) -- confirmed via a
+  # live `--log-level=debug` run, not a config mistake. Revisit with a
+  # TBF/HTB qdisc instead of netem's rate extension if bandwidth-cap
+  # realism is needed later; not attempted here.
+  pumba-wan-latency-01:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-01
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=15", "--jitter=3", "engram-node01"]
+
+  pumba-wan-latency-02:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-02
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=70", "--jitter=15", "engram-node02"]
+
+  pumba-wan-latency-03:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-03
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=140", "--jitter=25", "engram-node03"]
+
+  pumba-wan-latency-04:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-04
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=45", "--jitter=10", "engram-node04"]
+
+  pumba-wan-loss-01:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-01
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=1", "engram-node01"]
+
+  pumba-wan-loss-02:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-02
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=3", "engram-node02"]
+
+  pumba-wan-loss-03:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-03
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=6", "engram-node03"]
+
+  pumba-wan-loss-04:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-04
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=2", "engram-node04"]
+
 networks:
-  # Main validator network: all 4 real validators communicate here
+  # Main validator network: all 4 real validators communicate here.
+  #
+  # All 4 sit on this one /24 by construction, not by oversight: real
+  # SubnetDiversity (x/sovereignty/types/subnet.go's SubnetOf, computed from
+  # each peer's actual connected RemoteIP, cmd/engramd/main.go's
+  # PeerHealthSnapshot) can only ever read back as 1 while P2P traffic
+  # between validators transits a single shared bridge network -- adding
+  # each validator its own ADDITIONAL isolated subnet (for identity alone)
+  # would NOT change this, since Docker bridge networks don't route to each
+  # other and P2P connections would still resolve over this one. Genuinely
+  # raising SubnetDiversity needs a different topology (e.g. validators
+  # reaching each other over distinct pairwise-shared networks), not
+  # attempted here -- MinSubnetDiversity is kept at 1 (.env.example) to
+  # match, not as an aspirational floor. See the chaos-wan-* profiles below
+  # for what IS simulated here: per-node distinct network CONDITIONS
+  # (latency/loss/bandwidth), independent of this topology limitation.
   engram-net:
     name: engram-net
     driver: bridge

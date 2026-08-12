@@ -32,7 +32,7 @@ x-engram-node-base: &engram-node-base
         memory: 256M
 
 # Shared env: BITCOIN_HOST/CELESTIA_BRIDGE_URL wire the live BTC/DA sensors
-# (x/vigilante/rpc.go, x/da/rpc.go's wireDASensor) to the shared bitcoin-net/
+# (x/anchor/rpc.go, x/da/rpc.go's wireDASensor) to the shared bitcoin-net/
 # celestia-net service names -- all 4 validators point at the same
 # bitcoin-node01 (only 2 bitcoind instances are provisioned for 4
 # validators, a documented prototype simplification) and the same

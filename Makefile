@@ -7,13 +7,17 @@ VERSION=$(shell git describe --tags --always)
 .PHONY: all build build-linux clean test lint proto-gen docker-build help \
 	testnet-up testnet-down testnet-status \
 	byzantine-on byzantine-off double-sign-on double-sign-off \
+	timeout-flood-on timeout-flood-off \
 	chaos-delay chaos-loss chaos-crash chaos-eclipse chaos-btc-delay chaos-stop \
+	chaos-wan-latency chaos-wan-loss chaos-wan-stop \
 	attacker-a1-up attacker-a1-down attacker-a2-up attacker-a2-down
 
 ENV_FILE := .env
 MINER_PID_FILE := .bitcoin_miner_loop.pid
 CORE_SERVICES := bitcoin-node01 bitcoin-node02 celestia-app celestia-bridge \
 	engram-node01 engram-node02 engram-node03 engram-node04
+WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04
+WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04
 ATTACKER_A1_SERVICES := $(shell printf 'attacker-a1-%02d ' $$(seq 1 10))
 ATTACKER_A2_SERVICES := attacker-a2-a1 attacker-a2-a2 attacker-a2-a3 \
 	attacker-a2-b1 attacker-a2-b2 attacker-a2-b3 \
@@ -71,8 +75,8 @@ testnet-up: build
 	rm -rf testnet-data/
 	set -a && . $(ENV_FILE) && set +a && ./$(BUILD_DIR)/$(BINARY_NAME) testnet init-files --v 4
 	@echo "--> Starting Bitcoin + Celestia (must be funded/mature BEFORE any engramd container)"
-	docker compose --env-file $(ENV_FILE) -f docker/bitcoin-regtest-cluster.yml up -d
-	docker compose --env-file $(ENV_FILE) -f docker/celestia-local-cluster.yml up -d
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-node01 bitcoin-node02
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d celestia-app celestia-bridge
 	set -a && . $(ENV_FILE) && set +a && ./scripts/testnet_fund_wallet.sh
 	@if [ -f $(MINER_PID_FILE) ] && kill -0 "$$(cat $(MINER_PID_FILE))" 2>/dev/null; then \
 		echo "--> Miner loop already running (pid $$(cat $(MINER_PID_FILE)))"; \
@@ -83,7 +87,7 @@ testnet-up: build
 	@echo "--> Fetching celestia-bridge admin JWT into $(ENV_FILE)"
 	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE)
 	@echo "--> Starting the 4 validators"
-	docker compose --env-file $(ENV_FILE) -f docker/engram-validator-cluster.yml up -d --build
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
 	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
@@ -115,6 +119,17 @@ double-sign-on:
 double-sign-off:
 	./scripts/testnet_double_sign_toggle.sh off
 
+# --- Timeout-flooding harness (docs/EXPERIMENT.md's E8 "Timeout flooding") --
+# INTERVAL_MS: how often node04 re-broadcasts a signed Timeout (default 50ms,
+# far faster than TIMEOUT_DURATION's real precommit-wait timer).
+timeout-flood-on:
+	ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS=$(or $(INTERVAL_MS),50) docker compose --env-file $(ENV_FILE) -f compose.yml -f docker/engram-node04-timeout-flood.yml up -d --no-deps engram-node04
+	@echo "--> node04 is flooding Timeout messages every $(or $(INTERVAL_MS),50)ms -- never leave this set on a real validator"
+
+timeout-flood-off:
+	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --no-deps engram-node04
+	@echo "--> node04 reverted to honest"
+
 # --- Chaos profiles (Pumba, docs/DEVELOPMENT.md §5) --------------------------
 # Self-exit on their own --duration; chaos-stop is only needed to interrupt
 # one early (see scripts/framework/injector.py's cleanup_profile doc).
@@ -125,6 +140,29 @@ chaos-stop:
 	@for p in chaos-delay chaos-loss chaos-crash chaos-eclipse chaos-btc-delay; do \
 		python3 scripts/framework/injector.py stop $$p || true; \
 	done
+
+# --- WAN realism profiles (per-node distinct latency/loss, compose.yml) -----
+# Multi-service profiles (one pumba-wan-* per validator) -- bypass
+# injector.py's one-service-per-profile framework, same reasoning as the
+# attacker swarm targets above: brought up/down directly via `docker
+# compose --profile`, not measured/orchestrated by scripts/framework.
+#
+# ALWAYS pass explicit $(WAN_*_SERVICES) to stop/rm, never a bare
+# `--profile X stop` with no service list -- without an explicit service
+# list, `docker compose --profile X stop/rm` treats every service in the
+# whole project as in scope (not just profile X's own services) and
+# stops/removes the entire cluster, not just the chaos containers. Hit this
+# for real once already; the explicit lists below are the fix, not a
+# stylistic choice.
+chaos-wan-latency:
+	docker compose --env-file $(ENV_FILE) --profile chaos-wan-latency up -d $(WAN_LATENCY_SERVICES)
+
+chaos-wan-loss:
+	docker compose --env-file $(ENV_FILE) --profile chaos-wan-loss up -d $(WAN_LOSS_SERVICES)
+
+chaos-wan-stop:
+	docker compose --env-file $(ENV_FILE) --profile chaos-wan-latency --profile chaos-wan-loss stop $(WAN_LATENCY_SERVICES) $(WAN_LOSS_SERVICES)
+	docker compose --env-file $(ENV_FILE) --profile chaos-wan-latency --profile chaos-wan-loss rm -f $(WAN_LATENCY_SERVICES) $(WAN_LOSS_SERVICES)
 
 # --- Attacker swarm (E4/E8's A1/A2, docker/attacker-peer-swarm.yml) ---------
 attacker-a1-up:
@@ -164,6 +202,8 @@ help:
 	@echo "  byzantine-off       - Revert node04 to honest"
 	@echo "  double-sign-on      - Start the duplicate-key double-signing harness (E8)"
 	@echo "  double-sign-off     - Stop it"
+	@echo "  timeout-flood-on INTERVAL_MS=... - node04 floods signed Timeout msgs (E8)"
+	@echo "  timeout-flood-off  - Revert node04 to honest"
 	@echo "  chaos-delay/-loss/-crash/-eclipse/-btc-delay - Start a Pumba fault profile"
 	@echo "  chaos-stop          - Stop all Pumba fault profiles"
 	@echo "  attacker-a1-up/-down - Peer-slot-exhaustion swarm (E4/E8 A1)"
