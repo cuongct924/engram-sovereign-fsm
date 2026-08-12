@@ -162,6 +162,49 @@ actions like withdrawals.
 "continuous" because `Harness.Advance()` never stopped or errored in any scenario — that is
 itself a measured result, not an assumption.
 
+**Measured (live Docker, full lifecycle):** `scripts/e3_failure_matrix/live_lifecycle_test.py`
+drives real `celestia-bridge` stop/start against the 4-node cluster through every edge of
+ANCHORED ↔ SUSPICIOUS → SOVEREIGN ↔ RECOVERING → ANCHORED in one run. All 7 phases **passed**
+in 344s, all 4 validators transitioning in lockstep at every edge: ANCHORED→SUSPICIOUS (12s),
+SUSPICIOUS→ANCHORED on quick recovery with no escalation (24s), ANCHORED→SUSPICIOUS→SOVEREIGN via
+the sustained-SUSPICIOUS gray-failure timeout (27s→58s), SOVEREIGN→RECOVERING (74s),
+RECOVERING→SOVEREIGN regression on a brief re-outage (80s), and real recovery to ANCHORED (344s,
+via `watch_and_prove.sh`/`reanchoring-prover`, with a couple of RECOVERING↔SOVEREIGN dips along
+the way reflecting the prover's real proof cadence, not a bug). Data:
+`scripts/e3_failure_matrix/results_live/lifecycle_test_20260812T153523.csv` + `_summary.md`.
+
+**Bug found and fixed:** earlier runs of this same test deadlocked ANCHORED for ~90-100s on every
+DA outage instead of demoting to SUSPICIOUS. Root cause was in `PrepareProposal`
+(`x/sovereignty/proposal.go`): `da.Receipt.Attestation` was built from
+`!in.Metrics.IsAttestationFailed` — a live, momentary health probe — instead of whether
+`PublishedBlockHeight` had ever actually been confirmed. `da.VerifyReceipt`
+(`x/da/verify.go`, a faithful port of `IsValidProposal`'s DA Pipeline Check,
+`spec/core/EngramTendermint.tla:290-294`) requires `Attestation = TRUE` on every ANCHORED/
+RECOVERING proposal; with the live-probe wiring, that requirement failed on the very first
+degraded block, rejecting every proposal (`ProcessProposal` returning REJECT round after round)
+regardless of how fresh `PublishedBlockHeight` still was — so no block could commit,
+`UnhealthyStreak` (which only advances on a commit) could never reach `DownHysteresisThreshold`,
+and SUSPICIOUS was unreachable. `DATolerance`'s freshness window
+(`spec/core/EngramTendermint.tla`'s `da_tol`) exists precisely to let a still-fresh prior
+attestation carry a proposal through a brief outage, but was dead code under this bug — the
+observed ~90-100s "escape" was actually BTC's own real chain height drifting past
+`SOVEREIGN_THRESHOLD` purely from elapsed wall-clock time (`bitcoin-miner-loop` keeps mining
+independently of the stalled Engram chain), forcing a direct ANCHORED→SOVEREIGN jump that skipped
+SUSPICIOUS entirely. Fixed with `Attestation: hEngramVerified > 0` — a historical fact (DA
+availability, once DAS-confirmed, doesn't retroactively un-confirm) instead of a live flag,
+letting the existing freshness window do its designed job. `CalculateNextState`'s branch
+structure and `da.VerifyReceipt`'s gate on `fsm_state` are both unchanged — no divergence from
+the ported spec.
+
+Two smaller hardening fixes landed alongside this one, both still worthwhile even though neither
+was the deadlock's root cause: `x/anchor/rpc.go`/`x/da/rpc.go`'s `http.Client`s had no `Timeout`,
+so a stalled connection to a downed bitcoind/celestia-bridge could hang `PrepareProposal`/
+`ProcessProposal` (both call these synchronously via `RefreshMetrics`) indefinitely instead of
+degrading through the gap metrics; and `x/da/publisher.go`'s `Publisher.ProbeHealthy` adds a
+fresh, stateless TCP reachability check alongside the existing async `Failed()` flag, so
+`IsAttestationFailed` converges across validators within about one block instead of lagging
+behind an in-flight background `Submit`'s own timeout.
+
 ---
 
 ### E4 — P2P Eclipse/Sybil Detection

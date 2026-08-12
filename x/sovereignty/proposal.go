@@ -197,7 +197,18 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		daReceipt := da.Receipt{
 			PublishedBlockHeight: hEngramVerified,
-			Attestation:          !in.Metrics.IsAttestationFailed,
+			// Attestation reflects whether PublishedBlockHeight was EVER
+			// genuinely confirmed retrievable -- a historical fact that,
+			// once true, stays true (DA availability, once DAS-confirmed,
+			// doesn't retroactively un-confirm). NOT in.Metrics.IsAttestationFailed
+			// (a live, momentary health probe): using the live flag here
+			// made VerifyReceipt's `!receipt.Attestation -> reject` fire on
+			// the very first degraded block, regardless of how fresh
+			// PublishedBlockHeight still was -- defeating DATolerance's
+			// freshness window (spec/core/EngramTendermint.tla:290-294),
+			// which exists precisely to let a still-fresh-enough prior
+			// attestation carry a proposal through a brief outage.
+			Attestation: hEngramVerified > 0,
 		}
 		btcReceipt := anchor.Receipt{
 			CheckpointBlockHeight: hBtcAnchored,
