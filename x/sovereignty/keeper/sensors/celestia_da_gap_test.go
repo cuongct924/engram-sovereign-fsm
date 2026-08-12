@@ -6,13 +6,15 @@ import (
 )
 
 type stubDAAvailabilitySource struct {
-	height uint64
-	ok     bool
-	failed bool
+	height  uint64
+	ok      bool
+	failed  bool
+	healthy bool
 }
 
-func (s stubDAAvailabilitySource) VerifiedHeight() (uint64, bool) { return s.height, s.ok }
-func (s stubDAAvailabilitySource) Failed() bool                   { return s.failed }
+func (s stubDAAvailabilitySource) VerifiedHeight() (uint64, bool)        { return s.height, s.ok }
+func (s stubDAAvailabilitySource) Failed() bool                          { return s.failed }
+func (s stubDAAvailabilitySource) ProbeHealthy(ctx context.Context) bool { return s.healthy }
 
 func TestDASensor_NewSensorDefaultsToAvailable(t *testing.T) {
 	s := NewDASensor()

@@ -7,7 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+// rpcTimeout bounds every call below. Every one of them runs synchronously
+// inside RefreshMetrics (x/sovereignty/sensors_refresh.go), itself called
+// from PrepareProposal/ProcessProposal -- an http.Client with no Timeout can
+// hang on a stalled connection to a downed bitcoind indefinitely, stalling
+// ABCI (and so all of consensus) rather than degrading through btc_gap as
+// designed. Generous relative to regtest's normal RPC latency.
+const rpcTimeout = 5 * time.Second
 
 // RPCClient is a minimal Bitcoin Core JSON-RPC client -- deliberately
 // stdlib-only (net/http, encoding/json), matching this package's existing
@@ -30,7 +39,7 @@ func NewRPCClient(url, user, password string) *RPCClient {
 		url:      url,
 		user:     user,
 		password: password,
-		client:   &http.Client{},
+		client:   &http.Client{Timeout: rpcTimeout},
 	}
 }
 

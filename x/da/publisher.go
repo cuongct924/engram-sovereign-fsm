@@ -4,7 +4,16 @@ import (
 	"context"
 	"encoding/binary"
 	"sync"
+	"time"
 )
+
+// availableCheckTimeout bounds MaybePublish's synchronous Available() call --
+// unlike Submit (backgrounded, below), this one runs inline in
+// PrepareProposal/ProcessProposal's ABCI hot path, so it must return well
+// within a consensus round's own timeout even if celestia-bridge is
+// completely unreachable, degrading through is_das_failed rather than
+// stalling block production.
+const availableCheckTimeout = 3 * time.Second
 
 // heightMarkerTag is the payload prefix identifying this repo's simplified
 // DA blob content -- mirrors x/anchor/anchor.go's AnchorTag (tag + height)
@@ -76,7 +85,9 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 	defer p.mu.Unlock()
 
 	if p.pendingEngramHeight != 0 {
-		available, err := p.client.Available(ctx, p.pendingCelestiaHt, p.namespace)
+		availCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
+		available, err := p.client.Available(availCtx, p.pendingCelestiaHt, p.namespace)
+		cancel()
 		if err != nil {
 			// DAFailure: is_das_failed'/is_attestation_failed' may become
 			// TRUE while h_engram_current still advances -- record the
@@ -142,4 +153,23 @@ func (p *Publisher) Failed() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.lastSubmitFailed
+}
+
+// ProbeHealthy does a fresh, bounded, stateless TCP reachability check
+// against celestia-bridge -- unlike Failed(), it never reads p's mutex or
+// its pending-submission bookkeeping, so it can't return a value that's
+// stale relative to this exact call. Failed() alone is not enough to
+// declare DA down: it only updates on the next MaybePublish call that
+// actually runs its synchronous branch, which can lag by however long an
+// in-flight background Submit (up to rpcTimeout) takes to resolve -- during
+// that lag, one validator's Failed() may still read healthy while another's
+// has already flipped, and ProcessProposal's Healthy cross-check
+// (proposal.go's check #1b) rejects every proposal until they happen to
+// agree. Called alongside Failed() in daGapMetric so an outage is detected
+// within about one block on every honest validator, not after an
+// unpredictable, potentially many-round race to converge.
+func (p *Publisher) ProbeHealthy(ctx context.Context) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
+	defer cancel()
+	return p.client.Reachable(probeCtx)
 }

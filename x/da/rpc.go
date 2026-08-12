@@ -7,8 +7,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"time"
 )
+
+// rpcTimeout bounds every call below, including the background Submit call
+// (publisher.go's MaybePublish) which legitimately waits out Celestia's
+// ~12s block time -- an http.Client with no Timeout can otherwise hang on a
+// stalled connection to a downed celestia-bridge indefinitely. The
+// synchronous Available() call in MaybePublish's ABCI hot path additionally
+// gets its own much shorter per-call deadline (see that call site) since it
+// must never approach a consensus round's own timeout.
+const rpcTimeout = 20 * time.Second
 
 // namespaceUserIDLen mirrors Celestia's v0 namespace format: a 1-byte
 // version prefix + 28-byte ID, where a v0 (user-specifiable) namespace's ID
@@ -58,7 +70,38 @@ type RPCClient struct {
 // the node's admin/write JWT (celestia bridge auth admin) -- blob.Submit is
 // a write call and celestia-node rejects it unauthenticated.
 func NewRPCClient(url, authToken string) *RPCClient {
-	return &RPCClient{url: url, authToken: authToken, client: &http.Client{}}
+	return &RPCClient{url: url, authToken: authToken, client: &http.Client{Timeout: rpcTimeout}}
+}
+
+// Reachable reports whether c's host:port currently accepts a TCP
+// connection -- a raw, stateless liveness probe deliberately independent of
+// blob.Submit/blob.GetAll's own request/response cycle (and independent of
+// Publisher's per-node async submission bookkeeping, see its ProbeHealthy
+// doc): every validator dialing the same celestia-bridge at roughly the
+// same instant observes the same binary up/down fact, unlike a JSON-RPC
+// call's success depending on which node happens to have a stale vs fresh
+// in-flight request.
+func (c *RPCClient) Reachable(ctx context.Context) bool {
+	u, err := url.Parse(c.url)
+	if err != nil {
+		return false
+	}
+	host := u.Host
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "https":
+			host = net.JoinHostPort(u.Hostname(), "443")
+		default:
+			host = net.JoinHostPort(u.Hostname(), "80")
+		}
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", host)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 type rpcRequest struct {

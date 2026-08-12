@@ -114,7 +114,12 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 		return 0, false, false, err
 	}
 
-	failed := src.Failed()
+	// failed combines Failed()'s slower, stateful submission-bookkeeping
+	// signal with ProbeHealthy's fresh, stateless reachability check --
+	// Failed() alone can lag an in-flight background Submit by up to its
+	// own timeout, during which different validators observe different
+	// stale values and disagree on Healthy (see ProbeHealthy's doc).
+	failed := src.Failed() || !src.ProbeHealthy(ctx)
 	hVerified, ok := src.VerifiedHeight()
 	if !ok {
 		hVerified = 0 // nothing confirmed yet -- full gap since genesis

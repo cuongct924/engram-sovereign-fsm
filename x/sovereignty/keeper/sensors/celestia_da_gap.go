@@ -16,6 +16,12 @@ import "context"
 type DAAvailabilitySource interface {
 	VerifiedHeight() (height uint64, ok bool)
 	Failed() bool
+	// ProbeHealthy does a fresh, bounded, stateless reachability check --
+	// unlike Failed(), never stale relative to the call, so every honest
+	// validator converges on the same DA-down reading within about one
+	// block instead of racing against each other's independent
+	// submission-bookkeeping timing (x/da/publisher.go's Publisher.ProbeHealthy doc).
+	ProbeHealthy(ctx context.Context) bool
 }
 
 // DASensor defaults to a static, test-controlled availability reading
