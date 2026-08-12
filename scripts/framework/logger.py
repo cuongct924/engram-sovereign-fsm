@@ -12,6 +12,7 @@ locally; it only OBSERVES the real chain's already-committed state.
 
 import base64
 import json
+import os
 import subprocess
 import time
 import urllib.request
@@ -262,19 +263,29 @@ def peer_subnet_counts(node: str, port: Optional[int] = None) -> dict:
     return counts
 
 
-def bitcoin_cli(*args: str) -> str:
-    """Runs bitcoin-cli inside the real bitcoin-node01 container -- used to
-    independently cross-check anchor state (OP_RETURN scan) against what a
-    manual bitcoin-cli query would show.
+def bitcoin_cli(*args: str, node: str = "bitcoin-node01") -> str:
+    """Runs bitcoin-cli inside a real bitcoin node container (bitcoin-node01
+    by default) -- used to independently cross-check anchor state (OP_RETURN
+    scan) against what a manual bitcoin-cli query would show, or to drive a
+    real reorg via bitcoin-node02 (E10, see e10_bitcoin_reorg/).
+
+    Credentials read from BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD (matching
+    .env / bitcoin_miner_loop.sh's own convention) rather than hardcoded --
+    a prior hardcoded cuongct/cuongct123 here silently stopped working once
+    .env's real values (engram_admin/secure_password_123) diverged, an
+    unused-at-the-time bug only caught when this function got its first
+    real caller.
     """
+    user = os.environ.get("BITCOIN_RPC_USER", "engram_admin")
+    password = os.environ.get("BITCOIN_RPC_PASSWORD", "secure_password_123")
     cmd = [
         "docker",
         "exec",
-        "bitcoin-node01",
+        node,
         "bitcoin-cli",
         "-regtest",
-        "-rpcuser=cuongct",
-        "-rpcpassword=cuongct123",
+        f"-rpcuser={user}",
+        f"-rpcpassword={password}",
         *args,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -283,5 +294,5 @@ def bitcoin_cli(*args: str) -> str:
     return result.stdout.strip()
 
 
-def bitcoin_height() -> int:
-    return int(bitcoin_cli("getblockcount"))
+def bitcoin_height(node: str = "bitcoin-node01") -> int:
+    return int(bitcoin_cli("getblockcount", node=node))
