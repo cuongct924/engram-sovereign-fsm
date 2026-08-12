@@ -15,8 +15,18 @@ import (
 // from PrepareProposal/ProcessProposal -- an http.Client with no Timeout can
 // hang on a stalled connection to a downed bitcoind indefinitely, stalling
 // ABCI (and so all of consensus) rather than degrading through btc_gap as
-// designed. Generous relative to regtest's normal RPC latency.
-const rpcTimeout = 5 * time.Second
+// designed.
+//
+// Bounded well under CometBFT's timeout_propose (3s default,
+// config.toml) -- a single RefreshMetrics call can chain multiple
+// sequential RPC calls (CurrentHeight, VerifyAnchor, MaybeSubmit), each
+// against this SAME client, so an individual timeout anywhere near
+// timeout_propose still stalls the whole round if 2+ of them are slow at
+// once (confirmed live: 5s here alongside x/da's 3s produced "ProposalBlock
+// is nil" round-skips for the whole duration of a combined BTC+DA outage,
+// not just a graceful degrade). 800ms is still >>40x regtest's normal
+// sub-20ms latency.
+const rpcTimeout = 800 * time.Millisecond
 
 // RPCClient is a minimal Bitcoin Core JSON-RPC client -- deliberately
 // stdlib-only (net/http, encoding/json), matching this package's existing

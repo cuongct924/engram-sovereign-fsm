@@ -7,13 +7,33 @@ import (
 	"time"
 )
 
-// availableCheckTimeout bounds MaybePublish's synchronous Available() call --
-// unlike Submit (backgrounded, below), this one runs inline in
-// PrepareProposal/ProcessProposal's ABCI hot path, so it must return well
-// within a consensus round's own timeout even if celestia-bridge is
+// availableCheckTimeout bounds MaybePublish's synchronous Available() call
+// and ProbeHealthy -- unlike Submit (backgrounded, below), these run inline
+// in PrepareProposal/ProcessProposal's ABCI hot path, so they must return
+// well within a consensus round's own timeout even if celestia-bridge is
 // completely unreachable, degrading through is_das_failed rather than
 // stalling block production.
-const availableCheckTimeout = 3 * time.Second
+//
+// Bounded well under CometBFT's timeout_propose (3s default) -- a single
+// RefreshMetrics call can run this alongside x/anchor's own sequential BTC
+// RPC calls (same reasoning as rpcTimeout's doc there), and 3s here alone
+// already ate most of that budget. Confirmed live: a combined BTC+DA outage
+// produced "ProposalBlock is nil" round-skips for an entire 90s scenario
+// window with the old 3s value.
+const availableCheckTimeout = 800 * time.Millisecond
+
+// maxPendingBlocks bounds how long MaybePublish waits on ONE pending
+// submission's Available() check before giving up and starting a fresh
+// Submit instead. Without this, a pending submission that never resolves
+// retrievable (confirmed live: celestia-bridge reported blob.Submit
+// succeeding at a given height, but blob.GetAll at that same height never
+// returned it available, for 40+ minutes straight) permanently blocks
+// VerifiedHeight from ever advancing -- since pendingEngramHeight != 0 gates
+// off the Submit branch entirely, no new attempt is ever made. 60 blocks is
+// several multiples of Celestia's own ~12s block time (at this testnet's
+// ~1.3s/block cadence), generous for a genuine in-flight confirmation, but
+// bounded well short of "stuck forever".
+const maxPendingBlocks = 60
 
 // heightMarkerTag is the payload prefix identifying this repo's simplified
 // DA blob content -- mirrors x/anchor/anchor.go's AnchorTag (tag + height)
@@ -58,6 +78,7 @@ type Publisher struct {
 	submitting          bool
 	pendingEngramHeight uint64
 	pendingCelestiaHt   uint64
+	pendingSinceHeight  uint64 // engramHeight when pendingEngramHeight was set, for maxPendingBlocks
 	verifiedHeight      uint64
 	hasVerified         bool
 	lastSubmitFailed    bool
@@ -83,6 +104,15 @@ func NewPublisher(client *RPCClient, namespace Namespace) *Publisher {
 func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, blockData []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if p.pendingEngramHeight != 0 && engramHeight > p.pendingSinceHeight &&
+		engramHeight-p.pendingSinceHeight > maxPendingBlocks {
+		// Gave it maxPendingBlocks worth of Available() checks; it never
+		// resolved retrievable. Abandon it and fall through to a fresh
+		// Submit below rather than waiting forever.
+		p.pendingEngramHeight = 0
+		p.lastSubmitFailed = true
+	}
 
 	if p.pendingEngramHeight != 0 {
 		availCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
@@ -133,6 +163,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 		}
 		p.pendingEngramHeight = engramHeight
 		p.pendingCelestiaHt = celestiaHeight
+		p.pendingSinceHeight = engramHeight
 	}()
 	return nil
 }
