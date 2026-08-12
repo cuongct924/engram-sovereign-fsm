@@ -63,6 +63,8 @@ from injector import (
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
+MINER_LOOP = "bitcoin-miner-loop"
+MINER_INTERVAL_OVERRIDE_FILE = "/tmp/miner_interval_override"
 
 
 def now() -> str:
@@ -164,15 +166,47 @@ def main():
     tr.poll(15, phase="S1_baseline")
     tr.write_scenario_csv("s1_normal", "s1")
 
-    print("=== S2: BTC congestion (chaos-btc-delay, dry-run behavior unproven) ===")
+    print(
+        "=== S2: BTC congestion (chaos-btc-delay RPC jitter + slowed "
+        "bitcoin-miner-loop, neither confirmed to grow btc_gap -- see "
+        "docs/EXPERIMENT.md's S2 methodology-gap writeup) ==="
+    )
+    # RPC-level netem delay alone (500ms +-100ms) has zero observable effect:
+    # it's ~40x smaller than the 20s natural mining cadence and doesn't touch
+    # what btc_gap is actually computed from (block-height deltas, not RPC
+    # RTT) -- confirmed live (S2 stayed 100% ANCHORED across 156 samples with
+    # zero transitions). Slowing bitcoin-miner-loop's own interval (via
+    # MINER_INTERVAL_OVERRIDE_FILE, read fresh every loop iteration) was
+    # tried as a fix and ALSO confirmed live not to grow btc_gap: h_btc_current
+    # and h_btc_anchored both derive from the same slowed block stream and
+    # stay in the same proportional relationship regardless of overall mining
+    # speed -- only this validator's own checkpoint submission specifically
+    # falling behind (not global slowdown) would grow the gap. Kept as
+    # working infrastructure (harmless, and chaos-btc-delay still adds real
+    # RPC-level jitter realism), but S2 currently has no mechanism that
+    # produces the ANCHORED->SUSPICIOUS->SOVEREIGN degradation the experiment
+    # table describes -- an open methodology gap, not a code bug.
     tr.set_scenario("s2")
     wait_for_no_active_netem()
     start_pumba_profile("chaos-btc-delay")
+    docker(
+        "exec",
+        MINER_LOOP,
+        "sh",
+        "-c",
+        f"echo 90 > {MINER_INTERVAL_OVERRIDE_FILE}",
+    )
     tr.poll(
         130, interval=3.0, phase="S2_btc_congestion"
     )  # profile's own --duration=2m + margin
+    docker("exec", MINER_LOOP, "rm", "-f", MINER_INTERVAL_OVERRIDE_FILE)
     cleanup_profile("chaos-btc-delay")
-    tr.poll(20, phase="S2_btc_congestion_cooldown")
+    # 90s cooldown, not 20s: the miner loop reads its override once per
+    # iteration, AFTER mining and BEFORE sleeping -- clearing the override
+    # only takes effect on the NEXT iteration, so a sleep already in
+    # progress can still run up to the full 90s before normal 20s cadence
+    # resumes.
+    tr.poll(90, phase="S2_btc_congestion_cooldown")
     tr.write_scenario_csv("s2_btc_congestion", "s2")
 
     print("=== S3: DA unavailable (docker stop celestia-bridge) ===")

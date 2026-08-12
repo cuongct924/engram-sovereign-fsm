@@ -147,6 +147,31 @@ for 43+ minutes resumed advancing within seconds of redeploying the fix, and the
 `reanchoring-prover`'s `MsgSubmitRecoveryProof` transactions went from perpetually timing out
 ("DeliverTx result not observed") to reaching real `DeliverTx` outcomes.
 
+**S2 (BTC congestion) methodology gap, found and only partially closed.** The same 729s run held
+`fsm_state = ANCHORED` for all 156 samples of S2 with zero transitions — `chaos-btc-delay`'s netem
+delay (500ms ±100ms on bitcoin-node01's traffic) is ~40x smaller than `bitcoin_miner_loop.sh`'s 20s
+natural mining cadence and well under `x/anchor/rpc.go`'s 800ms RPC timeout, so it never touches
+what `btc_gap` is actually computed from (block-height deltas, not RPC round-trip time) — every
+`getblockcount` call still succeeds, just slightly slower. Added a live-reloadable
+`MINER_INTERVAL_OVERRIDE_FILE` to `bitcoin_miner_loop.sh` (read fresh every loop iteration, no
+container restart needed) so S2 can genuinely slow real block confirmation instead of only RPC
+latency, wired into `live_scenario_matrix.py`'s S2 phase (90s interval during the fault window).
+Tested directly against the live cluster (90s-interval mining sustained for ~170s, two real slowed
+blocks landed): `fsm_state` stayed `ANCHORED` throughout — global mining slowdown does **not**
+grow `btc_gap` either, confirmed live, not just reasoned about. The reason: `btc_gap = h_btc_current
+- h_btc_anchored` (`sensors_refresh.go`'s `btcGapMetric`), and both terms derive from the *same*
+slowed block stream — `h_btc_anchored` needs `KDeepFinality` confirmations to advance, but so does
+every other block, so the two heights stay in the same proportional relationship regardless of how
+fast or slow mining runs overall; only *this validator's own checkpoint submission* falling behind
+the wider chain's pace (e.g. real mempool fee competition delaying a specific tx's inclusion, the
+actual mechanism behind real-world "BTC congestion") would grow the gap. Neither the RPC-delay
+mechanism nor the global-mining-slowdown mechanism achieves this. The override capability is kept
+(harmless, working infrastructure, and `chaos-btc-delay` still adds real RPC-level jitter realism
+alongside it), but S2 currently has **no fault-injection mechanism that produces the
+ANCHORED→SUSPICIOUS→SOVEREIGN degradation the scenario table above describes** — an open
+methodology gap, not a code bug, tracked as follow-up (needs checkpoint-submission-specific delay,
+e.g. pausing `AnchorTracker.MaybeSubmit` while mining continues normally, not yet implemented).
+
 **Vanilla CometBFT baseline (measured):** `engramd start --vanilla` (`app/app.go`) runs the same
 binary/module but skips `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker`, so BaseApp uses
 its default handlers with no `ExtendedProposal`. Running both variants side by side

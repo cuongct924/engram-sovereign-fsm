@@ -23,10 +23,21 @@
 # POSIX sh, not bash: the image it also runs inside (lncm/bitcoind, Alpine)
 # has no bash, only busybox ash -- no arrays, no `set -o pipefail`.
 #
+# OVERRIDE_FILE lets a fault-injection script (e.g. E2's S2 BTC-congestion
+# phase) genuinely slow real BTC confirmation mid-run without restarting
+# this container -- read fresh every loop iteration, mirroring this
+# session's other "fresh-every-call" reachability checks (x/anchor/x/da's
+# Reachable). A plain --duration'd sleep-longer command wouldn't do this:
+# netem/RPC-level delay (chaos-btc-delay) only slows queries against an
+# otherwise-unaffected bitcoind, not the actual confirmation cadence
+# btc_gap is computed from (confirmed live: zero FSM effect from 500ms
+# netem jitter against a 20s natural mining cadence).
+#
 # Usage: scripts/bitcoin_miner_loop.sh [interval_seconds]
 set -eu
 
 INTERVAL="${1:-20}"
+OVERRIDE_FILE="${MINER_INTERVAL_OVERRIDE_FILE:-/tmp/miner_interval_override}"
 RPC_USER="${BITCOIN_RPC_USER:-cuongct}"
 RPC_PASSWORD="${BITCOIN_RPC_PASSWORD:-cuongct123}"
 WALLET="${BITCOIN_WALLET:-engramwallet}"
@@ -45,5 +56,13 @@ echo "[bitcoin_miner_loop] mining 1 block every ${INTERVAL}s to $ADDR on $RPC_HO
 
 while true; do
   bitcoin-cli $CLI_ARGS generatetoaddress 1 "$ADDR" > /dev/null
-  sleep "$INTERVAL"
+  CUR_INTERVAL="$INTERVAL"
+  if [ -f "$OVERRIDE_FILE" ]; then
+    OVERRIDE="$(cat "$OVERRIDE_FILE" 2>/dev/null || true)"
+    case "$OVERRIDE" in
+      ''|*[!0-9]*) : ;; # not a positive integer -- ignore, keep CUR_INTERVAL
+      *) CUR_INTERVAL="$OVERRIDE" ;;
+    esac
+  fi
+  sleep "$CUR_INTERVAL"
 done
