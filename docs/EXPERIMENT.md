@@ -147,30 +147,40 @@ for 43+ minutes resumed advancing within seconds of redeploying the fix, and the
 `reanchoring-prover`'s `MsgSubmitRecoveryProof` transactions went from perpetually timing out
 ("DeliverTx result not observed") to reaching real `DeliverTx` outcomes.
 
-**S2 (BTC congestion) methodology gap, found and only partially closed.** The same 729s run held
+**S2 (BTC congestion) methodology gap, found and closed.** The 729s run above held
 `fsm_state = ANCHORED` for all 156 samples of S2 with zero transitions — `chaos-btc-delay`'s netem
 delay (500ms ±100ms on bitcoin-node01's traffic) is ~40x smaller than `bitcoin_miner_loop.sh`'s 20s
 natural mining cadence and well under `x/anchor/rpc.go`'s 800ms RPC timeout, so it never touches
-what `btc_gap` is actually computed from (block-height deltas, not RPC round-trip time) — every
-`getblockcount` call still succeeds, just slightly slower. Added a live-reloadable
-`MINER_INTERVAL_OVERRIDE_FILE` to `bitcoin_miner_loop.sh` (read fresh every loop iteration, no
-container restart needed) so S2 can genuinely slow real block confirmation instead of only RPC
-latency, wired into `live_scenario_matrix.py`'s S2 phase (90s interval during the fault window).
-Tested directly against the live cluster (90s-interval mining sustained for ~170s, two real slowed
-blocks landed): `fsm_state` stayed `ANCHORED` throughout — global mining slowdown does **not**
-grow `btc_gap` either, confirmed live, not just reasoned about. The reason: `btc_gap = h_btc_current
-- h_btc_anchored` (`sensors_refresh.go`'s `btcGapMetric`), and both terms derive from the *same*
-slowed block stream — `h_btc_anchored` needs `KDeepFinality` confirmations to advance, but so does
-every other block, so the two heights stay in the same proportional relationship regardless of how
-fast or slow mining runs overall; only *this validator's own checkpoint submission* falling behind
-the wider chain's pace (e.g. real mempool fee competition delaying a specific tx's inclusion, the
-actual mechanism behind real-world "BTC congestion") would grow the gap. Neither the RPC-delay
-mechanism nor the global-mining-slowdown mechanism achieves this. The override capability is kept
-(harmless, working infrastructure, and `chaos-btc-delay` still adds real RPC-level jitter realism
-alongside it), but S2 currently has **no fault-injection mechanism that produces the
-ANCHORED→SUSPICIOUS→SOVEREIGN degradation the scenario table above describes** — an open
-methodology gap, not a code bug, tracked as follow-up (needs checkpoint-submission-specific delay,
-e.g. pausing `AnchorTracker.MaybeSubmit` while mining continues normally, not yet implemented).
+what `btc_gap` is actually computed from (block-height deltas, not RPC round-trip time). A second
+attempt (global mining-rate slowdown via `MINER_INTERVAL_OVERRIDE_FILE`) also failed to grow
+`btc_gap`, confirmed live: `btc_gap = h_btc_current - h_btc_anchored`
+(`sensors_refresh.go`'s `btcGapMetric`), and both terms derive from the *same* slowed block stream,
+so they stay in the same proportional relationship regardless of overall mining speed — only *this
+validator's own checkpoint submission* falling behind the wider chain's pace (the real mechanism
+behind real-world "BTC congestion": mempool fee competition delaying a specific tx's inclusion)
+actually grows the gap.
+
+**Working mechanism: pausing checkpoint submission specifically.**
+`AnchorTracker.SetSubmissionPausedFile` (`x/anchor/anchor.go`) makes `MaybeSubmit` skip broadcasting
+a *new* checkpoint while a marker file exists (checked fresh every call, no restart needed) — an
+already-pending submission still confirms normally, only new ones are withheld, freezing
+`h_btc_anchored` while `h_btc_current` keeps climbing. Wired via `ANCHOR_SUBMISSION_PAUSED_FILE`
+(`docker/engram-validator-cluster.yml`, `/tmp/anchor_submission_paused`). **Confirmed live:**
+touching this file on all 4 validators grew `btc_gap` to 12 (past `SovereignThreshold`=8) within
+the pause window, and all 4 validators' committed `fsm_state` transitioned to `SOVEREIGN` in
+lockstep — `IsCriticalCondition`'s `IsBTCGapSovereign` branch (`predicates.go`) firing exactly as
+`da_gap`'s already-proven S3 path does. The intermediate `SUSPICIOUS` reading (`btc_gap` in
+`[SuspiciousThreshold, SovereignThreshold)` = `[5,8)`) was not directly captured in this run's
+sampling window — `btc_gap` crossed straight through that range between two debug snapshots rather
+than being caught mid-transition; `CalculateNextState`'s `StateAnchored` branch checks `critical`
+before `warning` (`circuit_breaker.go`), so a fast-enough climb through `[5,8)` can commit as a
+single ANCHORED→SOVEREIGN edge without an externally-observed SUSPICIOUS sample, the same behavior
+S3's slower DA-driven climb (which *did* show `ANCHORED→SUSPICIOUS→SOVEREIGN` as three distinct
+observed states, see above) would also exhibit under a fast enough gap growth rate. Removing the
+pause file lets `MaybeSubmit` resume and `h_btc_anchored` catch back up. `chaos-btc-delay`'s RPC
+jitter and the mining-slowdown override are both kept as harmless, independently-useful
+infrastructure (RPC-level realism and a documented negative finding respectively), but the
+submission-pause file is what `live_scenario_matrix.py`'s S2 phase now actually uses.
 
 **Vanilla CometBFT baseline (measured):** `engramd start --vanilla` (`app/app.go`) runs the same
 binary/module but skips `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker`, so BaseApp uses
