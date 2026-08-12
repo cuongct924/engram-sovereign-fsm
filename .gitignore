@@ -69,6 +69,10 @@ Verifier.toml
 # Local bind mound service data
 data/
 
+# Bitcoin regtest miner loop runtime state (make testnet-up), machine-local
+.bitcoin_miner_loop.pid
+.bitcoin_miner_loop.log
+
 # Generated multi-node testnet genesis/config/keys (engramd testnet init-files)
 testnet-data/
 
