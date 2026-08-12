@@ -49,6 +49,9 @@ x-engram-node-env: &engram-node-env
   CELESTIA_BRIDGE_URL: http://celestia-bridge:26658
   CELESTIA_NAMESPACE_ID: engramda01
   CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_AUTH_TOKEN}
+  # E2's S2 fault-injection phase toggles this by touching/removing this path
+  # inside each container -- see AnchorTracker.SetSubmissionPausedFile's doc.
+  ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
 
 # engram-net/bitcoin-net/celestia-net/validator-link-* are declared once in
 # the root compose.yml, which owns them -- redeclaring them here (even as

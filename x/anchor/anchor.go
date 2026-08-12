@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 )
@@ -30,6 +31,23 @@ type AnchorTracker struct {
 	kDeepFinality uint64
 	tag           []byte
 
+	// submissionPausedFile, when set, makes MaybeSubmit skip broadcasting a
+	// NEW checkpoint (an already-pending one still gets its confirmation
+	// checked and recorded normally -- an in-flight tx can't be un-sent)
+	// while the file exists, checked fresh every call. Existence-only, no
+	// content parsed -- mirrors bitcoin_miner_loop.sh's
+	// MINER_INTERVAL_OVERRIDE_FILE (fresh-every-call, no restart needed).
+	//
+	// This is the deliberate-delay analog of real BTC congestion (a
+	// checkpoint tx stuck behind mempool fee competition, delaying its own
+	// confirmation) for docs/EXPERIMENT.md's E2 S2 scenario -- global
+	// mining-rate slowdown was tried first and confirmed live NOT to grow
+	// btc_gap, since h_btc_current and h_btc_anchored both derive from the
+	// same block stream and stay proportionally in sync regardless of
+	// overall mining speed; only THIS validator's own submission falling
+	// behind (independent of mining speed) grows the gap.
+	submissionPausedFile string
+
 	mu                  sync.Mutex
 	pendingTxid         string
 	lastConfirmedHeight uint64
@@ -41,6 +59,27 @@ type AnchorTracker struct {
 // spec/core/EngramConsensus.tla's IsKDeep).
 func NewAnchorTracker(client *RPCClient, kDeepFinality uint64) *AnchorTracker {
 	return &AnchorTracker{client: client, kDeepFinality: kDeepFinality, tag: AnchorTag}
+}
+
+// SetSubmissionPausedFile wires the path MaybeSubmit checks to skip new
+// checkpoint submissions (see the field's doc). Empty disables the check
+// (default, every production validator).
+func (a *AnchorTracker) SetSubmissionPausedFile(path string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.submissionPausedFile = path
+}
+
+// submissionPaused reads a.submissionPausedFile without locking -- only
+// called from MaybeSubmit, which already holds a.mu; SetSubmissionPausedFile
+// is only ever called once at startup, before any concurrent MaybeSubmit
+// call, so this doesn't race in practice.
+func (a *AnchorTracker) submissionPaused() bool {
+	if a.submissionPausedFile == "" {
+		return false
+	}
+	_, err := os.Stat(a.submissionPausedFile)
+	return err == nil
 }
 
 // MaybeSubmit checks the previous submission's status and, once it has
@@ -87,6 +126,15 @@ func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) er
 		a.lastConfirmedHeight = blockHeight
 		a.hasConfirmed = true
 		a.pendingTxid = "" // resolved -- free to submit the next one below
+	}
+
+	if a.submissionPaused() {
+		// Deliberately does not touch pendingTxid/lastConfirmedHeight: an
+		// already-broadcast tx (handled above) still confirms normally, only
+		// a NEW checkpoint is withheld -- h_btc_anchored freezes at its last
+		// confirmed value while h_btc_current keeps climbing, growing
+		// btc_gap, the effect real checkpoint-submission delay produces.
+		return nil
 	}
 
 	payload := make([]byte, 0, len(a.tag)+8)

@@ -708,7 +708,15 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 
 	client := anchor.NewRPCClient(fmt.Sprintf("http://%s:%s", host, port), user, pass)
 	engramApp.Sensors.BTC.SetSource(client)
-	engramApp.Sensors.Anchor = anchor.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
+	tracker := anchor.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
+	// ANCHOR_SUBMISSION_PAUSED_FILE lets a fault-injection script pause new
+	// checkpoint submissions mid-run (see AnchorTracker.SetSubmissionPausedFile's
+	// doc) -- unset on every real validator, only used by
+	// scripts/e2_fault_injection/live_scenario_matrix.py's S2 phase.
+	if pauseFile := os.Getenv("ANCHOR_SUBMISSION_PAUSED_FILE"); pauseFile != "" {
+		tracker.SetSubmissionPausedFile(pauseFile)
+	}
+	engramApp.Sensors.Anchor = tracker
 }
 
 // wireDASensor upgrades engramApp's DA sensor from its static SetAvailable
