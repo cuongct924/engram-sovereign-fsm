@@ -112,9 +112,10 @@ stalls consensus permanently.
 flowchart TD
     A["Wipe testnet-data/\n+ engramd testnet init-files --v 4"] --> B["Start bitcoind + Celestia"]
     B --> C["Create + fund BTC wallet\n(101+ blocks, name: engramwallet)"]
-    C --> D["Start bitcoin_miner_loop.sh\n(steady ~1 block / 20s)"]
+    C --> D["Start bitcoin-miner-loop container\n(steady ~1 block / 20s)"]
     D --> E["Start the 4 validators"]
-    E --> F["Verify: same AppHash\nat same height, all 4 nodes"]
+    E --> F["Start reanchoring-prover container\n(needed for RECOVERING -> ANCHORED)"]
+    F --> Ver["Verify: same AppHash\nat same height, all 4 nodes"]
 
     G["⚠ engramd started before wallet mature"] -.->|desyncs h_btc_current| H["Consensus stalls"]
     I["⚠ burst-mining while engramd runs"] -.->|same failure| H
@@ -180,9 +181,18 @@ docker compose rm -f <service names>
 
 Never a bare `down`.
 
+Same trap, different command: `docker compose --profile X stop`/`rm -f` with **no service names**
+also scopes to the whole project, not just profile `X`'s own containers -- `--profile` only
+widens what `up`'s bare defaults include, it does not narrow `stop`/`rm`'s scope. Hit this for
+real stopping a chaos-wan profile mid-run; see the Makefile's `chaos-wan-stop` target for the
+fix (always pass explicit service names).
+
 ## 4. ZK re-anchoring pipeline (RECOVERING → ANCHORED)
 
-Needs `nargo` + `bb` (Barretenberg) on `PATH`, pinned to `1.0.0-beta.22`.
+Runs automatically as the `reanchoring-prover` container (`docker/reanchoring-prover/`,
+started by `make testnet-up`) -- no host `nargo`/`bb` install needed for normal use. The
+manual, host-side path below is for debugging the pipeline in isolation; needs `nargo` + `bb`
+(Barretenberg) on `PATH`, pinned to `1.0.0-beta.22`.
 
 ```bash
 ./scripts/reanchoring_prover/prove_and_submit.sh    # one-shot: query -> witness -> prove -> submit

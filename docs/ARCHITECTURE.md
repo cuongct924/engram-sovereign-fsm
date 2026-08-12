@@ -23,14 +23,18 @@ flowchart TB
     subgraph bitcoinnet["bitcoin-net (172.21.0.0/24, isolated)"]
         BTC1["bitcoin-node01<br/>.10"]
         BTC2["bitcoin-node02<br/>.11"]
+        Miner["bitcoin-miner-loop<br/>(no fixed IP)"]
     end
     subgraph celestianet["celestia-net (172.22.0.0/24, isolated)"]
         CApp["celestia-app<br/>.50"]
         CBridge["celestia-bridge<br/>.51"]
     end
+    Prover["reanchoring-prover<br/>(engram-net, no fixed IP)"]
     N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
     N1 & N2 & N3 & N4 -.->|CELESTIA_BRIDGE_URL<br/>JSON-RPC 2.0| CBridge
     CBridge --> CApp
+    Miner -.->|"-rpcconnect<br/>generatetoaddress every ~20s"| BTC1
+    Prover -.->|"NODE_URL<br/>query-recovery-headers / tx-submit-recovery-proof"| N1
 
     style engramnet fill:#eef5ff,stroke:#4a7fd6
     style bitcoinnet fill:#fff3e6,stroke:#d68a30
@@ -39,9 +43,17 @@ flowchart TB
 
 | Network | CIDR | Gateway | Isolation | Members |
 |---|---|---|---|---|
-| `engram-net` | `172.28.0.0/24` | `.1` | shared P2P | 4 validators: `.100`/`.110`/`.120`/`.130` |
-| `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, + validators `.100`/`.110`/`.120`/`.130` |
+| `engram-net` | `172.28.0.0/24` | `.1` | shared P2P | 4 validators: `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
+| `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, `bitcoin-miner-loop` (no fixed IP), + validators `.100`/`.110`/`.120`/`.130` |
 | `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge` `.51`, + validators `.100`/`.110`/`.120`/`.130` |
+
+`bitcoin-miner-loop` (`docker/bitcoin-miner-loop.yml`) and `reanchoring-prover`
+(`docker/reanchoring-prover/`) are both real, always-on containers (started by `make
+testnet-up`, not profile-gated), not validators or peripheral-layer services -- they replace what
+used to be a host `nohup` process (the miner loop) and a manual host-side script invocation (the
+prover) respectively. Neither needs a static IP since nothing else addresses them by IP; they only
+ever originate connections outward (to `bitcoin-node01`/`engram-node01`'s RPC), never accept
+inbound ones.
 
 Each `engram-nodeNN` is multi-homed across all three networks so its hostname-based env vars --
 `BITCOIN_HOST=bitcoin-node01`, `CELESTIA_BRIDGE_URL=http://celestia-bridge:26658` -- resolve via
