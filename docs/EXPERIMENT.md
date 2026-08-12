@@ -388,6 +388,29 @@ wallet being funded. Restarting the miner loop resolved it. This confirms why
 `docs/DEVELOPMENT.md` §3 requires the Bitcoin wallet funded *and* continuously mining
 before/throughout every `engramd` run, not just at first bootstrap.
 
+**Root cause of the 0% anchored_uptime above, found and fixed.** The spot-check's 0% wasn't a
+measurement-window artifact -- two real bugs made it structurally impossible to observe anything
+else. (1) `AnchorTracker.SubmitOpReturn`'s coin selection and lock were two separate RPC calls
+(`fundrawtransaction` then `lockunspent`), a real TOCTOU race once this repo's 4 validators (one
+shared wallet) all call it every block: confirmed live via
+`lockunspent: -8 Invalid parameter, output already locked` on every attempt, forever --
+`h_btc_anchored` never advanced past 0. Fixed by passing `lockUnspents: true` to
+`fundrawtransaction` itself (atomic select+lock in one RPC call). (2) Even once anchoring worked,
+nothing ever ran the real ZK prover (`scripts/reanchoring_prover/watch_and_prove.sh`) against a
+plain `docker compose up` cluster -- `zk_proof_ref` stayed null in every proposal, so
+`RECOVERING` could never reach `ANCHORED` regardless of hysteresis correctness. Fixed by
+containerizing both the prover and the (previously host-`nohup`) Bitcoin miner loop
+(`docker/reanchoring-prover/`, `docker/bitcoin-miner-loop.yml`), wired into `make testnet-up`.
+
+**Re-measured with both fixes live, HW=2, noisy_da, 180s:**
+`flapping_count=0`, `total_transitions=3`, **`anchored_uptime=50.88%`** (all 4 validators
+identical throughout). Held `ANCHORED` through 2 full noise cycles, then degraded one step at a
+time under a genuinely sustained outage (`ANCHORED → SUSPICIOUS → SOVEREIGN → RECOVERING`) with
+zero reversals -- the first live measurement to actually exercise the down-hysteresis and
+`SuspiciousHysteresisWait` mechanisms end to end, not just infer their behavior from a cold-start-
+or anchoring-blocked cluster. Raw data:
+`scripts/e5_hysteresis_flapping/results_live/live_spot_check_hw2_noisy_da_20260812T123903*`.
+
 ---
 
 ### E6 — Reanchoring Feasibility Evaluation
