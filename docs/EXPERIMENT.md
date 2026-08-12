@@ -923,6 +923,57 @@ above, which needed neither workaround):
 
 ---
 
+### E10 — Bitcoin Reorg Fork-Choice Reaction
+
+Formally specified (`spec/core/EngramConsensus.tla`'s `BitcoinReorg` action; `spec/README.md`
+SS7.3 "Threat Model Boundary: Bitcoin Reorg Depth"; `CanElect`'s FSM-state-dependent branch —
+`IsKDeep` for ANCHORED/SUSPICIOUS, `IsMaxStakeBranch` for SOVEREIGN) but never previously exercised
+by any live or in-process experiment in this repo before this session.
+
+**Mechanism:** `bitcoin-node02` (node01's regtest sync peer, never dialed directly by `engramd`)
+is isolated via `setnetworkactive false`, `invalidateblock` forces it to rebuild an alternate chain
+from a target height, it mines past node01's (frozen, via `bitcoin_miner_loop.sh`'s
+`MINER_INTERVAL_OVERRIDE_FILE`) height, then reconnecting forces a real reorg on node01 — and every
+validator watching it. `scripts/e10_bitcoin_reorg/live_reorg_test.py` drives this and independently
+verifies via `getblockhash` that a reorg actually happened (not just assumed from height catching
+up), after two live-confirmed false negatives during development: mining left unfrozen let node01's
+own chain simply outrun node02's synthetic lead (no reorg at all), and invalidating only the current
+tip (not a target height further back) just extended the shared chain rather than forking it.
+
+**Shallow reorg (depth=1, < `KDeepFinality`=2):** `scripts/e10_bitcoin_reorg/results_live/
+reorg_shallow_20260812T140516.csv` — all 4 validators stayed `ANCHORED` throughout a verified real
+1-block reorg. Matches the spec's own safety claim: `IsKDeep`/`CanElect`'s ANCHORED/SUSPICIOUS
+branch structurally can't re-elect a certificate lost this shallow.
+
+**Deep reorg (depth >= `KDeepFinality`), targeting the actually-anchored checkpoint:**
+`scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260812T143632.csv` — a verified real 15-block
+reorg (heights 472-486), deliberately sized to guarantee orphaning the checkpoint height
+`h_btc_anchored` was actually pointing to at the time (477, confirmed via a temporary debug read).
+An earlier depth-5 attempt (`reorg_deep_20260812T141120.csv`) orphaned only recent, not-yet-anchored
+blocks and correctly showed no reaction — a targeting miss, not a security finding, since
+spec/README.md SS7.3 is explicit that "no protocol mechanism re-verifies an already-K-deep-confirmed
+checkpoint," so testing the claim requires actually reorging *that* checkpoint, not just any recent
+block. Result (depth-15, correctly targeted): **all 4 validators transitioned to `SOVEREIGN`**, in
+lockstep. spec/README.md SS7.3 calls deep-reorg behavior explicitly out of scope/unguaranteed — this
+is a concrete finding beyond what the spec promises, not a violation of it: `AnchorTracker.
+VerifyAnchor` (`x/anchor/anchor.go`, check #3b in `proposal.go`, "no spec line") re-derives
+`BlockContainsTag` via `getblockhash(height)` fresh on every call rather than caching, so a reorg
+replacing the block at the previously-anchored height is caught on the very next re-check —
+`is_btc_spv_failed` goes true, `IsCriticalCondition` fires (`predicates.go`: `IsBTCGapSovereign(m,
+p) || m.IsBtcSpvFailed || ...`), forcing SOVEREIGN. A real defense-in-depth mechanism the spec
+doesn't require but the concrete implementation provides.
+
+**Bug found and fixed (infrastructure, not FSM/consensus logic):** `bitcoin_miner_loop.sh`'s pause
+mechanism (added for S2 above) used a single `sleep "$CUR_INTERVAL"`, reading the override file only
+once per iteration before sleeping — setting a large override (99999s, to fully freeze node01's
+mining for the reorg construction above) commits the process to a ~27hr sleep a later file deletion
+can't interrupt, since the process doesn't re-check until that sleep naturally completes. Confirmed
+live: stalled both BTC and Engram height for several minutes after a test's own cleanup had already
+run. Fixed by sleeping in 1s steps, re-reading the override every tick, so resume takes effect
+within ~1s instead of up to the original (possibly very long) override duration.
+
+---
+
 ## 4. Figures & Tables Needed in the Paper
 
 | Figure/Table | Content |
