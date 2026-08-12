@@ -20,7 +20,7 @@ traceability is load-bearing — see "Spec fidelity" below.
 x/sovereignty/      -- FSM engine (Cosmos SDK module): state machine, sensors, circuit breaker,
                         ABCI++ hooks (PrepareProposal/ProcessProposal/PreBlocker)
 x/da/                -- Celestia DA receipt type + verification
-x/vigilante/         -- Bitcoin settlement receipt type + SPV verification
+x/anchor/         -- Bitcoin settlement receipt type + SPV verification
 app/                 -- EngramApp: BaseApp wiring (codec, KVStoreKey, ante handler, ABCI++ hooks);
                         no bank/auth/staking module mounted
 cmd/engramd/         -- node binary: `engramd init`, `start [--vanilla]`, `testnet init-files --v N`
@@ -53,7 +53,7 @@ range in a comment. Branch/CASE order and structure must match the spec exactly 
 "improve" or simplify it (a previous bug: an added branch not in `CalculateNextFSMState` violated
 `StrictFSMTransitionSafety`). See the `go-spec-fidelity` skill for the full rule set (reuse vs.
 reimplement, pointer semantics, documenting simplifications) when touching
-`x/sovereignty`/`x/da`/`x/vigilante`.
+`x/sovereignty`/`x/da`/`x/anchor`.
 
 Comments: cite the spec operator + line range for ported logic; otherwise comment only the
 non-obvious "why" (a hidden constraint, a workaround, an invariant), never the "what". English

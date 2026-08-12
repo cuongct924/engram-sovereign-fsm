@@ -7,7 +7,7 @@ import (
 )
 
 // heightMarkerTag is the payload prefix identifying this repo's simplified
-// DA blob content -- mirrors x/vigilante/anchor.go's AnchorTag (tag + height)
+// DA blob content -- mirrors x/anchor/anchor.go's AnchorTag (tag + height)
 // as a documented stand-in for publishing the block's actual transaction
 // data. RefreshMetrics (x/sovereignty/sensors_refresh.go), where MaybePublish
 // is called, only has access to sdk.Context, not the block's req.Txs -- real
@@ -27,7 +27,7 @@ func HeightMarker(engramHeight uint64) []byte {
 
 // Publisher is this app's DA-availability tracker -- the concrete mechanism
 // giving h_engram_verified somewhere to come from, mirroring
-// x/vigilante/anchor.go's AnchorTracker for h_btc_anchored. Follows
+// x/anchor/anchor.go's AnchorTracker for h_btc_anchored. Follows
 // DANormalUpdate/DAFailure exactly (spec/core/EngramFSM.tla:196-212):
 //
 //	DANormalUpdate: h_engram_verified' = h_engram_current'   (exact equality)

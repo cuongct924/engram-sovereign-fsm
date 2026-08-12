@@ -105,7 +105,7 @@ it only ever loads whatever landed in `genesis.json`.
 
 **The order below is load-bearing, not a preference.** Starting `engramd` before Bitcoin has a
 funded, mature wallet — or mining in bursts while `engramd` is already running — desyncs
-`h_btc_current` from `h_btc_anchored` past `vigilante.VerifyReceipt`'s tolerance window and
+`h_btc_current` from `h_btc_anchored` past `anchor.VerifyReceipt`'s tolerance window and
 stalls consensus permanently.
 
 ```mermaid
@@ -127,9 +127,12 @@ rm -rf testnet-data/
 make build-linux
 ./build/engramd testnet init-files --v 4
 
-# 3.2 — Bitcoin + Celestia, wallet funded and mature, BEFORE any engramd container
-docker compose --env-file .env -f docker/bitcoin-regtest-cluster.yml up -d
-docker compose --env-file .env -f docker/celestia-local-cluster.yml up -d
+# 3.2 — Bitcoin + Celestia, wallet funded and mature, BEFORE any engramd container.
+# -f compose.yml, not a standalone -f docker/*.yml: bitcoin-net/engram-net are only
+# declared in compose.yml's own top-level networks:, and an explicit -f opts out of
+# Compose's default auto-discovery of compose.yml from cwd.
+docker compose --env-file .env -f compose.yml up -d bitcoin-node01 bitcoin-node02
+docker compose --env-file .env -f compose.yml up -d celestia-app celestia-bridge
 
 docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
   -rpcpassword=$BITCOIN_RPC_PASSWORD createwallet "engramwallet"   # must be this name --
@@ -144,8 +147,7 @@ docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
 ./scripts/bitcoin_miner_loop.sh &     # steady cadence from here on, never manual bursts
 
 # 3.3 — the 4 validators
-docker compose --env-file .env -f docker/engram-validator-cluster.yml up -d --build
-# or: docker compose up -d --build (compose.yml's include: already covers this)
+docker compose --env-file .env -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
 ```
 
 Verify: `curl -s http://localhost:26657/status | jq .result.sync_info`, and confirm `AppHash`
@@ -213,7 +215,7 @@ Profile-gated extras, never started by a plain `docker compose up`:
 
 ## 6. Manual Bitcoin regtest walkthrough (fork / reorg / double-spend)
 
-Lower-level, not tied to `engramd` at all — useful for debugging `x/vigilante`'s SPV logic in
+Lower-level, not tied to `engramd` at all — useful for debugging `x/anchor`'s SPV logic in
 isolation. Assumes `docker/bitcoin-regtest-cluster.yml` is up (§3.2), or run standalone from
 `docker/`. Uses its own `sharedwallet`, separate from §3's `engramwallet` — stop
 `bitcoin_miner_loop.sh` first if running this against a live cluster, or its steady mining will

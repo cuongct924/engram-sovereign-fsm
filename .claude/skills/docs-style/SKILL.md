@@ -1,6 +1,6 @@
 ---
 name: docs-style
-description: Writing/editing style rules for .md documentation files (docs/*.md, top-level *.md files) and code comments across this repo, keeping them a concise current-state reference instead of a work log. Use whenever adding, rewriting, or reviewing a .md doc, or writing/editing a comment in any source file. Not for spec/README.md (see readme-style) or spec-porting comments in x/sovereignty|x/da|x/vigilante (see go-spec-fidelity, whose citation format this skill defers to).
+description: Writing/editing style rules for .md documentation files (docs/*.md, top-level *.md files) and code comments across this repo, keeping them a concise current-state reference instead of a work log. Use whenever adding, rewriting, or reviewing a .md doc, or writing/editing a comment in any source file. Not for spec/README.md (see readme-style) or spec-porting comments in x/sovereignty|x/da|x/anchor (see go-spec-fidelity, whose citation format this skill defers to).
 ---
 
 # Docs & comments: write for the reader who arrives cold, not the session that produced them

@@ -25,10 +25,10 @@ import (
 	cmttypes "github.com/cometbft/cometbft/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cuongct220020/engram-sovereign-fsm/app"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -677,9 +677,9 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 	user := os.Getenv("BITCOIN_RPC_USER")
 	pass := os.Getenv("BITCOIN_RPC_PASSWORD")
 
-	client := vigilante.NewRPCClient(fmt.Sprintf("http://%s:%s", host, port), user, pass)
+	client := anchor.NewRPCClient(fmt.Sprintf("http://%s:%s", host, port), user, pass)
 	engramApp.Sensors.BTC.SetSource(client)
-	engramApp.Sensors.Anchor = vigilante.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
+	engramApp.Sensors.Anchor = anchor.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
 }
 
 // wireDASensor upgrades engramApp's DA sensor from its static SetAvailable

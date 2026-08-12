@@ -1,13 +1,13 @@
 //go:build btcsmoke
 
-package vigilante_test
+package anchor_test
 
 // This is a manual, opt-in smoke test against a REAL running bitcoind
 // regtest node (docker/bitcoin-regtest-cluster.yml's bitcoin-node01) --
 // not part of the normal `go test ./...` suite (build tag gated), since CI/
 // normal test runs have no bitcoind available. Run explicitly via:
 //
-//	go test -tags btcsmoke ./x/vigilante/... -run TestRPCClient_LiveSmoke -v
+//	go test -tags btcsmoke ./x/anchor/... -run TestRPCClient_LiveSmoke -v
 
 import (
 	"context"
@@ -16,11 +16,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 )
 
 func TestRPCClient_LiveSmoke(t *testing.T) {
-	c := vigilante.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
+	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -35,11 +35,11 @@ func TestRPCClient_LiveSmoke(t *testing.T) {
 }
 
 func TestAnchorTracker_LiveSmoke(t *testing.T) {
-	c := vigilante.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
+	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	tracker := vigilante.NewAnchorTracker(c, 2) // kDeepFinality=2, small for a fast test
+	tracker := anchor.NewAnchorTracker(c, 2) // kDeepFinality=2, small for a fast test
 
 	require.NoError(t, tracker.MaybeSubmit(ctx, 42))
 	_, ok := tracker.ConfirmedAnchorHeight()
@@ -79,11 +79,11 @@ func TestAnchorTracker_LiveSmoke(t *testing.T) {
 // every claimed anchor advance was rejected by every validator, 100% of the
 // time, on the real 4-node testnet.
 func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
-	c := vigilante.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
+	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	tracker := vigilante.NewAnchorTracker(c, 2) // kDeepFinality=2
+	tracker := anchor.NewAnchorTracker(c, 2) // kDeepFinality=2
 	require.NoError(t, tracker.MaybeSubmit(ctx, 1000))
 
 	addr := mineBlocks(t, ctx, c, 2) // exactly kDeepFinality confirmations, no more
@@ -101,7 +101,7 @@ func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
 	require.True(t, verified, "the height MaybeSubmit just reported confirmed must immediately pass VerifyAnchor -- this is exactly what failed live before the fix")
 }
 
-func mineBlocks(t *testing.T, ctx context.Context, c *vigilante.RPCClient, n int) string {
+func mineBlocks(t *testing.T, ctx context.Context, c *anchor.RPCClient, n int) string {
 	t.Helper()
 	addr, err := c.GetNewAddress(ctx)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func mineBlocks(t *testing.T, ctx context.Context, c *vigilante.RPCClient, n int
 	return addr
 }
 
-func mineBlocksToAddr(t *testing.T, ctx context.Context, c *vigilante.RPCClient, n int, addr string) {
+func mineBlocksToAddr(t *testing.T, ctx context.Context, c *anchor.RPCClient, n int, addr string) {
 	t.Helper()
 	require.NoError(t, c.GenerateToAddress(ctx, n, addr))
 }

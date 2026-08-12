@@ -42,7 +42,7 @@ func (n Namespace) base64() string {
 }
 
 // RPCClient is a minimal celestia-node JSON-RPC 2.0 client -- deliberately
-// stdlib-only (net/http, encoding/json), matching x/vigilante/rpc.go's
+// stdlib-only (net/http, encoding/json), matching x/anchor/rpc.go's
 // zero-dependency style rather than pulling in celestiaorg/celestia-node's
 // full client SDK for the two calls (blob.Submit, blob.GetAll) this package
 // actually needs.

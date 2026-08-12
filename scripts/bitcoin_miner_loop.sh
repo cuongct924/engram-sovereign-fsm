@@ -2,8 +2,8 @@
 # Steady regtest miner for local docker testnet development.
 #
 # bitcoind regtest never mines on its own -- AnchorTracker's OP_RETURN
-# checkpoints (x/vigilante/anchor.go) need real confirmations to reach
-# kDeepFinality (default 2), and vigilante.VerifyReceipt's tolerance window
+# checkpoints (x/anchor/anchor.go) need real confirmations to reach
+# kDeepFinality (default 2), and anchor.VerifyReceipt's tolerance window
 # at that setting is only kDeepFinality blocks wide (see verify.go's
 # Tolerance doc). Mining in irregular manual bursts (e.g. 5 blocks at once
 # to fund a wallet) advances h_btc_current far ahead of whatever checkpoint

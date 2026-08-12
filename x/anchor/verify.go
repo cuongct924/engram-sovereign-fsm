@@ -1,4 +1,4 @@
-package vigilante
+package anchor
 
 // Tolerance ports BTCTolerance's shape (spec/core/EngramTendermint.tla:243-246:
 // CASE r<=2 -> 0, r>=3 -> 1, OTHER -> 0), widened with three deliberate

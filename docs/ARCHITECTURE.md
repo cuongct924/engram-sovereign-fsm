@@ -101,8 +101,8 @@ deployment; `x/da`'s `Publisher`/`RPCClient` talk to `celestia-bridge` directly.
 All sensors are real, live connections, not mocks (Phase 7; `CLAUDE.md`'s "Current status" has
 build state):
 
-* **BTC** (`x/vigilante.AnchorTracker`, linked directly into `engramd` via `main.go`'s
-  `wireBTCSensor`): talks to a real `bitcoind` regtest node over JSON-RPC (`x/vigilante/rpc.go`)
+* **BTC** (`x/anchor.AnchorTracker`, linked directly into `engramd` via `main.go`'s
+  `wireBTCSensor`): talks to a real `bitcoind` regtest node over JSON-RPC (`x/anchor/rpc.go`)
   -- submits real OP_RETURN checkpoint transactions, tracks real confirmation depth. No separate
   Submitter/Reporter container exists (this app has no staking module to source a real
   Babylon-style BLS-aggregated checkpoint from).
@@ -118,7 +118,7 @@ build state):
   `baseapp.SetAddrPeerFilter`, a stock Cosmos SDK ABCI hook, no fork changes needed) once
   admitting it would push its `/24` (`/48` for IPv6) subnet's connected-peer count past
   `Params.MaxPeersPerSubnet`. Demonstrated live against a 10-22-container attacker swarm (§5).
-* **Verification layer** (`x/da`/`x/vigilante`'s `VerifyReceipt` functions): stateless packages,
+* **Verification layer** (`x/da`/`x/anchor`'s `VerifyReceipt` functions): stateless packages,
   not Cosmos SDK modules with their own keeper/KVStore -- port `IsValidProposal`'s DA-pipeline and
   BTC-settlement checks (`spec/core/EngramTendermint.tla:290-298`) directly, called from
   `x/sovereignty/proposal.go`'s `ProcessProposal`.
@@ -168,7 +168,7 @@ flowchart TB
     end
 
     peer1["Other validator nodes<br/>(engram-net)"]
-    btc["bitcoin-node01 (regtest)<br/>x/vigilante.AnchorTracker"]
+    btc["bitcoin-node01 (regtest)<br/>x/anchor.AnchorTracker"]
     celestia["celestia-bridge<br/>x/da.Publisher"]
 
     genfile --> mainfn
@@ -235,7 +235,7 @@ The actual mechanism (`x/sovereignty/proposal.go`, `preblock.go`):
   bare bool -- refines `spec/core/EngramTendermint.tla:150`'s abstract `BOOLEAN`; see
   `spec/README.md` §6.1.
 * **`ProcessProposal`:** every validator decodes `Txs[0]` and re-validates it against its own
-  local `CalculateNextState` + `x/da.VerifyReceipt` + `x/vigilante.VerifyReceipt` + the
+  local `CalculateNextState` + `x/da.VerifyReceipt` + `x/anchor.VerifyReceipt` + the
   withdrawal circuit breaker (mirrors `IsValidProposal`, `spec/core/EngramTendermint.tla:281-307`),
   rejecting the whole proposal on any mismatch. If `ENGRAM_BYZANTINE_BEHAVIOR` is set on a
   validator (`docker/engram-node04-byzantine.yml` -- never set on a real validator),

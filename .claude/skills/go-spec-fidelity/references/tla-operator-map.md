@@ -1,6 +1,6 @@
 # TLA+ operator → Go port map
 
-Index of every `spec/core/*.tla` operator ported into `x/sovereignty`, `x/da`, `x/vigilante`, built
+Index of every `spec/core/*.tla` operator ported into `x/sovereignty`, `x/da`, `x/anchor`, built
 by grepping each file's own citation comment. Treat this as a starting point for "does this
 predicate already exist", not the source of truth — the citation comment on the Go function itself
 is authoritative; re-grep before relying on a row here if the function may have moved.
@@ -26,15 +26,15 @@ is authoritative; re-grep before relying on a row here if the function may have 
 | `DATolerance` | `EngramTendermint.tla:237-241` | `Tolerance` | `x/da/verify.go` |
 | `IsValidProposal`'s DA-pipeline check | `EngramTendermint.tla:290-294` | `VerifyReceipt` | `x/da/verify.go` |
 | `DANormalUpdate`/`DAFailure` | `EngramFSM.tla:196-212` | `(*Publisher).MaybePublish` | `x/da/publisher.go` |
-| `ExpectedBlockHash` | `EngramTendermint.tla:266` | `ExpectedBlockHash` / `BlockHash` | `x/vigilante/types.go` |
-| `BTCTolerance` | `EngramTendermint.tla:243-246` | `Tolerance` | `x/vigilante/verify.go` |
-| `VerifySPVProof` | `EngramTendermint.tla:271-275` | `VerifySPVProof` | `x/vigilante/verify.go` |
-| `IsValidProposal`'s BTC-settlement check | `EngramTendermint.tla:296-298` | `VerifyReceipt` | `x/vigilante/verify.go` |
+| `ExpectedBlockHash` | `EngramTendermint.tla:266` | `ExpectedBlockHash` / `BlockHash` | `x/anchor/types.go` |
+| `BTCTolerance` | `EngramTendermint.tla:243-246` | `Tolerance` | `x/anchor/verify.go` |
+| `VerifySPVProof` | `EngramTendermint.tla:271-275` | `VerifySPVProof` | `x/anchor/verify.go` |
+| `IsValidProposal`'s BTC-settlement check | `EngramTendermint.tla:296-298` | `VerifyReceipt` | `x/anchor/verify.go` |
 
 ## Regenerating this table
 
 ```bash
-grep -rn "spec/core/.*\.tla:" x/sovereignty x/da x/vigilante --include="*.go" | grep -v "_test.go"
+grep -rn "spec/core/.*\.tla:" x/sovereignty x/da x/anchor --include="*.go" | grep -v "_test.go"
 ```
 
 Re-run after any change that adds, renames, or moves a ported function, and update the row rather

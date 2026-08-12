@@ -14,7 +14,7 @@ CometBFT core: **[cuongct924/engram-consensus-core](https://github.com/cuongct92
 ```
 x/sovereignty/         FSM engine: state machine, sensors, circuit breaker, ABCI++ hooks
 x/da/                  Celestia DA receipt type + verification
-x/vigilante/           Bitcoin settlement receipt type + SPV verification
+x/anchor/           Bitcoin settlement receipt type + SPV verification
 app/                   EngramApp (real BaseApp wiring)
 cmd/engramd/           Node binary -- init/start, testnet bootstrap, CLI tooling
 circuit/               Noir ZK circuit for the re-anchoring recovery proof

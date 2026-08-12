@@ -1,4 +1,4 @@
-package vigilante
+package anchor
 
 import (
 	"testing"

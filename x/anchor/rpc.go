@@ -1,4 +1,4 @@
-package vigilante
+package anchor
 
 import (
 	"bytes"
@@ -13,9 +13,8 @@ import (
 // stdlib-only (net/http, encoding/json), matching this package's existing
 // zero-dependency style, rather than pulling in btcsuite/btcd's much larger
 // dependency tree for what is currently a single call (getblockcount).
-// Named after, and playing the observing role of, Babylon's real Vigilante
-// Monitor daemon (github.com/babylonlabs-io/vigilante) -- see CurrentHeight's
-// doc.
+// Plays the observing role of Babylon's real Vigilante Monitor daemon
+// (github.com/babylonlabs-io/vigilante) -- see CurrentHeight's doc.
 type RPCClient struct {
 	url      string
 	user     string
@@ -53,7 +52,7 @@ type rpcResponse struct {
 }
 
 func (c *RPCClient) call(ctx context.Context, method string, params []any, result any) error {
-	body, err := json.Marshal(rpcRequest{JSONRPC: "1.0", ID: "engram-vigilante", Method: method, Params: params})
+	body, err := json.Marshal(rpcRequest{JSONRPC: "1.0", ID: "engram-anchor", Method: method, Params: params})
 	if err != nil {
 		return fmt.Errorf("marshal rpc request: %w", err)
 	}

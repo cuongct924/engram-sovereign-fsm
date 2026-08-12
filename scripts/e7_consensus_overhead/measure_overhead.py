@@ -6,7 +6,7 @@ Runs the REAL Go benchmarks in tests/benchmark/fsm_latency_test.go
 (`go test -bench=. -benchmem`) and builds Table 4. See that file's package
 doc for why V0-V5 are decomposed into real proposal-size measurements
 (json.Marshal on real Go structs) plus real validation sub-step benchmarks
-(CalculateNextState, da.VerifyReceipt, vigilante.VerifyReceipt) composed
+(CalculateNextState, da.VerifyReceipt, anchor.VerifyReceipt) composed
 cumulatively, rather than pretending ProcessProposal has 6 separate code
 paths -- it has exactly one, which always validates the full proposal.
 
@@ -105,7 +105,7 @@ def build_table(results):
         f"| V0 | Vanilla, no extension | {fmt(size['V0'], 'bytes_op')} | 0 (baseline) |",
         f"| V1 | + fsm_state only | {fmt(size['V1'], 'bytes_op')} | {fmt2(cumulative_ns.get('V1'))} (CalculateNextState) |",
         f"| V2 | + DA receipt | {fmt(size['V2'], 'bytes_op')} | {fmt2(cumulative_ns.get('V2'))} (+da.VerifyReceipt) |",
-        f"| V3 | + BTC receipt | {fmt(size['V3'], 'bytes_op')} | {fmt2(cumulative_ns.get('V3'))} (+vigilante.VerifyReceipt) |",
+        f"| V3 | + BTC receipt | {fmt(size['V3'], 'bytes_op')} | {fmt2(cumulative_ns.get('V3'))} (+anchor.VerifyReceipt) |",
         f"| V4 | + P2P sensor digest *(size estimate only -- not in the real wire format today, see tests/benchmark/fsm_latency_test.go)* | {fmt(size['V4'], 'bytes_op')} | n/a |",
         f"| V5 | + ZK proof ref (real shipped ExtendedProposal, full end-to-end via NewProcessProposalHandler) | {fmt(size['V5'], 'bytes_op')} | {fmt2(full_cost['ns_op']) if full_cost else 'n/a'} (full ProcessProposal, includes JSON decode + all checks) |",
         "",

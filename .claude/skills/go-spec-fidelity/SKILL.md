@@ -1,11 +1,11 @@
 ---
 name: go-spec-fidelity
-description: Conventions for writing/editing Go code in x/sovereignty, x/da, x/vigilante that ports logic from spec/core/*.tla. Use whenever adding or modifying FSM state-transition logic, sensor predicates, receipt verification, or ABCI hooks in this repo (not spec/, which has its own readme-style skill).
+description: Conventions for writing/editing Go code in x/sovereignty, x/da, x/anchor that ports logic from spec/core/*.tla. Use whenever adding or modifying FSM state-transition logic, sensor predicates, receipt verification, or ABCI hooks in this repo (not spec/, which has its own readme-style skill).
 ---
 
 # Porting spec/core/*.tla logic to Go
 
-Code in `x/sovereignty`, `x/da`, `x/vigilante` is a **reference implementation** of
+Code in `x/sovereignty`, `x/da`, `x/anchor` is a **reference implementation** of
 `spec/core/*.tla` — a formally verified TLA+ spec (see `spec/README.md`, `spec/CLAUDE.md`). The
 value of this codebase depends on that traceability staying exact. A Go function that "improves
 on" or diverges from its spec operator without saying so is a defect, not a stylistic choice — a
@@ -33,7 +33,7 @@ the function's own citation comment.
 3. **Reuse the existing ported function; never recompute the same predicate two ways.** Before
    writing a new `Is*`/`Verify*`/`CalculateNext*` function, grep for whether the spec operator it
    would port already exists in `x/sovereignty/types/predicates.go`, `x/sovereignty/keeper/circuit_breaker.go`,
-   `x/da/verify.go`, or `x/vigilante/verify.go`. If a new call site needs the same logic, import and
+   `x/da/verify.go`, or `x/anchor/verify.go`. If a new call site needs the same logic, import and
    call the existing function — do not paste/adapt its body.
 
 4. **`*PeripheralMetrics` is always a pointer**, never a value, in signatures, struct fields, and
