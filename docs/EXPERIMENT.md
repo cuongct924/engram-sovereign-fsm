@@ -111,15 +111,13 @@ hysteresis; FSM with a peer-count-only P2P sensor.
 plus withdrawal-lock shading).
 
 **Measured (live, 4-node Docker cluster):** `scripts/e2_fault_injection/live_scenario_matrix.py`
-chains all 7 scenarios into one continuous 1394s run (Pumba netem for S2/S4/S5, real
-`docker stop`/`start` for S3/S6/S7). Result: the cluster never reached ANCHORED across all 7
-phases — it oscillated continuously between RECOVERING/SOVEREIGN from S1 (baseline) onward,
-matching the negative finding in §E5 below (hysteresis has no partial credit; one bad reading
-resets the streak to 0). S7 (waiting for a real ANCHORED via the ZK pipeline) timed out after
-600s: 23 real proofs were accepted during the run (after fixing `watch_and_prove.sh`'s SIGPIPE
-bug, §E9), 29 rejected by a real race condition (the interval grows faster than N=4 proofs can
-keep pace) — not enough to catch up within 600s. Data:
-`scripts/e2_fault_injection/results_live/s*.csv`. The live Figure 3
+chains all 7 scenarios into one continuous run (Pumba netem for S2/S4/S5, real `docker stop`/
+`start` for S3/S6/S7). Latest run (pairwise-link topology, post zk_proof_ref fix below): **all 7
+phases passed cleanly in 729s**, all 4 validators transitioning in lockstep at every edge —
+ANCHORED→SUSPICIOUS→SOVEREIGN during S3's DA outage (174s/204s), SOVEREIGN→RECOVERING→ANCHORED on
+DA recovery in 2s (240s/242s), ANCHORED→SOVEREIGN on S6's combined BTC+DA failure (621s), and real
+recovery SOVEREIGN→RECOVERING→ANCHORED via the ZK pipeline in S7 (725s/727-729s, all 4 nodes
+within 4s of each other). Data: `scripts/e2_fault_injection/results_live/s*.csv`. The live Figure 3
 (`scripts/e2_fault_injection/live_figure_builder.py`) replaces the two prior plots with
 `figure3_state_timelines_live.{png,pdf}` (7 panels, each picking the node with the most valid
 samples rather than a fixed node01, since S4/S5 deliberately isolate node01 and lose its RPC
@@ -127,6 +125,27 @@ connectivity for most of the run) and `figure3_summary_bars_live.{png,pdf}` (3 r
 blocks committed, state transitions, time-outside-ANCHORED ratio — `time_to_fallback`/
 `withdrawal_blocked_blocks` are omitted, since neither field exists in the schema polled directly
 over RPC).
+
+**Bug found and fixed:** earlier runs never reached ANCHORED across all 7 phases — the cluster
+stalled indefinitely (confirmed live: stuck at one height for 43+ minutes) every time it entered
+RECOVERING at `safe_blocks == HysteresisWait`, the exact state S6→S7's recovery depends on.
+Root cause was in `NewPrepareProposalHandler` (`x/sovereignty/proposal.go`): `hEngramVerified` was
+bumped in place from the live DA publisher's `VerifiedHeight()` (a concrete-layer refinement with
+no spec line), then `daReceipt.PublishedBlockHeight` was built from that same bumped variable, and
+the zk_proof_ref-gating condition compared `daReceipt.PublishedBlockHeight > hEngramVerified`
+against that identical, already-bumped variable — always false, unconditionally, regardless of any
+BTC/DA state. `PrepareProposal` could therefore never actually attach a `zk_proof_ref`, so
+`ProcessProposal`'s `verifyZkProofFlag` check (`VerifyZkProof`, `spec/core/EngramTendermint.tla:
+256-259`) rejected every proposal at that state, forever — a permanent round-skip deadlock, not a
+timing race as first suspected. Not a spec issue: the spec's `VerifyZkProof` compares
+`da_receipt.published_block_height` against a single, unambiguous `h_engram_verified`; the bug came
+entirely from the concrete layer's own live-bump refinement destroying the pre-bump value the
+comparison needed to stay distinct from. Fixed by preserving the pre-bump value
+(`hEngramVerifiedPrev`) for the comparison, restoring the intended "a genuinely fresh DA
+confirmation landed this round" freshness semantics. Live-verified: a cluster stuck at one height
+for 43+ minutes resumed advancing within seconds of redeploying the fix, and the real
+`reanchoring-prover`'s `MsgSubmitRecoveryProof` transactions went from perpetually timing out
+("DeliverTx result not observed") to reaching real `DeliverTx` outcomes.
 
 **Vanilla CometBFT baseline (measured):** `engramd start --vanilla` (`app/app.go`) runs the same
 binary/module but skips `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker`, so BaseApp uses
