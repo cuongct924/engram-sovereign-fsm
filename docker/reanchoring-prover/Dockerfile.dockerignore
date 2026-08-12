@@ -1,6 +1,6 @@
 # Per-Dockerfile override (BuildKit: <dockerfile-path>.dockerignore, keyed
 # off this file's path relative to the build context) for
-# docker/reanchoring-prover.Dockerfile -- same base exclusions as the root
+# docker/reanchoring-prover/Dockerfile -- same base exclusions as the root
 # .dockerignore, EXCEPT circuit/ and scripts/ are NOT blanket-excluded here
 # (this image needs circuit/reanchoring, circuit/reanchoring_witness, and
 # scripts/reanchoring_prover; the root .dockerignore drops all of it since

@@ -4,8 +4,9 @@
 # and scripts/ from its build context, see the root .dockerignore's own
 # comment) since this image needs BOTH of those plus a nargo toolchain the
 # validator image has no reason to carry. Uses this Dockerfile's own
-# sibling .dockerignore (reanchoring-prover.Dockerfile.dockerignore),
-# not the root one, so circuit/scripts stay in THIS build's context only.
+# sibling Dockerfile.dockerignore (BuildKit's <dockerfile-path>.dockerignore
+# convention), not the root one, so circuit/scripts stay in THIS build's
+# context only.
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
