@@ -107,7 +107,7 @@ Critically, the consensus object is extended: a valid proposal is no longer mere
 
 The FSM governs four states:
  
-- **ANCHORED**: Normal operation. Bitcoin-secured via Babylon checkpointing; DA confirmed via Celestia/Blobstream.
+- **ANCHORED**: Normal operation. Bitcoin-secured via Babylon checkpointing; DA confirmed via Celestia (see SS4.2 for the gap between this target design and the current prototype's implementation).
 - **SUSPICIOUS**: Early warning. Warning conditions detected — restricts high-risk transactions and prioritizes critical operations.
 - **SOVEREIGN**: Active partition. Local PoS activated; Circuit Breaker halts all cross-chain withdrawals.
 - **RECOVERING**: Resolution. Connectivity restored; aggregates all Sovereign transitions into a single recursive ZK-Proof to re-anchor to Bitcoin.
@@ -273,22 +273,24 @@ The combined result is stored as a single boolean `is_btc_spv_failed` in local s
 
 ### 4.2 Data Availability Gap Sensor
 
-This sensor measures the lag between the current Engram chain head and the last block for which a verified DA commitment receipt has been received from Celestia via Blobstream.
+This sensor measures the lag between the current Engram chain head and the last block for which a verified DA commitment receipt has been received from Celestia.
 
 $$\Delta H_{\text{DA}} = H_{\text{local}} - H_{\text{verified}}$$
 
 - $H_{\text{local}}$: current Engram-app chain block height.
 - $H_{\text{verified}}$: highest Engram-app chain block height for which a valid DA commitment attestation has been received.
 
-#### Data Availability Sampling (DAS)
+#### Data Availability Sampling (DAS) — target design vs. implemented
 
-Each Engram validator node, acting as a Celestia light client, performs $N = 15$ random sampling checks per block. This is sufficient to confirm data availability with probability greater than 99%.
+**Target design.** Each Engram validator node, acting as a Celestia light client, performs $N = 15$ random sampling checks per block. This is sufficient to confirm data availability with probability greater than 99%.
 
 Let $s_i \in \{\text{TRUE}, \text{FALSE}\}$ denote the outcome of the $i$-th sample:
 
 $$\text{IsAvailable}(B) \triangleq \bigwedge_{i=1}^{N} s_i \qquad \text{Failed}(B) \triangleq \exists\, i \in \{1, \dots, N\} \text{s.t.} \neg s_i$$
 
-The boolean `is_das_failed` is set to TRUE if any sampling check fails within the current epoch.
+The boolean `is_das_failed` is set to TRUE if any sampling check fails within the current epoch. Real Blobstream attestation (an EVM-side, Merkle-verifiable relay of Celestia's data root) backs `is_attestation_failed`, independent of the sampling result.
+
+**Implemented (current prototype), a documented simplification, not the above.** `x/da/rpc.go`'s `Available` calls `blob.GetAll` once against this validator's own `celestia-bridge` instance — a single binary retrieval check against one trusted bridge/full node, not $N=15$ probabilistic light-client samples, and no Blobstream integration at all. `is_das_failed` and `is_attestation_failed` are not distinguished — both are driven by the same `Failed()`/`ProbeHealthy` signal (`x/da/publisher.go`'s doc: "`da.Publisher` doesn't distinguish 'sampling failed' from 'attestation failed'"). This is an appropriate abstraction boundary for a prototype centered on the FSM/consensus layer's reaction to peripheral health (this repo's actual research focus) rather than a reimplementation of Celestia's own DAS/Blobstream security machinery — `EngramFSM.tla` already treats both booleans as free (`is_das_failed \in BOOLEAN`), so the model doesn't depend on which concrete mechanism computes them. The gap is between this README's target-design description and the built prototype, not between the formal model and the prototype.
 
 ### 4.3 P2P Health Sensor (Tri-Interface Profiler)
 
@@ -443,7 +445,7 @@ Proposal := {
     fsm_state    : target FSM state computed by CalculateNextFSMState,
     da_receipt   : {
                      published_block_height : Nat,   -- last DA-verified Engram-app chain height
-                     attestation            : Bool   -- Blobstream confirmation
+                     attestation            : Bool   -- DA confirmation (target design: Blobstream; SS4.2)
                    },
     btc_receipt  : {
                      checkpoint_block_height : Nat,   -- Bitcoin block containing Engram checkpoint 
