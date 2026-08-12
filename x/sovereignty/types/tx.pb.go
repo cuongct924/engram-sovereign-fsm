@@ -23,12 +23,18 @@ const (
 )
 
 type MsgSubmitRecoveryProofRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Authority     string                 `protobuf:"bytes,1,opt,name=authority,proto3" json:"authority,omitempty"`                           // Validator hoặc rpc node gửi chứng chỉ
-	ZkProof       []byte                 `protobuf:"bytes,2,opt,name=zk_proof,json=zkProof,proto3" json:"zk_proof,omitempty"`                // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
-	PublicInputs  []byte                 `protobuf:"bytes,3,opt,name=public_inputs,json=publicInputs,proto3" json:"public_inputs,omitempty"` // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Authority    string                 `protobuf:"bytes,1,opt,name=authority,proto3" json:"authority,omitempty"`                           // Validator hoặc rpc node gửi chứng chỉ
+	ZkProof      []byte                 `protobuf:"bytes,2,opt,name=zk_proof,json=zkProof,proto3" json:"zk_proof,omitempty"`                // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
+	PublicInputs []byte                 `protobuf:"bytes,3,opt,name=public_inputs,json=publicInputs,proto3" json:"public_inputs,omitempty"` // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
+	// Celestia height nơi chuỗi header thật (witness của proof này) đã được
+	// publish -- KHÔNG bắt buộc, KHÔNG được verify on-chain (chỉ ghi nhận làm
+	// con trỏ audit lâu dài, vì HeaderHistory sẽ bị prune sau khi proof này
+	// được chấp nhận). 0 nghĩa là chưa publish. Bổ sung thuần túy ở tầng
+	// concrete -- spec TLA+ không có khái niệm này.
+	DaCelestiaHeight uint64 `protobuf:"varint,4,opt,name=da_celestia_height,json=daCelestiaHeight,proto3" json:"da_celestia_height,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *MsgSubmitRecoveryProofRequest) Reset() {
@@ -80,6 +86,13 @@ func (x *MsgSubmitRecoveryProofRequest) GetPublicInputs() []byte {
 		return x.PublicInputs
 	}
 	return nil
+}
+
+func (x *MsgSubmitRecoveryProofRequest) GetDaCelestiaHeight() uint64 {
+	if x != nil {
+		return x.DaCelestiaHeight
+	}
+	return 0
 }
 
 type MsgSubmitRecoveryProofResponse struct {
@@ -298,11 +311,12 @@ var File_engram_sovereignty_v1_tx_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_tx_proto_rawDesc = "" +
 	"\n" +
-	"\x1eengram/sovereignty/v1/tx.proto\x12\x15engram.sovereignty.v1\x1a\x17cosmos/msg/v1/msg.proto\x1a!engram/sovereignty/v1/state.proto\"\x8d\x01\n" +
+	"\x1eengram/sovereignty/v1/tx.proto\x12\x15engram.sovereignty.v1\x1a\x17cosmos/msg/v1/msg.proto\x1a!engram/sovereignty/v1/state.proto\"\xbb\x01\n" +
 	"\x1dMsgSubmitRecoveryProofRequest\x12\x1c\n" +
 	"\tauthority\x18\x01 \x01(\tR\tauthority\x12\x19\n" +
 	"\bzk_proof\x18\x02 \x01(\fR\azkProof\x12#\n" +
-	"\rpublic_inputs\x18\x03 \x01(\fR\fpublicInputs:\x0e\x82\xe7\xb0*\tauthority\" \n" +
+	"\rpublic_inputs\x18\x03 \x01(\fR\fpublicInputs\x12,\n" +
+	"\x12da_celestia_height\x18\x04 \x01(\x04R\x10daCelestiaHeight:\x0e\x82\xe7\xb0*\tauthority\" \n" +
 	"\x1eMsgSubmitRecoveryProofResponse\"\x89\x01\n" +
 	"\x15MsgInjectFaultRequest\x12\x16\n" +
 	"\x06sender\x18\x01 \x01(\tR\x06sender\x12K\n" +

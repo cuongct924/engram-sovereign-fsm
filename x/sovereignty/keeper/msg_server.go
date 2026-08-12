@@ -97,6 +97,14 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	if err := k.RealProofSubmittedHeight.Set(ctx, newCheckpointHeight); err != nil {
 		return nil, err
 	}
+
+	// Record where the witness header chain was published, if the caller
+	// says it was -- a pure audit pointer, never verified here. Best-effort:
+	// a failure to record it must not fail an otherwise-valid, already-
+	// checkpointed proof.
+	if msg.DaCelestiaHeight > 0 {
+		_ = k.RecoveryProofDAHeights.Set(ctx, newCheckpointHeight, msg.DaCelestiaHeight)
+	}
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
 }
 

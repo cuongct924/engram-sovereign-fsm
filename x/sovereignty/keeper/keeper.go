@@ -76,6 +76,17 @@ type Keeper struct {
 	LastAnchoredRoot         collections.Item[[]byte]
 	RealProofSubmittedHeight collections.Item[uint64]
 
+	// RecoveryProofDAHeights records, per accepted proof (keyed by the
+	// checkpoint height it advanced to), the Celestia height its witness
+	// header chain was published at -- a pure audit pointer, never verified
+	// on-chain: HeaderHistory gets pruned once a proof is accepted
+	// (pruneHeaderHistoryUpTo), so without this a late-joining node or
+	// external auditor has no way to retrieve the real header chain a past
+	// proof was built from. 0 means not published. Concrete-only addition,
+	// no spec line -- doesn't affect any IsValidProposal/CalculateNextFSMState
+	// predicate.
+	RecoveryProofDAHeights collections.Map[uint64, uint64]
+
 	// peerFilterSrc backs FilterPeerByAddr (peer_filter.go) -- nil until
 	// SetPeerFilterSource is called (cmd/engramd's wirePeerFilter, late-bound
 	// after node.NewNode() constructs the real *p2p.Switch).
@@ -122,6 +133,7 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 		UnhealthyStreak:          collections.NewItem(sb, collections.NewPrefix(18), "unhealthy_streak", collections.Uint64Value),
 		FailedRecoveryAttempts:   collections.NewItem(sb, collections.NewPrefix(19), "failed_recovery_attempts", collections.Uint64Value),
 		SuspiciousSafeBlocks:     collections.NewItem(sb, collections.NewPrefix(20), "suspicious_safe_blocks", collections.Uint64Value),
+		RecoveryProofDAHeights:   collections.NewMap(sb, collections.NewPrefix(21), "recovery_proof_da_heights", collections.Uint64Key, collections.Uint64Value),
 	}
 
 	schema, err := sb.Build()

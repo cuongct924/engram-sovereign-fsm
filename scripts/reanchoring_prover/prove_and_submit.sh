@@ -163,8 +163,41 @@ RT_NEW=$(linked_field "$COUNT" "state_root")
   bb prove -b target/reanchoring.json -w target/witness.gz -o target/proof -k target/proof/vk
 )
 
-echo "[reanchoring_prover] 4/4: submitting real proof to $NODE_URL..."
+# Publish the real (non-padding) header chain to Celestia DA before
+# submitting the proof -- pure audit trail (never verified on-chain, see
+# publish-recovery-witness's doc): HeaderHistory gets pruned once this proof
+# is accepted, so without this a late-joining node or external auditor has
+# no way to retrieve the real header chain it was built from. A failure here
+# degrades to skipping --da-height, not aborting the whole proof submission.
+echo "[reanchoring_prover] 4/5: publishing real header chain to Celestia DA..."
+{
+  echo "rt_last = \"$RT_LAST\""
+  echo "rt_new = \"$RT_NEW\""
+  echo "count = \"$COUNT\""
+  for ((i = 1; i <= COUNT; i++)); do
+    echo ""
+    echo "[[headers]]"
+    echo "prev_hash = \"$(linked_field "$i" prev_hash)\""
+    echo "fsm_state = \"$(linked_field "$i" fsm_state)\""
+    echo "withdrawal_locked = \"$(linked_field "$i" withdrawal_locked)\""
+    echo "state_root = \"$(linked_field "$i" state_root)\""
+  done
+} > "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml"
+
+DA_HEIGHT_FLAG=()
+if DA_OUT=$("$ENGRAMD" publish-recovery-witness --headers "$MAIN_CIRCUIT_DIR/target/proof/witness_headers.toml" 2>&1); then
+  DA_HEIGHT=$(echo "$DA_OUT" | grep '^da_celestia_height=' | cut -d= -f2)
+  if [ -n "$DA_HEIGHT" ]; then
+    echo "[reanchoring_prover] witness published at Celestia height $DA_HEIGHT"
+    DA_HEIGHT_FLAG=(--da-height "$DA_HEIGHT")
+  fi
+else
+  echo "[reanchoring_prover] WARNING: witness DA publish failed, proceeding without --da-height: $DA_OUT" >&2
+fi
+
+echo "[reanchoring_prover] 5/5: submitting real proof to $NODE_URL..."
 "$ENGRAMD" tx-submit-recovery-proof \
+  "${DA_HEIGHT_FLAG[@]}" \
   --node "$NODE_URL" \
   --proof "$MAIN_CIRCUIT_DIR/target/proof/proof" \
   --public-inputs "$MAIN_CIRCUIT_DIR/target/proof/public_inputs"

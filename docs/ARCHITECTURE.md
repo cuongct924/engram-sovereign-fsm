@@ -32,13 +32,14 @@ flowchart TB
         CApp["celestia-app<br/>.50"]
         CBridge["celestia-bridge<br/>.51"]
     end
-    Prover["reanchoring-prover<br/>(engram-net, no fixed IP)"]
+    Prover["reanchoring-prover<br/>(engram-net + celestia-net, no fixed IP)"]
     N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
     N1 & N2 & N3 & N4 -.->|CELESTIA_BRIDGE_URL<br/>JSON-RPC 2.0| CBridge
     N1 & N2 & N3 & N4 -.-> engramnet
     CBridge --> CApp
     Miner -.->|"-rpcconnect<br/>generatetoaddress every ~20s"| BTC1
     Prover -.->|"NODE_URL<br/>query-recovery-headers / tx-submit-recovery-proof"| N1
+    Prover -.->|"publish-recovery-witness<br/>JSON-RPC 2.0"| CBridge
 
     style plinks fill:#eef5ff,stroke:#4a7fd6
     style engramnet fill:#f5f5f5,stroke:#999
@@ -51,7 +52,7 @@ flowchart TB
 | `validator-link-NN-MM` (×6) | `172.40.<0-5>.0/29` | `.1` | one pair only | the 2 validators of that pair, `.2`/`.3` |
 | `engram-net` | `172.28.0.0/24` | `.1` | external clients | 4 validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
 | `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, `bitcoin-miner-loop` (no fixed IP), + validators `.100`/`.110`/`.120`/`.130` |
-| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge` `.51`, + validators `.100`/`.110`/`.120`/`.130` |
+| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge` `.51`, + validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
 
 CometBFT P2P gossip (`persistent_peers`) dials each peer's literal IP on their shared pairwise
 link (`cmd/engramd/main.go`'s `pairwiseLinkPeerIP`), not a hostname on `engram-net` -- this is
@@ -64,7 +65,11 @@ onto it alongside their pairwise links and `bitcoin-net`/`celestia-net`.
 `bitcoin-miner-loop`/`reanchoring-prover` are real, always-on containers (`make testnet-up`, not
 profile-gated) replacing a host `nohup` process and a manual script invocation respectively.
 Neither needs a static IP -- both only originate outbound RPC connections, never accept inbound
-ones.
+ones. `reanchoring-prover` also reaches `celestia-bridge` directly (not through a validator):
+`prove_and_submit.sh` publishes each accepted proof's real header-chain witness there before
+submitting, since `HeaderHistory` (the on-chain source of the same data) gets pruned once the
+proof lands -- a pure audit trail, never verified on-chain
+(`x/sovereignty/keeper/msg_server.go`'s `RecoveryProofDAHeights`).
 
 `engram-net` sits on `172.28.0.0/24` to avoid colliding with a pre-existing `kind`
 (Kubernetes-in-Docker) network on the development host (`CLAUDE.md`'s M6 notes).

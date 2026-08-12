@@ -30,6 +30,12 @@ message MsgSubmitRecoveryProofRequest {
   string authority      = 1; // Validator hoặc rpc node gửi chứng chỉ
   bytes  zk_proof       = 2; // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
   bytes  public_inputs  = 3; // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
+  // Celestia height nơi chuỗi header thật (witness của proof này) đã được
+  // publish -- KHÔNG bắt buộc, KHÔNG được verify on-chain (chỉ ghi nhận làm
+  // con trỏ audit lâu dài, vì HeaderHistory sẽ bị prune sau khi proof này
+  // được chấp nhận). 0 nghĩa là chưa publish. Bổ sung thuần túy ở tầng
+  // concrete -- spec TLA+ không có khái niệm này.
+  uint64 da_celestia_height = 4;
 }
 
 message MsgSubmitRecoveryProofResponse {} // Trả về trống nếu ZK Verify thành công

@@ -3,7 +3,11 @@ name: reanchoring-prover
 # Containerized scripts/reanchoring_prover/watch_and_prove.sh -- without it
 # running, zk_proof_ref stays null forever and RECOVERING can never reach
 # ANCHORED. Talks to engram-node01's RPC over engram-net; not a validator,
-# doesn't need bitcoin-net/celestia-net.
+# doesn't need bitcoin-net. Needs celestia-net too now: prove_and_submit.sh's
+# publish-recovery-witness step publishes each proof's real header-chain
+# witness to Celestia DA as an audit trail (HeaderHistory gets pruned once a
+# proof is accepted) -- see x/sovereignty/keeper/msg_server.go's
+# RecoveryProofDAHeights doc.
 services:
   reanchoring-prover:
     build:
@@ -15,9 +19,12 @@ services:
     hostname: reanchoring-prover
     networks:
       - engram-net
+      - celestia-net
     environment:
       - NODE_URL=http://engram-node01:26657
       - POLL_INTERVAL_S=3
+      - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
+      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN}
     restart: unless-stopped
     deploy:
       resources:

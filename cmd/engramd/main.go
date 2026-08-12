@@ -57,6 +57,7 @@ func main() {
 	rootCmd.AddCommand(testnetInitFilesCmd())
 	rootCmd.AddCommand(demoSMTCmd())
 	rootCmd.AddCommand(queryRecoveryHeadersCmd())
+	rootCmd.AddCommand(publishRecoveryWitnessCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
 	rootCmd.AddCommand(txSubmitForcedTxCmd())
 

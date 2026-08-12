@@ -9,6 +9,7 @@ import (
 
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/cosmos/gogoproto/proto"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/spf13/cobra"
 
@@ -103,6 +104,53 @@ func boolToField(b bool) int {
 	return 0
 }
 
+// publishRecoveryWitnessCmd publishes a proof's real header-chain witness
+// (the same data prove_and_submit.sh feeds the circuit) to Celestia DA
+// before the proof is submitted. Pure audit trail: SubmitRecoveryProof never
+// verifies this blob, and HeaderHistory (the on-chain source of this same
+// data) gets pruned once the proof is accepted -- without this, a
+// late-joining node or external auditor has no way to retrieve the real
+// header chain a past proof was built from. Concrete-only addition, no spec
+// line (see msg_server.go's RecoveryProofDAHeights doc).
+func publishRecoveryWitnessCmd() *cobra.Command {
+	var headersFile string
+	cmd := &cobra.Command{
+		Use:   "publish-recovery-witness",
+		Short: "Publish a recovery proof's real header-chain witness to Celestia DA, for audit after HeaderHistory is pruned",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := os.ReadFile(headersFile)
+			if err != nil {
+				return fmt.Errorf("reading headers file: %w", err)
+			}
+
+			url := os.Getenv("CELESTIA_BRIDGE_URL")
+			if url == "" {
+				return fmt.Errorf("CELESTIA_BRIDGE_URL not set")
+			}
+			authToken := os.Getenv("CELESTIA_BRIDGE_AUTH_TOKEN")
+			namespaceID := os.Getenv("CELESTIA_RECOVERY_NAMESPACE_ID")
+			if namespaceID == "" {
+				namespaceID = "engramrp01" // distinct from block-data's engramda01
+			}
+			ns, err := da.NewNamespace(namespaceID)
+			if err != nil {
+				return fmt.Errorf("invalid CELESTIA_RECOVERY_NAMESPACE_ID: %w", err)
+			}
+
+			client := da.NewRPCClient(url, authToken)
+			height, err := client.Submit(context.Background(), ns, data)
+			if err != nil {
+				return fmt.Errorf("blob.Submit: %w", err)
+			}
+			fmt.Printf("da_celestia_height=%d\n", height)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&headersFile, "headers", "", "path to a file with the real header-chain witness data (required)")
+	_ = cmd.MarkFlagRequired("headers")
+	return cmd
+}
+
 // txSubmitRecoveryProofCmd builds and broadcasts a real
 // MsgSubmitRecoveryProofRequest. There is no x/auth/x/bank in this
 // prototype and the ante chain never checks a signature, so rather than a
@@ -111,6 +159,7 @@ func boolToField(b bool) int {
 // TxDecoder requires: one SignerInfo, one empty signature.
 func txSubmitRecoveryProofCmd() *cobra.Command {
 	var nodeURL, proofFile, publicInputsFile string
+	var daCelestiaHeight uint64
 	cmd := &cobra.Command{
 		Use:   "tx-submit-recovery-proof",
 		Short: "Submit a real ZK re-anchoring proof (spec/README.md's Proof of Recovery)",
@@ -135,9 +184,10 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 			}
 
 			msg := &sovereigntytypes.MsgSubmitRecoveryProofRequest{
-				Authority:    authority,
-				ZkProof:      proofBytes,
-				PublicInputs: publicInputsBytes,
+				Authority:        authority,
+				ZkProof:          proofBytes,
+				PublicInputs:     publicInputsBytes,
+				DaCelestiaHeight: daCelestiaHeight,
 			}
 			txBytes, err := buildMinimalTx(registry, msg)
 			if err != nil {
@@ -186,6 +236,7 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
 	cmd.Flags().StringVar(&proofFile, "proof", "", "path to the bb-generated proof file (required)")
 	cmd.Flags().StringVar(&publicInputsFile, "public-inputs", "", "path to the bb-generated public_inputs file (required)")
+	cmd.Flags().Uint64Var(&daCelestiaHeight, "da-height", 0, "Celestia height this proof's witness header chain was published at (optional, audit-only, see publish-recovery-witness)")
 	_ = cmd.MarkFlagRequired("proof")
 	_ = cmd.MarkFlagRequired("public-inputs")
 	return cmd
