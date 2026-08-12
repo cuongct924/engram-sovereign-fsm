@@ -7,17 +7,19 @@ import (
 )
 
 func TestTolerance(t *testing.T) {
-	// Tolerance is kDeepFinality+livenessMargin at every round, including
-	// round 0 -- see Tolerance's own doc for why (a) the earlier round<3
-	// zero-tolerance case was removed (unsatisfiable by any genuinely
-	// K-deep-confirmed receipt) and (b) exactly kDeepFinality (no margin)
-	// still wasn't enough (zero slack for real-world delay between anchor
-	// confirmation and proposal acceptance) -- both confirmed live.
+	// Tolerance is kDeepFinality+livenessMargin+round -- see Tolerance's own
+	// doc for why (a) the earlier round<3 zero-tolerance case was removed
+	// (unsatisfiable by any genuinely K-deep-confirmed receipt), (b) exactly
+	// kDeepFinality (no margin) still wasn't enough (zero slack for
+	// real-world delay between anchor confirmation and proposal acceptance),
+	// and (c) a flat (round-independent) bound has no recovery path once
+	// real round-trip latency pushes h_btc_current past it -- all three
+	// confirmed live.
 	require.Equal(t, uint64(4), Tolerance(0, 2))
-	require.Equal(t, uint64(4), Tolerance(2, 2))
-	require.Equal(t, uint64(4), Tolerance(3, 2))
-	require.Equal(t, uint64(4), Tolerance(100, 2))
-	require.Equal(t, uint64(7), Tolerance(3, 5), "widened bound tracks kDeepFinality, not a fixed constant")
+	require.Equal(t, uint64(6), Tolerance(2, 2))
+	require.Equal(t, uint64(7), Tolerance(3, 2))
+	require.Equal(t, uint64(104), Tolerance(100, 2))
+	require.Equal(t, uint64(10), Tolerance(3, 5), "widened bound tracks kDeepFinality, not a fixed constant")
 }
 
 func TestVerifySPVProof_AcceptsValidCheckpoint(t *testing.T) {
@@ -46,12 +48,31 @@ func TestVerifySPVProof_RejectsForgedHash(t *testing.T) {
 }
 
 func TestVerifyReceipt_RejectsBelowToleranceWindow(t *testing.T) {
-	// hBTCCurrent=100, kDeepFinality=2 -> tol=4 -> lower bound = 96 at every
-	// round (Tolerance no longer has a round<3 zero-tolerance case, see its
-	// own doc). Height 95 is below that window and must fail regardless of round.
+	// hBTCCurrent=100, kDeepFinality=2 -> tol=4 at round 0 -> lower bound=96.
+	// Height 95 is below that window and must fail at round 0.
 	r := Receipt{CheckpointBlockHeight: 95, CheckpointBlockHash: ExpectedBlockHash(95)}
 	require.False(t, VerifyReceipt(r, 100, 10, 0, 2))
-	require.False(t, VerifyReceipt(r, 100, 10, 3, 2))
+	// At round 3, tol=2+2+3=7 -> lower bound=93 -- the same gap (5) that
+	// failed at round 0 must now be accepted: this is Tolerance's round-based
+	// widening (divergence 4) doing exactly its job, not a regression.
+	require.True(t, VerifyReceipt(r, 100, 10, 3, 2))
+}
+
+// TestVerifyReceipt_RecoversFromExtendedRoundSkip is the live liveness bug
+// this fix closes: a fixed (round-independent) tolerance has no recovery
+// path once real round-trip latency (concurrent load, a slow leader) grows
+// the gap past it -- every subsequent round re-fails the identical check
+// forever, since nothing but committing a block can advance the checkpoint,
+// and nothing but this check passing can commit a block. Confirmed live
+// 2026-08-12: a cluster carrying several concurrent attack-resilience tests
+// opened a ~40-block gap against the old flat tol=4 and never recovered.
+func TestVerifyReceipt_RecoversFromExtendedRoundSkip(t *testing.T) {
+	r := Receipt{CheckpointBlockHeight: 203, CheckpointBlockHash: ExpectedBlockHash(203)}
+	// gap=40 against hBTCCurrent=243 -- unrecoverable under the old flat
+	// tol=kDeepFinality+livenessMargin=4, at any round.
+	require.False(t, VerifyReceipt(r, 243, 203, 0, 2))
+	// round-based widening eventually exceeds the gap: tol=2+2+40=44 >= 40.
+	require.True(t, VerifyReceipt(r, 243, 203, 40, 2))
 }
 
 func TestVerifyReceipt_AcceptsGenuinelyKDeepConfirmedCheckpointAtRoundZero(t *testing.T) {

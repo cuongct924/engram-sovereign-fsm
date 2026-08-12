@@ -24,10 +24,26 @@ package anchor
 // livenessMargin=2 (matching AnchorTracker's own kDeepFinality+1
 // confirmation requirement) is an operational choice for this testnet's
 // cadence, not a spec constant -- revisit if round-trip latency changes materially.
+//
+// (4) +round, not a flat livenessMargin: h_btc_current is re-read live every
+// ProcessProposal call (RefreshMetrics), so it keeps advancing with real
+// wall-clock time for as long as a height stays stuck round-skipping, while
+// checkpoint stays pinned at the last-committed anchor -- a fixed tol has no
+// recovery path once real round-trip latency (concurrent load, a slow
+// leader, network jitter) pushes the gap past it: every subsequent round
+// re-fails the identical check, forever, since nothing besides committing a
+// block can advance the checkpoint, and nothing besides this check passing
+// can commit a block. Confirmed live (2026-08-12): a cluster carrying several
+// concurrent attack-resilience tests round-skipped long enough to open a
+// ~40-block gap against tol=4, permanently -- growing tol with round is the
+// same qualitative fix the spec's own BTCTolerance(r) uses (widen under
+// contention), just unbounded rather than the abstract model's r>=3 -> 1
+// cap, which a real cluster can outlast in a way TLC's tiny finite round
+// space never explores.
 const livenessMargin = 2
 
-func Tolerance(_, kDeepFinality uint64) uint64 {
-	return kDeepFinality + livenessMargin
+func Tolerance(round, kDeepFinality uint64) uint64 {
+	return kDeepFinality + livenessMargin + round
 }
 
 // VerifySPVProof ports VerifySPVProof verbatim (spec/core/EngramTendermint.tla:271-275):

@@ -447,74 +447,65 @@ unit tests for the absorb/exit/leak/critical-bypass cases. TLC re-verification (
 spec (down-hysteresis + backoff + this fix, together with the separate `is_btc_spv_failed`
 `IsCriticalCondition` fix, spec/README.md §4.1) rather than once per mechanism.
 
-**Measured (live-Docker spot-check):** `scripts/e5_hysteresis_flapping/live_spot_check.py`
-confirms the same direction under real consensus timing (not per-block mocking), with a narrower
-2×2 scope (`HYSTERESIS_WAIT` ∈ {2 (current default), 10} × environment ∈ {stable, noisy_da}) rather
-than the full 6×5 sweep, since each combination then needed a `params.go` edit, rebuild, and
-clean redeploy -- now avoidable via `ENGRAM_PARAM_HYSTERESIS_WAIT` at genesis-generation time
-(`docs/DEVELOPMENT.md` §3). Each combo measured over a real 300s window on the 4-node cluster:
+**Measured (live-Docker spot-check, 5×2):** `scripts/e5_hysteresis_flapping/live_spot_check.py`
+confirms the in-process sweep's finding under real consensus timing (not per-block mocking) at
+`HYSTERESIS_WAIT` ∈ {0, 2, 5, 10, 20} × environment ∈ {stable, noisy_da} — matching
+`tests/e2e/hysteresis_sweep_test.go`'s own value set (`{0,1,3,5,10,20}`, minus 1) rather than an
+arbitrary live-only subset, so each live point is a direct confirmatory check of a specific
+in-process prediction. Each combo required its own genesis (`ENGRAM_PARAM_HYSTERESIS_WAIT` at
+genesis-generation time, `docs/DEVELOPMENT.md` §3) and a real 300s window on the 4-node cluster:
 
 | HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
 |---:|---|---:|---:|---:|
-| 2 | stable | 0 | 0 | 0.00% |
-| 2 | noisy_da | 12 | 13 | 0.00% |
-| 10 | stable | 0 | 1 | 0.00% |
-| 10 | noisy_da | **14** | 15 | 0.00% |
+| 0 | stable | 0 | 0 | 100.00% |
+| 0 | noisy_da | 4 | 17 | 11.70% |
+| 2 | stable | 0 | 0 | 100.00% |
+| 2 | noisy_da | 13 | 14 | 15.29% |
+| 5 | stable | 0 | 0 | 100.00% |
+| 5 | noisy_da | 7 | 13 | 18.75% |
+| 10 | stable | 0 | 0 | 100.00% |
+| 10 | noisy_da | 11 | 14 | 1.06% |
+| 20 | stable | 0 | 0 | 100.00% |
+| 20 | noisy_da | 11 | 14 | 1.04% |
 
-Flapping increases with `HYSTERESIS_WAIT` under real noise (12→14 for noisy_da), matching the
-in-process direction — confirms this isn't a mock-harness artifact. `anchored_uptime` is 0% across
-all 4 combos (unlike the in-process run, which measured positive uptime at low HW): the cluster
-was already oscillating between RECOVERING/SOVEREIGN before this spot-check ran, so the 300s
-window never observed a real ANCHORED — a real limitation of measuring a short window on a system
-that had already accumulated bad state, not evidence against the main finding. The live Figure 4
-(`scripts/e5_hysteresis_flapping/live_figure_builder.py` → `figure4_hysteresis_live.{png,pdf}`)
-reads directly from the 4 real `*_summary.md` files `live_spot_check.py` writes, not recomputed
-from raw CSV.
+All 4 validators identical throughout every run, zero divergence at any sample. `stable` shows
+zero flapping and full uptime at every `HYSTERESIS_WAIT` regardless of value, as expected (no noise
+to filter). Under `noisy_da`, the shape is **not** the in-process sweep's clean monotonic decrease:
+`anchored_uptime` rises slightly from HW=0 to HW=5 (11.70% → 15.29% → 18.75%), then falls off a
+cliff and saturates near zero at HW=10-20 (1.06%, 1.04% — nearly identical). `flapping_count` is
+similarly non-monotonic (4 → 13 → 7 → 11 → 11). This genuinely differs from the in-process sweep's
+smooth curve, and the most likely reason is the RNG seed itself: `hysteresis_sweep_test.go` fixes
+one noise sequence shared identically across every `HysteresisWait` value it tests, isolating the
+parameter's effect from run-to-run variance by construction — the live spot-check has no such
+control, since each `HYSTERESIS_WAIT` value here is a **separate** genesis reset and a separate
+real WAN-chaos noise injection, so real timing/network variance between runs is a genuine
+uncontrolled confound live testing can't remove the way a fixed RNG seed can in-process. The
+qualitative conclusion the in-process sweep supports — no interior sweet spot, and large
+`HYSTERESIS_WAIT` values are markedly worse, not better — still holds (HW=10/20's uptime collapse
+is the clearest live evidence of this): the *shape* of the curve at small `HYSTERESIS_WAIT` is
+where live and in-process genuinely disagree, worth flagging rather than smoothing over. The live
+Figure 4 (`scripts/e5_hysteresis_flapping/live_figure_builder.py` →
+`figure4_hysteresis_live.{png,pdf}`) reads directly from all 10 real `*_summary.md` files
+`live_spot_check.py` writes (auto-discovered by filename, not hardcoded to a fixed value set), not
+recomputed from raw CSV.
 
-**Operational note (recurring failure class — see `docs/DEVELOPMENT.md`):** redeploying the
-cluster for the HW=10 combo hit a permanent round-skip at height=1, caused by two overlapping
-issues: (1) the Bitcoin wallet on `bitcoin-node01` had been unloaded by an earlier container
-restart, so `AnchorTracker` couldn't submit an anchor tx; (2) after reloading the wallet,
-`bitcoin_miner_loop.sh` had also stopped running, so no new Bitcoin blocks existed to bring the
-anchor tx to `kDeepFinality=2` confirmations, so `h_btc_anchored` never advanced despite the
-wallet being funded. Restarting the miner loop resolved it. This confirms why
-`docs/DEVELOPMENT.md` §3 requires the Bitcoin wallet funded *and* continuously mining
-before/throughout every `engramd` run, not just at first bootstrap.
-
-**Root cause of the 0% anchored_uptime above, found and fixed.** The spot-check's 0% wasn't a
-measurement-window artifact -- two real bugs made it structurally impossible to observe anything
-else. (1) `AnchorTracker.SubmitOpReturn`'s coin selection and lock were two separate RPC calls
+**Root cause of an earlier 0%-everywhere measurement, found and fixed.** A prior version of this
+spot-check measured 0% `anchored_uptime` across every combo — not a measurement-window artifact,
+but two real bugs that made it structurally impossible to observe anything else. (1)
+`AnchorTracker.SubmitOpReturn`'s coin selection and lock were two separate RPC calls
 (`fundrawtransaction` then `lockunspent`), a real TOCTOU race once this repo's 4 validators (one
 shared wallet) all call it every block: confirmed live via
 `lockunspent: -8 Invalid parameter, output already locked` on every attempt, forever --
 `h_btc_anchored` never advanced past 0. Fixed by passing `lockUnspents: true` to
 `fundrawtransaction` itself (atomic select+lock in one RPC call). (2) Even once anchoring worked,
 nothing ever ran the real ZK prover (`scripts/reanchoring_prover/watch_and_prove.sh`) against a
-plain `docker compose up` cluster -- `zk_proof_ref` stayed null in every proposal, so
-`RECOVERING` could never reach `ANCHORED` regardless of hysteresis correctness. Fixed by
-containerizing both the prover and the (previously host-`nohup`) Bitcoin miner loop
-(`docker/reanchoring-prover/`, `docker/bitcoin-miner-loop.yml`), wired into `make testnet-up`.
-
-**Re-measured with both fixes live, HW=2, noisy_da, 300s:**
-`flapping_count=13`, `total_transitions=14`, **`anchored_uptime=15.29%`** (all 4 validators
-identical throughout, zero divergence at any sample). Under the fixed 20s-down/20s-up `noisy_da`
-cycle, the FSM oscillates `ANCHORED ↔ SUSPICIOUS` repeatedly and never reaches `SOVEREIGN` --
-consistent with the down-hysteresis/`SuspiciousHysteresisWait` mechanism design: each DA outage is
-shorter than `MaxSuspiciousTime`, so every cycle recovers `SUSPICIOUS → ANCHORED` before the
-gray-failure timeout escalates it further. Raw data:
-`scripts/e5_hysteresis_flapping/results_live/live_spot_check_hw2_noisy_da_20260812T201918*`.
-
-An earlier run at this same (HW=2, noisy_da) combination measured `flapping_count=0`,
-`anchored_uptime=50.88%`, and a one-way `ANCHORED → SUSPICIOUS → SOVEREIGN → RECOVERING` descent
-with zero reversals -- no longer cited as the E5 result (raw data kept at
-`results_live/live_spot_check_hw2_noisy_da_20260812T123903*` for the record, not deleted). That
-run started at 12:39:03 UTC, the exact
-window this session later found the cluster already stalled at a fixed height from an unrelated,
-still-in-progress S6 reproduction attempt (see E2's zk_proof_ref bug writeup above); a one-way
-descent with zero reversals under a fixed, symmetric 20s/20s noise cycle is mechanistically
-inconsistent with the down-hysteresis design (which should produce repeated recoveries, as the new
-run shows) and is retracted as contaminated by that stalled state rather than treated as a genuine
-measurement.
+plain `docker compose up` cluster -- `zk_proof_ref` stayed null in every proposal, so `RECOVERING`
+could never reach `ANCHORED` regardless of hysteresis correctness. Fixed by containerizing both the
+prover and the (previously host-`nohup`) Bitcoin miner loop (`docker/reanchoring-prover/`,
+`docker/bitcoin-miner-loop.yml`), wired into `make testnet-up`. All 10 combos in the table above
+were measured after both fixes, and after a third, unrelated fix found live during this same
+session's E8 re-run (a fixed BTC-checkpoint tolerance had no recovery path from an extended
+round-skip — see E8's "Bugs found and fixed" list for the full writeup).
 
 ---
 
@@ -643,6 +634,37 @@ changes (it never depended on a fixed N).
 > constant-size proofs and constant-time verification — reanchoring is practical, scalable, and
 > incurs bounded overhead.
 
+**Follow-up needed: prover throughput vs. a genuinely long BTC outage.** The batching fix above
+(`BATCH_THRESHOLD=256`, `STABLE_POLLS_REQUIRED=3` debounce, prover container raised from 1.0 to
+6.0 CPUs — `scripts/reanchoring_prover/watch_and_prove.sh`, `docker/reanchoring-prover.yml`)
+measures two different regimes, only one of which has actually been stress-tested live:
+
+- **Catching up a pre-existing backlog.** Measured throughput is 256 headers / 23.61s ≈ 10.84
+  headers/s once a full batch fires — roughly an order of magnitude ahead of Engram's own
+  block-production rate (<2s/block, ≈0.5-1 blocks/s), confirmed live (proof accepted, 0 rejected,
+  `HeaderHistory` count climbing cleanly toward the next 256-header batch).
+- **Keeping pace with an ongoing SOVEREIGN period in real time.** The prover cannot outrun block
+  production — it can only prove blocks that already exist. This is a physical, liveness-preserving
+  limit, not a code defect, but it means total recovery wall-clock time is bounded below by
+  `blocks_in_interval / block_production_rate`, not by prover speed alone.
+
+Neither regime has been measured against a BTC outage lasting **hours** — only against outages on
+the order of minutes (E3/E9's live BTC stop/restart cycles, E10's reorg tests). Two things are
+unknown at that timescale and need a dedicated run before citing this design as solving the general
+case:
+
+1. Whether `HeaderHistory` growth stays linear in wall-clock outage duration, or whether some other
+   resource (state DB size, block time itself, mempool behavior) degrades once the tracked header
+   count sits in the thousands rather than the hundreds this design has been exercised against.
+2. Whether the measured ~10x throughput headroom holds at that scale, or is an artifact of the
+   specific backlog size (a few hundred headers) exercised so far — a multi-hour outage could
+   plausibly accumulate a backlog two to three orders of magnitude larger.
+
+Needs a dedicated experiment: hold Bitcoin submission down (`AnchorTracker.
+SetSubmissionPausedFile`, the mechanism S2 already uses) for several hours under continuous block
+production, and measure `HeaderHistory` size, per-proof latency, and total recovery wall-clock time
+as a function of outage duration — not yet run.
+
 **Priority:**
 
 | Level | Artifact |
@@ -706,9 +728,14 @@ the recovery path:
   average.
 - `scripts/e7_consensus_overhead/live_overhead_scan.py` aggregates per-block overhead by the real
   `fsm_state` and flags (by size heuristic, not exact protobuf decoding) blocks likely carrying a
-  `SubmitRecoveryProof` tx — an earlier 60-block sample never passed through RECOVERING and needs
-  re-running after driving the cluster through one full RECOVERING cycle
-  (e.g. `live_lifecycle_test.py`'s phase 7) to capture a real sample.
+  `SubmitRecoveryProof` tx. **Live result (real RECOVERING sample, heights 5-380 on a fresh
+  genesis):** 376 blocks scanned, 100% marker coverage — 184 SOVEREIGN (avg 248.2 B), 6 RECOVERING
+  (avg 270.0 B), 186 ANCHORED (avg 247.0 B). One block (height 194) matched the recovery-proof
+  heuristic — `other_tx_bytes=14881`, consistent with E6's measured ~14,656 B UltraHonk proof plus
+  envelope overhead. Confirms the steady-state tax stays flat (~247-270 B/block) across all three
+  states, with the one-off recovery-proof cost isolated to the single block that actually carries
+  it — matching the "two regimes" design intent, not inferred from a healthy-only sample.
+  Data: `scripts/e7_consensus_overhead/results_live/table4_live_overhead.{csv,md}`.
 
 ---
 
@@ -814,6 +841,29 @@ offense_height=773/detected=774). Observed via `docker logs` (no dedicated Query
    before). Fixed: `stage_duplicate_identity` now creates a proper empty state file
    (`{"height":"0","round":0,"step":0}`) — matching the original design intent (the second process
    must start from a blank signing state, not a copy of node04's already-advanced state).
+7. **A fixed BTC-checkpoint tolerance had no recovery path, a real permanent-liveness bug hit
+   live during this exact A3-A8 re-run sequence** (2026-08-13): `x/anchor/verify.go`'s
+   `Tolerance(round, kDeepFinality)` accepted `round` as a parameter but discarded it
+   (`Tolerance(_, kDeepFinality) uint64 { return kDeepFinality + livenessMargin }`), contradicting
+   its own call site's doc comment, which claims round-based widening is "load-bearing" for exactly
+   this scenario. Several concurrent attack tests (byzantine A3/A4/A6 back-to-back, each forcing
+   real state churn) round-skipped height 1031 long enough that `h_btc_current` — re-read live on
+   every `ProcessProposal` call — drifted ~40 blocks past the last-committed anchor checkpoint,
+   past the fixed tolerance window (`kDeepFinality+livenessMargin=4`). Because nothing but
+   committing a block can advance the checkpoint, and nothing but this exact check passing can
+   commit a block, the chain deadlocked **permanently** — round-skipping forever at growing round
+   numbers with no way out. Root-caused live via a temporary per-check debug capture
+   (`x/sovereignty/proposal.go`, reverted after diagnosis) that isolated the failure to
+   `anchor.VerifyReceipt`'s tolerance check specifically, not the double-signing test running
+   concurrently (an initial, incorrect hypothesis — killing the double-signing harness did not
+   clear the rejections). Fixed by making `Tolerance` actually grow with `round`
+   (`kDeepFinality + livenessMargin + round`, unbounded rather than the abstract spec's
+   `BTCTolerance(r)` CASE formula's saturating cap at 1 — see `verify.go`'s divergence-4 comment for
+   why an unbounded concrete bound is necessary for a real cluster that can round-skip far longer
+   than TLC's finite state space ever explores) — confirmed live: the stuck height committed within
+   seconds of redeploying the fix to all 4 validators, and the cluster returned to steady ANCHORED
+   cycling normally afterward. `x/anchor/verify_test.go` updated to match (new
+   `TestVerifyReceipt_RecoversFromExtendedRoundSkip` covers the exact deadlock shape).
 
 **"Timeout flooding by Byzantine nodes"** (an earlier row, not part of the numbered A1-A8 matrix):
 `chaos-crash` (SIGKILL) only ever exercised the **crash fault model** (a silent validator) — it
@@ -863,6 +913,26 @@ hardening in place actually does its job:
   from thousands of dropped-but-still-network-received messages.
 
 Full CPU/memory table and drop counts: `results_live/timeout_flood_20260812T073739_summary.md`.
+
+**Re-run on the new pairwise-link topology (2026-08-13):** A3/A4/A6 (byzantine), A5 (withdrawal),
+A7 (censorship), A8 (combined), and both timeout-flood rates all re-confirmed **PASS** against a
+freshly-redeployed cluster (`safety_held=True divergence_events=0` on every one; A5's
+`blocked_correctly=True`; timeout-flood's `cadence_held=True` at both the moderate rate, baseline
+0.808 vs. flood 0.608 blocks/s, and the extreme 25x rate, baseline 0.586 vs. flood 0.813 blocks/s,
+26,563-28,777 messages rate-limited). A1/A2 reuse E4's infrastructure per this section's own note
+above, not re-run separately — E4's own re-run already covers them on this topology.
+Double-signing was attempted twice and did not reproduce evidence detection this time: the
+duplicate-key harness's `engram-node04-duplicate` process got stuck in blocksync
+(`Blockpool has no peers`, a corrupted `numPending` counter) trying to catch up to the live
+cluster's height before it could ever cast a competing vote — the same blocksync-reactor class of
+bug this document already tracks as an isolated, unfixed issue on `engram-node03` (see
+`docs/DEVELOPMENT.md`'s known issues). This is an infrastructure limitation of standing a *new*
+node up against an already-tall chain, not a regression in the detection logic itself
+(`recordDetectedEvidence`, `evidence_test.go`'s unit coverage, unchanged) or evidence the mechanism
+stopped working — the original PASS (offense heights 765/773, above) stands as the live evidence
+for this mechanism. Re-running double-signing successfully on this topology needs either fixing the
+blocksync-reactor bug or attempting it immediately after a fresh genesis reset, before height grows
+far enough for a new node's catch-up to become the bottleneck — not yet done.
 
 **Beyond pass/fail:** rounds-to-recover, invalid proposals rejected, honest-validator agreement
 rate, censorship latency, slashable-evidence detection latency.

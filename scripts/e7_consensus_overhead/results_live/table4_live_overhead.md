@@ -1,70 +1,403 @@
-# E7 LIVE -- Extended Proposal Overhead (real 4-node testnet)
+# E7 LIVE -- Consensus Overhead, split by regime (real 4-node testnet)
 
-Scanned real heights 43..102 on engram-node01 (port 26657).
+Scanned real heights 5..380 on engram-node01 (port 26657).
 
-- Blocks scanned: 60
-- Blocks with real `ENGRAM_EXTENDED_PROPOSAL_V1` marker in Txs[0]: 60 (100.0%)
-- Average real marker size: 235.1 bytes
+- Blocks scanned: 376
+- Blocks with real `ENGRAM_EXTENDED_PROPOSAL_V1` marker in Txs[0]: 376 (100.0%)
 
-| Height | Txs | Marker present | ExtendedProposal bytes | Other tx bytes |
-|---:|---:|---|---:|---:|
-| 43 | 1 | yes | 235 | 0 |
-| 44 | 1 | yes | 235 | 0 |
-| 45 | 1 | yes | 235 | 0 |
-| 46 | 1 | yes | 235 | 0 |
-| 47 | 1 | yes | 235 | 0 |
-| 48 | 1 | yes | 235 | 0 |
-| 49 | 1 | yes | 235 | 0 |
-| 50 | 1 | yes | 235 | 0 |
-| 51 | 1 | yes | 235 | 0 |
-| 52 | 1 | yes | 235 | 0 |
-| 53 | 1 | yes | 235 | 0 |
-| 54 | 1 | yes | 235 | 0 |
-| 55 | 1 | yes | 235 | 0 |
-| 56 | 1 | yes | 235 | 0 |
-| 57 | 1 | yes | 235 | 0 |
-| 58 | 1 | yes | 235 | 0 |
-| 59 | 1 | yes | 235 | 0 |
-| 60 | 1 | yes | 235 | 0 |
-| 61 | 1 | yes | 235 | 0 |
-| 62 | 1 | yes | 235 | 0 |
-| 63 | 1 | yes | 235 | 0 |
-| 64 | 1 | yes | 235 | 0 |
-| 65 | 1 | yes | 235 | 0 |
-| 66 | 1 | yes | 235 | 0 |
-| 67 | 1 | yes | 235 | 0 |
-| 68 | 1 | yes | 235 | 0 |
-| 69 | 1 | yes | 235 | 0 |
-| 70 | 1 | yes | 235 | 0 |
-| 71 | 1 | yes | 235 | 0 |
-| 72 | 1 | yes | 235 | 0 |
-| 73 | 1 | yes | 235 | 0 |
-| 74 | 1 | yes | 235 | 0 |
-| 75 | 1 | yes | 235 | 0 |
-| 76 | 1 | yes | 235 | 0 |
-| 77 | 1 | yes | 235 | 0 |
-| 78 | 1 | yes | 235 | 0 |
-| 79 | 1 | yes | 235 | 0 |
-| 80 | 1 | yes | 235 | 0 |
-| 81 | 1 | yes | 235 | 0 |
-| 82 | 1 | yes | 235 | 0 |
-| 83 | 1 | yes | 235 | 0 |
-| 84 | 1 | yes | 235 | 0 |
-| 85 | 1 | yes | 235 | 0 |
-| 86 | 1 | yes | 235 | 0 |
-| 87 | 1 | yes | 235 | 0 |
-| 88 | 1 | yes | 235 | 0 |
-| 89 | 1 | yes | 235 | 0 |
-| 90 | 1 | yes | 235 | 0 |
-| 91 | 1 | yes | 235 | 0 |
-| 92 | 1 | yes | 235 | 0 |
-| 93 | 1 | yes | 235 | 0 |
-| 94 | 1 | yes | 235 | 0 |
-| 95 | 1 | yes | 235 | 0 |
-| 96 | 1 | yes | 235 | 0 |
-| 97 | 1 | yes | 235 | 0 |
-| 98 | 1 | yes | 235 | 0 |
-| 99 | 1 | yes | 235 | 0 |
-| 100 | 1 | yes | 236 | 0 |
-| 101 | 1 | yes | 236 | 0 |
-| 102 | 1 | yes | 236 | 0 |
+## Steady-state tax (per-block, paid always, bucketed by real fsm_state)
+
+| fsm_state | Blocks | Avg ExtendedProposal bytes |
+|---|---:|---:|
+| ANCHORED | 186 | 247.0 |
+| RECOVERING | 6 | 270.0 |
+| SOVEREIGN | 184 | 248.3 |
+
+## Recovery-event cost (heuristic: blocks with unusually large non-marker tx content)
+
+Heuristic threshold: other_tx_bytes >= 5000 bytes (real UltraHonk proof measured at ~14,656 B in E6's table6b_scaling.csv; this is a byte-size heuristic, NOT real protobuf type decoding -- no Python codegen dependency available, flagged as such rather than presented as exact classification).
+
+| Height | fsm_state | other_tx_bytes | zk_proof_ref_present |
+|---:|---|---:|---|
+| 194 | RECOVERING | 14881 | True |
+
+## Full per-block detail
+
+| Height | Txs | fsm_state | ExtendedProposal bytes | Other tx bytes | Likely recovery-proof tx |
+|---:|---:|---|---:|---:|---|
+| 5 | 1 | SOVEREIGN | 247 | 0 | no |
+| 6 | 1 | SOVEREIGN | 247 | 0 | no |
+| 7 | 1 | SOVEREIGN | 247 | 0 | no |
+| 8 | 1 | SOVEREIGN | 247 | 0 | no |
+| 9 | 1 | SOVEREIGN | 247 | 0 | no |
+| 10 | 1 | SOVEREIGN | 247 | 0 | no |
+| 11 | 1 | SOVEREIGN | 247 | 0 | no |
+| 12 | 1 | SOVEREIGN | 247 | 0 | no |
+| 13 | 1 | SOVEREIGN | 247 | 0 | no |
+| 14 | 1 | SOVEREIGN | 247 | 0 | no |
+| 15 | 1 | SOVEREIGN | 247 | 0 | no |
+| 16 | 1 | SOVEREIGN | 247 | 0 | no |
+| 17 | 1 | SOVEREIGN | 247 | 0 | no |
+| 18 | 1 | SOVEREIGN | 247 | 0 | no |
+| 19 | 1 | SOVEREIGN | 247 | 0 | no |
+| 20 | 1 | SOVEREIGN | 247 | 0 | no |
+| 21 | 1 | SOVEREIGN | 247 | 0 | no |
+| 22 | 1 | SOVEREIGN | 247 | 0 | no |
+| 23 | 1 | SOVEREIGN | 248 | 0 | no |
+| 24 | 1 | SOVEREIGN | 248 | 0 | no |
+| 25 | 1 | SOVEREIGN | 248 | 0 | no |
+| 26 | 1 | SOVEREIGN | 248 | 0 | no |
+| 27 | 1 | SOVEREIGN | 248 | 0 | no |
+| 28 | 1 | SOVEREIGN | 248 | 0 | no |
+| 29 | 1 | SOVEREIGN | 248 | 0 | no |
+| 30 | 1 | SOVEREIGN | 248 | 0 | no |
+| 31 | 1 | SOVEREIGN | 248 | 0 | no |
+| 32 | 1 | SOVEREIGN | 248 | 0 | no |
+| 33 | 1 | SOVEREIGN | 248 | 0 | no |
+| 34 | 1 | SOVEREIGN | 248 | 0 | no |
+| 35 | 1 | SOVEREIGN | 248 | 0 | no |
+| 36 | 1 | SOVEREIGN | 248 | 0 | no |
+| 37 | 1 | SOVEREIGN | 248 | 0 | no |
+| 38 | 1 | SOVEREIGN | 248 | 0 | no |
+| 39 | 1 | SOVEREIGN | 248 | 0 | no |
+| 40 | 1 | SOVEREIGN | 248 | 0 | no |
+| 41 | 1 | SOVEREIGN | 248 | 0 | no |
+| 42 | 1 | SOVEREIGN | 248 | 0 | no |
+| 43 | 1 | SOVEREIGN | 248 | 0 | no |
+| 44 | 1 | SOVEREIGN | 248 | 0 | no |
+| 45 | 1 | SOVEREIGN | 248 | 0 | no |
+| 46 | 1 | SOVEREIGN | 248 | 0 | no |
+| 47 | 1 | SOVEREIGN | 248 | 0 | no |
+| 48 | 1 | SOVEREIGN | 248 | 0 | no |
+| 49 | 1 | SOVEREIGN | 248 | 0 | no |
+| 50 | 1 | SOVEREIGN | 248 | 0 | no |
+| 51 | 1 | SOVEREIGN | 248 | 0 | no |
+| 52 | 1 | SOVEREIGN | 248 | 0 | no |
+| 53 | 1 | SOVEREIGN | 248 | 0 | no |
+| 54 | 1 | SOVEREIGN | 248 | 0 | no |
+| 55 | 1 | SOVEREIGN | 248 | 0 | no |
+| 56 | 1 | SOVEREIGN | 248 | 0 | no |
+| 57 | 1 | SOVEREIGN | 248 | 0 | no |
+| 58 | 1 | SOVEREIGN | 248 | 0 | no |
+| 59 | 1 | SOVEREIGN | 248 | 0 | no |
+| 60 | 1 | SOVEREIGN | 248 | 0 | no |
+| 61 | 1 | SOVEREIGN | 248 | 0 | no |
+| 62 | 1 | SOVEREIGN | 248 | 0 | no |
+| 63 | 1 | SOVEREIGN | 248 | 0 | no |
+| 64 | 1 | SOVEREIGN | 248 | 0 | no |
+| 65 | 1 | SOVEREIGN | 248 | 0 | no |
+| 66 | 1 | SOVEREIGN | 248 | 0 | no |
+| 67 | 1 | SOVEREIGN | 248 | 0 | no |
+| 68 | 1 | SOVEREIGN | 248 | 0 | no |
+| 69 | 1 | SOVEREIGN | 248 | 0 | no |
+| 70 | 1 | SOVEREIGN | 248 | 0 | no |
+| 71 | 1 | SOVEREIGN | 248 | 0 | no |
+| 72 | 1 | SOVEREIGN | 248 | 0 | no |
+| 73 | 1 | SOVEREIGN | 248 | 0 | no |
+| 74 | 1 | SOVEREIGN | 248 | 0 | no |
+| 75 | 1 | SOVEREIGN | 248 | 0 | no |
+| 76 | 1 | SOVEREIGN | 248 | 0 | no |
+| 77 | 1 | SOVEREIGN | 248 | 0 | no |
+| 78 | 1 | SOVEREIGN | 248 | 0 | no |
+| 79 | 1 | SOVEREIGN | 248 | 0 | no |
+| 80 | 1 | SOVEREIGN | 248 | 0 | no |
+| 81 | 1 | SOVEREIGN | 248 | 0 | no |
+| 82 | 1 | SOVEREIGN | 248 | 0 | no |
+| 83 | 1 | SOVEREIGN | 248 | 0 | no |
+| 84 | 1 | SOVEREIGN | 248 | 0 | no |
+| 85 | 1 | SOVEREIGN | 248 | 0 | no |
+| 86 | 1 | SOVEREIGN | 248 | 0 | no |
+| 87 | 1 | SOVEREIGN | 248 | 0 | no |
+| 88 | 1 | SOVEREIGN | 248 | 0 | no |
+| 89 | 1 | SOVEREIGN | 248 | 0 | no |
+| 90 | 1 | SOVEREIGN | 248 | 0 | no |
+| 91 | 1 | SOVEREIGN | 248 | 0 | no |
+| 92 | 1 | SOVEREIGN | 248 | 0 | no |
+| 93 | 1 | SOVEREIGN | 248 | 0 | no |
+| 94 | 1 | SOVEREIGN | 248 | 0 | no |
+| 95 | 1 | SOVEREIGN | 248 | 0 | no |
+| 96 | 1 | SOVEREIGN | 248 | 0 | no |
+| 97 | 1 | SOVEREIGN | 248 | 0 | no |
+| 98 | 1 | SOVEREIGN | 248 | 0 | no |
+| 99 | 1 | SOVEREIGN | 248 | 0 | no |
+| 100 | 1 | SOVEREIGN | 248 | 0 | no |
+| 101 | 1 | SOVEREIGN | 248 | 0 | no |
+| 102 | 1 | SOVEREIGN | 248 | 0 | no |
+| 103 | 1 | SOVEREIGN | 248 | 0 | no |
+| 104 | 1 | SOVEREIGN | 248 | 0 | no |
+| 105 | 1 | SOVEREIGN | 248 | 0 | no |
+| 106 | 1 | SOVEREIGN | 248 | 0 | no |
+| 107 | 1 | SOVEREIGN | 248 | 0 | no |
+| 108 | 1 | SOVEREIGN | 248 | 0 | no |
+| 109 | 1 | SOVEREIGN | 248 | 0 | no |
+| 110 | 1 | SOVEREIGN | 248 | 0 | no |
+| 111 | 1 | SOVEREIGN | 249 | 0 | no |
+| 112 | 1 | SOVEREIGN | 249 | 0 | no |
+| 113 | 1 | SOVEREIGN | 249 | 0 | no |
+| 114 | 1 | SOVEREIGN | 249 | 0 | no |
+| 115 | 1 | SOVEREIGN | 249 | 0 | no |
+| 116 | 1 | SOVEREIGN | 249 | 0 | no |
+| 117 | 1 | SOVEREIGN | 249 | 0 | no |
+| 118 | 1 | SOVEREIGN | 249 | 0 | no |
+| 119 | 1 | SOVEREIGN | 249 | 0 | no |
+| 120 | 1 | SOVEREIGN | 249 | 0 | no |
+| 121 | 1 | SOVEREIGN | 249 | 0 | no |
+| 122 | 1 | SOVEREIGN | 249 | 0 | no |
+| 123 | 1 | SOVEREIGN | 249 | 0 | no |
+| 124 | 1 | SOVEREIGN | 249 | 0 | no |
+| 125 | 1 | SOVEREIGN | 249 | 0 | no |
+| 126 | 1 | SOVEREIGN | 249 | 0 | no |
+| 127 | 1 | SOVEREIGN | 249 | 0 | no |
+| 128 | 1 | SOVEREIGN | 249 | 0 | no |
+| 129 | 1 | SOVEREIGN | 249 | 0 | no |
+| 130 | 1 | SOVEREIGN | 249 | 0 | no |
+| 131 | 1 | SOVEREIGN | 249 | 0 | no |
+| 132 | 1 | SOVEREIGN | 249 | 0 | no |
+| 133 | 1 | SOVEREIGN | 249 | 0 | no |
+| 134 | 1 | SOVEREIGN | 249 | 0 | no |
+| 135 | 1 | SOVEREIGN | 249 | 0 | no |
+| 136 | 1 | SOVEREIGN | 249 | 0 | no |
+| 137 | 1 | SOVEREIGN | 249 | 0 | no |
+| 138 | 1 | SOVEREIGN | 249 | 0 | no |
+| 139 | 1 | SOVEREIGN | 249 | 0 | no |
+| 140 | 1 | SOVEREIGN | 249 | 0 | no |
+| 141 | 1 | SOVEREIGN | 249 | 0 | no |
+| 142 | 1 | SOVEREIGN | 249 | 0 | no |
+| 143 | 1 | SOVEREIGN | 249 | 0 | no |
+| 144 | 1 | SOVEREIGN | 249 | 0 | no |
+| 145 | 1 | SOVEREIGN | 249 | 0 | no |
+| 146 | 1 | SOVEREIGN | 249 | 0 | no |
+| 147 | 1 | SOVEREIGN | 249 | 0 | no |
+| 148 | 1 | SOVEREIGN | 249 | 0 | no |
+| 149 | 1 | SOVEREIGN | 249 | 0 | no |
+| 150 | 1 | SOVEREIGN | 249 | 0 | no |
+| 151 | 1 | SOVEREIGN | 249 | 0 | no |
+| 152 | 1 | SOVEREIGN | 249 | 0 | no |
+| 153 | 1 | SOVEREIGN | 249 | 0 | no |
+| 154 | 1 | SOVEREIGN | 249 | 0 | no |
+| 155 | 1 | SOVEREIGN | 249 | 0 | no |
+| 156 | 1 | SOVEREIGN | 249 | 0 | no |
+| 157 | 1 | SOVEREIGN | 249 | 0 | no |
+| 158 | 1 | SOVEREIGN | 249 | 0 | no |
+| 159 | 1 | SOVEREIGN | 249 | 0 | no |
+| 160 | 1 | SOVEREIGN | 249 | 0 | no |
+| 161 | 1 | SOVEREIGN | 249 | 0 | no |
+| 162 | 1 | SOVEREIGN | 249 | 0 | no |
+| 163 | 1 | SOVEREIGN | 249 | 0 | no |
+| 164 | 1 | SOVEREIGN | 249 | 0 | no |
+| 165 | 1 | SOVEREIGN | 249 | 0 | no |
+| 166 | 1 | SOVEREIGN | 249 | 0 | no |
+| 167 | 1 | SOVEREIGN | 249 | 0 | no |
+| 168 | 1 | SOVEREIGN | 249 | 0 | no |
+| 169 | 1 | SOVEREIGN | 249 | 0 | no |
+| 170 | 1 | SOVEREIGN | 249 | 0 | no |
+| 171 | 1 | SOVEREIGN | 249 | 0 | no |
+| 172 | 1 | SOVEREIGN | 249 | 0 | no |
+| 173 | 1 | SOVEREIGN | 249 | 0 | no |
+| 174 | 1 | SOVEREIGN | 249 | 0 | no |
+| 175 | 1 | SOVEREIGN | 249 | 0 | no |
+| 176 | 1 | SOVEREIGN | 249 | 0 | no |
+| 177 | 1 | SOVEREIGN | 249 | 0 | no |
+| 178 | 1 | SOVEREIGN | 249 | 0 | no |
+| 179 | 1 | SOVEREIGN | 249 | 0 | no |
+| 180 | 1 | SOVEREIGN | 249 | 0 | no |
+| 181 | 1 | SOVEREIGN | 249 | 0 | no |
+| 182 | 1 | SOVEREIGN | 249 | 0 | no |
+| 183 | 1 | SOVEREIGN | 249 | 0 | no |
+| 184 | 1 | SOVEREIGN | 249 | 0 | no |
+| 185 | 1 | SOVEREIGN | 249 | 0 | no |
+| 186 | 1 | SOVEREIGN | 249 | 0 | no |
+| 187 | 1 | SOVEREIGN | 249 | 0 | no |
+| 188 | 1 | SOVEREIGN | 249 | 0 | no |
+| 189 | 1 | RECOVERING | 249 | 0 | no |
+| 190 | 1 | RECOVERING | 249 | 0 | no |
+| 191 | 1 | RECOVERING | 249 | 0 | no |
+| 192 | 1 | RECOVERING | 291 | 0 | no |
+| 193 | 1 | RECOVERING | 291 | 0 | no |
+| 194 | 2 | RECOVERING | 291 | 14881 | yes |
+| 195 | 1 | ANCHORED | 247 | 0 | no |
+| 196 | 1 | ANCHORED | 247 | 0 | no |
+| 197 | 1 | ANCHORED | 247 | 0 | no |
+| 198 | 1 | ANCHORED | 247 | 0 | no |
+| 199 | 1 | ANCHORED | 247 | 0 | no |
+| 200 | 1 | ANCHORED | 247 | 0 | no |
+| 201 | 1 | ANCHORED | 247 | 0 | no |
+| 202 | 1 | ANCHORED | 247 | 0 | no |
+| 203 | 1 | ANCHORED | 248 | 0 | no |
+| 204 | 1 | ANCHORED | 247 | 0 | no |
+| 205 | 1 | ANCHORED | 247 | 0 | no |
+| 206 | 1 | ANCHORED | 247 | 0 | no |
+| 207 | 1 | ANCHORED | 247 | 0 | no |
+| 208 | 1 | ANCHORED | 247 | 0 | no |
+| 209 | 1 | ANCHORED | 247 | 0 | no |
+| 210 | 1 | ANCHORED | 247 | 0 | no |
+| 211 | 1 | ANCHORED | 247 | 0 | no |
+| 212 | 1 | ANCHORED | 247 | 0 | no |
+| 213 | 1 | ANCHORED | 247 | 0 | no |
+| 214 | 1 | ANCHORED | 247 | 0 | no |
+| 215 | 1 | ANCHORED | 247 | 0 | no |
+| 216 | 1 | ANCHORED | 247 | 0 | no |
+| 217 | 1 | ANCHORED | 247 | 0 | no |
+| 218 | 1 | ANCHORED | 247 | 0 | no |
+| 219 | 1 | ANCHORED | 247 | 0 | no |
+| 220 | 1 | ANCHORED | 247 | 0 | no |
+| 221 | 1 | ANCHORED | 247 | 0 | no |
+| 222 | 1 | ANCHORED | 247 | 0 | no |
+| 223 | 1 | ANCHORED | 247 | 0 | no |
+| 224 | 1 | ANCHORED | 247 | 0 | no |
+| 225 | 1 | ANCHORED | 247 | 0 | no |
+| 226 | 1 | ANCHORED | 247 | 0 | no |
+| 227 | 1 | ANCHORED | 247 | 0 | no |
+| 228 | 1 | ANCHORED | 247 | 0 | no |
+| 229 | 1 | ANCHORED | 247 | 0 | no |
+| 230 | 1 | ANCHORED | 247 | 0 | no |
+| 231 | 1 | ANCHORED | 247 | 0 | no |
+| 232 | 1 | ANCHORED | 247 | 0 | no |
+| 233 | 1 | ANCHORED | 247 | 0 | no |
+| 234 | 1 | ANCHORED | 247 | 0 | no |
+| 235 | 1 | ANCHORED | 247 | 0 | no |
+| 236 | 1 | ANCHORED | 247 | 0 | no |
+| 237 | 1 | ANCHORED | 247 | 0 | no |
+| 238 | 1 | ANCHORED | 247 | 0 | no |
+| 239 | 1 | ANCHORED | 247 | 0 | no |
+| 240 | 1 | ANCHORED | 247 | 0 | no |
+| 241 | 1 | ANCHORED | 248 | 0 | no |
+| 242 | 1 | ANCHORED | 247 | 0 | no |
+| 243 | 1 | ANCHORED | 247 | 0 | no |
+| 244 | 1 | ANCHORED | 247 | 0 | no |
+| 245 | 1 | ANCHORED | 247 | 0 | no |
+| 246 | 1 | ANCHORED | 247 | 0 | no |
+| 247 | 1 | ANCHORED | 247 | 0 | no |
+| 248 | 1 | ANCHORED | 247 | 0 | no |
+| 249 | 1 | ANCHORED | 247 | 0 | no |
+| 250 | 1 | ANCHORED | 247 | 0 | no |
+| 251 | 1 | ANCHORED | 247 | 0 | no |
+| 252 | 1 | ANCHORED | 247 | 0 | no |
+| 253 | 1 | ANCHORED | 247 | 0 | no |
+| 254 | 1 | ANCHORED | 247 | 0 | no |
+| 255 | 1 | ANCHORED | 247 | 0 | no |
+| 256 | 1 | ANCHORED | 247 | 0 | no |
+| 257 | 1 | ANCHORED | 247 | 0 | no |
+| 258 | 1 | ANCHORED | 247 | 0 | no |
+| 259 | 1 | ANCHORED | 247 | 0 | no |
+| 260 | 1 | ANCHORED | 247 | 0 | no |
+| 261 | 1 | ANCHORED | 247 | 0 | no |
+| 262 | 1 | ANCHORED | 247 | 0 | no |
+| 263 | 1 | ANCHORED | 247 | 0 | no |
+| 264 | 1 | ANCHORED | 247 | 0 | no |
+| 265 | 1 | ANCHORED | 247 | 0 | no |
+| 266 | 1 | ANCHORED | 247 | 0 | no |
+| 267 | 1 | ANCHORED | 247 | 0 | no |
+| 268 | 1 | ANCHORED | 248 | 0 | no |
+| 269 | 1 | ANCHORED | 247 | 0 | no |
+| 270 | 1 | ANCHORED | 247 | 0 | no |
+| 271 | 1 | ANCHORED | 247 | 0 | no |
+| 272 | 1 | ANCHORED | 247 | 0 | no |
+| 273 | 1 | ANCHORED | 247 | 0 | no |
+| 274 | 1 | ANCHORED | 247 | 0 | no |
+| 275 | 1 | ANCHORED | 247 | 0 | no |
+| 276 | 1 | ANCHORED | 247 | 0 | no |
+| 277 | 1 | ANCHORED | 247 | 0 | no |
+| 278 | 1 | ANCHORED | 247 | 0 | no |
+| 279 | 1 | ANCHORED | 247 | 0 | no |
+| 280 | 1 | ANCHORED | 247 | 0 | no |
+| 281 | 1 | ANCHORED | 247 | 0 | no |
+| 282 | 1 | ANCHORED | 247 | 0 | no |
+| 283 | 1 | ANCHORED | 247 | 0 | no |
+| 284 | 1 | ANCHORED | 247 | 0 | no |
+| 285 | 1 | ANCHORED | 247 | 0 | no |
+| 286 | 1 | ANCHORED | 247 | 0 | no |
+| 287 | 1 | ANCHORED | 247 | 0 | no |
+| 288 | 1 | ANCHORED | 247 | 0 | no |
+| 289 | 1 | ANCHORED | 247 | 0 | no |
+| 290 | 1 | ANCHORED | 247 | 0 | no |
+| 291 | 1 | ANCHORED | 247 | 0 | no |
+| 292 | 1 | ANCHORED | 247 | 0 | no |
+| 293 | 1 | ANCHORED | 247 | 0 | no |
+| 294 | 1 | ANCHORED | 247 | 0 | no |
+| 295 | 1 | ANCHORED | 247 | 0 | no |
+| 296 | 1 | ANCHORED | 248 | 0 | no |
+| 297 | 1 | ANCHORED | 247 | 0 | no |
+| 298 | 1 | ANCHORED | 247 | 0 | no |
+| 299 | 1 | ANCHORED | 247 | 0 | no |
+| 300 | 1 | ANCHORED | 247 | 0 | no |
+| 301 | 1 | ANCHORED | 247 | 0 | no |
+| 302 | 1 | ANCHORED | 247 | 0 | no |
+| 303 | 1 | ANCHORED | 247 | 0 | no |
+| 304 | 1 | ANCHORED | 247 | 0 | no |
+| 305 | 1 | ANCHORED | 247 | 0 | no |
+| 306 | 1 | ANCHORED | 247 | 0 | no |
+| 307 | 1 | ANCHORED | 247 | 0 | no |
+| 308 | 1 | ANCHORED | 247 | 0 | no |
+| 309 | 1 | ANCHORED | 247 | 0 | no |
+| 310 | 1 | ANCHORED | 247 | 0 | no |
+| 311 | 1 | ANCHORED | 247 | 0 | no |
+| 312 | 1 | ANCHORED | 247 | 0 | no |
+| 313 | 1 | ANCHORED | 247 | 0 | no |
+| 314 | 1 | ANCHORED | 247 | 0 | no |
+| 315 | 1 | ANCHORED | 247 | 0 | no |
+| 316 | 1 | ANCHORED | 247 | 0 | no |
+| 317 | 1 | ANCHORED | 247 | 0 | no |
+| 318 | 1 | ANCHORED | 247 | 0 | no |
+| 319 | 1 | ANCHORED | 247 | 0 | no |
+| 320 | 1 | ANCHORED | 247 | 0 | no |
+| 321 | 1 | ANCHORED | 247 | 0 | no |
+| 322 | 1 | ANCHORED | 247 | 0 | no |
+| 323 | 1 | ANCHORED | 248 | 0 | no |
+| 324 | 1 | ANCHORED | 247 | 0 | no |
+| 325 | 1 | ANCHORED | 247 | 0 | no |
+| 326 | 1 | ANCHORED | 247 | 0 | no |
+| 327 | 1 | ANCHORED | 247 | 0 | no |
+| 328 | 1 | ANCHORED | 247 | 0 | no |
+| 329 | 1 | ANCHORED | 247 | 0 | no |
+| 330 | 1 | ANCHORED | 247 | 0 | no |
+| 331 | 1 | ANCHORED | 247 | 0 | no |
+| 332 | 1 | ANCHORED | 247 | 0 | no |
+| 333 | 1 | ANCHORED | 247 | 0 | no |
+| 334 | 1 | ANCHORED | 247 | 0 | no |
+| 335 | 1 | ANCHORED | 247 | 0 | no |
+| 336 | 1 | ANCHORED | 247 | 0 | no |
+| 337 | 1 | ANCHORED | 247 | 0 | no |
+| 338 | 1 | ANCHORED | 247 | 0 | no |
+| 339 | 1 | ANCHORED | 247 | 0 | no |
+| 340 | 1 | ANCHORED | 247 | 0 | no |
+| 341 | 1 | ANCHORED | 247 | 0 | no |
+| 342 | 1 | ANCHORED | 247 | 0 | no |
+| 343 | 1 | ANCHORED | 247 | 0 | no |
+| 344 | 1 | ANCHORED | 247 | 0 | no |
+| 345 | 1 | ANCHORED | 247 | 0 | no |
+| 346 | 1 | ANCHORED | 247 | 0 | no |
+| 347 | 1 | ANCHORED | 247 | 0 | no |
+| 348 | 1 | ANCHORED | 247 | 0 | no |
+| 349 | 1 | ANCHORED | 247 | 0 | no |
+| 350 | 1 | ANCHORED | 248 | 0 | no |
+| 351 | 1 | ANCHORED | 247 | 0 | no |
+| 352 | 1 | ANCHORED | 247 | 0 | no |
+| 353 | 1 | ANCHORED | 247 | 0 | no |
+| 354 | 1 | ANCHORED | 247 | 0 | no |
+| 355 | 1 | ANCHORED | 247 | 0 | no |
+| 356 | 1 | ANCHORED | 247 | 0 | no |
+| 357 | 1 | ANCHORED | 247 | 0 | no |
+| 358 | 1 | ANCHORED | 247 | 0 | no |
+| 359 | 1 | ANCHORED | 247 | 0 | no |
+| 360 | 1 | ANCHORED | 247 | 0 | no |
+| 361 | 1 | ANCHORED | 247 | 0 | no |
+| 362 | 1 | ANCHORED | 247 | 0 | no |
+| 363 | 1 | ANCHORED | 247 | 0 | no |
+| 364 | 1 | ANCHORED | 247 | 0 | no |
+| 365 | 1 | ANCHORED | 247 | 0 | no |
+| 366 | 1 | ANCHORED | 247 | 0 | no |
+| 367 | 1 | ANCHORED | 247 | 0 | no |
+| 368 | 1 | ANCHORED | 247 | 0 | no |
+| 369 | 1 | ANCHORED | 247 | 0 | no |
+| 370 | 1 | ANCHORED | 247 | 0 | no |
+| 371 | 1 | ANCHORED | 247 | 0 | no |
+| 372 | 1 | ANCHORED | 247 | 0 | no |
+| 373 | 1 | ANCHORED | 247 | 0 | no |
+| 374 | 1 | ANCHORED | 247 | 0 | no |
+| 375 | 1 | ANCHORED | 247 | 0 | no |
+| 376 | 1 | ANCHORED | 247 | 0 | no |
+| 377 | 1 | ANCHORED | 248 | 0 | no |
+| 378 | 1 | ANCHORED | 247 | 0 | no |
+| 379 | 1 | ANCHORED | 247 | 0 | no |
+| 380 | 1 | ANCHORED | 247 | 0 | no |
