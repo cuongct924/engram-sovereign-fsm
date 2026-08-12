@@ -460,14 +460,26 @@ plain `docker compose up` cluster -- `zk_proof_ref` stayed null in every proposa
 containerizing both the prover and the (previously host-`nohup`) Bitcoin miner loop
 (`docker/reanchoring-prover/`, `docker/bitcoin-miner-loop.yml`), wired into `make testnet-up`.
 
-**Re-measured with both fixes live, HW=2, noisy_da, 180s:**
-`flapping_count=0`, `total_transitions=3`, **`anchored_uptime=50.88%`** (all 4 validators
-identical throughout). Held `ANCHORED` through 2 full noise cycles, then degraded one step at a
-time under a genuinely sustained outage (`ANCHORED → SUSPICIOUS → SOVEREIGN → RECOVERING`) with
-zero reversals -- the first live measurement to actually exercise the down-hysteresis and
-`SuspiciousHysteresisWait` mechanisms end to end, not just infer their behavior from a cold-start-
-or anchoring-blocked cluster. Raw data:
-`scripts/e5_hysteresis_flapping/results_live/live_spot_check_hw2_noisy_da_20260812T123903*`.
+**Re-measured with both fixes live, HW=2, noisy_da, 300s:**
+`flapping_count=13`, `total_transitions=14`, **`anchored_uptime=15.29%`** (all 4 validators
+identical throughout, zero divergence at any sample). Under the fixed 20s-down/20s-up `noisy_da`
+cycle, the FSM oscillates `ANCHORED ↔ SUSPICIOUS` repeatedly and never reaches `SOVEREIGN` --
+consistent with the down-hysteresis/`SuspiciousHysteresisWait` mechanism design: each DA outage is
+shorter than `MaxSuspiciousTime`, so every cycle recovers `SUSPICIOUS → ANCHORED` before the
+gray-failure timeout escalates it further. Raw data:
+`scripts/e5_hysteresis_flapping/results_live/live_spot_check_hw2_noisy_da_20260812T201918*`.
+
+An earlier run at this same (HW=2, noisy_da) combination measured `flapping_count=0`,
+`anchored_uptime=50.88%`, and a one-way `ANCHORED → SUSPICIOUS → SOVEREIGN → RECOVERING` descent
+with zero reversals -- no longer cited as the E5 result (raw data kept at
+`results_live/live_spot_check_hw2_noisy_da_20260812T123903*` for the record, not deleted). That
+run started at 12:39:03 UTC, the exact
+window this session later found the cluster already stalled at a fixed height from an unrelated,
+still-in-progress S6 reproduction attempt (see E2's zk_proof_ref bug writeup above); a one-way
+descent with zero reversals under a fixed, symmetric 20s/20s noise cycle is mechanistically
+inconsistent with the down-hysteresis design (which should produce repeated recoveries, as the new
+run shows) and is retracted as contaminated by that stalled state rather than treated as a genuine
+measurement.
 
 ---
 
