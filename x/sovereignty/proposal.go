@@ -188,6 +188,18 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 				hBtcAnchored = confirmed
 			}
 		}
+		// hEngramVerifiedPrev preserves the persisted (start-of-round) value
+		// for zk_proof_ref's freshness check below, BEFORE the live-bump that
+		// follows. Bug found live: hEngramVerified was bumped in place here
+		// and then daReceipt.PublishedBlockHeight (set from the bumped value)
+		// was compared against that SAME now-bumped variable at line ~226 --
+		// PublishedBlockHeight > hEngramVerified was therefore comparing a
+		// value to itself, always false, making the zk_proof_ref exit from
+		// RECOVERING permanently unreachable regardless of DA state
+		// (confirmed live: every RECOVERING round with safe_blocks ==
+		// HysteresisWait round-skipped forever on ProcessProposal's check #5,
+		// since PrepareProposal could never actually attach a zk_proof_ref).
+		hEngramVerifiedPrev := hEngramVerified
 		// Same fix, same reason, for DA (sensors_refresh.go's daGapMetric doc).
 		if s != nil && s.DAPublisher != nil {
 			if verified, ok := s.DAPublisher.VerifiedHeight(); ok && verified > hEngramVerified {
@@ -222,7 +234,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 		// The claimed value is this validator's own LastAnchoredRoot.
 		var zkProofRef []byte
 		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait &&
-			daReceipt.Attestation && daReceipt.PublishedBlockHeight > hEngramVerified {
+			daReceipt.Attestation && daReceipt.PublishedBlockHeight > hEngramVerifiedPrev {
 			if root, rerr := k.LastAnchoredRoot.Get(ctx); rerr == nil {
 				zkProofRef = root
 			}
