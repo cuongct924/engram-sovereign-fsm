@@ -88,7 +88,10 @@ ApalacheCInit ==
     /\ SOVEREIGN_THRESHOLD  = 4
     /\ DA_THRESHOLD         = 2
     /\ HYSTERESIS_WAIT      = 2
+    /\ SUSPICIOUS_HYSTERESIS_WAIT      = 2
     /\ MAX_SUSPICIOUS_TIME  = 2
+    /\ DOWN_HYSTERESIS_THRESHOLD  = 2
+    /\ MAX_DOWN_HYSTERESIS_THRESHOLD  = 8
     /\ MIN_PEERS            = 3
     /\ MIN_SUBNET_DIVERSITY = 2
     /\ MIN_ANCHOR_PEERS     = 1

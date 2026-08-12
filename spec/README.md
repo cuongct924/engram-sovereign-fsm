@@ -39,6 +39,8 @@
   - [7. Security and Safety Analysis](#7-security-and-safety-analysis)
     - [7.1 State Invariants](#71-state-invariants)
     - [7.2 Attack Resilience Lemmas](#72-attack-resilience-lemmas)
+    - [7.3 Threat Model Boundary: Bitcoin Reorg Depth](#73-threat-model-boundary-bitcoin-reorg-depth)
+    - [7.4 Threat Model Boundary: Sensor View Homogeneity](#74-threat-model-boundary-sensor-view-homogeneity)
   - [8. Liveness Analysis and Autonomous Recovery](#8-liveness-analysis-and-autonomous-recovery)
     - [8.1 FSM Temporal Properties](#81-fsm-temporal-properties)
     - [8.2 Transaction-Level Liveness](#82-transaction-level-liveness)
@@ -267,7 +269,7 @@ The gap formula measures *delay*, but cannot detect *forged* checkpoint data. An
 1. **OP_RETURN Inclusion Check**: verify via Merkle proof that the Engram checkpoint transaction is included in the claimed Bitcoin block.
 2. **Block Header Verification**: hash the block header to confirm `checkpoint_block_hash` matches the canonical chain maintained by the local SPV client.
 
-The combined result is stored as a single boolean `is_btc_spv_failed` in local state. Unlike `is_das_failed`, this flag does not directly enter `IsWarningCondition` — because a failed SPV check already prevents `h_btc_anchored` from advancing, causing `btc_gap` to grow and trigger the warning condition naturally.
+The combined result is stored as a single boolean `is_btc_spv_failed` in local state, and enters `IsCriticalCondition` directly — a failed SPV check means the current anchor height itself is unverifiable, not merely stale, the same severity class as `IsBTCGapSovereign`, unlike `is_das_failed`/`is_attestation_failed` which only feed the softer `IsWarningCondition`. An earlier revision instead relied on the failure indirectly widening `btc_gap` past `SOVEREIGN_THRESHOLD` on its own; that left a multi-block exploitation window where a forged or since-reorged anchor stayed trusted (withdrawals unlocked) until the gap organically grew, since nothing read the flag directly.
 
 ### 4.2 Data Availability Gap Sensor
 
@@ -636,15 +638,17 @@ FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f
 
 ```tlaplus
 \* Recovery is gated on full P2P quality — not merely peer count
-IsHealthyCondition == 
+IsHealthyCondition ==
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
+    /\ ~is_btc_spv_failed
     /\ IsDAHealthy
     /\ IsP2PQualityHealthy   \* all 6 structural/behavioral bounds must hold
 
-\* Complete anchor isolation triggers Critical immediately
-IsCriticalCondition == 
+\* Complete anchor isolation, or an unverifiable anchor, triggers Critical immediately
+IsCriticalCondition ==
     \/ IsBTCGapSovereign
+    \/ is_btc_spv_failed
     \/ Cardinality(ActiveAnchors) = 0
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 ```
@@ -678,6 +682,18 @@ Bitcoin settlement finality is not an assumption-free constant. `EngramConsensus
 **Deep reorg (depth >= `K_DEEP_FINALITY`).** Deliberately out of scope, matching every Bitcoin-anchoring design in the literature (Babylon included): `K_DEEP_FINALITY` is chosen so that a reorg past that depth is economically infeasible under Bitcoin's honest-majority-hashpower assumption. No protocol mechanism re-verifies an already-K-deep-confirmed checkpoint — if the assumption is violated, the anchoring guarantee itself is void regardless of implementation, and the only lever is choosing `K_DEEP_FINALITY` conservatively (small for development/regtest networks; ~6 confirmations, Bitcoin's own conventional finality bound, for mainnet).
 
 This is a third standing precondition for Theorem 7.1, alongside partial synchrony and the $f$-bounded Byzantine adversary: safety holds *given* Bitcoin reorgs no deeper than `K_DEEP_FINALITY`.
+
+### 7.4 Threat Model Boundary: Sensor View Homogeneity
+
+`EngramFSM.tla` models `btc_gap`/`da_gap`/P2P health as single global variables, implicitly assuming every honest validator observes a near-identical peripheral-layer view. The concrete implementation refines this literally: each validator's `ProcessProposal` calls `RefreshMetrics` and independently recomputes `CalculateNextState` from its *own* local sensor reading, rejecting any proposal whose `fsm_state` doesn't match (`x/sovereignty/proposal.go`) — "sensors propose, consensus decides." Under partial synchrony this is sound, but the model does not separately account for a validator set whose local sensor views are *persistently, adversarially heterogeneous*: if enough validators disagree on `fsm_state` for the same underlying conditions, every proposal gets rejected by some quorum fraction, forcing repeated round-skips.
+
+**Exposure is not uniform across the three sensor categories.** BTC and DA gaps are derived from a shared external chain (Bitcoin, Celestia) that every validator's light client observes independently but consistently — divergence is bounded by ordinary propagation delay, not by validator-specific state. P2P health (`IsP2PQualityHealthy`) is the one genuinely node-local signal: peer sets, churn, and latency differ per validator by construction, making it the real surface for the kind of persistent local-view split this boundary is about.
+
+**What already bounds this, short of a full fix.** CometBFT's round-robin proposer rotation means a liveness lock requires *every* proposer's locally-computed `fsm_state` to be rejected by enough of the validator set, for enough consecutive rounds, that GST is never effectively reached — this pushes against the same partial-synchrony precondition Theorem 7.1 already assumes, not a new, independent failure mode. A single validator with an outlier P2P view stalls nothing on its own.
+
+This bound should not be read as requiring a *simultaneous* eclipse of a large fraction of the validator set, though. Because the proposer schedule is public and deterministic, an adversary needs only to eclipse whichever single node is about to propose — most cheaply on the DAS-sampling leg, since it is the one genuinely node-local, subjective signal among the three sensor categories (per the exposure note above) — reject that one proposal on the mismatch, and move its eclipse to the next scheduled proposer for the following round. Sustained round-skipping is achievable this way with the capability to eclipse one targeted node at a time, rotated every round, rather than a simultaneous majority-eclipse. This is still bounded by the same GST argument (the adversary must keep re-targeting indefinitely, and any round it fails to do so lets the network make progress), so it does not overturn the precondition itself — but it is a materially cheaper adversary than "coordinated eclipse of a large fraction of the validator set" suggests, and the boundary is stated here in those more precise terms.
+
+This is a fourth standing precondition for Theorem 7.1: safety and liveness hold *given* that honest validators' local sensor views converge closely enough, within GST, to reach quorum on a single `fsm_state` — not that every view is identical at every instant. A pre-consensus sensor-aggregation phase (validators exchange and vote on sensor readings before `CalculateNextState` runs, rather than each computing it unilaterally) would close this gap formally; it is out of scope here and tracked under Future Work below.
 
 ## 8. Liveness Analysis and Autonomous Recovery
 
@@ -1026,6 +1042,10 @@ The current specification verifies an unpipelined Tendermint core. A pipelined v
 ### Parametric Verification
 
 The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending the proof to arbitrary $N$ and $f$ would require inductive invariant techniques or a parametric model checker, and is left for future work.
+
+### Sensor Aggregation Pre-Consensus Phase
+
+§7.4's threat-model boundary (sensor view homogeneity) is closed only informally today. A pre-consensus phase in which validators exchange and vote on their local `btc_gap`/`da_gap`/P2P readings before `CalculateNextState` runs — rather than each validator computing `fsm_state` unilaterally from its own view — would let `EngramFSM.tla` model per-validator (not global) sensor variables and formally re-establish `FSMStateConsistency` under adversarially heterogeneous local views. Left for future work; the current model's global-sensor abstraction is adequate under the convergence precondition §7.4 states explicitly.
 
 
 ## How to Run the Verification

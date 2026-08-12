@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -25,9 +25,20 @@ import (
 // pseudo-tx avoids needing a full TxConfig/signing pipeline for
 // leader-computed system data.
 type ExtendedProposal struct {
-	FSMState   string            `json:"fsm_state"`
-	DAReceipt  da.Receipt        `json:"da_receipt"`
-	BTCReceipt vigilante.Receipt `json:"btc_receipt"`
+	FSMState string `json:"fsm_state"`
+	// Healthy is IsHealthyCondition at proposal time (predicates.go),
+	// agreed via consensus like FSMState itself -- CommitFSMTransition needs
+	// it to tell a genuine "stayed ANCHORED/RECOVERING because healthy"
+	// from a "stayed because down-hysteresis absorbed non-critical noise"
+	// (both produce the same currState->targetState pair), and per
+	// CLAUDE.md's "never write live local sensor reads into committed
+	// state" rule, the committer cannot recompute this from its own local
+	// sensors -- it must come from the already-agreed proposal, exactly
+	// like FSMState. See NewProcessProposalHandler's check #1b, which
+	// validates this the same way check #1 validates FSMState.
+	Healthy    bool           `json:"healthy"`
+	DAReceipt  da.Receipt     `json:"da_receipt"`
+	BTCReceipt anchor.Receipt `json:"btc_receipt"`
 	// ZKProofRef carries rt_new (the accepted re-anchoring proof's new state
 	// root, keeper.LastAnchoredRoot) when the leader claims a proof backs
 	// this round, nil otherwise -- a refinement of the abstract spec's
@@ -77,13 +88,19 @@ func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in ke
 	}
 	safeBlocks, _ := k.SafeBlocks.Get(ctx)
 	suspiciousDuration, _ := k.SuspiciousDuration.Get(ctx)
+	suspiciousSafeBlocks, _ := k.SuspiciousSafeBlocks.Get(ctx)
+	unhealthyStreak, _ := k.UnhealthyStreak.Get(ctx)
+	failedRecoveryAttempts, _ := k.FailedRecoveryAttempts.Get(ctx)
 	proofValid, _ := k.ReanchoringProofValid.Get(ctx)
 
 	return currState, keeper.FSMInput{
-		Metrics:               metrics,
-		SafeBlocks:            safeBlocks,
-		SuspiciousDuration:    suspiciousDuration,
-		ReanchoringProofValid: proofValid,
+		Metrics:                metrics,
+		SafeBlocks:             safeBlocks,
+		SuspiciousDuration:     suspiciousDuration,
+		SuspiciousSafeBlocks:   suspiciousSafeBlocks,
+		UnhealthyStreak:        unhealthyStreak,
+		FailedRecoveryAttempts: failedRecoveryAttempts,
+		ReanchoringProofValid:  proofValid,
 	}
 }
 
@@ -113,7 +130,7 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 		// A4: claim the checkpoint advanced with a hash that doesn't match
 		// ExpectedBlockHash -- every honest validator's own bitcoind check
 		// (checks #3/#3b below) must reject this independently.
-		ext.BTCReceipt.CheckpointBlockHash = vigilante.BlockHash{
+		ext.BTCReceipt.CheckpointBlockHash = anchor.BlockHash{
 			Tag: "FORGED", Height: ext.BTCReceipt.CheckpointBlockHeight,
 		}
 	case behavior == byzantineFalseDA:
@@ -182,9 +199,9 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			PublishedBlockHeight: hEngramVerified,
 			Attestation:          !in.Metrics.IsAttestationFailed,
 		}
-		btcReceipt := vigilante.Receipt{
+		btcReceipt := anchor.Receipt{
 			CheckpointBlockHeight: hBtcAnchored,
-			CheckpointBlockHash:   vigilante.ExpectedBlockHash(hBtcAnchored),
+			CheckpointBlockHash:   anchor.ExpectedBlockHash(hBtcAnchored),
 		}
 
 		// zk_proof_ref mirrors ServerInsertProposal's proof_search_space
@@ -202,6 +219,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		ext := ExtendedProposal{
 			FSMState:   targetState,
+			Healthy:    types.IsHealthyCondition(in.Metrics, k.Params),
 			DAReceipt:  daReceipt,
 			BTCReceipt: btcReceipt,
 			ZKProofRef: zkProofRef,
@@ -305,6 +323,17 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
+		// 1b. Healthy cross-check -- this repo's concrete addition (no spec
+		// line; TLA+'s CalculateNextFSMState/ExecuteFSMTransition read
+		// IsHealthyCondition directly, since the spec has no wire-format
+		// boundary to cross). Every honest validator recomputes
+		// IsHealthyCondition independently here, same as expectedState above
+		// -- CommitFSMTransition trusts ext.Healthy only because it's
+		// cross-checked against every honest validator's own sensors first.
+		if ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
+			return reject, nil
+		}
+
 		// 2. DA pipeline check (IsValidProposal:290-294). req.Round is a
 		// fork-level addition to RequestProcessProposal (vanilla ABCI 2.0
 		// doesn't expose consensus round) that DATolerance's round-based
@@ -321,7 +350,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		// 3. Settlement monotonicity & BTC light-client hash check (IsValidProposal:296-298).
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		if !vigilante.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
+		if !anchor.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
 			return reject, nil
 		}
 

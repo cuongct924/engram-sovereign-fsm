@@ -26,15 +26,18 @@ const (
 // trong spec/core/EngramFSM.tla (state \in {"ANCHORED", ...}) và trong
 // x/sovereignty/types/state.go's StateAnchored/... constants.
 type GenesisState struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	FsmState              string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                           // Thường khởi tạo là "ANCHORED"
-	SafeBlocksCounter     uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`             // Bộ đếm biến `safe_blocks` trong TLA+
-	SuspiciousDuration    uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`            // Bộ đếm biến `suspicious_duration` trong TLA+
-	ReanchoringProofValid bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"` // Biến `reanchoring_proof_valid` trong TLA+
-	InitialMetrics        *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                         // Trạng thái sensor lúc khởi tạo
-	Params                *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                               // Tham số vận hành, xem GenesisParams
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	FsmState               string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                              // Thường khởi tạo là "ANCHORED"
+	SafeBlocksCounter      uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`                // Bộ đếm biến `safe_blocks` trong TLA+
+	SuspiciousDuration     uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`               // Bộ đếm biến `suspicious_duration` trong TLA+
+	ReanchoringProofValid  bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"`    // Biến `reanchoring_proof_valid` trong TLA+
+	InitialMetrics         *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                            // Trạng thái sensor lúc khởi tạo
+	Params                 *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                                  // Tham số vận hành, xem GenesisParams
+	UnhealthyStreak        uint64                 `protobuf:"varint,8,opt,name=unhealthy_streak,json=unhealthyStreak,proto3" json:"unhealthy_streak,omitempty"`                        // Bộ đếm biến `unhealthy_streak` trong TLA+ (down-hysteresis)
+	FailedRecoveryAttempts uint64                 `protobuf:"varint,9,opt,name=failed_recovery_attempts,json=failedRecoveryAttempts,proto3" json:"failed_recovery_attempts,omitempty"` // Bộ đếm biến `failed_recovery_attempts` trong TLA+ (exponential backoff)
+	SuspiciousSafeBlocks   uint64                 `protobuf:"varint,10,opt,name=suspicious_safe_blocks,json=suspiciousSafeBlocks,proto3" json:"suspicious_safe_blocks,omitempty"`      // Bộ đếm biến `suspicious_safe_blocks` trong TLA+ (SUSPICIOUS exit hysteresis)
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *GenesisState) Reset() {
@@ -109,6 +112,27 @@ func (x *GenesisState) GetParams() *GenesisParams {
 	return nil
 }
 
+func (x *GenesisState) GetUnhealthyStreak() uint64 {
+	if x != nil {
+		return x.UnhealthyStreak
+	}
+	return 0
+}
+
+func (x *GenesisState) GetFailedRecoveryAttempts() uint64 {
+	if x != nil {
+		return x.FailedRecoveryAttempts
+	}
+	return 0
+}
+
+func (x *GenesisState) GetSuspiciousSafeBlocks() uint64 {
+	if x != nil {
+		return x.SuspiciousSafeBlocks
+	}
+	return 0
+}
+
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
 // genesis-time configuration -- every validator's genesis.json is generated
 // once and copied identically to all nodes (cmd/engramd/main.go's
@@ -117,24 +141,27 @@ func (x *GenesisState) GetParams() *GenesisParams {
 // meaning and cross-field constraints of each value; Params.Validate()
 // enforces those constraints on whatever lands here.
 type GenesisParams struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	SuspiciousThreshold   uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`
-	SovereignThreshold    uint64                 `protobuf:"varint,2,opt,name=sovereign_threshold,json=sovereignThreshold,proto3" json:"sovereign_threshold,omitempty"`
-	DaThreshold           uint64                 `protobuf:"varint,3,opt,name=da_threshold,json=daThreshold,proto3" json:"da_threshold,omitempty"`
-	HysteresisWait        uint64                 `protobuf:"varint,4,opt,name=hysteresis_wait,json=hysteresisWait,proto3" json:"hysteresis_wait,omitempty"`
-	MinPeers              uint64                 `protobuf:"varint,5,opt,name=min_peers,json=minPeers,proto3" json:"min_peers,omitempty"`
-	MinSubnetDiversity    uint64                 `protobuf:"varint,6,opt,name=min_subnet_diversity,json=minSubnetDiversity,proto3" json:"min_subnet_diversity,omitempty"`
-	MinAnchorPeers        uint64                 `protobuf:"varint,7,opt,name=min_anchor_peers,json=minAnchorPeers,proto3" json:"min_anchor_peers,omitempty"`
-	MaxChurnRate          uint64                 `protobuf:"varint,8,opt,name=max_churn_rate,json=maxChurnRate,proto3" json:"max_churn_rate,omitempty"`
-	MinAvgTenure          uint64                 `protobuf:"varint,9,opt,name=min_avg_tenure,json=minAvgTenure,proto3" json:"min_avg_tenure,omitempty"`
-	MaxPeerLatency        uint64                 `protobuf:"varint,10,opt,name=max_peer_latency,json=maxPeerLatency,proto3" json:"max_peer_latency,omitempty"`
-	MaxSuspiciousTime     uint64                 `protobuf:"varint,11,opt,name=max_suspicious_time,json=maxSuspiciousTime,proto3" json:"max_suspicious_time,omitempty"`
-	MaxIgnoreRounds       uint64                 `protobuf:"varint,12,opt,name=max_ignore_rounds,json=maxIgnoreRounds,proto3" json:"max_ignore_rounds,omitempty"`
-	KDeepFinality         uint64                 `protobuf:"varint,13,opt,name=k_deep_finality,json=kDeepFinality,proto3" json:"k_deep_finality,omitempty"`
-	MaxUnprovenTailBlocks uint64                 `protobuf:"varint,14,opt,name=max_unproven_tail_blocks,json=maxUnprovenTailBlocks,proto3" json:"max_unproven_tail_blocks,omitempty"`
-	MaxPeersPerSubnet     uint64                 `protobuf:"varint,15,opt,name=max_peers_per_subnet,json=maxPeersPerSubnet,proto3" json:"max_peers_per_subnet,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                      protoimpl.MessageState `protogen:"open.v1"`
+	SuspiciousThreshold        uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`
+	SovereignThreshold         uint64                 `protobuf:"varint,2,opt,name=sovereign_threshold,json=sovereignThreshold,proto3" json:"sovereign_threshold,omitempty"`
+	DaThreshold                uint64                 `protobuf:"varint,3,opt,name=da_threshold,json=daThreshold,proto3" json:"da_threshold,omitempty"`
+	HysteresisWait             uint64                 `protobuf:"varint,4,opt,name=hysteresis_wait,json=hysteresisWait,proto3" json:"hysteresis_wait,omitempty"`
+	MinPeers                   uint64                 `protobuf:"varint,5,opt,name=min_peers,json=minPeers,proto3" json:"min_peers,omitempty"`
+	MinSubnetDiversity         uint64                 `protobuf:"varint,6,opt,name=min_subnet_diversity,json=minSubnetDiversity,proto3" json:"min_subnet_diversity,omitempty"`
+	MinAnchorPeers             uint64                 `protobuf:"varint,7,opt,name=min_anchor_peers,json=minAnchorPeers,proto3" json:"min_anchor_peers,omitempty"`
+	MaxChurnRate               uint64                 `protobuf:"varint,8,opt,name=max_churn_rate,json=maxChurnRate,proto3" json:"max_churn_rate,omitempty"`
+	MinAvgTenure               uint64                 `protobuf:"varint,9,opt,name=min_avg_tenure,json=minAvgTenure,proto3" json:"min_avg_tenure,omitempty"`
+	MaxPeerLatency             uint64                 `protobuf:"varint,10,opt,name=max_peer_latency,json=maxPeerLatency,proto3" json:"max_peer_latency,omitempty"`
+	MaxSuspiciousTime          uint64                 `protobuf:"varint,11,opt,name=max_suspicious_time,json=maxSuspiciousTime,proto3" json:"max_suspicious_time,omitempty"`
+	MaxIgnoreRounds            uint64                 `protobuf:"varint,12,opt,name=max_ignore_rounds,json=maxIgnoreRounds,proto3" json:"max_ignore_rounds,omitempty"`
+	KDeepFinality              uint64                 `protobuf:"varint,13,opt,name=k_deep_finality,json=kDeepFinality,proto3" json:"k_deep_finality,omitempty"`
+	MaxUnprovenTailBlocks      uint64                 `protobuf:"varint,14,opt,name=max_unproven_tail_blocks,json=maxUnprovenTailBlocks,proto3" json:"max_unproven_tail_blocks,omitempty"`
+	MaxPeersPerSubnet          uint64                 `protobuf:"varint,15,opt,name=max_peers_per_subnet,json=maxPeersPerSubnet,proto3" json:"max_peers_per_subnet,omitempty"`
+	DownHysteresisThreshold    uint64                 `protobuf:"varint,16,opt,name=down_hysteresis_threshold,json=downHysteresisThreshold,proto3" json:"down_hysteresis_threshold,omitempty"`
+	MaxDownHysteresisThreshold uint64                 `protobuf:"varint,17,opt,name=max_down_hysteresis_threshold,json=maxDownHysteresisThreshold,proto3" json:"max_down_hysteresis_threshold,omitempty"`
+	SuspiciousHysteresisWait   uint64                 `protobuf:"varint,18,opt,name=suspicious_hysteresis_wait,json=suspiciousHysteresisWait,proto3" json:"suspicious_hysteresis_wait,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *GenesisParams) Reset() {
@@ -272,18 +299,43 @@ func (x *GenesisParams) GetMaxPeersPerSubnet() uint64 {
 	return 0
 }
 
+func (x *GenesisParams) GetDownHysteresisThreshold() uint64 {
+	if x != nil {
+		return x.DownHysteresisThreshold
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetMaxDownHysteresisThreshold() uint64 {
+	if x != nil {
+		return x.MaxDownHysteresisThreshold
+	}
+	return 0
+}
+
+func (x *GenesisParams) GetSuspiciousHysteresisWait() uint64 {
+	if x != nil {
+		return x.SuspiciousHysteresisWait
+	}
+	return 0
+}
+
 var File_engram_sovereignty_v1_genesis_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\n" +
-	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\xf2\x02\n" +
+	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\x8d\x04\n" +
 	"\fGenesisState\x12\x1b\n" +
 	"\tfsm_state\x18\x01 \x01(\tR\bfsmState\x12.\n" +
 	"\x13safe_blocks_counter\x18\x02 \x01(\x04R\x11safeBlocksCounter\x12/\n" +
 	"\x13suspicious_duration\x18\x03 \x01(\x04R\x12suspiciousDuration\x126\n" +
 	"\x17reanchoring_proof_valid\x18\x04 \x01(\bR\x15reanchoringProofValid\x12Q\n" +
 	"\x0finitial_metrics\x18\x06 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\x0einitialMetrics\x12<\n" +
-	"\x06params\x18\a \x01(\v2$.engram.sovereignty.v1.GenesisParamsR\x06paramsJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\x9c\x05\n" +
+	"\x06params\x18\a \x01(\v2$.engram.sovereignty.v1.GenesisParamsR\x06params\x12)\n" +
+	"\x10unhealthy_streak\x18\b \x01(\x04R\x0funhealthyStreak\x128\n" +
+	"\x18failed_recovery_attempts\x18\t \x01(\x04R\x16failedRecoveryAttempts\x124\n" +
+	"\x16suspicious_safe_blocks\x18\n" +
+	" \x01(\x04R\x14suspiciousSafeBlocksJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\xd9\x06\n" +
 	"\rGenesisParams\x121\n" +
 	"\x14suspicious_threshold\x18\x01 \x01(\x04R\x13suspiciousThreshold\x12/\n" +
 	"\x13sovereign_threshold\x18\x02 \x01(\x04R\x12sovereignThreshold\x12!\n" +
@@ -300,7 +352,10 @@ const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\x11max_ignore_rounds\x18\f \x01(\x04R\x0fmaxIgnoreRounds\x12&\n" +
 	"\x0fk_deep_finality\x18\r \x01(\x04R\rkDeepFinality\x127\n" +
 	"\x18max_unproven_tail_blocks\x18\x0e \x01(\x04R\x15maxUnprovenTailBlocks\x12/\n" +
-	"\x14max_peers_per_subnet\x18\x0f \x01(\x04R\x11maxPeersPerSubnetBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x14max_peers_per_subnet\x18\x0f \x01(\x04R\x11maxPeersPerSubnet\x12:\n" +
+	"\x19down_hysteresis_threshold\x18\x10 \x01(\x04R\x17downHysteresisThreshold\x12A\n" +
+	"\x1dmax_down_hysteresis_threshold\x18\x11 \x01(\x04R\x1amaxDownHysteresisThreshold\x12<\n" +
+	"\x1asuspicious_hysteresis_wait\x18\x12 \x01(\x04R\x18suspiciousHysteresisWaitBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_genesis_proto_rawDescOnce sync.Once

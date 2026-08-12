@@ -5,11 +5,11 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections/colltest"
@@ -44,8 +44,9 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 
 	return sovereignty.ExtendedProposal{
 		FSMState:   types.StateAnchored,
+		Healthy:    true, // matches the healthy metrics set above -- see check #1b's doc
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
 		ZKProofRef: nil,
 	}
 }
@@ -102,7 +103,7 @@ func TestProcessProposal_RejectsMissingDAAttestation(t *testing.T) {
 func TestProcessProposal_RejectsForgedBTCHash(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 	ext := healthyExtendedProposal(k, ctx)
-	ext.BTCReceipt.CheckpointBlockHash = vigilante.BlockHash{Tag: "BTC_FORK", Height: 0}
+	ext.BTCReceipt.CheckpointBlockHash = anchor.BlockHash{Tag: "BTC_FORK", Height: 0}
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
 
@@ -127,7 +128,7 @@ func TestProcessProposal_RejectsWithdrawalWhileSovereign(t *testing.T) {
 	ext := sovereignty.ExtendedProposal{
 		FSMState:   types.StateSovereign,
 		DAReceipt:  da.Receipt{Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
 	}
 	tx, err := sovereignty.EncodeExtendedProposal(ext)
 	require.NoError(t, err)
@@ -217,7 +218,7 @@ func TestCommitFSMTransition_WritesAgreedStateAndHeights(t *testing.T) {
 	ext := sovereignty.ExtendedProposal{
 		FSMState:   types.StateSuspicious,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 5, Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 3, CheckpointBlockHash: vigilante.ExpectedBlockHash(3)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 3, CheckpointBlockHash: anchor.ExpectedBlockHash(3)},
 	}
 	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
 
@@ -242,7 +243,7 @@ func TestCommitFSMTransition_ForceSyncsSensorsOnRecoveringToAnchored(t *testing.
 	ext := sovereignty.ExtendedProposal{
 		FSMState:   types.StateAnchored,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 10, Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 10, CheckpointBlockHash: vigilante.ExpectedBlockHash(10)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 10, CheckpointBlockHash: anchor.ExpectedBlockHash(10)},
 	}
 	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
 
@@ -264,7 +265,7 @@ func TestCommitFSMTransition_TracksZKProofSubmission(t *testing.T) {
 	ext := sovereignty.ExtendedProposal{
 		FSMState:   types.StateRecovering,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 1, Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
 		ZKProofRef: []byte("claimed-root"),
 	}
 	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))

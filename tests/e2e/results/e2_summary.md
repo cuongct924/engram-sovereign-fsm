@@ -6,9 +6,9 @@ real BeginBlocker in-process against mock BTC/DA/P2P sensors (no CometBFT node, 
 | Scenario | time_to_fallback | recovery_time | withdrawal_blocked_blocks | flapping_count | total_transitions |
 |---|---:|---:|---:|---:|---:|
 | S1 Normal | n/a | n/a | 0 | 0 | 0 |
-| S2 BTC congestion | 3 | 3 | 7 | 0 | 4 |
-| S3 DA unavailable | 25 | 3 | 6 | 0 | 4 |
-| S4 P2P eclipse partial | 25 | n/a | 3 | 0 | 2 |
+| S2 BTC congestion | 3 | 3 | 7 | 0 | 3 |
+| S3 DA unavailable | 26 | 3 | 5 | 0 | 4 |
+| S4 P2P eclipse partial | 26 | n/a | 3 | 0 | 2 |
 | S5 Anchor isolation | 2 | n/a | 1 | 0 | 1 |
 | S6 Combined BTC+DA failure | 1 | n/a | 10 | 0 | 1 |
 | S7 Recovery | 1 | 3 | 4 | 0 | 3 |

@@ -29,7 +29,8 @@ const (
 type PeripheralMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Bitcoin settlement sensor.
-	BtcGap uint64 `protobuf:"varint,1,opt,name=btc_gap,json=btcGap,proto3" json:"btc_gap,omitempty"`
+	BtcGap         uint64 `protobuf:"varint,1,opt,name=btc_gap,json=btcGap,proto3" json:"btc_gap,omitempty"`
+	IsBtcSpvFailed bool   `protobuf:"varint,11,opt,name=is_btc_spv_failed,json=isBtcSpvFailed,proto3" json:"is_btc_spv_failed,omitempty"`
 	// Celestia DA sensor.
 	DaGap               uint64 `protobuf:"varint,2,opt,name=da_gap,json=daGap,proto3" json:"da_gap,omitempty"`
 	IsDasFailed         bool   `protobuf:"varint,3,opt,name=is_das_failed,json=isDasFailed,proto3" json:"is_das_failed,omitempty"`
@@ -80,6 +81,13 @@ func (x *PeripheralMetrics) GetBtcGap() uint64 {
 		return x.BtcGap
 	}
 	return 0
+}
+
+func (x *PeripheralMetrics) GetIsBtcSpvFailed() bool {
+	if x != nil {
+		return x.IsBtcSpvFailed
+	}
+	return false
 }
 
 func (x *PeripheralMetrics) GetDaGap() uint64 {
@@ -149,9 +157,10 @@ var File_engram_sovereignty_v1_state_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_state_proto_rawDesc = "" +
 	"\n" +
-	"!engram/sovereignty/v1/state.proto\x12\x15engram.sovereignty.v1\"\x81\x03\n" +
+	"!engram/sovereignty/v1/state.proto\x12\x15engram.sovereignty.v1\"\xac\x03\n" +
 	"\x11PeripheralMetrics\x12\x17\n" +
-	"\abtc_gap\x18\x01 \x01(\x04R\x06btcGap\x12\x15\n" +
+	"\abtc_gap\x18\x01 \x01(\x04R\x06btcGap\x12)\n" +
+	"\x11is_btc_spv_failed\x18\v \x01(\bR\x0eisBtcSpvFailed\x12\x15\n" +
 	"\x06da_gap\x18\x02 \x01(\x04R\x05daGap\x12\"\n" +
 	"\ris_das_failed\x18\x03 \x01(\bR\visDasFailed\x122\n" +
 	"\x15is_attestation_failed\x18\x04 \x01(\bR\x13isAttestationFailed\x12)\n" +

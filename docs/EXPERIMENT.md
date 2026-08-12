@@ -301,6 +301,59 @@ unconditional) — an asymmetry between the recovery edge (gated) and the regres
 hard pass/fail test, and every failure itself creates more oscillation. This is a negative result
 worth publishing, not a bug to fix or a parameter to retune.
 
+**Architectural fix — down-hysteresis + leaky safe_blocks.** The finding above is a real
+consequence of two specific mechanisms, both fixed directly: (1) `CalculateNextState`'s
+ANCHORED/RECOVERING branches now gate the regression edge on `UnhealthyStreak`, a new counter of
+consecutive non-critical (never critical) warning/unhealthy blocks — a single noisy block is
+absorbed, not an instant demotion, symmetric with the recovery edge's own `HYSTERESIS_WAIT` gate;
+(2) `NextSafeBlocks` leaks by 1 on an absorbed block instead of hard-resetting to 0, preserving
+partial hysteresis progress through sporadic noise. Both are pure extensions of the existing model
+(`DownHysteresisThreshold`, new `Params` field) — `HysteresisSafety`/`StrictFSMTransitionSafety`
+are unaffected (only *when* a transition fires changes, never which edges are legal), confirmed by
+a full, exhaustive TLC re-verification post-change: `MC_FSMSafety` (514M states generated, 1.7M
+distinct, depth 16, zero violations) and `MC_FSMLiveness` (17,283 states, depth 10, zero
+violations, all of `CircuitBreakerLiveness`/`RecoveryAttemptLiveness`/`CompleteRecoveryLiveness`
+held). E5's sweep needs re-running against this mechanism to measure the actual
+`anchored_uptime`/`flapping_count` change under noise — tracked as follow-up, not yet measured.
+
+**Security hardening — exponential backoff against a flapping DoS attack.** A distinct concern
+from the natural-noise finding above: a network adversary that can time a single disruptive block
+precisely (wait until `safe_blocks` is one block from `HYSTERESIS_WAIT`, then inject noise) could
+otherwise repeat the same cheap attack indefinitely, holding the chain in a
+SOVEREIGN/RECOVERING loop without ever violating a safety property or triggering slashing. The
+down-hysteresis fix above already raises this attack's cost from "one precisely-timed block" to
+"`DownHysteresisThreshold` *consecutive* precisely-timed blocks" — a materially harder bar, since
+sustaining disruption over multiple consecutive blocks is a stronger adversary assumption than a
+single blip. Exponential backoff hardens the *repeated*-attack case specifically: a new
+`FailedRecoveryAttempts` counter (RECOVERING→SOVEREIGN regressions since the last successful
+recovery) doubles `EffectiveDownHysteresisThreshold` on every consecutive failed attempt, capped
+at `MaxDownHysteresisThreshold` — a single genuine network fault still only pays the plain
+`DownHysteresisThreshold` cost, unaffected, but a repeated attacker faces a progressively harder
+bar each cycle instead of the same fixed cost every time. Formally specified in
+`spec/core/EngramFSM.tla` (`EffectiveDownHysteresisThreshold`, a recursive `Pow2` helper) and
+ported to `x/sovereignty/keeper/circuit_breaker.go`; covered by unit tests for the doubling
+formula, the cap, saturation, and the end-to-end `CalculateNextState` behavior change across a
+failed attempt.
+
+**Security hardening — SUSPICIOUS exit hysteresis ("Gray Failure Arbitrage" fix).** The
+asymmetry flagged above (SUSPICIOUS→ANCHORED unconditional on a single healthy block) is itself
+a distinct attack surface, not just a flapping-count artifact: `suspicious_duration` hard-resets
+to 0 the instant the FSM leaves SUSPICIOUS (`ExecuteFSMTransition`), so an attacker who nudges
+sensors healthy for exactly one block right before `MaxSuspiciousTime` escapes SUSPICIOUS for
+free and restarts the gray-failure clock — repeatable indefinitely, holding the network in a
+throttled SUSPICIOUS/ANCHORED loop without ever reaching SOVEREIGN. Fixed the same way as the
+RECOVERING/ANCHORED edges: a new `SuspiciousHysteresisWait` param and leaky `SuspiciousSafeBlocks`
+counter (`NextSuspiciousSafeBlocks`) now gate the exit on `SuspiciousSafeBlocks+1 >=
+SuspiciousHysteresisWait` consecutive healthy blocks, absorbing (leaking, not hard-resetting) a
+single healthy blip instead of exiting on it — `suspicious_duration` keeps accumulating for the
+whole absorption window since the FSM state doesn't actually change until the streak completes.
+Formally specified in `spec/core/EngramFSM.tla` (new `SuspiciousHysteresisSafety` invariant
+mirroring `HysteresisSafety`) and ported to `x/sovereignty/keeper/circuit_breaker.go`; covered by
+unit tests for the absorb/exit/leak/critical-bypass cases. TLC re-verification (`MC_FSMSafety`,
+`MC_FSMLiveness`, `MC_ServerRefinementSafety`) is pending, to be run once against the complete
+spec (down-hysteresis + backoff + this fix, together with the separate `is_btc_spv_failed`
+`IsCriticalCondition` fix, spec/README.md §4.1) rather than once per mechanism.
+
 **Measured (live-Docker spot-check):** `scripts/e5_hysteresis_flapping/live_spot_check.py`
 confirms the same direction under real consensus timing (not per-block mocking), with a narrower
 2×2 scope (`HYSTERESIS_WAIT` ∈ {2 (current default), 10} × environment ∈ {stable, noisy_da}) rather
@@ -493,7 +546,7 @@ rounds/block, bandwidth per validator, nil-prevote ratio under sensor mismatch.
 
 **Measured:** `go test ./tests/benchmark/... -bench=. -benchmem` measures the real cumulative JSON
 size of each V0-V5 payload and the real cumulative CPU cost of each validation step
-(`CalculateNextState`, `da.VerifyReceipt`, `vigilante.VerifyReceipt`), plus the full
+(`CalculateNextState`, `da.VerifyReceipt`, `anchor.VerifyReceipt`), plus the full
 `ProcessProposal` cost (V5, real end-to-end). `scripts/e7_consensus_overhead/measure_overhead.py`
 builds Table 4 from this; result in `scripts/e7_consensus_overhead/results/table4_overhead.md`.
 Note: V4 (P2P digest) is a size estimate only — that field isn't actually in the wire format (P2P
@@ -635,29 +688,64 @@ offense_height=773/detected=774). Observed via `docker logs` (no dedicated Query
    must start from a blank signing state, not a copy of node04's already-advanced state).
 
 **"Timeout flooding by Byzantine nodes"** (an earlier row, not part of the numbered A1-A8 matrix):
-closed via `chaos-crash` (SIGKILL on one node) as the nearest available approximation, with two
-caveats: (1) it **does** exercise the real f+1-timeout-quorum path (M0b's `handleTimeout`/
-`recordTimeoutSenderAndMaybeAdvance`), giving real liveness-recovery numbers for the **crash fault
-model** (f=1 validator goes silent); (2) it does **not** confirm resilience against an **active
-Byzantine** model — a live, still-signing validator deliberately flooding valid `Timeout`
-attestations to manipulate the round-skip cadence faster than plain silence would, which never
-exercises `handleTimeoutMessage`'s signature path under real adversarial content (SIGKILL sends
-nothing). A cheaper future closure: M0b's `PrivValidator.SignTimeout` signing path already exists;
-it would only need a small harness to trigger early/active signing instead of waiting for the real
-timer.
+`chaos-crash` (SIGKILL) only ever exercised the **crash fault model** (a silent validator) — it
+sends nothing, so it never tested an **active** Byzantine validator deliberately flooding valid,
+signed `Timeout` attestations to manipulate round-skip cadence. Closed for real:
+`ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS` (`timeoutFloodRoutine`, engram-consensus-core's
+`consensus/state.go`) makes node04 actively re-broadcast a signed Timeout every 50ms — genuinely
+signed, individually valid messages, bypassing the real precommit-wait timer entirely — via
+`make timeout-flood-on`/`docker/engram-node04-timeout-flood.yml`.
+
+Building this harness surfaced a real, previously-untested DoS surface: `handleTimeoutMessage` paid
+a full signature-verify cost and a `cs.timeoutSenders` map entry for *any* claimed round, with no
+bound and no per-peer rate limit — an active validator could cheaply force honest nodes to verify
+and store state for an unbounded number of fabricated round values. Hardened before the live test,
+not after: (1) `handleTimeoutMessage` now drops `round <= cs.Round` or `round > cs.Round+5` before
+`Verify()`; (2) `enterNewRound` evicts `cs.timeoutSenders` entries at or below the new round on
+every advance, not just on height change; (3) `PeerState.allowTimeoutMessage` caps each peer to
+20 `TimeoutMessage`s/second at the Reactor level, before the shared `peerMsgQueue`. Covered by
+`consensus/round_skip_test.go`'s `TestStateTimeoutFloodCannotForceRoundSkipAlone` (one validator's
+repeated flood still counts as only its single vote toward f+1) and the full `consensus/...` suite
+(no regressions).
+
+**Live result (2 independent runs, moderate rate):** `scripts/e8_attack_resilience/live_timeout_flood_test.py`,
+4-node cluster, 30s baseline + 60s flood (node04, 50ms interval = 20 msgs/s) + 30s recovery. Both
+runs **PASS** — `safety_held=True divergence_events=0` both times, `cadence_held=True` both times:
+block rate during the flood was never degraded versus baseline (run 1: 0.800 vs. 0.771 blocks/s;
+run 2: 0.816 vs. 0.661 blocks/s) — if flooding could force extra round-skips, the flood-phase rate
+would have dropped, not held or risen. Data: `results_live/timeout_flood_20260812T072615{,_summary}`
+and `..._20260812T073456{,_summary}`.
+
+**Live result (extreme rate, 25x the rate limiter's threshold, with resource measurement):** same
+script, `--interval-ms 2 --sample-stats` — node04 attempts 500 signed `Timeout`s/s, 25x
+`allowTimeoutMessage`'s 20/s cap. **PASS** — `safety_held=True divergence_events=0`,
+`cadence_held=True` (baseline 0.825, flood 0.789 blocks/s). Direct, not inferred, evidence the
+hardening in place actually does its job:
+
+- **Rate limiter engaged hard:** `docker logs --since` the flood start counted real
+  "rate limit exceeded" drops per honest node — **28,071 / 29,238 / 30,376** over the 60s window
+  (of ~30,000 attempted messages), i.e. the limiter rejected essentially all traffic past its 20/s
+  allowance, letting through only what `recordTimeoutSenderAndMaybeAdvance` needs.
+- **CPU cost stayed bounded, not explosive:** honest-node CPU roughly tripled under flood (avg
+  2.4-3.3% baseline → 7.85-9.51% flood, max 22.40% momentary) but never approached saturation;
+  node04 itself (paying the real signing cost for 500 `SignTimeout` calls/s) topped out at 28.47%.
+  All three honest nodes' CPU returned to baseline-range within the recovery window.
+- **Memory stayed flat:** 78.7-92.2 MiB baseline vs. 82.7-92.2 MiB flood (a few MiB at most) —
+  confirms `enterNewRound`'s `cs.timeoutSenders` eviction is doing its job; no unbounded growth
+  from thousands of dropped-but-still-network-received messages.
+
+Full CPU/memory table and drop counts: `results_live/timeout_flood_20260812T073739_summary.md`.
 
 **Beyond pass/fail:** rounds-to-recover, invalid proposals rejected, honest-validator agreement
 rate, censorship latency, slashable-evidence detection latency.
 
-**Measured, all 9 rows (A1-A8 + Double-signing):** every row above now has a live-Docker result
-(not just in-process) — see the "Live result" column and the corresponding
+**Measured, all 10 rows (A1-A8 + Double-signing + Timeout flooding):** every row above now has a
+live-Docker result (not just in-process) — see the "Live result" column and the corresponding
 `results_live/*_summary.md` files under `scripts/e8_attack_resilience/results_live/`. This is the
 first time this matrix reached full live-Docker coverage; the prior in-process-only run
 (`scripts/e8_attack_resilience/trigger_disconnect.py`, `go test -json`) is kept as a parallel
 reference at `scripts/e8_attack_resilience/results/table3_attack_resilience.md`, no longer the
-primary data source. Only "Timeout flooding" (the unnumbered row) remains partially closed via
-`chaos-crash` as described above — not for lack of infrastructure, but because the full closure
-(an active Byzantine node flooding valid `Timeout` messages) is new work, out of scope here.
+primary data source.
 
 ---
 

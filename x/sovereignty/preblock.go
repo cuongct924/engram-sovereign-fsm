@@ -85,10 +85,6 @@ func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) err
 // CommitFSMTransition ports ServerUponProposalInPrecommitNoDecision's state
 // writes (spec/core/EngramServer.tla:135-189, steps 3-5; steps 1-2 already
 // happened via DecodeExtendedProposal).
-//
-// Gap: the spec's step 5 also clears is_btc_spv_failed, which this port's
-// PeripheralMetrics has no field for (only is_das_failed/
-// is_attestation_failed were ported).
 func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal) error {
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {
@@ -96,15 +92,36 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 	}
 	safeBlocks, _ := k.SafeBlocks.Get(ctx)
 	suspiciousDuration, _ := k.SuspiciousDuration.Get(ctx)
+	suspiciousSafeBlocks, _ := k.SuspiciousSafeBlocks.Get(ctx)
+	unhealthyStreak, _ := k.UnhealthyStreak.Get(ctx)
+	failedRecoveryAttempts, _ := k.FailedRecoveryAttempts.Get(ctx)
 
 	// Step 3: drive the FSM transition to the agreed state and update anchored heights.
 	if err := k.FSMState.Set(ctx, ext.FSMState); err != nil {
 		return err
 	}
-	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, ext.FSMState, safeBlocks, k.Params)); err != nil {
+	// ext.Healthy is the already-agreed value (validated against every
+	// honest validator's own sensors in ProcessProposal's check #1b) -- NOT
+	// recomputed from this validator's own live local sensors, per
+	// CLAUDE.md's rule against writing live local sensor reads into
+	// committed state.
+	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, ext.FSMState, safeBlocks, ext.Healthy, k.Params)); err != nil {
 		return err
 	}
 	if err := k.SuspiciousDuration.Set(ctx, keeper.NextSuspiciousDuration(currState, ext.FSMState, suspiciousDuration, k.Params)); err != nil {
+		return err
+	}
+	if err := k.UnhealthyStreak.Set(ctx, keeper.NextUnhealthyStreak(currState, ext.FSMState, unhealthyStreak, ext.Healthy)); err != nil {
+		return err
+	}
+	// ext.Healthy is the already-agreed value, same rationale as SafeBlocks above.
+	if err := k.SuspiciousSafeBlocks.Set(ctx, keeper.NextSuspiciousSafeBlocks(currState, ext.FSMState, suspiciousSafeBlocks, ext.Healthy, k.Params)); err != nil {
+		return err
+	}
+	// NextFailedRecoveryAttempts depends only on the already-agreed
+	// (currState, ext.FSMState) transition and k.Params -- no local-sensor
+	// read needed here, unlike SafeBlocks/UnhealthyStreak above.
+	if err := k.FailedRecoveryAttempts.Set(ctx, keeper.NextFailedRecoveryAttempts(currState, ext.FSMState, failedRecoveryAttempts, k.Params)); err != nil {
 		return err
 	}
 	if err := k.HBtcAnchored.Set(ctx, ext.BTCReceipt.CheckpointBlockHeight); err != nil {

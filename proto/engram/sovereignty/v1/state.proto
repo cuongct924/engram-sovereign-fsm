@@ -13,6 +13,7 @@ option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty
 message PeripheralMetrics {
   // Bitcoin settlement sensor.
   uint64 btc_gap = 1;
+  bool   is_btc_spv_failed = 11;
 
   // Celestia DA sensor.
   uint64 da_gap = 2;

@@ -3,7 +3,7 @@ package sensors
 import "context"
 
 // BTCHeightSource abstracts a live Bitcoin chain-tip observer (concretely
-// vigilante.RPCClient's getblockcount, wired via SetSource by
+// anchor.RPCClient's getblockcount, wired via SetSource by
 // cmd/engramd/main.go) so this package stays independent of any RPC library
 // -- mirrors P2PHealthSource's separation.
 //

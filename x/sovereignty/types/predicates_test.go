@@ -160,6 +160,14 @@ func TestIsCriticalCondition(t *testing.T) {
 		}
 	})
 
+	t.Run("btc spv failed alone triggers critical", func(t *testing.T) {
+		m := healthyMetricsForParams(p)
+		m.IsBtcSpvFailed = true
+		if !IsCriticalCondition(m, p, 0) {
+			t.Error("expected critical via is_btc_spv_failed")
+		}
+	})
+
 	t.Run("suspicious duration at max alone triggers critical", func(t *testing.T) {
 		m := healthyMetricsForParams(p)
 		if !IsCriticalCondition(m, p, p.MaxSuspiciousTime) {
@@ -233,6 +241,14 @@ func TestIsHealthyCondition(t *testing.T) {
 	t.Run("btc gap suspicious alone breaks healthy", func(t *testing.T) {
 		m := healthyMetricsForParams(p)
 		m.BtcGap = p.SuspiciousThreshold
+		if IsHealthyCondition(m, p) {
+			t.Error("expected not healthy")
+		}
+	})
+
+	t.Run("btc spv failed alone breaks healthy", func(t *testing.T) {
+		m := healthyMetricsForParams(p)
+		m.IsBtcSpvFailed = true
 		if IsHealthyCondition(m, p) {
 			t.Error("expected not healthy")
 		}

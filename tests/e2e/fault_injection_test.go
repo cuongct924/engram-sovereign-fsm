@@ -176,8 +176,11 @@ func TestE2_S3_DAUnavailable(t *testing.T) {
 
 // S4 -- P2P eclipse (partial): peer diversity/clean-peer count drop below
 // thresholds but at least one anchor peer remains (not a full isolation).
-// Expect a warning (SUSPICIOUS), not an immediate jump to SOVEREIGN, unless
-// the gray-failure timeout fires on a sustained outage.
+// Expect a warning (SUSPICIOUS) once the reading has recurred
+// DownHysteresisThreshold times (E5's flapping fix, docs/EXPERIMENT.md --
+// down-hysteresis absorbs shorter blips instead of warning on the very
+// first noisy block), not an immediate jump to SOVEREIGN, unless the
+// gray-failure timeout fires on a sustained outage.
 func TestE2_S4_P2PEclipsePartial(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -190,8 +193,10 @@ func TestE2_S4_P2PEclipsePartial(t *testing.T) {
 		AvgTenure:       0,
 		Latency:         p.MaxPeerLatency + 5,
 	})
-	h.Advance()
-	require.Equal(t, types.StateSuspicious, h.State(), "partial eclipse (anchors still present) must warn, not immediately fall back")
+	for i := uint64(0); i < p.DownHysteresisThreshold; i++ {
+		h.Advance()
+	}
+	require.Equal(t, types.StateSuspicious, h.State(), "a sustained partial eclipse (anchors still present) must eventually warn, not immediately fall back")
 
 	for i := uint64(0); i < p.MaxSuspiciousTime+2; i++ {
 		h.Advance()

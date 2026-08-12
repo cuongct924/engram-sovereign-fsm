@@ -17,6 +17,34 @@ type Params struct {
 	MaxSuspiciousTime   uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
 	MaxIgnoreRounds     uint64 // rounds a forced tx can be ignored before IsCensoring trips
 
+	// DownHysteresisThreshold gates the downward transitions ANCHORED->SUSPICIOUS
+	// and RECOVERING->SOVEREIGN on a non-critical (warning-only) reading: it
+	// only fires once UnhealthyStreak+1 reaches this value, absorbing shorter
+	// runs of noise instead of demoting on the very first bad block (E5's
+	// flapping fix, docs/EXPERIMENT.md). A critical condition always bypasses
+	// this and demotes immediately. 1 reproduces the pre-fix immediate-demote
+	// behavior exactly (streak+1 >= 1 is always true).
+	DownHysteresisThreshold uint64
+
+	// MaxDownHysteresisThreshold caps RECOVERING's exponentially-backed-off
+	// down-hysteresis threshold (EffectiveDownHysteresisThreshold,
+	// circuit_breaker.go): a repeated, precisely-timed flapping attack
+	// (docs/EXPERIMENT.md) doubles the effective grace period on every
+	// consecutive RECOVERING->SOVEREIGN regression, up to this ceiling --
+	// without a cap, unbounded regressions would grow the grace period
+	// forever, itself a liveness risk after enough genuine network hiccups
+	// over a long run, not just an attacker. Must be >= DownHysteresisThreshold.
+	MaxDownHysteresisThreshold uint64
+
+	// SuspiciousHysteresisWait gates SUSPICIOUS's exit to ANCHORED on
+	// SuspiciousSafeBlocks+1 consecutive healthy blocks, instead of a single
+	// one (Gray Failure Arbitrage fix, docs/EXPERIMENT.md): without this, an
+	// attacker who can nudge sensors healthy for exactly one block right
+	// before MaxSuspiciousTime resets suspicious_duration to 0 and repeats
+	// forever, never letting the network escalate to SOVEREIGN. 1 reproduces
+	// the pre-fix immediate-exit behavior exactly (streak+1 >= 1 always holds).
+	SuspiciousHysteresisWait uint64
+
 	// KDeepFinality is K_DEEP_FINALITY (spec/core/EngramConsensus.tla's
 	// IsKDeep): Bitcoin confirmations required before AnchorTracker treats a
 	// submission as anchored. Governs anchor submission, not FSM thresholds.
@@ -63,6 +91,17 @@ func DefaultParams() Params {
 		// anchored_uptime decreases monotonically as HysteresisWait grows
 		// under sustained noise, with no interior sweet spot.
 		HysteresisWait: 2,
+		// Smallest value that actually grants a 1-block grace period (see
+		// the field doc) -- candidate for the same E5-style sweep.
+		DownHysteresisThreshold: 2,
+		// 8 (=2*2^2): allows 2 backoff doublings (2 -> 4 -> 8) before
+		// capping -- enough to meaningfully harden against a repeated
+		// attacker without letting a long run of genuine faults strand
+		// RECOVERING behind an ever-growing wall.
+		MaxDownHysteresisThreshold: 8,
+		// Same reasoning as HysteresisWait above -- smallest value granting a
+		// genuine 1-block grace period, candidate for the same E5-style sweep.
+		SuspiciousHysteresisWait: 2,
 		// Reasoned default, not measured -- candidate for a future E5-style sweep.
 		MaxSuspiciousTime: 24,
 		// productionScaleParams() baseline (E4-validated), MinAnchorPeers/
@@ -118,6 +157,10 @@ func (p Params) Validate() error {
 	if p.MaxPeersPerSubnet == 0 {
 		return fmt.Errorf("params: MaxPeersPerSubnet must be >= 1 (0 rejects every peer, including honest validators)")
 	}
+	if p.MaxDownHysteresisThreshold < p.DownHysteresisThreshold {
+		return fmt.Errorf("params: MaxDownHysteresisThreshold (%d) must be >= DownHysteresisThreshold (%d)",
+			p.MaxDownHysteresisThreshold, p.DownHysteresisThreshold)
+	}
 	return nil
 }
 
@@ -126,21 +169,24 @@ func (p Params) Validate() error {
 // read per-process, is the safe place to configure these.
 func (p Params) ToGenesisParams() *GenesisParams {
 	return &GenesisParams{
-		SuspiciousThreshold:   p.SuspiciousThreshold,
-		SovereignThreshold:    p.SovereignThreshold,
-		DaThreshold:           p.DAThreshold,
-		HysteresisWait:        p.HysteresisWait,
-		MinPeers:              p.MinPeers,
-		MinSubnetDiversity:    p.MinSubnetDiversity,
-		MinAnchorPeers:        p.MinAnchorPeers,
-		MaxChurnRate:          p.MaxChurnRate,
-		MinAvgTenure:          p.MinAvgTenure,
-		MaxPeerLatency:        p.MaxPeerLatency,
-		MaxSuspiciousTime:     p.MaxSuspiciousTime,
-		MaxIgnoreRounds:       p.MaxIgnoreRounds,
-		KDeepFinality:         p.KDeepFinality,
-		MaxUnprovenTailBlocks: p.MaxUnprovenTailBlocks,
-		MaxPeersPerSubnet:     p.MaxPeersPerSubnet,
+		SuspiciousThreshold:        p.SuspiciousThreshold,
+		SovereignThreshold:         p.SovereignThreshold,
+		DaThreshold:                p.DAThreshold,
+		HysteresisWait:             p.HysteresisWait,
+		MinPeers:                   p.MinPeers,
+		MinSubnetDiversity:         p.MinSubnetDiversity,
+		MinAnchorPeers:             p.MinAnchorPeers,
+		MaxChurnRate:               p.MaxChurnRate,
+		MinAvgTenure:               p.MinAvgTenure,
+		MaxPeerLatency:             p.MaxPeerLatency,
+		MaxSuspiciousTime:          p.MaxSuspiciousTime,
+		MaxIgnoreRounds:            p.MaxIgnoreRounds,
+		KDeepFinality:              p.KDeepFinality,
+		MaxUnprovenTailBlocks:      p.MaxUnprovenTailBlocks,
+		MaxPeersPerSubnet:          p.MaxPeersPerSubnet,
+		DownHysteresisThreshold:    p.DownHysteresisThreshold,
+		MaxDownHysteresisThreshold: p.MaxDownHysteresisThreshold,
+		SuspiciousHysteresisWait:   p.SuspiciousHysteresisWait,
 	}
 }
 
@@ -152,20 +198,23 @@ func (gp *GenesisParams) ToParams() Params {
 		return DefaultParams()
 	}
 	return Params{
-		SuspiciousThreshold:   gp.SuspiciousThreshold,
-		SovereignThreshold:    gp.SovereignThreshold,
-		DAThreshold:           gp.DaThreshold,
-		HysteresisWait:        gp.HysteresisWait,
-		MinPeers:              gp.MinPeers,
-		MinSubnetDiversity:    gp.MinSubnetDiversity,
-		MinAnchorPeers:        gp.MinAnchorPeers,
-		MaxChurnRate:          gp.MaxChurnRate,
-		MinAvgTenure:          gp.MinAvgTenure,
-		MaxPeerLatency:        gp.MaxPeerLatency,
-		MaxSuspiciousTime:     gp.MaxSuspiciousTime,
-		MaxIgnoreRounds:       gp.MaxIgnoreRounds,
-		KDeepFinality:         gp.KDeepFinality,
-		MaxUnprovenTailBlocks: gp.MaxUnprovenTailBlocks,
-		MaxPeersPerSubnet:     gp.MaxPeersPerSubnet,
+		SuspiciousThreshold:        gp.SuspiciousThreshold,
+		SovereignThreshold:         gp.SovereignThreshold,
+		DAThreshold:                gp.DaThreshold,
+		HysteresisWait:             gp.HysteresisWait,
+		MinPeers:                   gp.MinPeers,
+		MinSubnetDiversity:         gp.MinSubnetDiversity,
+		MinAnchorPeers:             gp.MinAnchorPeers,
+		MaxChurnRate:               gp.MaxChurnRate,
+		MinAvgTenure:               gp.MinAvgTenure,
+		MaxPeerLatency:             gp.MaxPeerLatency,
+		MaxSuspiciousTime:          gp.MaxSuspiciousTime,
+		MaxIgnoreRounds:            gp.MaxIgnoreRounds,
+		KDeepFinality:              gp.KDeepFinality,
+		MaxUnprovenTailBlocks:      gp.MaxUnprovenTailBlocks,
+		MaxPeersPerSubnet:          gp.MaxPeersPerSubnet,
+		DownHysteresisThreshold:    gp.DownHysteresisThreshold,
+		MaxDownHysteresisThreshold: gp.MaxDownHysteresisThreshold,
+		SuspiciousHysteresisWait:   gp.SuspiciousHysteresisWait,
 	}
 }

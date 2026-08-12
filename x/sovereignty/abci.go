@@ -32,6 +32,18 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	if err != nil {
 		suspiciousDuration = 0
 	}
+	suspiciousSafeBlocks, err := k.SuspiciousSafeBlocks.Get(ctx)
+	if err != nil {
+		suspiciousSafeBlocks = 0
+	}
+	unhealthyStreak, err := k.UnhealthyStreak.Get(ctx)
+	if err != nil {
+		unhealthyStreak = 0
+	}
+	failedRecoveryAttempts, err := k.FailedRecoveryAttempts.Get(ctx)
+	if err != nil {
+		failedRecoveryAttempts = 0
+	}
 	proofValid, err := k.ReanchoringProofValid.Get(ctx)
 	if err != nil {
 		proofValid = false
@@ -39,10 +51,13 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 
 	// 2. Compute the next FSM state (spec/core/EngramFSM.tla's CalculateNextFSMState).
 	in := keeper.FSMInput{
-		Metrics:               metrics,
-		SafeBlocks:            safeBlocks,
-		SuspiciousDuration:    suspiciousDuration,
-		ReanchoringProofValid: proofValid,
+		Metrics:                metrics,
+		SafeBlocks:             safeBlocks,
+		SuspiciousDuration:     suspiciousDuration,
+		SuspiciousSafeBlocks:   suspiciousSafeBlocks,
+		UnhealthyStreak:        unhealthyStreak,
+		FailedRecoveryAttempts: failedRecoveryAttempts,
+		ReanchoringProofValid:  proofValid,
 	}
 	nextState := keeper.CalculateNextState(currState, in, k.Params)
 
@@ -68,11 +83,22 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		)
 	}
 
-	// 4. Update the hysteresis/gray-failure-timeout counters (spec/core/EngramFSM.tla:337-346).
-	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, nextState, safeBlocks, k.Params)); err != nil {
+	// 4. Update the hysteresis/gray-failure-timeout/down-hysteresis counters
+	// (spec/core/EngramFSM.tla:363-394).
+	healthy := types.IsHealthyCondition(metrics, k.Params)
+	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, nextState, safeBlocks, healthy, k.Params)); err != nil {
 		return err
 	}
 	if err := k.SuspiciousDuration.Set(ctx, keeper.NextSuspiciousDuration(currState, nextState, suspiciousDuration, k.Params)); err != nil {
+		return err
+	}
+	if err := k.UnhealthyStreak.Set(ctx, keeper.NextUnhealthyStreak(currState, nextState, unhealthyStreak, healthy)); err != nil {
+		return err
+	}
+	if err := k.SuspiciousSafeBlocks.Set(ctx, keeper.NextSuspiciousSafeBlocks(currState, nextState, suspiciousSafeBlocks, healthy, k.Params)); err != nil {
+		return err
+	}
+	if err := k.FailedRecoveryAttempts.Set(ctx, keeper.NextFailedRecoveryAttempts(currState, nextState, failedRecoveryAttempts, k.Params)); err != nil {
 		return err
 	}
 

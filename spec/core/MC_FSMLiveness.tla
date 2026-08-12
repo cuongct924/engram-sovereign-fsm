@@ -22,7 +22,15 @@ MC_FSMTransition ==
     /\ ExecuteFSMTransition(state')
     /\  \/ state' /= state
         \/ suspicious_duration' /= suspicious_duration
+        \/ suspicious_safe_blocks' /= suspicious_safe_blocks
         \/ safe_blocks' /= safe_blocks
+        \/ unhealthy_streak' /= unhealthy_streak
+        \/ failed_recovery_attempts' /= failed_recovery_attempts
+    \* ExecuteFSMTransition never touches reanchoring_proof_valid (only
+    \* MC_GenerateZKProof/UpdateSensors do) -- pre-existing gap, matching
+    \* real FSMNext's own UNCHANGED <<reanchoring_proof_valid>> pattern
+    \* (EngramFSM.tla's FSMNext, second disjunct).
+    /\ UNCHANGED <<reanchoring_proof_valid>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, networkSensorVars>>
     /\ UNCHANGED <<bookkeepingVars, invariantVars, censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
@@ -40,7 +48,14 @@ MC_FSMUpdateSensors ==
     /\ avg_peer_tenure' \in {0, MIN_AVG_TENURE + 1}
     /\ peer_latency'    \in {0, MAX_PEER_LATENCY + 1}
     /\ UNCHANGED <<anchor_peers, blacklisted_peers>>
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, reanchoring_proof_valid>>
+    \* is_attestation_failed/is_btc_spv_failed: pre-existing gap in this
+    \* action's next-state relation (neither assigned nor left UNCHANGED,
+    \* leaving both completely unspecified -- TLC rejects this outright).
+    \* Only is_das_failed is deliberately varied for this liveness harness's
+    \* minimal DA-side mock; the other two DA/BTC failure flags stay fixed
+    \* here, same treatment as anchor_peers/blacklisted_peers above.
+    /\ UNCHANGED <<is_attestation_failed, is_btc_spv_failed>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
@@ -50,7 +65,7 @@ MC_GenerateZKProof ==
     /\ IsHealthyCondition
     /\ reanchoring_proof_valid = FALSE
     /\ reanchoring_proof_valid' = TRUE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts>>
     /\ UNCHANGED <<btcGapSensorVars, daGapSensorVars, p2pHealthSensorVars>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars, censorshipVars, certificateVars>>
 

@@ -32,24 +32,58 @@ CONSTANTS
     MAX_PEER_LATENCY,       \* Maximum allowable delay for heartbeat/block propagation
 
     \* @type: Int;
-    MAX_SUSPICIOUS_TIME     \* Maximum ticks/blocks the system tolerates in SUSPICIOUS state before escalating to SOVEREIGN
+    MAX_SUSPICIOUS_TIME,    \* Maximum ticks/blocks the system tolerates in SUSPICIOUS state before escalating to SOVEREIGN
+
+    \* @type: Int;
+    DOWN_HYSTERESIS_THRESHOLD,  \* Consecutive warning-only blocks tolerated in ANCHORED/RECOVERING
+                                 \* before demoting -- mirrors HYSTERESIS_WAIT's role on the recovery
+                                 \* edge, applied to the regression edge. A critical (hard-failure)
+                                 \* reading always bypasses this and demotes immediately, same as before.
+
+    \* @type: Int;
+    MAX_DOWN_HYSTERESIS_THRESHOLD  \* Ceiling on RECOVERING's exponentially-backed-off down-hysteresis
+                                    \* threshold (EffectiveDownHysteresisThreshold below) -- without a
+                                    \* cap, unbounded repeated regressions would grow the grace period
+                                    \* forever, itself a liveness risk after enough genuine network
+                                    \* hiccups over a long run, not just a flapping attacker.
 
 ASSUME
     /\ SUSPICIOUS_THRESHOLD \in Nat
     /\ SOVEREIGN_THRESHOLD \in Nat
     /\ DA_THRESHOLD \in Nat
     /\ HYSTERESIS_WAIT \in Nat
+    /\ SUSPICIOUS_HYSTERESIS_WAIT \in Nat
     /\ MIN_PEERS \in Nat
     /\ MIN_SUBNET_DIVERSITY \in Nat
     /\ MIN_ANCHOR_PEERS  \in Nat
     /\ MAX_CHURN_RATE \in Nat
     /\ MIN_AVG_TENURE \in Nat
     /\ MAX_PEER_LATENCY \in Nat
+    /\ DOWN_HYSTERESIS_THRESHOLD \in Nat
+    /\ MAX_DOWN_HYSTERESIS_THRESHOLD \in Nat
+    /\ MAX_DOWN_HYSTERESIS_THRESHOLD >= DOWN_HYSTERESIS_THRESHOLD
     /\ SUSPICIOUS_THRESHOLD < SOVEREIGN_THRESHOLD
 
 \* Helper: returns the smaller of two integers
 \* @type: (Int, Int) => Int;
 MinVal(a, b) == IF a < b THEN a ELSE b
+
+\* Helper: 2^n, for EffectiveDownHysteresisThreshold's exponential backoff below.
+RECURSIVE Pow2(_)
+\* @type: (Int) => Int;
+Pow2(n) == IF n = 0 THEN 1 ELSE 2 * Pow2(n - 1)
+
+\* Exponential backoff (docs/EXPERIMENT.md's flapping-attack hardening):
+\* RECOVERING's down-hysteresis grace period doubles per consecutive
+\* RECOVERING -> SOVEREIGN regression since the last successful recovery,
+\* capped at MAX_DOWN_HYSTERESIS_THRESHOLD -- a repeated, precisely-timed
+\* attacker faces a progressively harder bar each cycle, instead of paying
+\* the same fixed DOWN_HYSTERESIS_THRESHOLD cost every time. A single
+\* genuine network fault (failed_recovery_attempts = 0) still only pays the
+\* plain DOWN_HYSTERESIS_THRESHOLD, unaffected.
+\* @type: Int;
+EffectiveDownHysteresisThreshold ==
+    MinVal(DOWN_HYSTERESIS_THRESHOLD * Pow2(failed_recovery_attempts), MAX_DOWN_HYSTERESIS_THRESHOLD)
 
 
 (* ======================== P2P HEALTH SENSOR (Tri-interface Profiler) =============================== *)
@@ -105,9 +139,14 @@ IsBTCGapSovereign == btc_gap >= SOVEREIGN_THRESHOLD
 \* Withdrawal guard: TRUE whenever cross-chain withdrawals must be halted
 WithdrawLocked == state \in {"SOVEREIGN", "RECOVERING"}
 
-\* Hard failure: BTC gap crossed threshold OR Total Loss of Anchor Peers (Complete Eclipse)
-IsCriticalCondition == 
+\* Hard failure: BTC gap crossed threshold, BTC SPV/header verification failed
+\* (the anchor height itself is untrustworthy, not merely stale -- same
+\* severity class as IsBTCGapSovereign, unlike is_das_failed/
+\* is_attestation_failed which only feed IsWarningCondition), OR Total Loss
+\* of Anchor Peers (Complete Eclipse), OR a SUSPICIOUS gray-failure timeout.
+IsCriticalCondition ==
     \/ IsBTCGapSovereign
+    \/ is_btc_spv_failed
     \/ Cardinality(ActiveAnchors) = 0
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 
@@ -118,9 +157,10 @@ IsWarningCondition ==
     \/ ~IsP2PQualityHealthy
 
 \* All sensors are green and thresholds are satisfied
-IsHealthyCondition == 
+IsHealthyCondition ==
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
+    /\ ~is_btc_spv_failed
     /\ IsDAHealthy
     /\ IsP2PQualityHealthy
 
@@ -131,11 +171,16 @@ FSMTypeOK ==
     /\ btc_gap >= 0
     /\ da_gap >= 0
     /\ is_das_failed \in BOOLEAN
+    /\ is_attestation_failed \in BOOLEAN
+    /\ is_btc_spv_failed \in BOOLEAN
     /\ IsFiniteSet(active_peers)
     /\ IsFiniteSet(anchor_peers)
     /\ IsFiniteSet(blacklisted_peers)
     /\ peer_churn_rate \in Nat /\ avg_peer_tenure \in Nat /\ peer_latency \in Nat
     /\ safe_blocks \in 0..HYSTERESIS_WAIT
+    /\ suspicious_safe_blocks \in 0..SUSPICIOUS_HYSTERESIS_WAIT
+    /\ unhealthy_streak \in 0..DOWN_HYSTERESIS_THRESHOLD
+    /\ failed_recovery_attempts \in 0..MAX_DOWN_HYSTERESIS_THRESHOLD
     /\ reanchoring_proof_valid \in BOOLEAN
 
 
@@ -162,6 +207,9 @@ FSMInit ==
     
     /\ safe_blocks = 0
     /\ suspicious_duration = 0
+    /\ suspicious_safe_blocks = 0
+    /\ unhealthy_streak = 0
+    /\ failed_recovery_attempts = 0
     /\ reanchoring_proof_valid = FALSE
 
 
@@ -299,33 +347,71 @@ UpdateSensors ==
               /\ h_btc_submitted' > 0
            THEN TRUE
            ELSE FALSE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts>>
     /\ UNCHANGED <<censorshipVars>>
 
 
 (* ======================== FSM RULE ENGINE ================================= *)
 \* Pure function: given the current sensor readings, compute the next FSM state.
 \* This is called by EngramServer at every decision point.
-CalculateNextFSMState == 
+CalculateNextFSMState ==
     CASE state = "ANCHORED"   /\ IsCriticalCondition -> "SOVEREIGN"
-      [] state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition -> "SUSPICIOUS"
+
+      \* Down-hysteresis (E5's flapping fix): a warning-only reading (never
+      \* critical) only demotes ANCHORED -> SUSPICIOUS once it has recurred
+      \* unhealthy_streak+1 >= DOWN_HYSTERESIS_THRESHOLD times in a row --
+      \* a single noisy block is absorbed instead of triggering an immediate
+      \* drop. Critical conditions above are NEVER softened this way.
+      [] state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition
+                               /\ unhealthy_streak + 1 >= DOWN_HYSTERESIS_THRESHOLD -> "SUSPICIOUS"
+      [] state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition -> "ANCHORED"
+
       [] state = "SUSPICIOUS" /\ IsCriticalCondition -> "SOVEREIGN"
-      
+
       \* Gray Failure Timeout. Force circuit-break if system stays suspicious too long.
       [] state = "SUSPICIOUS" /\ suspicious_duration >= MAX_SUSPICIOUS_TIME -> "SOVEREIGN"
-      
-      [] state = "SUSPICIOUS" /\ IsHealthyCondition  -> "ANCHORED"
+
+      \* Up-hysteresis on the exit edge (Gray Failure Arbitrage fix): a single
+      \* healthy block used to exit SUSPICIOUS -> ANCHORED immediately, hard-
+      \* resetting suspicious_duration to 0 (ExecuteFSMTransition below) --
+      \* letting an attacker who can nudge sensors healthy for exactly one
+      \* block, right before MAX_SUSPICIOUS_TIME, restart the clock forever
+      \* without ever reaching SOVEREIGN. Now requires
+      \* suspicious_safe_blocks+1 >= SUSPICIOUS_HYSTERESIS_WAIT consecutive
+      \* healthy blocks while STILL in SUSPICIOUS -- suspicious_duration keeps
+      \* accumulating throughout (target_state stays "SUSPICIOUS" during
+      \* absorption, so its formula below is unaffected), so a short healthy
+      \* blip no longer buys the attacker a free reset.
+      [] state = "SUSPICIOUS" /\ IsHealthyCondition
+                               /\ suspicious_safe_blocks + 1 >= SUSPICIOUS_HYSTERESIS_WAIT -> "ANCHORED"
+      [] state = "SUSPICIOUS" /\ IsHealthyCondition -> "SUSPICIOUS"
+
       [] state = "SOVEREIGN"  /\ IsHealthyCondition  -> "RECOVERING"
-      
-      \* Fallback to SOVEREIGN if network degrades while in RECOVERING
-      [] state = "RECOVERING" /\ ~IsHealthyCondition -> "SOVEREIGN"
-      
+
+      \* Critical failure while RECOVERING always falls back immediately --
+      \* down-hysteresis below only ever softens a non-critical (warning-only
+      \* or merely-not-yet-fully-healthy) reading, never a hard failure.
+      [] state = "RECOVERING" /\ IsCriticalCondition -> "SOVEREIGN"
+
+      \* Down-hysteresis + leak (E5's flapping fix), exponentially backed off
+      \* per repeated failed attempt (flapping-attack hardening): a
+      \* non-critical unhealthy reading only demotes RECOVERING -> SOVEREIGN
+      \* once it has recurred unhealthy_streak+1 >=
+      \* EffectiveDownHysteresisThreshold times in a row -- doubling each
+      \* time a prior RECOVERING attempt was knocked back, capped at
+      \* MAX_DOWN_HYSTERESIS_THRESHOLD. ExecuteFSMTransition leaks
+      \* safe_blocks by 1 (not a hard reset to 0) while absorbing the noise
+      \* below, preserving partial progress.
+      [] state = "RECOVERING" /\ ~IsHealthyCondition
+                               /\ unhealthy_streak + 1 >= EffectiveDownHysteresisThreshold -> "SOVEREIGN"
+      [] state = "RECOVERING" /\ ~IsHealthyCondition -> "RECOVERING"
+
       \* Exit condition when hysteresis and ZK proof are both satisfied
       [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
-      
+
       \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
-      
+
       [] OTHER -> state
 
 
@@ -333,16 +419,68 @@ CalculateNextFSMState ==
 \* @type: (Str) => Bool;
 ExecuteFSMTransition(target_state) ==
     /\ state' = target_state
-    
-    /\ suspicious_duration' = 
-           IF target_state = "SUSPICIOUS" 
+
+    /\ suspicious_duration' =
+           IF target_state = "SUSPICIOUS"
            THEN MinVal(suspicious_duration + 1, MAX_SUSPICIOUS_TIME + 1)
            ELSE 0
-                                 
-    \* It resets to 0 automatically if transitioning out of RECOVERING or just entering it from SOVEREIGN
-    /\ safe_blocks' = 
+
+    \* unhealthy_streak accumulates only while absorbing a non-critical
+    \* warning/unhealthy reading without yet demoting (i.e. staying in the
+    \* same state that CalculateNextFSMState's down-hysteresis branches
+    \* just chose not to leave) -- resets to 0 the instant a real transition
+    \* fires (demotion or a fully healthy reading), same reset pattern as
+    \* suspicious_duration above.
+    /\ unhealthy_streak' =
+           IF \/ (state = "ANCHORED"   /\ target_state = "ANCHORED"   /\ IsWarningCondition /\ ~IsCriticalCondition)
+              \/ (state = "RECOVERING" /\ target_state = "RECOVERING" /\ ~IsHealthyCondition /\ ~IsCriticalCondition)
+           THEN unhealthy_streak + 1
+           ELSE 0
+
+    \* failed_recovery_attempts backs off RECOVERING's down-hysteresis
+    \* exponentially (EffectiveDownHysteresisThreshold above): +1 on every
+    \* real RECOVERING -> SOVEREIGN regression (critical or down-hysteresis-
+    \* exhausted alike -- both are a failed attempt), reset to 0 on a
+    \* successful RECOVERING -> ANCHORED, saturating once growing further
+    \* wouldn't change the capped effective threshold (keeps this a finite
+    \* Nat, matching FSMTypeOK's 0..MAX_DOWN_HYSTERESIS_THRESHOLD bound,
+    \* instead of counting attempts forever past the point they matter).
+    \* Unchanged for every other transition (ANCHORED/SUSPICIOUS activity,
+    \* or simply staying in RECOVERING).
+    /\ failed_recovery_attempts' =
+           IF state = "RECOVERING" /\ target_state = "SOVEREIGN"
+           THEN IF DOWN_HYSTERESIS_THRESHOLD * Pow2(failed_recovery_attempts) >= MAX_DOWN_HYSTERESIS_THRESHOLD
+                THEN failed_recovery_attempts
+                ELSE failed_recovery_attempts + 1
+           ELSE IF state = "RECOVERING" /\ target_state = "ANCHORED"
+                THEN 0
+                ELSE failed_recovery_attempts
+
+    \* It resets to 0 automatically if transitioning out of RECOVERING or just entering it from SOVEREIGN.
+    \* While staying in RECOVERING: a healthy block increments toward
+    \* HYSTERESIS_WAIT as before; a non-critical unhealthy block being
+    \* absorbed by down-hysteresis LEAKS one unit instead of hard-resetting
+    \* to 0 -- E5's flapping fix keeps partial progress through sporadic
+    \* noise rather than discarding a whole streak on one bad reading.
+    /\ safe_blocks' =
            IF target_state = "RECOVERING" /\ state = "RECOVERING"
-           THEN MinVal(safe_blocks + 1, HYSTERESIS_WAIT)
+           THEN IF IsHealthyCondition
+                THEN MinVal(safe_blocks + 1, HYSTERESIS_WAIT)
+                ELSE IF safe_blocks >= 1 THEN safe_blocks - 1 ELSE 0
+           ELSE 0
+
+    \* suspicious_safe_blocks mirrors safe_blocks' leak semantics, applied to
+    \* SUSPICIOUS's own exit edge (Gray Failure Arbitrage fix): a healthy
+    \* block while still SUSPICIOUS increments toward SUSPICIOUS_HYSTERESIS_WAIT;
+    \* a non-healthy block being absorbed leaks one unit instead of hard-
+    \* resetting, so sporadic noise during the healthy streak doesn't fully
+    \* discard prior progress. Resets to 0 on any real transition out of (or
+    \* into) SUSPICIOUS.
+    /\ suspicious_safe_blocks' =
+           IF target_state = "SUSPICIOUS" /\ state = "SUSPICIOUS"
+           THEN IF IsHealthyCondition
+                THEN MinVal(suspicious_safe_blocks + 1, SUSPICIOUS_HYSTERESIS_WAIT)
+                ELSE IF suspicious_safe_blocks >= 1 THEN suspicious_safe_blocks - 1 ELSE 0
            ELSE 0
 
 (* ======================== THE NEXT-STATE ACTION (FOR UNIT TEST) ============ *)
@@ -367,6 +505,13 @@ CircuitBreakerSafety ==
 HysteresisSafety ==
     [][ (state = "RECOVERING" /\ state' = "ANCHORED")
         => (safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
+
+\* Safety 2b: The only way to exit SUSPICIOUS to ANCHORED is after full
+\* hysteresis (Gray Failure Arbitrage fix) -- a single healthy block can
+\* never do it alone.
+SuspiciousHysteresisSafety ==
+    [][ (state = "SUSPICIOUS" /\ state' = "ANCHORED")
+        => (suspicious_safe_blocks = SUSPICIOUS_HYSTERESIS_WAIT - 1) ]_fsmVars
 
 \* Safety 3: Prevents any illegal or out-of-order FSM state transitions.
 StrictFSMTransitionSafety == 

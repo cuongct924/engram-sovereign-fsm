@@ -8,10 +8,10 @@
 // that is what a real node does. So:
 //   - Proposal size overhead (BenchmarkProposalSize) is measured directly by
 //     json.Marshal-ing progressively larger real Go structs (da.Receipt,
-//     vigilante.Receipt, the real PeripheralMetrics P2P fields, a bool),
+//     anchor.Receipt, the real PeripheralMetrics P2P fields, a bool),
 //     which is a faithful reproduction of V0-V5's cumulative wire size.
 //   - CPU cost is decomposed into the real validation sub-steps
-//     (CalculateNextState, da.VerifyReceipt, vigilante.VerifyReceipt) that
+//     (CalculateNextState, da.VerifyReceipt, anchor.VerifyReceipt) that
 //     ProcessProposal actually calls, plus one end-to-end benchmark of the
 //     real NewProcessProposalHandler for the fully-featured (V5) case.
 //     scripts/e7_consensus_overhead composes V1-V4's cumulative CPU cost from
@@ -34,11 +34,11 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 
 	"cosmossdk.io/collections/colltest"
 	log "cosmossdk.io/log/v2"
@@ -82,7 +82,7 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 	return sovereignty.ExtendedProposal{
 		FSMState:   types.StateAnchored,
 		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
-		BTCReceipt: vigilante.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: vigilante.ExpectedBlockHash(0)},
+		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
 		ZKProofRef: nil,
 	}
 }
@@ -91,7 +91,7 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 // V0-V5 cumulative payload (docs/EXPERIMENT.md's E7 table).
 func BenchmarkProposalSize(b *testing.B) {
 	daReceipt := da.Receipt{PublishedBlockHeight: 12345, Attestation: true}
-	btcReceipt := vigilante.Receipt{CheckpointBlockHeight: 6789, CheckpointBlockHash: vigilante.ExpectedBlockHash(6789)}
+	btcReceipt := anchor.Receipt{CheckpointBlockHeight: 6789, CheckpointBlockHash: anchor.ExpectedBlockHash(6789)}
 	p2pDigest := P2PDigestSizeEstimate{SubnetDiversity: 4, ActiveAnchors: 3, CleanPeers: 10, PeerChurnRate: 1, AvgPeerTenure: 120, PeerLatency: 50}
 
 	variants := []struct {
@@ -107,14 +107,14 @@ func BenchmarkProposalSize(b *testing.B) {
 			DAReceipt da.Receipt `json:"da_receipt"`
 		}{types.StateAnchored, daReceipt}},
 		{"V3_PlusBTCReceipt", struct {
-			FSMState   string            `json:"fsm_state"`
-			DAReceipt  da.Receipt        `json:"da_receipt"`
-			BTCReceipt vigilante.Receipt `json:"btc_receipt"`
+			FSMState   string         `json:"fsm_state"`
+			DAReceipt  da.Receipt     `json:"da_receipt"`
+			BTCReceipt anchor.Receipt `json:"btc_receipt"`
 		}{types.StateAnchored, daReceipt, btcReceipt}},
 		{"V4_PlusP2PDigest", struct {
 			FSMState   string                `json:"fsm_state"`
 			DAReceipt  da.Receipt            `json:"da_receipt"`
-			BTCReceipt vigilante.Receipt     `json:"btc_receipt"`
+			BTCReceipt anchor.Receipt        `json:"btc_receipt"`
 			P2PDigest  P2PDigestSizeEstimate `json:"p2p_digest"`
 		}{types.StateAnchored, daReceipt, btcReceipt, p2pDigest}},
 		{"V5_PlusZKProofRef", sovereignty.ExtendedProposal{
@@ -190,12 +190,12 @@ func BenchmarkDAVerifyReceipt(b *testing.B) {
 	}
 }
 
-// BenchmarkBTCVerifyReceipt isolates vigilante.VerifyReceipt's cost (V3's
+// BenchmarkBTCVerifyReceipt isolates anchor.VerifyReceipt's cost (V3's
 // marginal CPU cost on top of V2).
 func BenchmarkBTCVerifyReceipt(b *testing.B) {
-	receipt := vigilante.Receipt{CheckpointBlockHeight: 100, CheckpointBlockHash: vigilante.ExpectedBlockHash(100)}
+	receipt := anchor.Receipt{CheckpointBlockHeight: 100, CheckpointBlockHash: anchor.ExpectedBlockHash(100)}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = vigilante.VerifyReceipt(receipt, 100, 100, 0, 2)
+		_ = anchor.VerifyReceipt(receipt, 100, 100, 0, 2)
 	}
 }

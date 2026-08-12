@@ -1,11 +1,11 @@
 package sovereignty
 
 import (
+	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/vigilante"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -15,7 +15,7 @@ import (
 // counterpart of tests/e2e/harness.go's Advance.
 //
 // BTC/DA/P2P's Source, and Anchor/DAPublisher, can each be wired to a real
-// observer (x/vigilante, x/da, the CometBFT fork's lp2p.Switch) by
+// observer (x/anchor, x/da, the CometBFT fork's lp2p.Switch) by
 // cmd/engramd/main.go. Anchor nil means h_btc_anchored never advances past
 // its last committed value (VerifyReceipt's monotonicity check eventually
 // rejects every proposal without it); DAPublisher nil is the same for
@@ -25,7 +25,7 @@ type Sensors struct {
 	BTC         *sensors.BTCSensor
 	DA          *sensors.DASensor
 	P2P         *sensors.P2PSensor
-	Anchor      *vigilante.AnchorTracker
+	Anchor      *anchor.AnchorTracker
 	DAPublisher *da.Publisher
 }
 
@@ -40,7 +40,7 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		return nil
 	}
 
-	btcGap, err := btcGapMetric(ctx, k, s.BTC)
+	btcGap, btcSpvFailed, err := btcGapMetric(ctx, k, s.BTC, s.Anchor)
 	if err != nil {
 		return err
 	}
@@ -75,6 +75,7 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 
 	metrics := &types.PeripheralMetrics{
 		BtcGap:              btcGap,
+		IsBtcSpvFailed:      btcSpvFailed,
 		DaGap:               daGap,
 		IsDasFailed:         dasFailed,
 		IsAttestationFailed: attestationFailed,
@@ -138,10 +139,21 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 // outside a re-anchoring cycle it's always 0 -- applying min() here would
 // collapse btc_gap to ~h_btc_current regardless of the real anchor state.
 // h_btc_submitted's actual role is refreshReanchoringProofValid, below.
-func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (uint64, error) {
+//
+// spvFailed independently re-verifies the agreed h_btc_anchored (committed
+// from the leader's btc_receipt via CommitFSMTransition, never locally
+// re-derived -- see preblock.go) against our OWN bitcoind via
+// AnchorTracker.VerifyAnchor's OP_RETURN scan, mirroring is_btc_spv_failed
+// (spec/core/EngramFSM.tla:184: "OP_RETURN inclusion check & Block header
+// verification failure flag"). Without this, a forged or since-reorged
+// h_btc_anchored is trusted until btc_gap organically grows past
+// SOVEREIGN_THRESHOLD -- a multi-block window where withdrawals stay
+// unlocked against an unverifiable anchor.
+func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, err error) {
 	src := btc.Source()
 	if src == nil {
-		return btc.GetMetric(ctx)
+		gap, err = btc.GetMetric(ctx)
+		return gap, false, err
 	}
 
 	hCurrent, err := src.CurrentHeight(ctx)
@@ -152,17 +164,26 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor) (ui
 		// visibility into Bitcoin is at least as severe as any gap this
 		// threshold catches, and unlike freezing at a stale value, doesn't
 		// silently look healthy.
-		return k.Params.SovereignThreshold, nil
+		return k.Params.SovereignThreshold, false, nil
 	}
 	if err := k.HBtcCurrent.Set(ctx, hCurrent); err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
 	hAnchored, _ := k.HBtcAnchored.Get(ctx)
-	if hCurrent <= hAnchored {
-		return 0, nil
+	if anchorTracker != nil && hAnchored > 0 {
+		// A verification-RPC error is treated as failed, not swallowed like
+		// MaybeSubmit's own RPC errors above: silently trusting an
+		// unverifiable anchor is exactly the exploitation window this check
+		// exists to close, unlike MaybeSubmit's own submission retries.
+		ok, verr := anchorTracker.VerifyAnchor(ctx, hAnchored)
+		spvFailed = verr != nil || !ok
 	}
-	return hCurrent - hAnchored, nil
+
+	if hCurrent <= hAnchored {
+		return 0, spvFailed, nil
+	}
+	return hCurrent - hAnchored, spvFailed, nil
 }
 
 // refreshReanchoringProofValid ports UpdateSensors' reanchoring_proof_valid

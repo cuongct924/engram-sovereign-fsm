@@ -30,7 +30,12 @@ CONSTANTS
     \* @type: Int;
     HYSTERESIS_WAIT,    \* Consecutive safe blocks required for successful recovery
     \* @type: Int;
-    DA_THRESHOLD        \* Max allowed block gap since last DA publication verification
+    DA_THRESHOLD,       \* Max allowed block gap since last DA publication verification
+    \* @type: Int;
+    SUSPICIOUS_HYSTERESIS_WAIT  \* Consecutive healthy blocks required to exit SUSPICIOUS ->
+                                 \* ANCHORED -- mirrors HYSTERESIS_WAIT's role on the
+                                 \* RECOVERING -> ANCHORED edge, applied to SUSPICIOUS's own
+                                 \* exit edge (closes the single-block gray-failure-arbitrage gap)
 
 
 (* ======================== TENDERMINT CORE VARIABLES ======================== *)
@@ -191,11 +196,26 @@ VARIABLES
     safe_blocks,             \* Consecutive healthy blocks counted during RECOVERING
     \* @type: Int;
     suspicious_duration,     \* Count the number of system blocks/ticks stuck in SUSPICIOUS
+    \* @type: Int;
+    suspicious_safe_blocks,  \* Consecutive healthy blocks counted during SUSPICIOUS, gating
+                              \* its exit to ANCHORED -- leaks (not hard-resets) on a
+                              \* non-healthy block, mirroring safe_blocks' own leak semantics
+    \* @type: Int;
+    unhealthy_streak,        \* Consecutive warning-only (non-critical) blocks while
+                              \* ANCHORED or RECOVERING -- gates the downward transition
+                              \* instead of firing on a single noisy reading (E5's flapping finding)
+    \* @type: Int;
+    failed_recovery_attempts, \* Consecutive RECOVERING -> SOVEREIGN regressions since the
+                               \* last successful RECOVERING -> ANCHORED -- exponentially
+                               \* backs off RECOVERING's down-hysteresis grace period, so a
+                               \* repeated precisely-timed flapping attack (not just a single
+                               \* well-timed block) gets progressively harder, not equally
+                               \* cheap every cycle.
     \* @type: Bool;
     reanchoring_proof_valid  \* Boolean: ZK re-anchoring proof confirmed on-chain
 
 \* Top-level FSM tuple consumed by EngramTendermint actions
-fsmVars == <<state, safe_blocks, suspicious_duration, reanchoring_proof_valid>>
+fsmVars == <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
 
 
 (* ======================== CENSORSHIP VARIABLES ======================= *)

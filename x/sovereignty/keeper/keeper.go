@@ -23,9 +23,25 @@ type Keeper struct {
 	Params types.Params
 
 	// FSM state, mirroring spec/core/EngramFSM.tla's state variables.
-	FSMState              collections.Item[string]
-	SafeBlocks            collections.Item[uint64]
-	SuspiciousDuration    collections.Item[uint64]
+	FSMState           collections.Item[string]
+	SafeBlocks         collections.Item[uint64]
+	SuspiciousDuration collections.Item[uint64]
+	// UnhealthyStreak backs the down-hysteresis fix (E5's flapping finding,
+	// docs/EXPERIMENT.md) -- consecutive non-critical warning/unhealthy
+	// blocks absorbed in ANCHORED/RECOVERING before demoting; see
+	// circuit_breaker.go's NextUnhealthyStreak.
+	UnhealthyStreak collections.Item[uint64]
+	// FailedRecoveryAttempts backs the exponential-backoff flapping-attack
+	// hardening (docs/EXPERIMENT.md): consecutive RECOVERING->SOVEREIGN
+	// regressions since the last successful recovery; see
+	// circuit_breaker.go's NextFailedRecoveryAttempts/
+	// EffectiveDownHysteresisThreshold.
+	FailedRecoveryAttempts collections.Item[uint64]
+	// SuspiciousSafeBlocks backs the Gray Failure Arbitrage fix
+	// (docs/EXPERIMENT.md): consecutive healthy blocks absorbed in
+	// SUSPICIOUS before exiting to ANCHORED; see circuit_breaker.go's
+	// NextSuspiciousSafeBlocks.
+	SuspiciousSafeBlocks  collections.Item[uint64]
 	ReanchoringProofValid collections.Item[bool]
 	Metrics               collections.Item[*types.PeripheralMetrics]
 
@@ -103,6 +119,9 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 		RealProofSubmittedHeight: collections.NewItem(sb, collections.NewPrefix(15), "real_proof_submitted_height", collections.Uint64Value),
 		DetectedEvidenceCount:    collections.NewItem(sb, collections.NewPrefix(16), "detected_evidence_count", collections.Uint64Value),
 		LastDetectedEvidence:     collections.NewItem(sb, collections.NewPrefix(17), "last_detected_evidence", collections.NewJSONValueCodec[types.EvidenceRecord]()),
+		UnhealthyStreak:          collections.NewItem(sb, collections.NewPrefix(18), "unhealthy_streak", collections.Uint64Value),
+		FailedRecoveryAttempts:   collections.NewItem(sb, collections.NewPrefix(19), "failed_recovery_attempts", collections.Uint64Value),
+		SuspiciousSafeBlocks:     collections.NewItem(sb, collections.NewPrefix(20), "suspicious_safe_blocks", collections.Uint64Value),
 	}
 
 	schema, err := sb.Build()

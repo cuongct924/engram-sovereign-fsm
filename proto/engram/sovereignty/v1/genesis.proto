@@ -21,6 +21,9 @@ message GenesisState {
   reserved "hysteresis_wait_limit";
   PeripheralMetrics initial_metrics       = 6; // Trạng thái sensor lúc khởi tạo
   GenesisParams     params                = 7; // Tham số vận hành, xem GenesisParams
+  uint64            unhealthy_streak      = 8; // Bộ đếm biến `unhealthy_streak` trong TLA+ (down-hysteresis)
+  uint64            failed_recovery_attempts = 9; // Bộ đếm biến `failed_recovery_attempts` trong TLA+ (exponential backoff)
+  uint64            suspicious_safe_blocks = 10; // Bộ đếm biến `suspicious_safe_blocks` trong TLA+ (SUSPICIOUS exit hysteresis)
 }
 
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
@@ -46,4 +49,7 @@ message GenesisParams {
   uint64 k_deep_finality          = 13;
   uint64 max_unproven_tail_blocks = 14;
   uint64 max_peers_per_subnet     = 15;
+  uint64 down_hysteresis_threshold = 16;
+  uint64 max_down_hysteresis_threshold = 17;
+  uint64 suspicious_hysteresis_wait = 18;
 }
