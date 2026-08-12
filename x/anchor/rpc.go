@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -113,6 +115,38 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 		}
 	}
 	return nil
+}
+
+// Reachable reports whether c's host:port currently accepts a TCP
+// connection -- a raw, stateless liveness probe deliberately independent of
+// getblockcount/gettransaction's own request/response cycle, mirroring
+// x/da/rpc.go's RPCClient.Reachable (see that doc for the full rationale:
+// every honest validator dialing the same bitcoind at roughly the same
+// instant observes the same binary up/down fact, unlike a JSON-RPC call
+// whose success can depend on which validator's connection happens to be
+// stale vs freshly (re)established -- confirmed live as the source of
+// cross-validator btc_gap disagreement during a real bitcoind outage).
+func (c *RPCClient) Reachable(ctx context.Context) bool {
+	u, err := url.Parse(c.url)
+	if err != nil {
+		return false
+	}
+	host := u.Host
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "https":
+			host = net.JoinHostPort(u.Hostname(), "443")
+		default:
+			host = net.JoinHostPort(u.Hostname(), "80")
+		}
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", host)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 // CurrentHeight calls getblockcount, returning the connected node's current

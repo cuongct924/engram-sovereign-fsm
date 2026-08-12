@@ -161,6 +161,17 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 		return gap, false, err
 	}
 
+	// Reachable first, ahead of CurrentHeight: a stale pooled connection can
+	// let CurrentHeight succeed on one validator while it fails on another
+	// at the same real instant, disagreeing on btc_gap/Healthy even though
+	// bitcoind is uniformly down for everyone (confirmed live). Gating on a
+	// fresh, stateless TCP check first makes the down/up determination
+	// itself consistent across validators, independent of any single
+	// validator's own connection-pool timing.
+	if !src.Reachable(ctx) {
+		return k.Params.SovereignThreshold, false, nil
+	}
+
 	hCurrent, err := src.CurrentHeight(ctx)
 	if err != nil {
 		// A bitcoind outage degrades through btc_gap rather than failing

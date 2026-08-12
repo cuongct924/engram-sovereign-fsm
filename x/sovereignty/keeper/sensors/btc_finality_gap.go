@@ -11,6 +11,14 @@ import "context"
 // from live h_btc_current, instead of GetMetric's static SetGap value below.
 type BTCHeightSource interface {
 	CurrentHeight(ctx context.Context) (uint64, error)
+	// Reachable does a fresh, bounded, stateless TCP check -- unlike
+	// CurrentHeight, never stale relative to the call (e.g. via a reused
+	// pooled connection), so every honest validator converges on the same
+	// bitcoind-down reading immediately instead of racing against each
+	// other's independent connection-pool timing (confirmed live as the
+	// source of cross-validator btc_gap/Healthy disagreement during a real
+	// bitcoind outage -- see btcGapMetric's use).
+	Reachable(ctx context.Context) bool
 }
 
 // BTCSensor defaults to a static, test-controlled gap reading (SetGap);

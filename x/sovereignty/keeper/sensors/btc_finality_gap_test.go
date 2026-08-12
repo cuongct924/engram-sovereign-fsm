@@ -7,12 +7,17 @@ import (
 )
 
 type stubBTCHeightSource struct {
-	height uint64
-	err    error
+	height    uint64
+	err       error
+	reachable bool
 }
 
 func (s stubBTCHeightSource) CurrentHeight(ctx context.Context) (uint64, error) {
 	return s.height, s.err
+}
+
+func (s stubBTCHeightSource) Reachable(ctx context.Context) bool {
+	return s.reachable
 }
 
 func TestBTCSensor_GetMetricReturnsStaticGapByDefault(t *testing.T) {
