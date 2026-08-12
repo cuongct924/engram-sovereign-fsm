@@ -9,16 +9,19 @@ whenever the topology changes materially, verified directly against the live 4-n
 
 ```mermaid
 flowchart TB
-    subgraph engramnet["engram-net (172.28.0.0/24)"]
-        N1["engram-node01<br/>.100"]
-        N2["engram-node02<br/>.110"]
-        N3["engram-node03<br/>.120"]
-        N4["engram-node04<br/>.130"]
-        N1 <-->|CometBFT P2P :26656| N2
-        N2 <--> N3
-        N3 <--> N4
-        N4 <--> N1
-        N1 <--> N3
+    subgraph plinks["pairwise validator-to-validator links (172.40.0-5.0/29, one per pair)"]
+        N1["engram-node01"]
+        N2["engram-node02"]
+        N3["engram-node03"]
+        N4["engram-node04"]
+        N1 <-->|"CometBFT P2P :26656<br/>172.40.0.2/.3"| N2
+        N1 <-->|172.40.1.2/.3| N3
+        N1 <-->|172.40.2.2/.3| N4
+        N2 <-->|172.40.3.2/.3| N3
+        N2 <-->|172.40.4.2/.3| N4
+        N3 <-->|172.40.5.2/.3| N4
+    end
+    subgraph engramnet["engram-net (172.28.0.0/24) -- external clients only"]
     end
     subgraph bitcoinnet["bitcoin-net (172.21.0.0/24, isolated)"]
         BTC1["bitcoin-node01<br/>.10"]
@@ -32,49 +35,51 @@ flowchart TB
     Prover["reanchoring-prover<br/>(engram-net, no fixed IP)"]
     N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
     N1 & N2 & N3 & N4 -.->|CELESTIA_BRIDGE_URL<br/>JSON-RPC 2.0| CBridge
+    N1 & N2 & N3 & N4 -.-> engramnet
     CBridge --> CApp
     Miner -.->|"-rpcconnect<br/>generatetoaddress every ~20s"| BTC1
     Prover -.->|"NODE_URL<br/>query-recovery-headers / tx-submit-recovery-proof"| N1
 
-    style engramnet fill:#eef5ff,stroke:#4a7fd6
+    style plinks fill:#eef5ff,stroke:#4a7fd6
+    style engramnet fill:#f5f5f5,stroke:#999
     style bitcoinnet fill:#fff3e6,stroke:#d68a30
     style celestianet fill:#f0eaff,stroke:#8a5fd6
 ```
 
 | Network | CIDR | Gateway | Isolation | Members |
 |---|---|---|---|---|
-| `engram-net` | `172.28.0.0/24` | `.1` | shared P2P | 4 validators: `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
+| `validator-link-NN-MM` (×6) | `172.40.<0-5>.0/29` | `.1` | one pair only | the 2 validators of that pair, `.2`/`.3` |
+| `engram-net` | `172.28.0.0/24` | `.1` | external clients | 4 validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
 | `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, `bitcoin-miner-loop` (no fixed IP), + validators `.100`/`.110`/`.120`/`.130` |
 | `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge` `.51`, + validators `.100`/`.110`/`.120`/`.130` |
 
-`bitcoin-miner-loop` (`docker/bitcoin-miner-loop.yml`) and `reanchoring-prover`
-(`docker/reanchoring-prover/`) are both real, always-on containers (started by `make
-testnet-up`, not profile-gated), not validators or peripheral-layer services -- they replace what
-used to be a host `nohup` process (the miner loop) and a manual host-side script invocation (the
-prover) respectively. Neither needs a static IP since nothing else addresses them by IP; they only
-ever originate connections outward (to `bitcoin-node01`/`engram-node01`'s RPC), never accept
-inbound ones.
+CometBFT P2P gossip (`persistent_peers`) dials each peer's literal IP on their shared pairwise
+link (`cmd/engramd/main.go`'s `pairwiseLinkPeerIP`), not a hostname on `engram-net` -- this is
+what makes real `SubnetDiversity` (`x/sovereignty/types/subnet.go`'s `SubnetOf`, computed from
+each connected peer's actual `RemoteIP`) read above 1: every validator's 3 peers now arrive from
+3 genuinely distinct `/29` subnets. `engram-net` remains for everything that isn't P2P gossip --
+`reanchoring-prover`'s RPC client, the attacker swarm (§5) -- and validators stay multi-homed
+onto it alongside their pairwise links and `bitcoin-net`/`celestia-net`.
 
-Each `engram-nodeNN` is multi-homed across all three networks so its hostname-based env vars --
-`BITCOIN_HOST=bitcoin-node01`, `CELESTIA_BRIDGE_URL=http://celestia-bridge:26658` -- resolve via
-Docker's embedded DNS; those hostnames only exist on `bitcoin-net`/`celestia-net`, not
-`engram-net`. `engram-net` sits on `172.28.0.0/24` specifically to avoid colliding with a
-pre-existing `kind` (Kubernetes-in-Docker) network on the development host (`CLAUDE.md`'s M6
-notes).
+`bitcoin-miner-loop`/`reanchoring-prover` are real, always-on containers (`make testnet-up`, not
+profile-gated) replacing a host `nohup` process and a manual script invocation respectively.
+Neither needs a static IP -- both only originate outbound RPC connections, never accept inbound
+ones.
+
+`engram-net` sits on `172.28.0.0/24` to avoid colliding with a pre-existing `kind`
+(Kubernetes-in-Docker) network on the development host (`CLAUDE.md`'s M6 notes).
 
 Profile-gated fault-injection services (attacker swarm, duplicate-signing harness) get additional
 IPs on `engram-net` plus their own isolated subnets -- listed in §5, not here, since they only
 exist when their Compose profile is active.
 
-**Operational note:** for a multi-homed container with no explicit `gw_priority`, Docker's default
-outbound route prefers the network declared **second** in that service's `networks:` block, not
-the first -- so the 4 validators (`engram-net` declared first, `bitcoin-net` second) reach each
-other via their `172.21.0.0/24` addresses, not `172.28.0.0/24`. This affects
-`x/sovereignty/keeper/peer_filter.go`'s `FilterPeerByAddr` and `vanillaP2PHealthAdapter`'s
-`SubnetDiversity` reading, but is a Docker Desktop routing quirk, not a bug in either: the filter
-enforces its subnet cap (`Params.MaxPeersPerSubnet`) correctly regardless of which subnet peers
-actually arrive from. Full writeup:
-`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_live_run_20260808_summary.md`.
+**Operational note:** Docker's default-route ambiguity for multi-homed containers (which network a
+container's *outbound, non-directly-connected* traffic prefers when `gw_priority` isn't set) does
+not affect validator-to-validator P2P: each pairwise link is a directly-connected `/29`, so the
+kernel routes a dial to a peer's literal pairwise-link IP over that link regardless of default
+route priority. It still applies to genuinely off-link traffic (e.g. `BITCOIN_HOST`/
+`CELESTIA_BRIDGE_URL` resolution, where `bitcoin-net`/`celestia-net` being declared after
+`engram-net` in each service's `networks:` block is what makes those hostnames resolve at all).
 
 ## 2. Port Allocation
 
@@ -179,7 +184,7 @@ flowchart TB
         end
     end
 
-    peer1["Other validator nodes<br/>(engram-net)"]
+    peer1["Other validator nodes<br/>(pairwise validator-links, §1)"]
     btc["bitcoin-node01 (regtest)<br/>x/anchor.AnchorTracker"]
     celestia["celestia-bridge<br/>x/da.Publisher"]
 

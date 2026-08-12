@@ -177,22 +177,12 @@ services:
     command: ["netem", "--duration=10m", "loss", "--percent=2", "engram-node04"]
 
 networks:
-  # Main validator network: all 4 real validators communicate here.
-  #
-  # All 4 sit on this one /24 by construction, not by oversight: real
-  # SubnetDiversity (x/sovereignty/types/subnet.go's SubnetOf, computed from
-  # each peer's actual connected RemoteIP, cmd/engramd/main.go's
-  # PeerHealthSnapshot) can only ever read back as 1 while P2P traffic
-  # between validators transits a single shared bridge network -- adding
-  # each validator its own ADDITIONAL isolated subnet (for identity alone)
-  # would NOT change this, since Docker bridge networks don't route to each
-  # other and P2P connections would still resolve over this one. Genuinely
-  # raising SubnetDiversity needs a different topology (e.g. validators
-  # reaching each other over distinct pairwise-shared networks), not
-  # attempted here -- MinSubnetDiversity is kept at 1 (.env.example) to
-  # match, not as an aspirational floor. See the chaos-wan-* profiles below
-  # for what IS simulated here: per-node distinct network CONDITIONS
-  # (latency/loss/bandwidth), independent of this topology limitation.
+  # Main validator network: external clients (reanchoring-prover, attacker
+  # swarm) reach validators here. NOT used for validator-to-validator P2P
+  # gossip anymore -- cmd/engramd/main.go's testnetInitFiles dials
+  # persistent_peers over the pairwise-link networks below instead, so real
+  # SubnetDiversity (x/sovereignty/types/subnet.go's SubnetOf) reads each
+  # peer from a genuinely distinct subnet.
   engram-net:
     name: engram-net
     driver: bridge
@@ -203,6 +193,54 @@ networks:
       config:
         - subnet: 172.28.0.0/24
           gateway: 172.28.0.1
+
+  # Pairwise validator-to-validator P2P links -- one dedicated /29 per pair
+  # (6 for 4 validators' full mesh), each validator statically addressed so
+  # cmd/engramd/main.go's pairwiseLinkPeerIP can dial a literal IP instead
+  # of a hostname. Index/IP scheme is defined there; both sides must stay
+  # in sync by construction.
+  validator-link-01-02:
+    name: validator-link-01-02
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.0.0/29
+          gateway: 172.40.0.1
+  validator-link-01-03:
+    name: validator-link-01-03
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.1.0/29
+          gateway: 172.40.1.1
+  validator-link-01-04:
+    name: validator-link-01-04
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.2.0/29
+          gateway: 172.40.2.1
+  validator-link-02-03:
+    name: validator-link-02-03
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.3.0/29
+          gateway: 172.40.3.1
+  validator-link-02-04:
+    name: validator-link-02-04
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.4.0/29
+          gateway: 172.40.4.1
+  validator-link-03-04:
+    name: validator-link-03-04
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.5.0/29
+          gateway: 172.40.5.1
 
   # Bitcoin network: Isolated environment for the Bitcoin regtest RPC cluster
   bitcoin-net:
@@ -230,10 +268,11 @@ networks:
 
   # attacker-subnet-a/b/c/d: 4 distinct bridge networks for E4/E8's A2
   # (Sybil via simulated multi-subnet swarm, docker/attacker-peer-swarm.yml).
-  # engram-net's own 4 validators sit on one /24 by construction (see
-  # MinSubnetDiversity's doc in x/sovereignty/types/params.go) -- these give
-  # an attacker swarm genuine multi-subnet diversity to test the real
-  # ingress filter (FilterPeerByAddr) against.
+  # Honest validators now arrive at each other over 6 separate /29 pairwise
+  # links (see this file's validator-link-* networks), so these give an
+  # attacker swarm its own genuine multi-subnet diversity to test the real
+  # ingress filter (FilterPeerByAddr) against, on engram-net where A2's
+  # dynamic peers connect in.
   attacker-subnet-a:
     name: attacker-subnet-a
     driver: bridge

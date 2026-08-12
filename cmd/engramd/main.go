@@ -241,17 +241,44 @@ func testnetInitFilesCmd() *cobra.Command {
 	return cmd
 }
 
+// pairwiseLinkIndex returns the 0-indexed link number for the unordered
+// pair {i, j} (0-indexed among n validators), row-major order: (0,1),
+// (0,2),...,(0,n-1),(1,2),... -- must match
+// docker/engram-validator-cluster.yml's validator-link-NN-MM networks 1:1;
+// no shared source of truth between the YAML and this file.
+func pairwiseLinkIndex(i, j, n int) int {
+	if i > j {
+		i, j = j, i
+	}
+	return i*n - i*(i+1)/2 + (j - i - 1)
+}
+
+// pairwiseLinkPeerIP returns validator `peer`'s static IP, as dialed by
+// `self`, on their dedicated pairwise-link network (172.40.<link>.0/29,
+// gateway .1, lower-indexed validator .2, higher .3) -- a literal IP, not
+// a hostname, so real SubnetDiversity (SubnetOf, x/sovereignty/types/subnet.go)
+// reads each peer from a genuinely distinct subnet instead of the one
+// shared bridge every validator used to have in common. Peer
+// authentication is unaffected: CometBFT verifies nodeID via the secret
+// handshake regardless of which address reached it.
+func pairwiseLinkPeerIP(self, peer, n int) string {
+	link := pairwiseLinkIndex(self, peer, n)
+	if peer < self {
+		return fmt.Sprintf("172.40.%d.2", link)
+	}
+	return fmt.Sprintf("172.40.%d.3", link)
+}
+
 func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p2pPort int) error {
 	if n < 1 {
 		return fmt.Errorf("need at least 1 validator, got %d", n)
 	}
 
 	type nodeInfo struct {
-		home     string
-		moniker  string
-		hostname string
-		pubKey   cmtcrypto.PubKey
-		nodeID   p2p.ID
+		home    string
+		moniker string
+		pubKey  cmtcrypto.PubKey
+		nodeID  p2p.ID
 	}
 
 	nodes := make([]nodeInfo, 0, n)
@@ -273,7 +300,7 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 			return fmt.Errorf("%s: load/gen node key: %w", moniker, err)
 		}
 
-		nodes = append(nodes, nodeInfo{home: home, moniker: moniker, hostname: moniker, pubKey: pubKey, nodeID: nodeKey.ID()})
+		nodes = append(nodes, nodeInfo{home: home, moniker: moniker, pubKey: pubKey, nodeID: nodeKey.ID()})
 	}
 
 	validators := make([]cmttypes.GenesisValidator, 0, n)
@@ -326,7 +353,8 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 			if j == i {
 				continue
 			}
-			peers = append(peers, fmt.Sprintf("%s@%s:%d", other.nodeID, other.hostname, p2pPort))
+			peerIP := pairwiseLinkPeerIP(i, j, n)
+			peers = append(peers, fmt.Sprintf("%s@%s:%d", other.nodeID, peerIP, p2pPort))
 		}
 		config.P2P.PersistentPeers = strings.Join(peers, ",")
 

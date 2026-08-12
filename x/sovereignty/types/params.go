@@ -107,19 +107,22 @@ func DefaultParams() Params {
 		// productionScaleParams() baseline (E4-validated), MinAnchorPeers/
 		// MinPeers scaled down for this testnet's N=4,f=1 assumption.
 		MinPeers: 3,
-		// 1, not productionScaleParams()'s 8: all 4 validators share one
-		// Docker /24 subnet here, so real SubnetDiversity can never exceed
-		// 1 regardless of network health. Raise toward 8 for a genuine
-		// multi-subnet/multi-region deployment.
-		MinSubnetDiversity: 1,
+		// 2, not productionScaleParams()'s 8: each validator reaches the
+		// other 3 over a dedicated pairwise-link subnet (docker/
+		// engram-validator-cluster.yml, cmd/engramd/main.go's
+		// pairwiseLinkPeerIP), so a healthy node's real SubnetDiversity is
+		// 3 -- 2 leaves one peer's worth of tolerance for a single link
+		// being down/reconnecting, not the trivially-always-true floor of 1.
+		MinSubnetDiversity: 2,
 		MinAnchorPeers:     2,
 		MaxChurnRate:       5,
 		MinAvgTenure:       300, // seconds
 		MaxPeerLatency:     200, // milliseconds (real RTT via p2p.Peer.RTT())
 		MaxIgnoreRounds:    1,
-		// Must exceed the 4 known-honest same-subnet validators (see
-		// MinSubnetDiversity above) or the ingress filter would reject
-		// their own mesh connections, not just an attacker's.
+		// Each validator's 3 honest peers now arrive on 3 SEPARATE /29
+		// pairwise-link subnets (1 peer each), not one shared /24 -- this
+		// threshold only needs headroom for engram-net-side traffic
+		// (attacker swarm, reanchoring-prover), not co-located honest peers.
 		MaxPeersPerSubnet: 8,
 	}
 }
