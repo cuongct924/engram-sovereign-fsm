@@ -63,8 +63,8 @@ from injector import (
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
-MINER_LOOP = "bitcoin-miner-loop"
-MINER_INTERVAL_OVERRIDE_FILE = "/tmp/miner_interval_override"
+ENGRAM_NODES = ["engram-node01", "engram-node02", "engram-node03", "engram-node04"]
+ANCHOR_SUBMISSION_PAUSED_FILE = "/tmp/anchor_submission_paused"
 
 
 def now() -> str:
@@ -167,46 +167,29 @@ def main():
     tr.write_scenario_csv("s1_normal", "s1")
 
     print(
-        "=== S2: BTC congestion (chaos-btc-delay RPC jitter + slowed "
-        "bitcoin-miner-loop, neither confirmed to grow btc_gap -- see "
-        "docs/EXPERIMENT.md's S2 methodology-gap writeup) ==="
+        "=== S2: BTC congestion (checkpoint-submission pause, confirmed live "
+        "to grow btc_gap and force SOVEREIGN -- see docs/EXPERIMENT.md's S2 "
+        "writeup) ==="
     )
-    # RPC-level netem delay alone (500ms +-100ms) has zero observable effect:
-    # it's ~40x smaller than the 20s natural mining cadence and doesn't touch
-    # what btc_gap is actually computed from (block-height deltas, not RPC
-    # RTT) -- confirmed live (S2 stayed 100% ANCHORED across 156 samples with
-    # zero transitions). Slowing bitcoin-miner-loop's own interval (via
-    # MINER_INTERVAL_OVERRIDE_FILE, read fresh every loop iteration) was
-    # tried as a fix and ALSO confirmed live not to grow btc_gap: h_btc_current
-    # and h_btc_anchored both derive from the same slowed block stream and
-    # stay in the same proportional relationship regardless of overall mining
-    # speed -- only this validator's own checkpoint submission specifically
-    # falling behind (not global slowdown) would grow the gap. Kept as
-    # working infrastructure (harmless, and chaos-btc-delay still adds real
-    # RPC-level jitter realism), but S2 currently has no mechanism that
-    # produces the ANCHORED->SUSPICIOUS->SOVEREIGN degradation the experiment
-    # table describes -- an open methodology gap, not a code bug.
+    # Two earlier mechanisms were tried and confirmed live NOT to grow
+    # btc_gap: chaos-btc-delay's RPC-level netem delay (~40x smaller than
+    # bitcoin_miner_loop.sh's 20s natural cadence, doesn't touch block-height
+    # deltas) and a global mining-rate slowdown (h_btc_current and
+    # h_btc_anchored both derive from the same slowed block stream, staying
+    # proportionally in sync regardless of overall speed). What actually
+    # works: AnchorTracker.SetSubmissionPausedFile (x/anchor/anchor.go) --
+    # MaybeSubmit skips broadcasting a NEW checkpoint while
+    # ANCHOR_SUBMISSION_PAUSED_FILE exists (an already-pending one still
+    # confirms normally), freezing h_btc_anchored while h_btc_current keeps
+    # climbing. Confirmed live: grew btc_gap to 12 (past SovereignThreshold=8)
+    # and committed all 4 validators to SOVEREIGN in lockstep.
     tr.set_scenario("s2")
-    wait_for_no_active_netem()
-    start_pumba_profile("chaos-btc-delay")
-    docker(
-        "exec",
-        MINER_LOOP,
-        "sh",
-        "-c",
-        f"echo 90 > {MINER_INTERVAL_OVERRIDE_FILE}",
-    )
-    tr.poll(
-        130, interval=3.0, phase="S2_btc_congestion"
-    )  # profile's own --duration=2m + margin
-    docker("exec", MINER_LOOP, "rm", "-f", MINER_INTERVAL_OVERRIDE_FILE)
-    cleanup_profile("chaos-btc-delay")
-    # 90s cooldown, not 20s: the miner loop reads its override once per
-    # iteration, AFTER mining and BEFORE sleeping -- clearing the override
-    # only takes effect on the NEXT iteration, so a sleep already in
-    # progress can still run up to the full 90s before normal 20s cadence
-    # resumes.
-    tr.poll(90, phase="S2_btc_congestion_cooldown")
+    for node in ENGRAM_NODES:
+        docker("exec", node, "touch", ANCHOR_SUBMISSION_PAUSED_FILE)
+    tr.poll(180, interval=3.0, phase="S2_btc_congestion")
+    for node in ENGRAM_NODES:
+        docker("exec", node, "rm", "-f", ANCHOR_SUBMISSION_PAUSED_FILE)
+    tr.poll(60, phase="S2_btc_congestion_cooldown")
     tr.write_scenario_csv("s2_btc_congestion", "s2")
 
     print("=== S3: DA unavailable (docker stop celestia-bridge) ===")
