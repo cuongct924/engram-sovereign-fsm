@@ -180,3 +180,37 @@ services:
       <<: *engram-node-env
       MONIKER: engram-node04
       NODE_ID: 3
+
+  # Non-validator observer node, plain CometBFT/Cosmos SDK consensus (`start
+  # --vanilla`, app/app.go's NewEngramApp skips SetPrepareProposal/
+  # SetProcessProposal/SetPreBlocker) -- docs/EXPERIMENT.md's E2 "Vanilla
+  # comparison": syncs the SAME real chain via engram-net (persistent_peers
+  # dials the 4 real validators, testnet-data/engram-node-vanilla/config/
+  # config.toml), reads the SAME real BITCOIN_HOST/CELESTIA_BRIDGE_URL
+  # sensors as engram-node01..04, but its x/sovereignty FSMState can never
+  # leave genesis ANCHORED regardless of real BTC/DA/P2P health -- the only
+  # code path that mutates it (CommitFSMTransition, inside NewPreBlocker)
+  # is never wired. Not part of the validator set (genesis unchanged, no
+  # validator-link-* pairwise mesh membership needed) -- a pure observer.
+  engram-node-vanilla:
+    <<: *engram-node-base
+    hostname: engram-node-vanilla
+    container_name: engram-node-vanilla
+    command: ["start", "--vanilla"]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.140
+      bitcoin-net:
+        ipv4_address: 172.21.0.140
+      celestia-net:
+        ipv4_address: 172.22.0.140
+    volumes:
+      - ../testnet-data/engram-node-vanilla:/root/.engramd
+    ports:                # offset +400 vs. node01
+      - "27057:26657"
+      - "1717:1317"
+      - "27060:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node-vanilla
+      NODE_ID: 4
