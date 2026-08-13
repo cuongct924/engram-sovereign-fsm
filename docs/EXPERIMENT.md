@@ -378,11 +378,13 @@ Live (pairwise-link topology):
 
 ### E5 — FSM Transition Stability: Hysteresis Across All Absorb Edges
 
-**Objective:** show each of the 3 hysteresis-gated FSM edges — `HYSTERESIS_WAIT` on
-RECOVERING→ANCHORED, `DownHysteresisThreshold` on ANCHORED→SUSPICIOUS, `SuspiciousHysteresisWait`
-on SUSPICIOUS→ANCHORED (`CalculateNextState`) — resists flapping under natural per-block noise.
-Exponential backoff (RECOVERING→SOVEREIGN, `EffectiveDownHysteresisThreshold`) is out of scope: it
-defends against a timed adversary, not random noise, and belongs under E8.
+**Objective:** Demonstrate that the 3 hysteresis-gated FSM state transition edges resist "flapping" (unstable/continuous state switching) under natural per-block noise:
+
+* `HYSTERESIS_WAIT` on `RECOVERING` $\rightarrow$ `ANCHORED`.
+* `DownHysteresisThreshold` on `ANCHORED` $\rightarrow$ `SUSPICIOUS`.
+* `SuspiciousHysteresisWait` on `SUSPICIOUS` $\rightarrow$ `ANCHORED` (in `CalculateNextState`).
+
+> Out of scope: **Exponential backoff** mechanism (`RECOVERING` $\rightarrow$ `SOVEREIGN`, `EffectiveDownHysteresisThreshold`). The main reason is that this mechanism defends against a timed adversary, not random noise, and belongs under experiment **E8**.
 
 **Metrics**
 
