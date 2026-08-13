@@ -1,5 +1,9 @@
 package anchor
 
+import (
+	sovtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+)
+
 // Tolerance ports BTCTolerance's shape (spec/core/EngramTendermint.tla:243-246:
 // CASE r<=2 -> 0, r>=3 -> 1, OTHER -> 0), widened with three deliberate
 // divergences from the literal formula:
@@ -76,11 +80,30 @@ func VerifySPVProof(receipt Receipt, hBTCCurrent, hBTCAnchored uint64) bool {
 }
 
 // VerifyReceipt ports the "Settlement Monotonicity & BTC Light Client Hash
-// Check" conjunct of IsValidProposal (spec/core/EngramTendermint.tla:296-298):
+// Check" conjunct of IsValidProposal (spec/core/EngramTendermint.tla:296-312):
 //
-//	/\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
-//	/\ VerifySPVProof(prop.btc_receipt)
-func VerifyReceipt(receipt Receipt, hBTCCurrent, hBTCAnchored, round, kDeepFinality uint64) bool {
+//	/\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsBTCHealthy) =>
+//	    /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
+//	    /\ VerifySPVProof(prop.btc_receipt)
+//
+// The freshness/SPV checks only apply when the proposal claims ANCHORED/
+// RECOVERING, or when the BTC sensor is independently healthy -- otherwise
+// (e.g. SOVEREIGN with BTC genuinely down) a stale/unverifiable checkpoint
+// does not itself invalidate the proposal. Mirrors da.VerifyReceipt's
+// requiresCheck gate exactly (spec/core/EngramFSM.tla's IsBTCHealthy,
+// mirroring IsDAHealthy). Without this gate, a genuine BTC outage makes
+// every proposal permanently unverifiable (no leader can produce a
+// checkpoint the honest network can independently confirm while bitcoind is
+// unreachable) -- confirmed live against a real 4-node testnet
+// (docs/EXPERIMENT.md's E2 S6): a combined BTC+DA outage produced a
+// unanimous prevote-nil round-skip loop, zero blocks committed, for the
+// entire outage.
+func VerifyReceipt(receipt Receipt, fsmState string, isBTCHealthy bool, hBTCCurrent, hBTCAnchored, round, kDeepFinality uint64) bool {
+	requiresCheck := fsmState == sovtypes.StateAnchored || fsmState == sovtypes.StateRecovering || isBTCHealthy
+	if !requiresCheck {
+		return true
+	}
+
 	tol := Tolerance(round, kDeepFinality)
 	lowerBound := int64(hBTCCurrent) - int64(tol)
 	if lowerBound < 0 {

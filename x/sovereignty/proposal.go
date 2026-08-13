@@ -183,8 +183,40 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 		// btc_receipt, so without adopting AnchorTracker's own confirmed
 		// height here, it can never move forward (sensors_refresh.go's
 		// btcGapMetric doc).
+		//
+		// Capped at hBtcCurrent (no spec line; VerifySPVProof itself,
+		// anchor/verify.go, is the spec-mandated bound this cap keeps every
+		// proposal within -- checkpoint_block_height <= h_btc_current,
+		// EngramTendermint.tla:271-275). AnchorTracker.ConfirmedAnchorHeight
+		// is a per-validator LOCAL cache that only ever grows (it doesn't
+		// forget a real confirmation it once observed), while committed
+		// h_btc_current can only advance via a LIVE bitcoind read
+		// (sensors_refresh.go's btcGapMetric) and is force-reset down to the
+		// checkpoint value on every RECOVERING->ANCHORED transition
+		// (preblock.go's Step 5, verbatim from
+		// spec/core/EngramServer.tla:159-166). If a fresh BTC outage starts
+		// before the next live read lets h_btc_current climb back past that
+		// reset, ConfirmedAnchorHeight's already-cached (and un-lowerable)
+		// high-water mark can exceed the frozen h_btc_current -- uncapped,
+		// PrepareProposal would keep proposing that stale-high checkpoint on
+		// every leader's turn, and ProcessProposal's check #3
+		// (anchor.VerifyReceipt) would correctly keep rejecting it forever
+		// (until BTC becomes reachable again), since nothing besides
+		// committing a block can advance h_btc_current and nothing besides
+		// this check passing can commit a block -- confirmed live
+		// (2026-08-13): a real `docker stop bitcoin-node01` + celestia-bridge
+		// outage produced a unanimous prevote-nil loop for the full 90s
+		// outage window, docs/EXPERIMENT.md's E2 S6. Capping here means a
+		// leader that can't propose a checkpoint within the currently-known
+		// h_btc_current bound just re-proposes the last-committed one
+		// unchanged instead, which (already having passed check #3 once, and
+		// tolerance only widening with round) keeps passing -- letting the
+		// FSM transition to SUSPICIOUS/SOVEREIGN commit normally instead of
+		// deadlocking, matching S3's (DA-only outage) already-correct
+		// behavior.
 		if s != nil && s.Anchor != nil {
-			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored {
+			hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
+			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored && confirmed <= hBtcCurrent {
 				hBtcAnchored = confirmed
 			}
 		}
@@ -370,10 +402,11 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 3. Settlement monotonicity & BTC light-client hash check (IsValidProposal:296-298).
+		// 3. Settlement monotonicity & BTC light-client hash check (IsValidProposal:296-312).
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		if !anchor.VerifyReceipt(ext.BTCReceipt, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
+		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
+		if !anchor.VerifyReceipt(ext.BTCReceipt, ext.FSMState, isBTCHealthy, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
 			return reject, nil
 		}
 

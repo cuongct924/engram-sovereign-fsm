@@ -196,6 +196,6 @@ func BenchmarkBTCVerifyReceipt(b *testing.B) {
 	receipt := anchor.Receipt{CheckpointBlockHeight: 100, CheckpointBlockHash: anchor.ExpectedBlockHash(100)}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = anchor.VerifyReceipt(receipt, 100, 100, 0, 2)
+		_ = anchor.VerifyReceipt(receipt, types.StateAnchored, true, 100, 100, 0, 2)
 	}
 }

@@ -3,6 +3,7 @@ package anchor
 import (
 	"testing"
 
+	sovtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,11 +52,36 @@ func TestVerifyReceipt_RejectsBelowToleranceWindow(t *testing.T) {
 	// hBTCCurrent=100, kDeepFinality=2 -> tol=4 at round 0 -> lower bound=96.
 	// Height 95 is below that window and must fail at round 0.
 	r := Receipt{CheckpointBlockHeight: 95, CheckpointBlockHash: ExpectedBlockHash(95)}
-	require.False(t, VerifyReceipt(r, 100, 10, 0, 2))
+	require.False(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 100, 10, 0, 2))
 	// At round 3, tol=2+2+3=7 -> lower bound=93 -- the same gap (5) that
 	// failed at round 0 must now be accepted: this is Tolerance's round-based
 	// widening (divergence 4) doing exactly its job, not a regression.
-	require.True(t, VerifyReceipt(r, 100, 10, 3, 2))
+	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 100, 10, 3, 2))
+}
+
+// TestVerifyReceipt_SkippedWhenNotRequired is the fix for the S6 combined
+// BTC+DA outage liveness bug: mirrors da.VerifyReceipt's own
+// TestVerifyReceipt_SkippedWhenNotRequired. Without this escape hatch, a
+// proposal legitimately degrading to SOVEREIGN because BTC is down still had
+// to carry a checkpoint passing the freshness/SPV check below -- impossible
+// during a genuine outage (no leader can produce one the honest network can
+// verify while bitcoind is unreachable), permanently blocking every proposal
+// -- confirmed live against a real 4-node testnet (docs/EXPERIMENT.md's E2
+// S6): unanimous prevote-nil round-skip loop, zero blocks committed, for the
+// entire outage.
+func TestVerifyReceipt_SkippedWhenNotRequired(t *testing.T) {
+	// SOVEREIGN + BTC unhealthy: freshness/SPV check does not apply, a wildly
+	// invalid receipt must not itself invalidate the proposal.
+	r := Receipt{CheckpointBlockHeight: 999, CheckpointBlockHash: BlockHash{Tag: "BTC_FORK", Height: 999}}
+	require.True(t, VerifyReceipt(r, sovtypes.StateSovereign, false, 100, 10, 0, 2))
+}
+
+func TestVerifyReceipt_RequiredWhenBTCHealthyEvenInSovereign(t *testing.T) {
+	// SOVEREIGN but isBTCHealthy=true still triggers the check (per the
+	// `\/ IsBTCHealthy` disjunct) -- a forged/stale checkpoint isn't exempted
+	// just because the decided block claims SOVEREIGN.
+	r := Receipt{CheckpointBlockHeight: 999, CheckpointBlockHash: BlockHash{Tag: "BTC_FORK", Height: 999}}
+	require.False(t, VerifyReceipt(r, sovtypes.StateSovereign, true, 100, 10, 0, 2))
 }
 
 // TestVerifyReceipt_RecoversFromExtendedRoundSkip is the live liveness bug
@@ -70,9 +96,9 @@ func TestVerifyReceipt_RecoversFromExtendedRoundSkip(t *testing.T) {
 	r := Receipt{CheckpointBlockHeight: 203, CheckpointBlockHash: ExpectedBlockHash(203)}
 	// gap=40 against hBTCCurrent=243 -- unrecoverable under the old flat
 	// tol=kDeepFinality+livenessMargin=4, at any round.
-	require.False(t, VerifyReceipt(r, 243, 203, 0, 2))
+	require.False(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 243, 203, 0, 2))
 	// round-based widening eventually exceeds the gap: tol=2+2+40=44 >= 40.
-	require.True(t, VerifyReceipt(r, 243, 203, 40, 2))
+	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 243, 203, 40, 2))
 }
 
 func TestVerifyReceipt_AcceptsGenuinelyKDeepConfirmedCheckpointAtRoundZero(t *testing.T) {
@@ -84,7 +110,7 @@ func TestVerifyReceipt_AcceptsGenuinelyKDeepConfirmedCheckpointAtRoundZero(t *te
 	// single real block regardless of BTC health, forcing a guaranteed
 	// round-skip cycle every height.
 	r := Receipt{CheckpointBlockHeight: 98, CheckpointBlockHash: ExpectedBlockHash(98)}
-	require.True(t, VerifyReceipt(r, 100, 10, 0, 2))
+	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 100, 10, 0, 2))
 }
 
 func TestVerifyReceipt_AcceptsCheckpointAfterRealisticProposalDelay(t *testing.T) {
@@ -101,5 +127,5 @@ func TestVerifyReceipt_AcceptsCheckpointAfterRealisticProposalDelay(t *testing.T
 	checkpoint := confirmedAtCurrent - 2 // kDeepFinality=2 behind at confirmation time
 	laterCurrent := confirmedAtCurrent + 2
 	r := Receipt{CheckpointBlockHeight: checkpoint, CheckpointBlockHash: ExpectedBlockHash(checkpoint)}
-	require.True(t, VerifyReceipt(r, laterCurrent, 10, 0, 2))
+	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, laterCurrent, 10, 0, 2))
 }

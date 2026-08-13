@@ -293,9 +293,23 @@ IsValidProposal(prop) ==
             /\ prop.da_receipt.published_block_height <= h_engram_current
             /\ prop.da_receipt.published_block_height >= (h_engram_current - DA_THRESHOLD - da_tol)
 
-        \* Settlement Monotonicity & BTC Light Client Hash Check
-        /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
-        /\ VerifySPVProof(prop.btc_receipt)
+        \* Settlement Monotonicity & BTC Light Client Hash Check: skipped when
+        \* the proposal legitimately degrades away from ANCHORED/RECOVERING
+        \* and BTC is itself unhealthy -- mirrors the DA Pipeline Check's
+        \* (prop.fsm_state \in {"ANCHORED","RECOVERING"} \/ IsDAHealthy) gate
+        \* above. Requiring a fresh/valid checkpoint as a precondition for
+        \* accepting a proposal that is ITSELF acknowledging BTC is down would
+        \* make graceful SOVEREIGN degradation impossible during a genuine BTC
+        \* outage: no leader can ever produce a checkpoint the honest network
+        \* can independently verify while bitcoind is unreachable, so an
+        \* unconditional check here blocks EVERY proposal -- including the one
+        \* needed to record the degradation -- for the outage's full duration
+        \* (confirmed live against a real 4-node testnet, docs/EXPERIMENT.md's
+        \* E2 S6: a combined BTC+DA outage produced a unanimous prevote-nil
+        \* round-skip loop with zero blocks committed until BTC was restored).
+        /\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsBTCHealthy) =>
+            /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
+            /\ VerifySPVProof(prop.btc_receipt)
 
         \* Economic Circuit Breaker: Halt all cross-chain withdrawals during partition
         /\ (prop.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => ~ContainsWithdrawal(prop.value)

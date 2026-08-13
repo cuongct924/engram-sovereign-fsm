@@ -15,6 +15,14 @@ func IsBTCGapSovereign(m *PeripheralMetrics, p Params) bool {
 	return m.BtcGap >= p.SovereignThreshold
 }
 
+// IsBTCHealthy mirrors IsBTCHealthy (spec/core/EngramFSM.tla): BTC gap
+// within both thresholds and no SPV/header verification failure -- the
+// BTC-side analog of IsDAHealthy below, gating anchor.VerifyReceipt's
+// freshness/SPV check the same way IsDAHealthy gates da.VerifyReceipt's.
+func IsBTCHealthy(m *PeripheralMetrics, p Params) bool {
+	return !IsBTCGapSuspicious(m, p) && !IsBTCGapSovereign(m, p) && !m.IsBtcSpvFailed
+}
+
 // IsDAHealthy mirrors IsDAHealthy: (da_gap < DA_THRESHOLD) /\ ~is_das_failed /\ ~is_attestation_failed.
 func IsDAHealthy(m *PeripheralMetrics, p Params) bool {
 	return m.DaGap < p.DAThreshold && !m.IsDasFailed && !m.IsAttestationFailed

@@ -134,6 +134,13 @@ IsBTCGapSuspicious ==
 
 IsBTCGapSovereign == btc_gap >= SOVEREIGN_THRESHOLD
 
+\* BTC layer is within both gap thresholds and its SPV/header check hasn't
+\* failed -- the BTC-side analog of IsDAHealthy above, gating
+\* IsValidProposal's Settlement Monotonicity & BTC Light Client Hash Check
+\* (EngramTendermint.tla) the same way IsDAHealthy gates its DA Pipeline
+\* Check.
+IsBTCHealthy == ~IsBTCGapSuspicious /\ ~IsBTCGapSovereign /\ ~is_btc_spv_failed
+
 
 (* ======================== HEALTH CONDITION PREDICATES ===================== *)
 \* Withdrawal guard: TRUE whenever cross-chain withdrawals must be halted

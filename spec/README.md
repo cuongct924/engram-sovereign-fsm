@@ -467,8 +467,8 @@ Proposal := {
 A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(proposal)` holds. This predicate enforces:
 
 - `fsm_state` matches `CalculateNextFSMState` evaluated at the validator's local sensor readings (cross-check of agreed peripheral health).
-- The DA receipt is valid and within the allowed DA gap, with round-adaptive tolerance `DATolerance(r)` (required for `ANCHORED` and `RECOVERING` states).
-- `btc_receipt.checkpoint_block_height` satisfies monotonic non-decrease with round-adaptive BTC tolerance `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes the canonical hash check.
+- The DA receipt is valid and within the allowed DA gap, with round-adaptive tolerance `DATolerance(r)` (required whenever `fsm_state \in {ANCHORED, RECOVERING}`, or whenever `IsDAHealthy` regardless of `fsm_state`).
+- `btc_receipt.checkpoint_block_height` satisfies monotonic non-decrease with round-adaptive BTC tolerance `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes the canonical hash check -- required under the same condition as the DA receipt above (`fsm_state \in {ANCHORED, RECOVERING}`, or `IsBTCHealthy` regardless of `fsm_state`), so a proposal that is itself degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also required to carry a checkpoint no leader could produce during that same outage.
 - Withdrawal transactions are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (the same scope `WithdrawLocked` covers in §7.1's `CircuitBreakerSafety`).
 - A ZK-Proof is mandatory (`VerifyZkProof`) when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
 
@@ -625,7 +625,7 @@ BTCConsistency ==
         => decision[p].prop.btc_receipt.checkpoint_block_height = h_btc_anchored
 ```
 
-The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the SPV hash check rejects it at proposal validation.
+The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the SPV hash check rejects it at proposal validation -- scoped, like `DAReceiptConsistency` above, to `fsm_state \in {ANCHORED, RECOVERING} \/ IsBTCHealthy`: a proposal legitimately degrading away from `ANCHORED`/`RECOVERING` *because* BTC is down isn't also required to carry a checkpoint the honest network can independently verify while it's down, mirroring the `\/ IsDAHealthy` carve-out's own reasoning. Outside that condition -- i.e. whenever the decided state is `ANCHORED`/`RECOVERING`, or BTC is currently healthy regardless of state -- the SPV check still applies unconditionally.
 
 **Lemma 7.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
