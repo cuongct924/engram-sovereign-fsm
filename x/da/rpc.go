@@ -82,7 +82,20 @@ func NewRPCClient(url, authToken string) *RPCClient {
 // same instant observes the same binary up/down fact, unlike a JSON-RPC
 // call's success depending on which node happens to have a stale vs fresh
 // in-flight request.
+//
+// Self-bounded by availableCheckTimeout (publisher.go), not rpcTimeout
+// above -- net.Dialer.DialContext has no timeout of its own beyond ctx's own
+// deadline, and 20s (rpcTimeout, sized for the background Submit call) would
+// be far too slow for a check meant to resolve within a single consensus
+// round. Publisher.ProbeHealthy already wraps its own call in a
+// short-deadline ctx, so this is defense-in-depth for any other caller, not
+// a fix for an observed live symptom here -- see x/anchor/rpc.go's identical
+// Reachable, where the missing self-bound was confirmed live to stall
+// consensus entirely (docs/EXPERIMENT.md's E2 S6).
 func (c *RPCClient) Reachable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
+	defer cancel()
+
 	u, err := url.Parse(c.url)
 	if err != nil {
 		return false

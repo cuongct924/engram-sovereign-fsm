@@ -126,7 +126,21 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 // whose success can depend on which validator's connection happens to be
 // stale vs freshly (re)established -- confirmed live as the source of
 // cross-validator btc_gap disagreement during a real bitcoind outage).
+//
+// Self-bounded by rpcTimeout, same as every other call in this file --
+// net.Dialer.DialContext has no timeout of its own beyond whatever deadline
+// ctx already carries, and the real PrepareProposal/ProcessProposal ctx
+// carries none. Confirmed live: with an unbounded ctx, a stopped bitcoind
+// left connect() hanging on the OS's own default TCP connect timeout
+// (~90-100s observed), stalling every proposer's round -- not a graceful
+// btc_gap degrade as designed, a full liveness halt (docs/EXPERIMENT.md's
+// E2 S6). x/da/rpc.go's own Reachable has the identical gap; d.Publisher.
+// ProbeHealthy already wraps its call in a bounded context, which is why
+// this bug only ever showed up on the BTC side.
 func (c *RPCClient) Reachable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
 	u, err := url.Parse(c.url)
 	if err != nil {
 		return false
