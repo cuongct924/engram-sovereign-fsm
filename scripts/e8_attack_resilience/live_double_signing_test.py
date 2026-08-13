@@ -123,11 +123,12 @@ def start_duplicate(persistent_peers: str) -> None:
             "double-sign-harness",
             "up",
             "-d",
+            "--build",
             DUPLICATE_SERVICE,
         ],
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=300,
         check=True,
         env=env,
     )

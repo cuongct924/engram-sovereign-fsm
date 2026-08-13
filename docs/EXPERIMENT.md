@@ -921,18 +921,36 @@ freshly-redeployed cluster (`safety_held=True divergence_events=0` on every one;
 0.808 vs. flood 0.608 blocks/s, and the extreme 25x rate, baseline 0.586 vs. flood 0.813 blocks/s,
 26,563-28,777 messages rate-limited). A1/A2 reuse E4's infrastructure per this section's own note
 above, not re-run separately — E4's own re-run already covers them on this topology.
-Double-signing was attempted twice and did not reproduce evidence detection this time: the
-duplicate-key harness's `engram-node04-duplicate` process got stuck in blocksync
-(`Blockpool has no peers`, a corrupted `numPending` counter) trying to catch up to the live
-cluster's height before it could ever cast a competing vote — the same blocksync-reactor class of
-bug this document already tracks as an isolated, unfixed issue on `engram-node03` (see
-`docs/DEVELOPMENT.md`'s known issues). This is an infrastructure limitation of standing a *new*
-node up against an already-tall chain, not a regression in the detection logic itself
-(`recordDetectedEvidence`, `evidence_test.go`'s unit coverage, unchanged) or evidence the mechanism
-stopped working — the original PASS (offense heights 765/773, above) stands as the live evidence
-for this mechanism. Re-running double-signing successfully on this topology needs either fixing the
-blocksync-reactor bug or attempting it immediately after a fresh genesis reset, before height grows
-far enough for a new node's catch-up to become the bottleneck — not yet done.
+Double-signing was attempted twice and initially did not reproduce evidence detection: the
+duplicate-key harness's `engram-node04-duplicate` process got stuck in blocksync (`Blockpool has no
+peers`) trying to catch up to the live cluster's height before it could ever cast a competing vote.
+**Root-caused and fixed, not a blocksync-reactor bug.** Live debug instrumentation (temporarily
+added to `engram-consensus-core`'s `blocksync/pool.go`/`reactor.go`, reverted after diagnosis) traced
+the stuck node's own logs and found it never logged a single `SetPeerRange`/`AddPeer` call — the
+container was silently running an **image built five days earlier** (`docker inspect`, `Created:
+2026-08-08T10:31:40Z` vs. the real validators' same-session rebuild), because
+`scripts/e8_attack_resilience/live_double_signing_test.py`'s `start_duplicate` called
+`docker compose ... up -d engram-node04-duplicate` without `--build` — Compose's default behavior
+reuses an existing image rather than rebuilding, and this service's own `build:` block (a separate
+Dockerfile target from the validators' shared image tag) meant every routine
+`up -d --build engram-node0{1..4}` redeploy never touched it. A node running code from five days
+before the fork/app it's trying to join, joining a cluster running current code, is exactly the
+kind of protocol/version mismatch that can silently break blocksync without a clear error. Fixed by adding
+`--build` to `start_duplicate`'s `docker compose up` call (and raising its timeout from 120s to
+300s, since a fresh build takes longer than reusing a cached image). **Confirmed live after the
+fix:** rebuilt and reran against the live cluster at height ~15,150 (taller than either failed
+attempt) — the duplicate node caught up and **all 3 witnesses independently detected real
+`DuplicateVoteEvidence`** (offense heights 15156/15160, 1-block detection latency both times),
+matching the original PASS's shape exactly. A genuine, unrelated bug was found and fixed along the
+way while adding the debug instrumentation: `blocksync/pool.go`'s `banPeer` called
+`Logger.Debug("Banning peer", peerID)` — a malformed call (`Debug(msg string, keyvals ...any)`
+expects paired keys, this passed a single unkeyed value), producing a `Banning peer...=(MISSING)`
+log line with no peer identity in it. This exact malformed line was previously seen on
+`engram-node03`, which independently exhibits a *separate*, still-unresolved blocksync symptom (a
+corrupted `numPending` counter that survives a plain restart) — not otherwise written up in these
+docs. Fixed to `Logger.Debug("Banning peer", "peer", peerID)`; useful for diagnosing node03's issue
+for real if it's investigated later, though it is not itself node03's root cause (that
+investigation is unrelated to this fix and remains open, undocumented elsewhere).
 
 **Beyond pass/fail:** rounds-to-recover, invalid proposals rejected, honest-validator agreement
 rate, censorship latency, slashable-evidence detection latency.
