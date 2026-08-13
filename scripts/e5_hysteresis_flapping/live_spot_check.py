@@ -10,20 +10,22 @@ mechanism). Purpose here is confirming that finding holds under REAL
 consensus timing noise (round-skip stalls, real jitter), which the
 in-process harness can't reproduce -- not re-deriving it from scratch.
 
-A full live sweep is impractical: HysteresisWait is compile-time-fixed
-(x/sovereignty/types/params.go's DefaultParams, genesis never overrides
-Params -- see module.go's InitGenesis), so every value needs an edit +
-image rebuild + fresh teardown/redeploy, several minutes minimum per
-cycle. This script measures ONE already-deployed cluster
-per invocation -- the operator edits params.go's HysteresisWait, rebuilds,
-redeploys fresh (wiping testnet-data/ per this repo's standing operational
-practice for priv_validator_state.json round-regression), THEN runs this
-script with --hysteresis-wait matching what was just deployed, once per
-(value, environment) combination:
+A full live sweep is impractical to run unattended: each HysteresisWait value needs its
+own fresh genesis + redeploy cycle, several minutes minimum. HysteresisWait is NOT
+compile-time-fixed -- ENGRAM_PARAM_HYSTERESIS_WAIT in .env, read by `engramd testnet
+init-files` at genesis-generation time and carried through to the running Keeper by
+app/app.go's newInitChainer (gs.Params.ToParams()), overrides x/sovereignty/types/
+params.go's DefaultParams() without any source edit or rebuild -- see docs/DEVELOPMENT.md
+§3. This script measures ONE already-deployed cluster per invocation -- the operator sets
+ENGRAM_PARAM_HYSTERESIS_WAIT in .env, wipes testnet-data/ and regenerates genesis
+(`engramd testnet init-files --v 4`, this repo's standing operational practice for
+priv_validator_state.json round-regression), redeploys, THEN runs this script with
+--hysteresis-wait matching what was just deployed, once per (value, environment)
+combination:
 
-    # after redeploying with HysteresisWait=2 in params.go:
+    # after setting ENGRAM_PARAM_HYSTERESIS_WAIT=2 and regenerating genesis:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 2 --env noisy_da
-    # after redeploying with HysteresisWait=10 in params.go:
+    # after setting ENGRAM_PARAM_HYSTERESIS_WAIT=10 and regenerating genesis:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env stable
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env noisy_da
 
@@ -156,7 +158,8 @@ def main():
     )
     print(
         "NOTE: this script does NOT verify the deployed cluster actually has this HysteresisWait "
-        "value -- confirm the rebuild+redeploy matched --hysteresis-wait before trusting this run's label."
+        "value -- confirm ENGRAM_PARAM_HYSTERESIS_WAIT + genesis regeneration + redeploy matched "
+        "--hysteresis-wait before trusting this run's label."
     )
 
     if args.wan_profile != "none":

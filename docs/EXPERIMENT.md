@@ -30,7 +30,7 @@ failures.
 | **E2** Fault-injection end-to-end prototype | Show the fallback keeps the chain alive under BTC/DA/P2P failure | Vanilla CometBFT with hard external preconditions; static circuit breaker | Block commit rate, time-to-SOVEREIGN, committed tx during outage, downtime, recovery time |
 | **E3** External-dependency failure matrix | Evaluate each failure and combinations | Same as E2 | Availability, p50/p95 block latency, consensus rounds/block, nil-prevote ratio |
 | **E4** P2P eclipse/Sybil detection | Test whether the tri-interface profiler beats a peer-count sensor | Peer-count-only detector | FPR/FNR, detection delay, incorrect recovery attempts |
-| **E5** FSM transition stability across all absorb edges | Show every hysteresis-gated edge (RECOVERING→ANCHORED, ANCHORED→SUSPICIOUS, SUSPICIOUS→ANCHORED) resists flapping under natural noise | Hard reset on the first bad/good reading (no absorption) | Anchored uptime, flapping/transition counts, withdrawal-locked time, absorption rate, time-outside-ANCHORED |
+| **E5** FSM transition stability across all absorb edges | Show every hysteresis-gated edge (RECOVERING→ANCHORED, ANCHORED→SUSPICIOUS, SUSPICIOUS→ANCHORED) resists flapping under natural noise | Each sweep's own floor value (`HYSTERESIS_WAIT=0`, `DownHysteresisThreshold=1`, `SuspiciousHysteresisWait=1`) — the edge transitions on a single reading, no absorption | Anchored uptime, flapping/transition counts, withdrawal-locked time, absorption rate, time-outside-ANCHORED |
 | **E6** Re-anchoring feasibility | Show the recovery proof is practical and scalable | Noir+Honk vs. Plonky3; no-ZK baseline (re-execute) | Constraint count, proving/verification time, proof size, backend trade-off |
 | **E7** Consensus overhead benchmark | Measure the cost of the extended proposal fields | Vanilla proposal | Proposal size, CPU validation cost, throughput, block latency |
 | **E8** Attack-resilience scenarios | Demonstrate the security story empirically | Malicious proposer; data withholding; forged BTC receipt; withdrawal during SOVEREIGN; censorship | Accepted/rejected proposals, invalid commit count, forced-inclusion latency |
@@ -375,28 +375,34 @@ time-to-first-recovery) at `scripts/e5_hysteresis_flapping/results/figure4_hyste
 at HW=0 → 0.0% at HW=20), and `flapping_count` increases monotonically instead of decreasing (same
 environment: 10 at HW=0 → 37 at HW=20) — no sweet spot on either metric.
 
-The cause is architectural, and explains both directions: `x/sovereignty/keeper/circuit_breaker.go`'s
-`CalculateNextState`/`NextSafeBlocks` sends RECOVERING's `!healthy` branch straight back to
-SOVEREIGN on a single bad block (not just a local counter reset), and `NextSafeBlocks` only
-accumulates across consecutive healthy RECOVERING blocks — a hard streak counter with no partial
-credit. Under fixed per-block noise, the probability of completing an uninterrupted streak of
-`HYSTERESIS_WAIT` blocks falls exponentially as the threshold grows, so a larger value forces more
-RECOVERING→SOVEREIGN→RECOVERING retry cycles (more flapping) before any success, and spends more
-time outside ANCHORED overall. `HYSTERESIS_WAIT` does not "filter noise" as hypothesized; it sets
-an increasingly hard pass/fail test, and every failure itself creates more oscillation. This is a
-negative result worth publishing, not a bug to fix or a parameter to retune. 5b (below) applies the
-same absorb-then-transition pattern to the RECOVERING→SOVEREIGN regression edge specifically to
-answer this finding.
+The cause: `noisy_btc`/`combined_adversarial`'s disturbance sets `btc_gap` to `SovereignThreshold`
+— `IsCriticalCondition`, not merely `IsWarningCondition`. `CalculateNextState`'s RECOVERING branch
+checks `critical` first and demotes straight to SOVEREIGN unconditionally on it, bypassing
+`EffectiveDownHysteresisThreshold`'s absorption entirely — by design, critical conditions are never
+softened (see `DownHysteresisThreshold`'s field doc). `NextSafeBlocks` then resets fully to 0 on
+that transition, so the next recovery attempt has to rebuild its whole `HYSTERESIS_WAIT`-length
+healthy streak from scratch. Under a fixed 20%-per-block chance of a critical interruption, the
+probability of an uninterrupted `HYSTERESIS_WAIT`-block streak falls exponentially as the threshold
+grows, so a larger value forces more RECOVERING→SOVEREIGN→RECOVERING retry cycles (more flapping)
+before any success, and spends more time outside ANCHORED overall. This shows up only in
+`noisy_btc`/`combined_adversarial`: `noisy_da`/`noisy_p2p`'s disturbance is warning-level only, and
+is absorbed by down-hysteresis identically regardless of `HYSTERESIS_WAIT` (flat flapping/uptime
+across the whole sweep — down-hysteresis and up-hysteresis gate different edges, so one has no
+effect on the other's sweep). `HYSTERESIS_WAIT` does not "filter noise" against a critical-level
+adversary as hypothesized; it sets an increasingly hard pass/fail test against exactly the noise it
+structurally cannot absorb, and every failure itself creates more oscillation. This is a negative
+result worth publishing, not a bug to fix or a parameter to retune.
 
 **Security hardening — exponential backoff against a flapping DoS attack.** A distinct concern
 from the natural-noise finding above: a network adversary that can time a single disruptive block
-precisely (wait until `safe_blocks` is one block from `HYSTERESIS_WAIT`, then inject noise) could
-otherwise repeat the same cheap attack indefinitely, holding the chain in a
-SOVEREIGN/RECOVERING loop without ever violating a safety property or triggering slashing. 5b's
-down-hysteresis mechanism, applied to this same RECOVERING→SOVEREIGN edge, already raises this
-attack's cost from "one precisely-timed block" to "`DownHysteresisThreshold` *consecutive*
-precisely-timed blocks" — a materially harder bar, since sustaining disruption over multiple
-consecutive blocks is a stronger adversary assumption than a single blip. Exponential backoff
+precisely (wait until `safe_blocks` is one block from `HYSTERESIS_WAIT`, then inject
+*warning-level* noise — not the critical-level noise the finding above used) could otherwise repeat
+the same cheap attack indefinitely, holding the chain in a SOVEREIGN/RECOVERING loop without ever
+violating a safety property or triggering slashing. `DownHysteresisThreshold` — the same parameter
+5b sweeps on ANCHORED→SUSPICIOUS — already raises this attack's cost on this edge too via
+`EffectiveDownHysteresisThreshold`, from "one precisely-timed block" to "`DownHysteresisThreshold`
+*consecutive* precisely-timed blocks" — a materially harder bar, since sustaining disruption over
+multiple consecutive blocks is a stronger adversary assumption than a single blip. Exponential backoff
 hardens the *repeated*-attack case specifically: a `FailedRecoveryAttempts` counter
 (RECOVERING→SOVEREIGN regressions since the last successful recovery) doubles
 `EffectiveDownHysteresisThreshold` on every consecutive failed attempt, capped at
@@ -469,12 +475,22 @@ strictly at WARNING level (`btc_gap = SuspiciousThreshold`, not `SovereignThresh
 exercise the absorb path — unlike 5a's noise, which is deliberately critical-level since it targets
 a different edge.
 
-**Design (not yet measured):** start from ANCHORED, apply WARNING-level per-block noise at the same
-20% probability as 5a, sweep `DownHysteresisThreshold` ∈ {1, 2, 4, 6, 8} (1 disables absorption —
-every warning demotes immediately; 8 is `MaxDownHysteresisThreshold`'s cap). Measure
-`AnchoredUptime`, `TimeOutsideAnchored`, `DemotionCount`, `AbsorptionRate`, and `WithdrawalBlocked`
-(expected near-zero throughout, since SUSPICIOUS alone doesn't lock withdrawals — a useful
-cross-check against 5c's and 5a's non-zero values).
+**Measured (in-process, 4/4 environments):** `go test ./tests/e2e/... -run TestE5b_DownHysteresisSweep`
+starts each run from ANCHORED and applies WARNING-level per-block noise at the same 20% probability
+as 5a, across 4 environments (`warning_btc` at `SuspiciousThreshold`, `noisy_da`, `noisy_p2p`,
+`combined_warning`), sweeping `DownHysteresisThreshold` ∈ {1, 2, 4, 6, 8} (1 disables absorption —
+every warning demotes immediately; 8 is `MaxDownHysteresisThreshold`'s cap). Results:
+`tests/e2e/results/e5b_down_hysteresis_sweep.csv`.
+
+Unlike 5a, this is a clean positive result with no cross-edge cause to complicate it: `AnchoredUptime`
+rises monotonically with `DownHysteresisThreshold` (61% at 1 → 96% at 2 → 98% at 4 → 100% at 6-8) and
+`AbsorptionRate` rises alongside it (0% → 95% → 95% → 100% → 100%), because — unlike `HYSTERESIS_WAIT`
+against critical noise in 5a — `DownHysteresisThreshold` is being swept against exactly the noise
+level it's designed to absorb. All 4 environments produce identical numbers at every threshold value,
+the same warning-level equivalence 5a's `noisy_da`/`noisy_p2p` already showed (the FSM reacts to
+`IsWarningCondition`'s boolean outcome, not which sensor tripped it). `WithdrawalBlocked` is 0 across
+every run, confirmed by an explicit test assertion — SUSPICIOUS alone never locks withdrawals
+(`CircuitBreakerSafety`), a useful cross-check against 5c's non-zero `suspicious_duration` cost below.
 
 ### 5c — SUSPICIOUS-exit hysteresis (SUSPICIOUS → ANCHORED)
 
@@ -494,11 +510,26 @@ absorb/exit/leak/critical-bypass cases. TLC re-verification (`MC_FSMSafety`, `MC
 together with the separate `is_btc_spv_failed` `IsCriticalCondition` fix (`spec/README.md` §4.1) —
 is pending, run once against the whole set rather than once per mechanism.
 
-**Design (not yet measured):** start from SUSPICIOUS, apply healthy/warning noise at the same 20%
-probability, sweep `SuspiciousHysteresisWait` ∈ {1, 2, 4, 6, 8}. Measure `AnchoredUptime`,
-`FlappingCount`, `TotalTransitions`, `AbsorptionRate`; `suspicious_duration`'s own trajectory
-(distance from `MaxSuspiciousTime`) is worth logging alongside these, since it's this mechanism's
-actual defended quantity.
+**Measured (in-process):** `go test ./tests/e2e/... -run TestE5c_SuspiciousExitHysteresisSweep`
+drives each run into SUSPICIOUS first (sustained `btc_gap = SuspiciousThreshold`), then holds that
+warning-level baseline with a 20%-per-block chance of a single healthy blip, sweeping
+`SuspiciousHysteresisWait` ∈ {1, 2, 4, 6, 8}. Results:
+`tests/e2e/results/e5c_suspicious_exit_sweep.csv`.
+
+**Result:** `AbsorptionRate` rises as expected (0% at SHW=1 → 76% at SHW=2 → 100% at SHW≥4), but this
+comes at a cost `AbsorptionRate` alone doesn't show: `suspicious_duration` accumulates on every block
+that stays in SUSPICIOUS, absorbed or not (`NextSuspiciousDuration`), so a higher
+`SuspiciousHysteresisWait` means more consecutive absorbed blocks before an exit, which means faster
+accumulation toward `MaxSuspiciousTime` (24). At SHW≥4 this sweep's `suspicious_duration` reaches 24
+mid-run and `IsCriticalCondition`'s `MaxSuspiciousTime` branch fires, forcing SOVEREIGN regardless of
+`SuspiciousHysteresisWait` — the run ends in RECOVERING (a healthy block after SOVEREIGN), not
+ANCHORED, at SHW=4, 6, and 8 alike, all three producing identical numbers once escalation dominates.
+Only SHW=1 and SHW=2 stay under the cap and reach ANCHORED (`AnchoredUptime` 43% and 17%
+respectively — SHW=1's higher uptime is exit-on-every-blip, not real stability). This mirrors 5a's
+asymmetry: absorbing more noise on this edge trades directly against the very escalation threshold
+the absorption is meant to buy time against, under a sustained-adversity noise shape (not the
+occasional-blip shape 5b's sweep used) — a genuine tuning tension between
+`SuspiciousHysteresisWait` and `MaxSuspiciousTime`, not a bug in either mechanism alone.
 
 ### Asymmetric hardening: an open question
 
