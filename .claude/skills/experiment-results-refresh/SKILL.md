@@ -38,14 +38,31 @@ stop and ask rather than guessing whether it's disposable.
 When genuinely unsure whether a file is superseded or a baseline, treat it as a baseline (don't
 delete) and flag the ambiguity instead of guessing.
 
-## 3. Regenerate figures from the current file set
+## 3. Regenerate figures — mandatory, not optional
 
-Check whether that experiment has a `live_figure_builder.py` (E5, E9, E2 have one as of this
-writing; not every experiment does — E7/E8 present tables, not figures). If it does, re-run it
-after step 2's cleanup, not before — most of these builders glob-discover their inputs by filename
-pattern (see E5's `find_summary_paths()`) rather than taking an explicit file list, so a stale file
-still sitting in `results_live/` at figure-build time silently leaks into the regenerated
-`.png`/`.pdf` even though it was about to be deleted.
+If that experiment has a `live_figure_builder.py` (E5, E9, E2 have one as of this writing; not
+every experiment does — E7/E8 present tables, not figures, nothing to regenerate there), **you
+must re-run it**, every time `results_live/` changes for that experiment — not just when the
+change looks big enough to matter, not just for the experiment you personally just re-ran this
+session. Do this after step 2's cleanup, not before: most of these builders glob-discover their
+inputs by filename pattern (see E5's `find_summary_paths()`) rather than taking an explicit file
+list, so a stale file still sitting in `results_live/` at figure-build time silently leaks into the
+regenerated `.png`/`.pdf` even though it was about to be deleted.
+
+**Verify, don't assume — a figure can go stale from a run in an *earlier* session, not just
+the current one.** Before treating any experiment's figures as current, actually check:
+
+```bash
+find scripts/eN_*/results -name "*.png" -o -name "*.pdf" | xargs ls -la
+find scripts/eN_*/results_live -name "*.csv" -o -name "*_summary.md" | xargs ls -lat | head -3
+```
+
+If any figure's mtime is older than the newest data file feeding it, it's stale — regenerate it,
+regardless of whether you were the one who last touched that experiment's data. Run this check
+across *every* experiment with a figure builder at the end of a work session that touched any
+`results_live/` data, not only the one experiment you were focused on — a live spot-check like this
+is what caught E2's and E9's figures sitting 4-5 days stale behind data already refreshed earlier in
+the same broader session.
 
 ## 4. Update docs/EXPERIMENT.md in the same pass
 
@@ -67,3 +84,13 @@ was held back. E9's deleted 2026-08-08 run got one extra step: its raw data show
 starting state (already `SOVEREIGN` before fault injection began) that the existing "bugs found"
 writeup didn't explain, so that finding was written into `docs/EXPERIMENT.md` before the file was
 deleted — the data went away, but the reason it was invalid didn't.
+
+A later mtime sweep across every experiment's figures (the check in step 3) found E2's and E9's
+`_live` figures were still from 2026-08-08, four to five days behind `results_live/` data that had
+already been refreshed earlier that same session — E5's figure had been correctly regenerated right
+after its own re-run, but E2 and E9 had been re-run (S2-S7's clean pass, E9's clean 319s run) without
+anyone re-running *their* figure builders at the time. Both got regenerated only once the sweep
+caught the gap. That's the failure mode step 3 exists to prevent: regenerating the figure for the
+experiment in front of you is easy to remember; regenerating every *other* experiment's figure whose
+underlying data quietly changed earlier is not, which is why the mtime check has to be a deliberate,
+repo-wide step — not something inferred from memory of what you already did.
