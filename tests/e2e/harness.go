@@ -210,6 +210,7 @@ func (h *Harness) WriteCSV(name string) string {
 // docs/EXPERIMENT.md's E2 metric list (time-to-detection/fallback, recovery
 // time, downtime proxy, withdrawal-blocked count, flapping count).
 type E2Metrics struct {
+	TimeToDetection   int64 // blocks from height 1 until first leaving ANCHORED, any state (-1 if never)
 	TimeToFallback    int64 // blocks from height 1 until first entering SOVEREIGN (-1 if never)
 	RecoveryTime      int64 // blocks from entering RECOVERING until ANCHORED (-1 if never completed)
 	WithdrawalBlocked int   // number of blocks where WithdrawLocked was true
@@ -220,6 +221,7 @@ type E2Metrics struct {
 // ComputeMetrics derives E2Metrics from the recorded timeline.
 func (h *Harness) ComputeMetrics() E2Metrics {
 	var m E2Metrics
+	m.TimeToDetection = -1
 	m.TimeToFallback = -1
 	m.RecoveryTime = -1
 
@@ -245,6 +247,9 @@ func (h *Harness) ComputeMetrics() E2Metrics {
 			}
 			lastTransition = transition
 
+			if row.State != types.StateAnchored && m.TimeToDetection == -1 {
+				m.TimeToDetection = row.Height
+			}
 			if row.State == types.StateSovereign && m.TimeToFallback == -1 {
 				m.TimeToFallback = row.Height
 			}
@@ -263,7 +268,7 @@ func (h *Harness) ComputeMetrics() E2Metrics {
 
 func fmtMetrics(name string, m E2Metrics) string {
 	return fmt.Sprintf(
-		"%s: time_to_fallback=%d recovery_time=%d withdrawal_blocked_blocks=%d flapping_count=%d total_transitions=%d",
-		name, m.TimeToFallback, m.RecoveryTime, m.WithdrawalBlocked, m.FlappingCount, m.TotalTransitions,
+		"%s: time_to_detection=%d time_to_fallback=%d recovery_time=%d withdrawal_blocked_blocks=%d flapping_count=%d total_transitions=%d",
+		name, m.TimeToDetection, m.TimeToFallback, m.RecoveryTime, m.WithdrawalBlocked, m.FlappingCount, m.TotalTransitions,
 	)
 }
