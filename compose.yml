@@ -37,8 +37,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     profiles:
       - chaos-loss
-    # SCENARIO: Packet Loss - Drop 5% of network traffic on nodes 01 and 02 for 2m
-    command: 
+    # SCENARIO: Packet Loss - Drop 5% of network traffic on nodes 01 and 02 for 2m.
+    # Confirmed live (docs/EXPERIMENT.md's E2 S4) that even 40% loss over TCP
+    # (CometBFT's MConnection) is absorbed by retransmission: persistent P2P
+    # connections stay up (real /net_info n_peers unchanged throughout), so
+    # MinPeers/ChurnRate/ActiveAnchors never move -- loss-based netem simply
+    # doesn't target any conjunct IsP2PQualityHealthy checks
+    # (x/sovereignty/types/predicates.go), at any realistic percentage. Kept at
+    # the original mild 5% here since E9 also uses this exact profile for its
+    # own "P2P churn burst" framing. S4 no longer uses this profile at all --
+    # see scripts/e2_fault_injection/live_scenario_matrix.py's
+    # start_p2p_eclipse_partial for its real mechanism, which needs 6 different
+    # (container, interface) pairs simultaneously and doesn't fit one static
+    # compose service/profile.
+    command:
       - "netem"
       - "--duration=2m"
       - "loss"
