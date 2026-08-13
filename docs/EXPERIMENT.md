@@ -182,6 +182,17 @@ jitter and the mining-slowdown override are both kept as harmless, independently
 infrastructure (RPC-level realism and a documented negative finding respectively), but the
 submission-pause file is what `live_scenario_matrix.py`'s S2 phase now actually uses.
 
+**Clean scripted 7-phase run (S1-S7 in one continuous pass), superseding the debug-capture
+confirmation above.** `live_scenario_matrix.py` completed all 7 phases in 818s, 32 real transitions,
+every one in lockstep across all 4 validators, zero divergence. S2 this time captured the full
+`ANCHORED → SUSPICIOUS → SOVEREIGN` sequence as three distinct observed states (t=88s, t=149s) —
+the intermediate `SUSPICIOUS` reading the debug capture above missed (a fast-enough gap climb
+skipping straight past the sampling window) showed up cleanly at this run's poll interval, closing
+that specific gap. S3 (DA unavailable) reproduced the same three-state shape independently
+(`ANCHORED → SUSPICIOUS` t=264s, `→ SOVEREIGN` t=294s), and both S2 and S3 recovered
+`SOVEREIGN → RECOVERING → ANCHORED` within 6-8s of their cooldown/recovery phase starting. Data:
+`scripts/e2_fault_injection/results_live/s{1..7}_*.csv`.
+
 **Vanilla CometBFT baseline (measured):** `engramd start --vanilla` (`app/app.go`) runs the same
 binary/module but skips `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker`, so BaseApp uses
 its default handlers with no `ExtendedProposal`. Running both variants side by side
