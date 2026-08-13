@@ -21,7 +21,25 @@ services:
       - ../.env
     volumes:
       - ../data/bitcoin-node01:/home/bitcoin/.bitcoin
+    # lncm/bitcoind sets HOME=/data for the bitcoind user, so bitcoind's
+    # default datadir ($HOME/.bitcoin) resolves to /data/.bitcoin, NOT this
+    # volume's /home/bitcoin/.bitcoin mount point -- the bind mount above was
+    # silently inert, and bitcoind was instead writing chain+wallet state
+    # into Docker's auto-created anonymous volume backing /data (an implicit
+    # VOLUME in the base image). Anonymous volumes aren't reused across a
+    # `docker compose up --no-deps` recreate, so a wallet living there does
+    # not survive one (confirmed live: recreating this container to test a
+    # -wallet= flag silently lost the funded engramwallet). -datadir= below
+    # forces bitcoind onto the actual host-backed bind mount so wallet/chain
+    # state is genuinely durable across container recreation; -wallet= then
+    # auto-loads engramwallet (created by scripts/testnet_fund_wallet.sh) on
+    # every startup, since bitcoind never auto-loads a non-default wallet on
+    # its own -- without it every docker stop/start (including E2's S6
+    # combined-outage scenario) would leave the wallet unloaded until a
+    # manual `bitcoin-cli loadwallet engramwallet`.
     command:
+      -datadir=/home/bitcoin/.bitcoin
+      -wallet=engramwallet
       -printtoconsole
       -regtest=1
       -server=1
@@ -71,7 +89,9 @@ services:
       - ../.env
     volumes:
       - ../data/bitcoin-node02:/home/bitcoin/.bitcoin
+    # See bitcoin-node01's -datadir= comment above -- same fix, same reason.
     command:
+      -datadir=/home/bitcoin/.bitcoin
       -printtoconsole
       -regtest=1
       -server=1
