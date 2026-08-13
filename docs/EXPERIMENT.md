@@ -1018,6 +1018,13 @@ above, which needed neither workaround):
   expire on its own) stayed stuck "Up", and `wait_for_no_active_netem()` correctly refused to
   start the next profile rather than silently stacking two. Fixed by calling `stop` before
   `rm -f`.
+- A third, independent factor in that same earlier run (not itself a code bug, but worth recording):
+  its very first sample already showed every validator at `SOVEREIGN` with `safe_blocks=0`, before
+  any fault injection began — the cluster carried over a broken state from unrelated prior testing
+  rather than starting from a genuine `ANCHORED` baseline, so `total duration: 906s` / `reached
+  ANCHORED: False` measured a pre-contaminated run, not the trace's actual effect. The raw file is
+  no longer kept (superseded by the clean 319s run above, which started from a verified `ANCHORED`
+  baseline).
 
 ---
 
