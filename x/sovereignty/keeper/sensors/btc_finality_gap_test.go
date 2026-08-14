@@ -49,10 +49,8 @@ func TestBTCSensor_NewSensorHasZeroGapAndNoSource(t *testing.T) {
 }
 
 func TestBTCSensor_SetSourceIsIndependentOfGetMetric(t *testing.T) {
-	// GetMetric always reads the static gap regardless of a wired Source --
-	// only RefreshMetrics (x/sovereignty/sensors_refresh.go) consults Source
-	// directly. SetGap-based fault injection must keep working even with a
-	// live source wired (per SetGap's own doc comment).
+	// GetMetric always reads the static gap even with a Source wired -- only
+	// RefreshMetrics consults Source, so SetGap fault-injection keeps working.
 	s := NewBTCSensor()
 	s.SetGap(7)
 	s.SetSource(stubBTCHeightSource{height: 999})

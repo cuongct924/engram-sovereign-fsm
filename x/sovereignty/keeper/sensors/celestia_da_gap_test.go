@@ -53,9 +53,8 @@ func TestDASensor_SetAvailableTogglesGetMetric(t *testing.T) {
 	}
 }
 
-// spec/core/EngramFSM.tla:87's IsDAHealthy non-gap conjuncts:
-// ~is_das_failed /\ ~is_attestation_failed -- each flag must independently
-// break IsHealthy even while available.
+// IsDAHealthy's non-gap conjuncts (EngramFSM.tla:87): each flag must
+// independently break IsHealthy even while available.
 func TestDASensor_IsHealthy(t *testing.T) {
 	cases := []struct {
 		name              string

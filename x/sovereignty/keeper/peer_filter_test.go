@@ -29,8 +29,7 @@ func newPeerFilterTestKeeper(t *testing.T, maxPerSubnet uint64) *Keeper {
 
 // TestFilterPeerByAddr_FailsOpenWithNoSource covers the cold-start window
 // (BaseApp registers FilterPeerByAddr before node.NewNode() constructs the
-// real Switch) -- must accept, never reject, before SetPeerFilterSource is
-// ever called.
+// real Switch) -- must accept, never reject, before SetPeerFilterSource.
 func TestFilterPeerByAddr_FailsOpenWithNoSource(t *testing.T) {
 	k := newPeerFilterTestKeeper(t, 2)
 	resp := k.FilterPeerByAddr("10.0.0.5:12345")
@@ -39,8 +38,7 @@ func TestFilterPeerByAddr_FailsOpenWithNoSource(t *testing.T) {
 
 // TestFilterPeerByAddr_FailsOpenOnUnparseableAddr covers a malformed info
 // string (never expected from a real net.Conn.RemoteAddr().String(), but
-// this is a best-effort health signal, not consensus-critical parsing --
-// same convention as parsePersistentPeerIDs).
+// this is best-effort health parsing, not consensus-critical).
 func TestFilterPeerByAddr_FailsOpenOnUnparseableAddr(t *testing.T) {
 	k := newPeerFilterTestKeeper(t, 2)
 	k.SetPeerFilterSource(fakePeerFilterSource{count: 999})

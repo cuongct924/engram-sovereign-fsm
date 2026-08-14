@@ -9,33 +9,31 @@ import (
 
 // PeerFilterSource abstracts a live per-subnet connected-peer count --
 // concretely cmd/engramd's vanillaP2PHealthAdapter, wired via
-// SetPeerFilterSource. Mirrors sensors.P2PHealthSource's pattern: this
-// package doesn't import the CometBFT fork's p2p package directly.
+// SetPeerFilterSource. Avoids importing the CometBFT fork's p2p package
+// directly (same pattern as sensors.P2PHealthSource).
 type PeerFilterSource interface {
 	PeerCountInSubnet(subnet string) uint64
 }
 
 // SetPeerFilterSource wires src in. Until called, FilterPeerByAddr fails
 // open (accepts every peer) -- safe since no real peer connection happens
-// before node.NewNode() constructs the Switch and this gets wired.
+// before node.NewNode() constructs the Switch and wires this.
 func (k *Keeper) SetPeerFilterSource(src PeerFilterSource) {
 	k.peerFilterSrc = src
 }
 
-// FilterPeerByAddr is registered via baseapp.SetAddrPeerFilter (app/app.go);
-// CometBFT's own ABCI-query-based PeerFilterFunc calls it automatically when
-// config.P2P.FilterPeers is true.
+// FilterPeerByAddr is registered via baseapp.SetAddrPeerFilter (app/app.go)
+// and called automatically by CometBFT's PeerFilterFunc when
+// config.P2P.FilterPeers is true. info is net.Conn.RemoteAddr().String().
 //
-// info is net.Conn.RemoteAddr().String(). Rejects a new peer if admitting it
-// would push its subnet's (types.SubnetOf) connected-peer count to or above
-// Params.MaxPeersPerSubnet -- the active counterpart to the passive
-// SubnetDiversity metric, which only notices an eclipse/Sybil condition
-// after enough same-subnet peers have already connected.
+// Rejects a new peer if admitting it would push its subnet's
+// (types.SubnetOf) connected-peer count to or above Params.MaxPeersPerSubnet
+// -- the active counterpart to the passive SubnetDiversity metric, which
+// only notices an eclipse/Sybil after enough same-subnet peers connected.
 //
 // Fails open on any parse failure or before SetPeerFilterSource is called --
-// a best-effort defense-in-depth layer, not the sole safety mechanism
-// (CometBFT's own MaxNumInboundPeers cap and the passive SubnetDiversity
-// path both still apply regardless).
+// best-effort defense-in-depth, not the sole safety mechanism (CometBFT's
+// MaxNumInboundPeers and the passive SubnetDiversity path still apply).
 func (k *Keeper) FilterPeerByAddr(info string) *abci.ResponseQuery {
 	accept := &abci.ResponseQuery{}
 	if k.peerFilterSrc == nil {

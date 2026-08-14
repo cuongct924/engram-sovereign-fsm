@@ -20,16 +20,9 @@ func newTestMsgServer(t *testing.T) (*MsgServerImpl, context.Context) {
 	return &MsgServerImpl{Keeper: k}, ctx
 }
 
-// TestSubmitForcedTx_RejectsUndecodableContentWhenTxDecoderSet is a
-// regression test for a real, live-confirmed permanent-liveness bug:
-// SubmitForcedTx used to queue ANY msg.Tx content unconditionally. Content
-// that can never itself appear as real block-tx bytes (e.g. a bare marker
-// string) can also never satisfy IsCensoring's "included in req.Txs" check,
-// so once its ignored-round counter reaches MaxIgnoreRounds, every future
-// proposal from every validator is rejected forever -- confirmed live this
-// session: a single such forced tx halted a healthy 4-node cluster for
-// dozens of consensus rounds with no recovery path. Rejecting undecodable
-// content at submission time closes this at its source.
+// Regression test (live-confirmed, fixed in 51b8314): SubmitForcedTx used to
+// queue any content, letting one undecodable tx permanently halt the chain.
+// Undecodable content must now be rejected at the source; valid content queued.
 func TestSubmitForcedTx_RejectsUndecodableContentWhenTxDecoderSet(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	srv.TxDecoder = func(txBytes []byte) (sdk.Tx, error) {
@@ -52,31 +45,24 @@ func TestSubmitForcedTx_RejectsUndecodableContentWhenTxDecoderSet(t *testing.T) 
 	require.True(t, has)
 }
 
-// TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset confirms the nil-safe
-// default (no TxDecoder wired, e.g. every other test in this package using
-// newTestMsgServer) preserves the old unconditional-accept behavior --
-// TxDecoder wiring is optional, matching peerFilterSrc's existing pattern.
+// TxDecoder wiring is optional (nil-safe, like peerFilterSrc): unset means
+// the old unconditional-accept behavior.
 func TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	_, err := srv.SubmitForcedTx(ctx, &types.MsgSubmitForcedTxRequest{Tx: []byte("anything")})
 	require.NoError(t, err)
 }
 
-// TestSubmitRecoveryProof_NeverSetsFSMStateDirectly is a regression test for
-// the safety bug this handler used to have: it previously set
-// FSMState=ANCHORED unconditionally on proof-math validity alone, bypassing
-// StrictFSMTransitionSafety and HysteresisWait. Now it must never touch
-// FSMState at all -- only RealProofSubmitted, consumed by
-// sensors_refresh.go's refreshReanchoringProofValid through the existing
-// hysteresis-gated CalculateNextState pipeline.
+// Regression test: this handler used to set FSMState=ANCHORED on proof
+// validity alone, bypassing StrictFSMTransitionSafety/HysteresisWait. It
+// must never touch FSMState -- only latch RealProofSubmittedHeight, consumed
+// via sensors_refresh.go's refreshReanchoringProofValid.
 func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	require.NoError(t, srv.FSMState.Set(ctx, types.StateSovereign))
 
-	// A garbage proof must fail VerifyZKProof (whether via a real `bb
-	// verify` rejection, or fail-closed if bb isn't on PATH at all -- both
-	// paths return false, so this assertion doesn't depend on the bb
-	// toolchain being installed in this environment).
+	// Garbage proof must fail VerifyZKProof regardless of whether bb is on
+	// PATH (real rejection or fail-closed both return false).
 	_, err := srv.SubmitRecoveryProof(ctx, &types.MsgSubmitRecoveryProofRequest{
 		ZkProof:      []byte("not-a-real-proof"),
 		PublicInputs: make([]byte, 96),
@@ -91,10 +77,8 @@ func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	require.Zero(t, submittedHeight)
 }
 
-// TestSubmitRecoveryProof_RejectsMalformedPublicInputs covers the new
-// rt_last/rt_new/count binding check's length guard -- a non-96-byte
-// PublicInputs can't possibly decode into (rt_last, rt_new, count), so it
-// must be rejected before any on-chain state comparison is attempted.
+// Length guard for the (rt_last, rt_new, count) binding: a non-96-byte
+// PublicInputs is rejected before any on-chain state comparison.
 func TestSubmitRecoveryProof_RejectsMalformedPublicInputs(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 
@@ -105,10 +89,8 @@ func TestSubmitRecoveryProof_RejectsMalformedPublicInputs(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 }
 
-// TestLatestTrackedHeader_EmptyHistory confirms the tip lookup used by
-// SubmitRecoveryProof's rt_new binding check fails closed (rather than
-// panicking or returning a zero-value header that would spuriously match a
-// zero rt_new) when no SOVEREIGN/RECOVERING interval is currently tracked.
+// Empty history must fail closed (ErrInvalidZKProof), not return a
+// zero-value header that could spuriously match a zero rt_new.
 func TestLatestTrackedHeader_EmptyHistory(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
@@ -117,8 +99,8 @@ func TestLatestTrackedHeader_EmptyHistory(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 }
 
-// TestLatestTrackedHeader_PicksHighestHeight confirms the tip lookup
-// returns the header at the greatest tracked height, not just any entry.
+// Tip lookup returns the header at the greatest tracked height, not just
+// any entry.
 func TestLatestTrackedHeader_PicksHighestHeight(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
@@ -133,12 +115,9 @@ func TestLatestTrackedHeader_PicksHighestHeight(t *testing.T) {
 	require.Equal(t, []byte("h7"), tip.StateRoot)
 }
 
-// TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows is a
-// regression test for the gap found by actually running the real prover
-// pipeline end-to-end: a proof submitted while N headers were tracked must
-// stop counting once a NEW header has been appended (the interval grew
-// past what the proof covers) -- a flat bool latch can't express this,
-// which is why RealProofSubmittedHeight stores the proven height instead.
+// Regression test: the latch stores the proven HEIGHT, not a bool, so
+// staleness is detected when the interval grows past it -- guards the
+// LatestTrackedHeader primitive that check depends on.
 func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	require.NoError(t, srv.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
@@ -148,12 +127,8 @@ func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, uint64(4), height)
 
-	// A 5th header is appended (interval grew) before the latch was
-	// consumed -- refreshReanchoringProofValid's "height == tip height"
-	// check (sensors_refresh.go) is what must now treat this as stale, not
-	// this test directly (that function lives in package sovereignty, a
-	// different package); this test only guards the primitive it depends
-	// on: LatestTrackedHeader must report the NEW tip, not the stale one.
+	// Interval grew before the latch was consumed -- staleness is detected
+	// by comparing the latch to the new tip, not by the latch self-clearing.
 	require.NoError(t, srv.HeaderHistory.Set(ctx, 5, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h5")}))
 	newHeight, _, err := srv.LatestTrackedHeader(ctx)
 	require.NoError(t, err)
@@ -163,13 +138,9 @@ func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) 
 	require.Equal(t, uint64(4), submittedHeight, "the stale latch value itself is untouched by new headers -- staleness is detected by comparing it against the tip, not by it self-clearing")
 }
 
-// TestFindHeaderByStateRoot_FindsMatchingHeight covers the primitive that
-// makes rolling, mid-interval checkpoint advances possible (see
-// SubmitRecoveryProof's doc): a proof's rt_new only needs to match SOME
-// tracked header's state_root, not the absolute tip, since a valid proof
-// (already checked against the fixed-N circuit's VK before this is called)
-// is itself the guarantee that exactly N real headers connect rt_last to
-// whatever height this finds.
+// Rolling checkpoint: a proof's rt_new only needs to match SOME tracked
+// header's state_root, not the tip -- a valid proof (checked against the
+// fixed-N circuit's VK) guarantees real headers connect rt_last to it.
 func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
@@ -184,10 +155,8 @@ func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
 	require.Equal(t, uint64(8), height, "must find the MIDDLE tracked header, not just the tip -- a rolling checkpoint proof's rt_new is rarely the current tip")
 }
 
-// TestFindHeaderByStateRoot_NotFound confirms this fails closed (found=false,
-// no error) for a root that was never tracked -- SubmitRecoveryProof treats
-// this the same as any other invalid proof (ErrInvalidZKProof), closing the
-// same replay gap LatestTrackedHeader's exact-tip check used to close.
+// Fails closed (found=false, no error) for a root never tracked --
+// SubmitRecoveryProof treats it as ErrInvalidZKProof.
 func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
@@ -199,12 +168,9 @@ func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
 	require.False(t, found)
 }
 
-// TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater covers the other half
-// of the rolling-checkpoint scheme: advancing a checkpoint to height H must
-// only drop headers AT OR BELOW H (this segment's proof, now consumed) and
-// leave anything already accumulated past H untouched -- those headers are
-// the start of the NEXT segment, not garbage. Unlike
-// x/sovereignty.pruneHeaderHistory (full clear on return to ANCHORED), this
+// Rolling checkpoint: advancing to height H drops only headers AT OR BELOW
+// H (the consumed segment); later headers survive as the next segment's
+// start. Unlike pruneHeaderHistory (full clear on return to ANCHORED), this
 // is always a prefix trim.
 func TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater(t *testing.T) {
 	storeService, ctx := colltest.MockStore()

@@ -4,7 +4,7 @@ import (
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
-// FSMInput bundles the FSM-internal variables that CalculateNextState needs
+// FSMInput bundles the FSM-internal variables CalculateNextState needs
 // beyond the raw sensor snapshot, mirroring safe_blocks/suspicious_duration/
 // unhealthy_streak/failed_recovery_attempts/reanchoring_proof_valid in
 // spec/core/EngramFSM.tla.
@@ -18,15 +18,10 @@ type FSMInput struct {
 	ReanchoringProofValid  bool
 }
 
-// EffectiveDownHysteresisThreshold mirrors the TLA+ operator of the same
-// name (spec/core/EngramFSM.tla): RECOVERING's down-hysteresis grace period
-// doubles per consecutive RECOVERING->SOVEREIGN regression since the last
-// successful recovery, capped at MaxDownHysteresisThreshold -- a repeated,
-// precisely-timed flapping attacker (docs/EXPERIMENT.md) faces a
-// progressively harder bar each cycle, instead of paying the same fixed
-// DownHysteresisThreshold cost every time. A single genuine network fault
-// (failedRecoveryAttempts = 0) still only pays the plain
-// DownHysteresisThreshold, unaffected.
+// EffectiveDownHysteresisThreshold mirrors the TLA+ operator of the same name
+// (spec/core/EngramFSM.tla): RECOVERING's down-hysteresis grace doubles per
+// RECOVERING->SOVEREIGN regression, capped at MaxDownHysteresisThreshold --
+// flapping attacks face a harder bar each cycle.
 func EffectiveDownHysteresisThreshold(failedRecoveryAttempts uint64, p types.Params) uint64 {
 	effective := p.DownHysteresisThreshold
 	for i := uint64(0); i < failedRecoveryAttempts; i++ {
@@ -42,16 +37,12 @@ func EffectiveDownHysteresisThreshold(failedRecoveryAttempts uint64, p types.Par
 }
 
 // CalculateNextState ports CalculateNextFSMState (spec/core/EngramFSM.tla:318-358)
-// branch-for-branch, in the same order. Do not add a direct-to-SOVEREIGN
-// shortcut from any state -- StrictFSMTransitionSafety forbids skipping
-// SUSPICIOUS on the way down from ANCHORED.
+// branch-for-branch, in the same order. No direct-to-SOVEREIGN shortcut from
+// any state -- StrictFSMTransitionSafety forbids skipping SUSPICIOUS.
 //
-// Down-hysteresis (E5's flapping fix, docs/EXPERIMENT.md): a warning-only or
-// merely-not-yet-healthy reading -- never a critical one -- only demotes
-// ANCHORED/RECOVERING once it has recurred UnhealthyStreak+1 >=
-// DownHysteresisThreshold times in a row, instead of on the very first noisy
-// block. Critical conditions are never softened this way; they demote
-// immediately, exactly as before.
+// Down-hysteresis (E5's flapping fix): non-critical noise only demotes
+// ANCHORED/RECOVERING after UnhealthyStreak+1 >= DownHysteresisThreshold
+// consecutive times; critical conditions always demote immediately.
 func CalculateNextState(currentState string, in FSMInput, p types.Params) string {
 	critical := types.IsCriticalCondition(in.Metrics, p, in.SuspiciousDuration)
 	warning := types.IsWarningCondition(in.Metrics, p)
@@ -75,13 +66,8 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 		}
 		if healthy {
 			// Up-hysteresis on the exit edge (Gray Failure Arbitrage fix): a
-			// single healthy block used to exit immediately, hard-resetting
-			// SuspiciousDuration to 0 and letting a precisely-timed attacker
-			// restart the MaxSuspiciousTime clock forever. Now requires
-			// SuspiciousSafeBlocks+1 consecutive healthy blocks while still
-			// SUSPICIOUS -- SuspiciousDuration keeps accumulating throughout
-			// (NextSuspiciousDuration increments whenever the target state is
-			// still SUSPICIOUS), so a short healthy blip no longer buys a free reset.
+			// short healthy blip must not buy a free SuspiciousDuration reset --
+			// require SuspiciousSafeBlocks+1 consecutive healthy blocks.
 			if in.SuspiciousSafeBlocks+1 >= p.SuspiciousHysteresisWait {
 				return types.StateAnchored
 			}
@@ -115,11 +101,9 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 }
 
 // NextSafeBlocks mirrors ExecuteFSMTransition's safe_blocks' update
-// (spec/core/EngramFSM.tla:383-394): while staying in RECOVERING, a healthy
-// block increments (capped at HysteresisWait) as before; a non-critical
-// unhealthy block being absorbed by down-hysteresis LEAKS one unit instead
-// of hard-resetting to 0 (E5's flapping fix -- keeps partial progress
-// through sporadic noise). Any other transition resets to 0.
+// (spec/core/EngramFSM.tla:383-394): staying in RECOVERING increments on
+// healthy (cap HysteresisWait) and leaks -1 on absorbed noise (E5's flapping
+// fix); any other transition resets to 0.
 func NextSafeBlocks(currentState, targetState string, safeBlocks uint64, healthy bool, p types.Params) uint64 {
 	if targetState != types.StateRecovering || currentState != types.StateRecovering {
 		return 0
@@ -137,11 +121,10 @@ func NextSafeBlocks(currentState, targetState string, safeBlocks uint64, healthy
 }
 
 // NextSuspiciousSafeBlocks mirrors ExecuteFSMTransition's
-// suspicious_safe_blocks' update (spec/core/EngramFSM.tla): while staying in
-// SUSPICIOUS, a healthy block increments (capped at SuspiciousHysteresisWait);
-// a non-healthy block being absorbed LEAKS one unit instead of hard-resetting
-// to 0, mirroring NextSafeBlocks' own leak semantics applied to SUSPICIOUS's
-// exit edge (Gray Failure Arbitrage fix). Any other transition resets to 0.
+// suspicious_safe_blocks' update (spec/core/EngramFSM.tla): staying in
+// SUSPICIOUS increments on healthy (cap SuspiciousHysteresisWait), leaks -1
+// on absorbed noise (Gray Failure Arbitrage fix); any other transition resets
+// to 0.
 func NextSuspiciousSafeBlocks(currentState, targetState string, suspiciousSafeBlocks uint64, healthy bool, p types.Params) uint64 {
 	if targetState != types.StateSuspicious || currentState != types.StateSuspicious {
 		return 0
@@ -159,25 +142,15 @@ func NextSuspiciousSafeBlocks(currentState, targetState string, suspiciousSafeBl
 }
 
 // NextUnhealthyStreak mirrors ExecuteFSMTransition's unhealthy_streak'
-// update (spec/core/EngramFSM.tla:371-381): increments only while absorbing
-// a non-critical warning (ANCHORED) or unhealthy (RECOVERING) reading
-// without yet demoting; resets to 0 the instant a real transition fires
-// (demotion or a fully healthy reading).
+// update (spec/core/EngramFSM.tla:371-381): increments while absorbing a
+// non-critical unhealthy reading; resets to 0 on a real transition or a
+// healthy block.
 //
-// Simplified from the spec's literal "warning /\ ~critical" (ANCHORED) /
-// "~healthy /\ ~critical" (RECOVERING) form to a single healthy bool:
-// whenever currentState = targetState (we stayed rather than demoted),
-// critical must already be false -- CalculateNextState's critical branch is
-// checked first and always leaves the state, so staying implies ~critical
-// held. Under ~critical, warning <=> ~healthy (IsWarningCondition and
-// IsHealthyCondition agree on every non-critical BTC/DA/P2P conjunct), so
-// both branches collapse to the same "stayed /\ ~healthy" test. This is not
-// just style: it lets healthy be threaded in as a single already-agreed
-// value (ExtendedProposal.Healthy) rather than requiring the full sensor
-// snapshot this function would otherwise need to recompute -- callers at
-// commit time (preblock.go) must not recompute IsHealthyCondition from
-// their own live local sensors (CLAUDE.md's "never write live local sensor
-// reads into committed state" rule).
+// The spec's "warning /\ ~critical" / "~healthy /\ ~critical" collapse to one
+// healthy bool (staying implies ~critical; under ~critical, warning <=> ~healthy)
+// so healthy can be the already-agreed ExtendedProposal.Healthy, not a live
+// local sensor read (CLAUDE.md's "never write live local sensor reads into
+// committed state" rule).
 func NextUnhealthyStreak(currentState, targetState string, streak uint64, healthy bool) uint64 {
 	stayed := currentState == targetState &&
 		(currentState == types.StateAnchored || currentState == types.StateRecovering)
@@ -188,11 +161,9 @@ func NextUnhealthyStreak(currentState, targetState string, streak uint64, health
 }
 
 // NextFailedRecoveryAttempts mirrors ExecuteFSMTransition's
-// failed_recovery_attempts' update (spec/core/EngramFSM.tla): +1 on every
-// real RECOVERING -> SOVEREIGN regression (critical or down-hysteresis-
-// exhausted alike -- both are a failed attempt), reset to 0 on a successful
-// RECOVERING -> ANCHORED, saturating once growing further wouldn't change
-// the capped effective threshold. Unchanged for every other transition.
+// failed_recovery_attempts' update (spec/core/EngramFSM.tla): +1 per real
+// RECOVERING->SOVEREIGN regression (saturating once the capped effective
+// threshold stops growing), 0 on RECOVERING->ANCHORED, unchanged otherwise.
 func NextFailedRecoveryAttempts(currentState, targetState string, attempts uint64, p types.Params) uint64 {
 	switch {
 	case currentState == types.StateRecovering && targetState == types.StateSovereign:
@@ -208,10 +179,9 @@ func NextFailedRecoveryAttempts(currentState, targetState string, attempts uint6
 }
 
 // NextSuspiciousDuration mirrors the suspicious_duration' update
-// (spec/core/EngramFSM.tla:337-340): increments, capped at
-// MaxSuspiciousTime+1, whenever the TARGET state is SUSPICIOUS -- including
-// the block that enters it, unlike NextSafeBlocks which guards on both
-// current and target state. currentState is unused but kept to match
+// (spec/core/EngramFSM.tla:337-340): increments (cap MaxSuspiciousTime+1)
+// whenever the TARGET is SUSPICIOUS -- counting the entry block, unlike
+// NextSafeBlocks which guards both states. currentState is kept only to match
 // NextSafeBlocks' call shape.
 func NextSuspiciousDuration(currentState, targetState string, duration uint64, p types.Params) uint64 {
 	_ = currentState

@@ -19,10 +19,8 @@ import (
 )
 
 // newByzantineTestKeeperCtx mirrors proposal_test.go's newTestKeeperCtx
-// (external package, can't be reused directly from here) with healthy
-// metrics preset so CalculateNextState computes ANCHORED absent any
-// byzantine override -- makes fake_fsm_state's effect observable by
-// comparison.
+// (external package, can't be reused directly) with healthy metrics so
+// CalculateNextState yields ANCHORED absent any byzantine override.
 func newByzantineTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
@@ -42,10 +40,9 @@ func newByzantineTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	return k, sdkCtx
 }
 
-// TestPrepareProposal_EmptyByzantineBehaviorIsNoOp confirms the default
-// (empty ENGRAM_BYZANTINE_BEHAVIOR, every real validator) produces the same
-// honest ANCHORED claim as before this field existed -- a regression guard
-// against applyByzantineBehavior ever accidentally firing when unset.
+// TestPrepareProposal_EmptyByzantineBehaviorIsNoOp guards the default
+// (empty ENGRAM_BYZANTINE_BEHAVIOR): still yields the honest ANCHORED
+// claim -- applyByzantineBehavior must never fire when unset.
 func TestPrepareProposal_EmptyByzantineBehaviorIsNoOp(t *testing.T) {
 	k, ctx := newByzantineTestKeeperCtx(t)
 	resp, err := NewPrepareProposalHandler(k, nil, "")(ctx, &abci.RequestPrepareProposal{})
@@ -57,15 +54,10 @@ func TestPrepareProposal_EmptyByzantineBehaviorIsNoOp(t *testing.T) {
 }
 
 // TestPrepareProposal_FakeFSMStateOverridesRealComputation is A6 (Malicious
-// Proposer): confirms ENGRAM_BYZANTINE_BEHAVIOR=fake_fsm_state:<STATE>
-// actually forces the claimed fsm_state, regardless of what
-// CalculateNextState really computed -- the mutation
-// docker/engram-validator-node04-byzantine.yml's live scenario depends on.
-// The complementary half (that the OTHER 3 honest validators' real
-// ProcessProposal rejects this) is already covered by
-// TestProcessProposal_RejectsFSMStateMismatch (proposal_test.go) -- this
-// test only needs to confirm the byzantine leader-side production, not
-// re-prove the already-covered rejection.
+// Proposer): fake_fsm_state:<STATE> forces the claimed fsm_state whatever
+// CalculateNextState computed -- the mutation the byzantine node's live
+// scenario depends on. The honest-validators' rejection half is already
+// covered by TestProcessProposal_RejectsFSMStateMismatch (proposal_test.go).
 func TestPrepareProposal_FakeFSMStateOverridesRealComputation(t *testing.T) {
 	k, ctx := newByzantineTestKeeperCtx(t)
 	resp, err := NewPrepareProposalHandler(k, nil, "fake_fsm_state:SOVEREIGN")(ctx, &abci.RequestPrepareProposal{})
@@ -105,8 +97,8 @@ func TestPrepareProposal_FalseDAAttestationClaimsUnverifiedData(t *testing.T) {
 }
 
 // TestPrepareProposal_CensorTxOmitsTargetedTx is A7's adversarial half
-// (Censorship): confirms censor_tx:<hash> actually drops the targeted tx
-// from the outgoing Txs, even though the honest mempool/req.Txs included it.
+// (Censorship): censor_tx:<hash> drops the targeted tx even though the
+// honest req.Txs included it.
 func TestPrepareProposal_CensorTxOmitsTargetedTx(t *testing.T) {
 	k, ctx := newByzantineTestKeeperCtx(t)
 	target := []byte("forced-tx-content")

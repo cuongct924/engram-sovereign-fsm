@@ -1,9 +1,8 @@
 package types
 
-// This file ports the health-condition predicates in spec/core/EngramFSM.tla
-// (lines 76-125) verbatim. Keep the branch structure identical to the spec
-// when editing -- these predicates are the only integration surface between
-// sensors and CalculateNextState (see keeper/circuit_breaker.go).
+// Ports the health-condition predicates in spec/core/EngramFSM.tla (76-125)
+// verbatim -- the only integration surface between sensors and
+// CalculateNextState. Keep branch structure identical to the spec.
 
 // IsBTCGapSuspicious mirrors IsBTCGapSuspicious: SUSPICIOUS_THRESHOLD <= btc_gap < SOVEREIGN_THRESHOLD.
 func IsBTCGapSuspicious(m *PeripheralMetrics, p Params) bool {
@@ -15,10 +14,9 @@ func IsBTCGapSovereign(m *PeripheralMetrics, p Params) bool {
 	return m.BtcGap >= p.SovereignThreshold
 }
 
-// IsBTCHealthy mirrors IsBTCHealthy (spec/core/EngramFSM.tla): BTC gap
-// within both thresholds and no SPV/header verification failure -- the
-// BTC-side analog of IsDAHealthy below, gating anchor.VerifyReceipt's
-// freshness/SPV check the same way IsDAHealthy gates da.VerifyReceipt's.
+// IsBTCHealthy mirrors IsBTCHealthy (spec/core/EngramFSM.tla): gap within
+// both thresholds and no SPV failure -- gates anchor.VerifyReceipt like
+// IsDAHealthy gates da.VerifyReceipt.
 func IsBTCHealthy(m *PeripheralMetrics, p Params) bool {
 	return !IsBTCGapSuspicious(m, p) && !IsBTCGapSovereign(m, p) && !m.IsBtcSpvFailed
 }
@@ -28,9 +26,8 @@ func IsDAHealthy(m *PeripheralMetrics, p Params) bool {
 	return m.DaGap < p.DAThreshold && !m.IsDasFailed && !m.IsAttestationFailed
 }
 
-// IsP2PQualityHealthy mirrors IsP2PQualityHealthy (tri-interface profiler: structural,
-// behavioral and latency conjuncts) -- NOT peer-count-only, which spec/docs/EXPERIMENT.md's
-// E4 uses as the inferior baseline detector.
+// IsP2PQualityHealthy mirrors IsP2PQualityHealthy (structural, behavioral,
+// latency conjuncts) -- not peer-count-only (E4's inferior baseline).
 func IsP2PQualityHealthy(m *PeripheralMetrics, p Params) bool {
 	return m.SubnetDiversity >= p.MinSubnetDiversity &&
 		m.ActiveAnchors >= p.MinAnchorPeers &&
@@ -40,12 +37,8 @@ func IsP2PQualityHealthy(m *PeripheralMetrics, p Params) bool {
 		m.PeerLatency <= p.MaxPeerLatency
 }
 
-// IsCriticalCondition mirrors IsCriticalCondition: hard failure via BTC gap,
-// BTC SPV/header verification failure (the anchor height itself is
-// untrustworthy, not merely stale -- same severity class as
-// IsBTCGapSovereign, unlike is_das_failed/is_attestation_failed which only
-// feed IsWarningCondition), total anchor-peer loss (complete eclipse), or a
-// SUSPICIOUS gray-failure timeout.
+// IsCriticalCondition mirrors IsCriticalCondition: BTC gap/SPV failure, total
+// anchor-peer loss (eclipse), or a SUSPICIOUS gray-failure timeout.
 func IsCriticalCondition(m *PeripheralMetrics, p Params, suspiciousDuration uint64) bool {
 	return IsBTCGapSovereign(m, p) ||
 		m.IsBtcSpvFailed ||

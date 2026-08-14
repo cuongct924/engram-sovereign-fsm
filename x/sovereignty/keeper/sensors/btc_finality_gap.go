@@ -3,21 +3,17 @@ package sensors
 import "context"
 
 // BTCHeightSource abstracts a live Bitcoin chain-tip observer (concretely
-// anchor.RPCClient's getblockcount, wired via SetSource by
-// cmd/engramd/main.go) so this package stays independent of any RPC library
-// -- mirrors P2PHealthSource's separation.
+// anchor.RPCClient's getblockcount, wired via SetSource by cmd/engramd/main.go)
+// so this package stays independent of any RPC library.
 //
-// When set, sensors_refresh.go's btcGapMetric uses it to compute btc_gap
-// from live h_btc_current, instead of GetMetric's static SetGap value below.
+// When set, btcGapMetric computes btc_gap from live h_btc_current instead of
+// GetMetric's static SetGap value.
 type BTCHeightSource interface {
 	CurrentHeight(ctx context.Context) (uint64, error)
-	// Reachable does a fresh, bounded, stateless TCP check -- unlike
-	// CurrentHeight, never stale relative to the call (e.g. via a reused
-	// pooled connection), so every honest validator converges on the same
-	// bitcoind-down reading immediately instead of racing against each
-	// other's independent connection-pool timing (confirmed live as the
-	// source of cross-validator btc_gap/Healthy disagreement during a real
-	// bitcoind outage -- see btcGapMetric's use).
+	// Reachable is a fresh, bounded, stateless TCP check -- never stale
+	// (unlike CurrentHeight via a pooled connection), so all validators
+	// converge on the same bitcoind-down reading instead of racing each
+	// other's connection-pool timing.
 	Reachable(ctx context.Context) bool
 }
 
@@ -33,7 +29,7 @@ func NewBTCSensor() *BTCSensor {
 }
 
 // SetGap overrides the current btc_gap reading, e.g. for fault-injection
-// scenarios (S2 BTC congestion). Independent of Source: the caller decides
+// scenarios (S2 BTC congestion). Independent of Source -- the caller decides
 // whether to consult Source or this static value (see btcGapMetric).
 func (s *BTCSensor) SetGap(gap uint64) {
 	s.gap = gap

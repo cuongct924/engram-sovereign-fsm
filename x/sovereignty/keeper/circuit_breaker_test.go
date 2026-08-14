@@ -80,9 +80,9 @@ func TestCalculateNextState_SuspiciousToSovereignOnCritical(t *testing.T) {
 
 func TestCalculateNextState_SuspiciousAbsorbsHealthyBlockBelowSuspiciousHysteresisWait(t *testing.T) {
 	// Gray Failure Arbitrage fix: a single healthy block must NOT immediately
-	// exit SUSPICIOUS -> ANCHORED -- it's absorbed while
-	// SuspiciousSafeBlocks+1 stays below SuspiciousHysteresisWait, so
-	// suspicious_duration keeps accumulating instead of resetting for free.
+	// exit SUSPICIOUS -> ANCHORED -- it's absorbed while SuspiciousSafeBlocks+1
+	// stays below SuspiciousHysteresisWait, so suspicious_duration keeps
+	// accumulating instead of resetting for free.
 	p := types.DefaultParams()
 	require.Greater(t, p.SuspiciousHysteresisWait, uint64(1), "test assumes the default threshold grants at least one block of grace")
 
@@ -292,11 +292,10 @@ func TestNextSuspiciousDuration_ResetsOnLeavingSuspicious(t *testing.T) {
 
 func TestNextSuspiciousDuration_IncrementsOnFirstEntryFromAnchored(t *testing.T) {
 	// spec/core/EngramFSM.tla:337-340's suspicious_duration' formula guards
-	// only on target_state = "SUSPICIOUS", not on the current state also
-	// being SUSPICIOUS -- so the very first block entering SUSPICIOUS from
-	// ANCHORED must already count as 1, not 0 (a prior version of this
-	// function required currentState == SUSPICIOUS too, lagging the spec's
-	// counter by one block for the entire SUSPICIOUS dwell).
+	// only on target_state = "SUSPICIOUS", not on current state also being
+	// SUSPICIOUS -- so the very first block entering SUSPICIOUS from ANCHORED
+	// counts as 1, not 0 (a prior version also required currentState ==
+	// SUSPICIOUS, lagging the spec's counter by one block).
 	p := types.DefaultParams()
 	got := NextSuspiciousDuration(types.StateAnchored, types.StateSuspicious, 0, p)
 	require.Equal(t, uint64(1), got)
@@ -360,11 +359,11 @@ func TestNextFailedRecoveryAttempts_IncrementsOnRegressionAndResetsOnSuccess(t *
 }
 
 func TestNextFailedRecoveryAttempts_SaturatesOnceEffectiveThresholdCaps(t *testing.T) {
-	// Once EffectiveDownHysteresisThreshold has already reached
+	// Once EffectiveDownHysteresisThreshold has reached
 	// MaxDownHysteresisThreshold, further regressions must not keep growing
-	// the counter forever -- it has no more effect and would otherwise be
-	// an unbounded Nat, breaking TLC's finite-state-space assumption
-	// (FSMTypeOK's 0..MAX_DOWN_HYSTERESIS_THRESHOLD bound).
+	// the counter forever -- it has no more effect and would be an unbounded
+	// Nat, breaking TLC's finite-state-space assumption (FSMTypeOK's
+	// 0..MAX_DOWN_HYSTERESIS_THRESHOLD bound).
 	p := types.DefaultParams()
 	p.DownHysteresisThreshold = 2
 	p.MaxDownHysteresisThreshold = 8 // reached at attempts=2 (2*2^2=8)

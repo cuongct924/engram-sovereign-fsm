@@ -198,11 +198,9 @@ func TestPreBlocker_TracksForcedTxIgnoredRounds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), count)
 
-	// Block 2: forced tx included -> dequeued entirely (not merely reset to
-	// 0 and left queued -- a tx included once and then consumed can never
-	// reappear in req.Txs again, so leaving it queued would guarantee
-	// IsCensoring trips permanently on every future round; see
-	// updateForcedTxTracking's doc for the real live deadlock this closes).
+	// Block 2: forced tx included -> dequeued entirely, not merely reset to 0
+	// and left queued. Txs are one-shot, so a leftover queued tx would trip
+	// IsCensoring on every future round (see updateForcedTxTracking's doc).
 	_, err = sovereignty.NewPreBlocker(k)(ctx, &abci.RequestFinalizeBlock{Txs: [][]byte{tx, []byte("FORCED_TX_1")}})
 	require.NoError(t, err)
 	_, err = k.TxIgnoredRounds.Get(ctx, "FORCED_TX_1")

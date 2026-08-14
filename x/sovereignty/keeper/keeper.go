@@ -15,93 +15,61 @@ type Keeper struct {
 	storeService store.KVStoreService
 	Schema       collections.Schema
 
-	// Params defaults to spec/core/MC_StressC1Safety.cfg's verified values
-	// (types.DefaultParams) here at construction time, then gets overridden
-	// by app.go's InitChainer from the genesis-supplied (validated)
-	// GenesisParams -- see GenesisParams.ToParams's doc for why genesis,
-	// not a per-process env var, is the safe place to configure these.
+	// Genesis-configured params (defaults from MC_StressC1Safety.cfg's
+	// verified values), overridden by InitChainer from validated genesis.
 	Params types.Params
 
 	// FSM state, mirroring spec/core/EngramFSM.tla's state variables.
 	FSMState           collections.Item[string]
 	SafeBlocks         collections.Item[uint64]
 	SuspiciousDuration collections.Item[uint64]
-	// UnhealthyStreak backs the down-hysteresis fix (E5's flapping finding,
-	// docs/EXPERIMENT.md) -- consecutive non-critical warning/unhealthy
-	// blocks absorbed in ANCHORED/RECOVERING before demoting; see
-	// circuit_breaker.go's NextUnhealthyStreak.
+	// UnhealthyStreak backs E5's down-hysteresis: consecutive absorbed
+	// non-critical warning/unhealthy blocks before demoting.
 	UnhealthyStreak collections.Item[uint64]
-	// FailedRecoveryAttempts backs the exponential-backoff flapping-attack
-	// hardening (docs/EXPERIMENT.md): consecutive RECOVERING->SOVEREIGN
-	// regressions since the last successful recovery; see
-	// circuit_breaker.go's NextFailedRecoveryAttempts/
-	// EffectiveDownHysteresisThreshold.
+	// FailedRecoveryAttempts backs the flapping-attack exponential-backoff
+	// hardening: RECOVERING->SOVEREIGN regressions since last recovery.
 	FailedRecoveryAttempts collections.Item[uint64]
-	// SuspiciousSafeBlocks backs the Gray Failure Arbitrage fix
-	// (docs/EXPERIMENT.md): consecutive healthy blocks absorbed in
-	// SUSPICIOUS before exiting to ANCHORED; see circuit_breaker.go's
-	// NextSuspiciousSafeBlocks.
+	// SuspiciousSafeBlocks backs the Gray Failure Arbitrage fix: consecutive
+	// healthy blocks absorbed in SUSPICIOUS before exiting.
 	SuspiciousSafeBlocks  collections.Item[uint64]
 	ReanchoringProofValid collections.Item[bool]
 	Metrics               collections.Item[*types.PeripheralMetrics]
 
-	// Height tracking, mirroring spec/core/EngramFSM.tla/EngramTendermint.tla's
-	// h_btc_current/h_btc_anchored/h_btc_submitted/h_engram_current/
-	// h_engram_verified. Built/verified in PrepareProposal/ProcessProposal
-	// (x/sovereignty/proposal.go).
+	// Height tracking, mirroring EngramFSM.tla/EngramTendermint.tla's h_*
+	// variables. Built/verified in x/sovereignty/proposal.go.
 	HBtcCurrent     collections.Item[uint64]
 	HBtcAnchored    collections.Item[uint64]
 	HBtcSubmitted   collections.Item[uint64]
 	HEngramCurrent  collections.Item[uint64]
 	HEngramVerified collections.Item[uint64]
 
-	// Censorship-resistance state, mirroring spec/core/EngramTendermint.tla's
-	// forced_tx_queue / tx_ignored_rounds[self][tx] (M0d). Keys are raw tx
-	// byte content. See types/censorship.go for the pure functions consuming these.
+	// Censorship-resistance state, mirroring EngramTendermint.tla's
+	// forced_tx_queue / tx_ignored_rounds.
 	ForcedTxQueue   collections.KeySet[string]
 	TxIgnoredRounds collections.Map[string, uint64]
 
 	// Re-anchoring ZK proof state (spec/README.md's §Re-anchoring via
-	// ZK-Proof of Recovery). HeaderHistory tracks witness headers for the
-	// CURRENT SOVEREIGN/RECOVERING interval only (preblock.go's
-	// CommitFSMTransition). LastAnchoredRoot is rt_last, a rolling
-	// checkpoint that advances every time SubmitRecoveryProof accepts a
-	// proof (the circuit's N_MAX is fixed at compile time; a real interval
-	// isn't, so one proof can't always span the whole interval).
-	// RealProofSubmittedHeight stores the HEIGHT the checkpoint was last
-	// advanced to (not just a bool) so a stale proof can't read as valid
-	// once newer, unproven headers are appended -- see
-	// refreshReanchoringProofValid, its consumer.
+	// ZK-Proof of Recovery). HeaderHistory tracks the CURRENT interval's
+	// witness headers; LastAnchoredRoot is the rolling rt_last; the latch
+	// stores the proven HEIGHT (not a bool) so a stale proof can't read as
+	// valid once newer headers are appended.
 	HeaderHistory            collections.Map[uint64, types.RecoveryHeader]
 	LastAnchoredRoot         collections.Item[[]byte]
 	RealProofSubmittedHeight collections.Item[uint64]
 
-	// RecoveryProofDAHeights records, per accepted proof (keyed by the
-	// checkpoint height it advanced to), the Celestia height its witness
-	// header chain was published at -- a pure audit pointer, never verified
-	// on-chain: HeaderHistory gets pruned once a proof is accepted
-	// (pruneHeaderHistoryUpTo), so without this a late-joining node or
-	// external auditor has no way to retrieve the real header chain a past
-	// proof was built from. 0 means not published. Concrete-only addition,
-	// no spec line -- doesn't affect any IsValidProposal/CalculateNextFSMState
-	// predicate.
+	// Audit pointer: Celestia height where each accepted proof's witness
+	// chain was published (0 = not). Concrete-only, no spec line.
 	RecoveryProofDAHeights collections.Map[uint64, uint64]
 
-	// peerFilterSrc backs FilterPeerByAddr (peer_filter.go) -- nil until
-	// SetPeerFilterSource is called (cmd/engramd's wirePeerFilter, late-bound
-	// after node.NewNode() constructs the real *p2p.Switch).
+	// Live per-subnet peer count for FilterPeerByAddr; nil until wired
+	// (late-bound after node.NewNode(), fails open).
 	peerFilterSrc PeerFilterSource
 
-	// TxDecoder backs SubmitForcedTx's validation that queued content
-	// decodes as a real tx -- nil until SetTxDecoder is called (app.go).
-	// Without it, undecodable content can permanently trip IsCensoring on
-	// every future proposal, since it can never appear in req.Txs.
+	// Decodes queued forced-tx content; nil = skip validation.
 	TxDecoder sdk.TxDecoder
 
-	// Double-signing detection (docs/EXPERIMENT.md's E8), written from
-	// preblock.go's NewPreBlocker reading RequestFinalizeBlock.Misbehavior
-	// directly -- safe to commit since it's deterministic, agreed block data
-	// (see types.EvidenceRecord's doc).
+	// E8 double-signing detection, written from block Misbehavior (agreed
+	// data, safe to commit).
 	DetectedEvidenceCount collections.Item[uint64]
 	LastDetectedEvidence  collections.Item[types.EvidenceRecord]
 }

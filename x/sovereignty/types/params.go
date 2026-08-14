@@ -17,130 +17,84 @@ type Params struct {
 	MaxSuspiciousTime   uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
 	MaxIgnoreRounds     uint64 // rounds a forced tx can be ignored before IsCensoring trips
 
-	// DownHysteresisThreshold gates the downward transitions ANCHORED->SUSPICIOUS
-	// and RECOVERING->SOVEREIGN on a non-critical (warning-only) reading: it
-	// only fires once UnhealthyStreak+1 reaches this value, absorbing shorter
-	// runs of noise instead of demoting on the very first bad block (E5's
-	// flapping fix, docs/EXPERIMENT.md). A critical condition always bypasses
-	// this and demotes immediately. 1 reproduces the pre-fix immediate-demote
-	// behavior exactly (streak+1 >= 1 is always true).
+	// DownHysteresisThreshold gates ANCHORED->SUSPICIOUS and
+	// RECOVERING->SOVEREIGN on UnhealthyStreak+1 reaching this value (E5's
+	// flapping fix). 1 = pre-fix immediate-demote behavior.
 	DownHysteresisThreshold uint64
 
-	// MaxDownHysteresisThreshold caps RECOVERING's exponentially-backed-off
-	// down-hysteresis threshold (EffectiveDownHysteresisThreshold,
-	// circuit_breaker.go): a repeated, precisely-timed flapping attack
-	// (docs/EXPERIMENT.md) doubles the effective grace period on every
-	// consecutive RECOVERING->SOVEREIGN regression, up to this ceiling --
-	// without a cap, unbounded regressions would grow the grace period
-	// forever, itself a liveness risk after enough genuine network hiccups
-	// over a long run, not just an attacker. Must be >= DownHysteresisThreshold.
+	// MaxDownHysteresisThreshold caps RECOVERING's backoff-doubled
+	// down-hysteresis threshold -- without it, repeated regressions would
+	// grow the grace period into a liveness risk. Must be >= DownHysteresisThreshold.
 	MaxDownHysteresisThreshold uint64
 
-	// SuspiciousHysteresisWait gates SUSPICIOUS's exit to ANCHORED on
-	// SuspiciousSafeBlocks+1 consecutive healthy blocks, instead of a single
-	// one (Gray Failure Arbitrage fix, docs/EXPERIMENT.md): without this, an
-	// attacker who can nudge sensors healthy for exactly one block right
-	// before MaxSuspiciousTime resets suspicious_duration to 0 and repeats
-	// forever, never letting the network escalate to SOVEREIGN. 1 reproduces
-	// the pre-fix immediate-exit behavior exactly (streak+1 >= 1 always holds).
+	// SuspiciousHysteresisWait gates SUSPICIOUS->ANCHORED on
+	// SuspiciousSafeBlocks+1 consecutive healthy blocks (Gray Failure
+	// Arbitrage fix). 1 = pre-fix immediate-exit behavior.
 	SuspiciousHysteresisWait uint64
 
 	// KDeepFinality is K_DEEP_FINALITY (spec/core/EngramConsensus.tla's
-	// IsKDeep): Bitcoin confirmations required before AnchorTracker treats a
-	// submission as anchored. Governs anchor submission, not FSM thresholds.
+	// IsKDeep): BTC confirmations before a submission counts as anchored.
 	KDeepFinality uint64
 
-	// MaxUnprovenTailBlocks bounds how far RealProofSubmittedHeight may
-	// trail the current tip and still count as valid
-	// (refreshReanchoringProofValid). Every block up to
-	// tip-MaxUnprovenTailBlocks still requires a real verified proof
-	// (SubmitRecoveryProof) -- this only relaxes an exact tip match to a
-	// bounded gap, mirroring KDeepFinality's own "K-deep, not exact tip"
-	// pattern.
+	// MaxUnprovenTailBlocks bounds how far RealProofSubmittedHeight may trail
+	// the tip and still validate -- a bounded-gap relax of an exact tip match.
 	MaxUnprovenTailBlocks uint64
 
-	// MaxPeersPerSubnet bounds same-/24 (or /48 IPv6) connected peers before
-	// FilterPeerByAddr (peer_filter.go) rejects further connections from
-	// that subnet outright -- the active counterpart to the passive
-	// SubnetDiversity metric IsP2PQualityHealthy reads.
+	// MaxPeersPerSubnet bounds same-subnet peers before FilterPeerByAddr
+	// rejects -- the active counterpart to the passive SubnetDiversity.
 	MaxPeersPerSubnet uint64
 }
 
 // DefaultParams returns this repo's tuned defaults for the real N=4 Docker
-// testnet -- NOT spec/core/MC_StressC1Safety.cfg's THRESHOLDS block, which
-// is TLC's smallest tractable config for state-space size, not a viable
-// runtime default.
+// testnet -- NOT spec/core/MC_StressC1Safety.cfg's THRESHOLDS block (that's
+// TLC's tractable config, not a viable runtime default).
 func DefaultParams() Params {
 	return Params{
-		// Regtest reorg-safety depth; mainnet should use ~6 confirmations.
+		// Regtest reorg-safety depth; mainnet ~6 confirmations.
 		KDeepFinality: 2,
-		// 2x the real observed steady-state proof-tail gap (max 4, under the
-		// N_MAX=256 circuit) -- revisit if proof latency or N_MAX changes.
+		// 2x the real steady-state proof-tail gap (max 4, under N_MAX=256).
 		MaxUnprovenTailBlocks: 8,
-		// KDeepFinality + margin: AnchorTracker only reports h_btc_anchored
-		// once a submission reaches KDeepFinality confirmations, so btc_gap
-		// sits at [KDeepFinality, KDeepFinality+1] even when Bitcoin is
-		// healthy -- these must clear that band, not sit close to it.
+		// Must clear the healthy [KDeepFinality, KDeepFinality+1] btc_gap band.
 		SuspiciousThreshold: 5,
 		SovereignThreshold:  8,
-		// Sized off the real Engram:Celestia block-time ratio plus
-		// da.Publisher's async submit latency -- cadence-dependent, revisit
-		// if Engram's block time changes materially.
+		// Sized off the Engram:Celestia block-time ratio plus DA submit latency.
 		DAThreshold: 30,
-		// Kept deliberately small: E5 (docs/EXPERIMENT.md) found
-		// anchored_uptime decreases monotonically as HysteresisWait grows
-		// under sustained noise, with no interior sweet spot.
+		// Deliberately small -- E5 found uptime falls as HysteresisWait grows.
 		HysteresisWait: 2,
-		// Smallest value that actually grants a 1-block grace period (see
-		// the field doc) -- candidate for the same E5-style sweep.
+		// Smallest value granting a genuine 1-block grace period.
 		DownHysteresisThreshold: 2,
-		// 8 (=2*2^2): allows 2 backoff doublings (2 -> 4 -> 8) before
-		// capping -- enough to meaningfully harden against a repeated
-		// attacker without letting a long run of genuine faults strand
-		// RECOVERING behind an ever-growing wall.
+		// 8 (=2*2^2): allows 2 backoff doublings (2->4->8) before capping.
 		MaxDownHysteresisThreshold: 8,
-		// Same reasoning as HysteresisWait above -- smallest value granting a
-		// genuine 1-block grace period, candidate for the same E5-style sweep.
+		// Same reasoning as HysteresisWait -- smallest value granting a
+		// genuine 1-block grace period.
 		SuspiciousHysteresisWait: 2,
-		// Reasoned default, not measured -- candidate for a future E5-style sweep.
+		// Reasoned default, not measured -- candidate for an E5-style sweep.
 		MaxSuspiciousTime: 24,
-		// productionScaleParams() baseline (E4-validated), MinAnchorPeers/
-		// MinPeers scaled down for this testnet's N=4,f=1 assumption.
+		// productionScaleParams() baseline (E4-validated), scaled for N=4,f=1.
 		MinPeers: 3,
-		// 2, not productionScaleParams()'s 8: each validator reaches the
-		// other 3 over a dedicated pairwise-link subnet (docker/
-		// engram-validator-cluster.yml, cmd/engramd/main.go's
-		// pairwiseLinkPeerIP), so a healthy node's real SubnetDiversity is
-		// 3 -- 2 leaves one peer's worth of tolerance for a single link
-		// being down/reconnecting, not the trivially-always-true floor of 1.
+		// 2, not productionScaleParams()'s 8: healthy SubnetDiversity is 3
+		// (one peer per pairwise-link subnet), so 2 tolerates one link down.
 		MinSubnetDiversity: 2,
 		MinAnchorPeers:     2,
 		MaxChurnRate:       5,
 		MinAvgTenure:       300, // seconds
 		MaxPeerLatency:     200, // milliseconds (real RTT via p2p.Peer.RTT())
 		MaxIgnoreRounds:    1,
-		// Each validator's 3 honest peers now arrive on 3 SEPARATE /29
-		// pairwise-link subnets (1 peer each), not one shared /24 -- this
-		// threshold only needs headroom for engram-net-side traffic
-		// (attacker swarm, reanchoring-prover), not co-located honest peers.
+		// Headroom only needed for engram-net-side traffic (attacker swarm,
+		// reanchoring prover), not co-located peers.
 		MaxPeersPerSubnet: 8,
 	}
 }
 
-// Validate enforces the cross-field constraints documented on
-// DefaultParams above -- called from InitChain (app/app.go) on whatever
-// genesis actually supplies, whether that's DefaultParams() or a
-// genesis-time ENGRAM_PARAM_* override (cmd/engramd/main.go), so a bad
-// override fails the chain at genesis rather than silently producing
-// unreachable states or self-locking the ingress filter.
+// Validate enforces the cross-field constraints documented on DefaultParams,
+// called from InitChain on the genesis params -- a bad override fails at
+// genesis instead of producing unreachable states or self-locking ingress.
 func (p Params) Validate() error {
 	if p.KDeepFinality == 0 {
 		return fmt.Errorf("params: KDeepFinality must be >= 1 (0 confirmations defeats reorg safety)")
 	}
-	// btc_gap sits at [KDeepFinality, KDeepFinality+1] even when Bitcoin is
-	// healthy (AnchorTracker only reports h_btc_anchored once KDeepFinality
-	// confirmations land) -- both thresholds must clear that band, or the
-	// circuit breaker trips on a perfectly healthy chain.
+	// btc_gap sits at [KDeepFinality, KDeepFinality+1] even when healthy, so
+	// both thresholds must clear that band or the breaker trips spuriously.
 	floor := p.KDeepFinality + 1
 	if p.SuspiciousThreshold <= floor {
 		return fmt.Errorf("params: SuspiciousThreshold (%d) must be > KDeepFinality+1 (%d)", p.SuspiciousThreshold, floor)
@@ -149,8 +103,7 @@ func (p Params) Validate() error {
 		return fmt.Errorf("params: SovereignThreshold (%d) must be > KDeepFinality+1 (%d)", p.SovereignThreshold, floor)
 	}
 	// IsWarningCondition's band is [SuspiciousThreshold, SovereignThreshold)
-	// (predicates.go) -- if SovereignThreshold doesn't exceed
-	// SuspiciousThreshold, SUSPICIOUS is never reachable at all.
+	// -- equal values make SUSPICIOUS unreachable.
 	if p.SovereignThreshold <= p.SuspiciousThreshold {
 		return fmt.Errorf("params: SovereignThreshold (%d) must be > SuspiciousThreshold (%d)", p.SovereignThreshold, p.SuspiciousThreshold)
 	}
@@ -167,9 +120,8 @@ func (p Params) Validate() error {
 	return nil
 }
 
-// ToGenesisParams converts to the genesis wire format (GenesisParams,
-// genesis.proto) -- see that message's doc for why genesis, not an env var
-// read per-process, is the safe place to configure these.
+// ToGenesisParams converts to the genesis wire format (genesis.proto) -- see
+// that message's doc for why genesis, not an env var, configures these.
 func (p Params) ToGenesisParams() *GenesisParams {
 	return &GenesisParams{
 		SuspiciousThreshold:        p.SuspiciousThreshold,

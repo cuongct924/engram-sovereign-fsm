@@ -52,10 +52,8 @@ func TestP2PSensor_GetSnapshotPrefersLiveSourceWhenSet(t *testing.T) {
 	}
 }
 
-// TestP2PSensor_SetSnapshotAlwaysWinsOverSource is a regression test for the
-// override semantics documented on SetSnapshot: an explicit fault-injection
-// override (MsgInjectFaultRequest's escape hatch, e.g. S4/S5 scenarios) must
-// win even after a live Source was previously wired in.
+// Regression for SetSnapshot's override semantics: an explicit fault-injection
+// override must win even after a live Source was wired in.
 func TestP2PSensor_SetSnapshotAlwaysWinsOverSource(t *testing.T) {
 	s := NewP2PSensor()
 	s.SetSource(stubP2PHealthSource{snapshot: P2PSnapshot{ActiveAnchors: 9}})

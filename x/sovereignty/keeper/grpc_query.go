@@ -6,11 +6,7 @@ import (
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
-// QueryServerImpl implements types.QueryServer. Previously this module had
-// no QueryServer at all -- Query.State was defined in the proto and had
-// generated types, but was never implemented or registered (module.go's
-// RegisterServices only ever called types.RegisterMsgServer), so it was
-// unreachable via gRPC/CLI despite existing on paper.
+// QueryServerImpl implements types.QueryServer (Query.State + RecoveryHeaders).
 type QueryServerImpl struct {
 	*Keeper
 }
@@ -19,6 +15,8 @@ func NewQueryServerImpl(k *Keeper) types.QueryServer {
 	return &QueryServerImpl{Keeper: k}
 }
 
+// State dumps the node's current FSM snapshot -- serves docs/EXPERIMENT.md's
+// E9 trace-driven stress test and E2 observation (not part of consensus).
 func (k *QueryServerImpl) State(ctx context.Context, _ *types.QueryStateRequest) (*types.QueryStateResponse, error) {
 	fsmState, _ := k.FSMState.Get(ctx)
 	safeBlocks, _ := k.SafeBlocks.Get(ctx)
@@ -35,10 +33,8 @@ func (k *QueryServerImpl) State(ctx context.Context, _ *types.QueryStateRequest)
 	}, nil
 }
 
-// RecoveryHeaders dumps HeaderHistory + LastAnchoredRoot exactly as tracked
-// on-chain, so scripts/reanchoring_prover.sh (A6) can build a real ZK
-// witness without independently reconstructing this validator's view of the
-// current SOVEREIGN/RECOVERING interval.
+// RecoveryHeaders dumps the current interval's HeaderHistory + rt_last so an
+// off-chain prover can build a ZK witness without reconstructing the view.
 func (k *QueryServerImpl) RecoveryHeaders(ctx context.Context, _ *types.QueryRecoveryHeadersRequest) (*types.QueryRecoveryHeadersResponse, error) {
 	lastAnchoredRoot, _ := k.LastAnchoredRoot.Get(ctx)
 
@@ -52,9 +48,8 @@ func (k *QueryServerImpl) RecoveryHeaders(ctx context.Context, _ *types.QueryRec
 		return nil, err
 	}
 
-	// kvs is already ascending by height (collections.Map's default
-	// iteration order, backed by the KVStore's own sorted key iteration) --
-	// exactly the order a witness chain must be assembled in.
+	// Already ascending by height (KVStore sorted keys) -- the order a witness
+	// chain needs.
 	headers := make([]*types.QueryRecoveryHeader, 0, len(kvs))
 	for _, kv := range kvs {
 		headers = append(headers, &types.QueryRecoveryHeader{

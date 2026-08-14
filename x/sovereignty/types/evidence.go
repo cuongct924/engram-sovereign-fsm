@@ -2,12 +2,10 @@ package types
 
 import "time"
 
-// EvidenceRecord mirrors one entry of RequestFinalizeBlock.Misbehavior
-// (CometBFT's stock evidence pool: DuplicateVote or LightClientAttack).
-// Plain JSON-encoded (collections.NewJSONValueCodec), not a new proto
-// message. Safe to commit -- unlike a validator's own local sensor
-// readings -- because Misbehavior is deterministic, already-agreed block
-// data, identical across every honest validator.
+// EvidenceRecord mirrors one RequestFinalizeBlock.Misbehavior entry
+// (CometBFT's DuplicateVote/LightClientAttack). JSON-encoded, not a new
+// proto message. Safe to commit: deterministic agreed block data, unlike
+// a node's own local sensor readings.
 type EvidenceRecord struct {
 	Type             string    `json:"type"` // "DuplicateVote" | "LightClientAttack" | "Unknown"
 	ValidatorAddress []byte    `json:"validator_address"`

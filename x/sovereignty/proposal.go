@@ -15,38 +15,22 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// ExtendedProposal mirrors the extended Proposal fields in
-// spec/core/EngramTendermint.tla:143-150 (fsm_state, da_receipt, btc_receipt,
-// zk_proof_ref) beyond the raw tx value. JSON-encoded and placed as Txs[0]
-// by PrepareProposal below.
-//
-// Simplification: this repo does not yet wire ABCI++ Vote Extensions
-// (the more idiomatic mechanism for consensus-level metadata); a leading
-// pseudo-tx avoids needing a full TxConfig/signing pipeline for
-// leader-computed system data.
+// ExtendedProposal mirrors proposal fields in EngramTendermint.tla:143-150
+// (fsm_state, da_receipt, btc_receipt, zk_proof_ref). Encoded as JSON and
+// prepended as the first pseudo-transaction (Txs[0]) to bypass ABCI++
+// Vote Extension wiring complexity.
 type ExtendedProposal struct {
 	FSMState string `json:"fsm_state"`
-	// Healthy is IsHealthyCondition at proposal time (predicates.go),
-	// agreed via consensus like FSMState itself -- CommitFSMTransition needs
-	// it to tell a genuine "stayed ANCHORED/RECOVERING because healthy"
-	// from a "stayed because down-hysteresis absorbed non-critical noise"
-	// (both produce the same currState->targetState pair), and per
-	// CLAUDE.md's "never write live local sensor reads into committed
-	// state" rule, the committer cannot recompute this from its own local
-	// sensors -- it must come from the already-agreed proposal, exactly
-	// like FSMState. See NewProcessProposalHandler's check #1b, which
-	// validates this the same way check #1 validates FSMState.
+	// Healthy is IsHealthyCondition at proposal time -- committed consensus on
+	// this field lets CommitFSMTransition distinguish health from hysteresis
+	// without reading local sensors (violating "sensors propose, consensus
+	// decides").
 	Healthy    bool           `json:"healthy"`
 	DAReceipt  da.Receipt     `json:"da_receipt"`
 	BTCReceipt anchor.Receipt `json:"btc_receipt"`
-	// ZKProofRef carries rt_new (the accepted re-anchoring proof's new state
-	// root, keeper.LastAnchoredRoot) when the leader claims a proof backs
-	// this round, nil otherwise -- a refinement of the abstract spec's
-	// zk_proof_ref: BOOLEAN (spec/core/EngramTendermint.tla:150). Every site
-	// that reads the abstract field only tests presence, never identity, so
-	// this is a sound over-abstraction (spec/README.md's Sec 6.1). Carrying
-	// the real hash (not a bare bool) lets a later query trace exactly which
-	// proof backed a given transition.
+	// ZKProofRef carries rt_new (keeper.LastAnchoredRoot) when a recovery proof
+	// is present, nil otherwise -- refines the abstract BOOLEAN zk_proof_ref
+	// (EngramTendermint.tla:150) to trace which proof backed a transition.
 	ZKProofRef []byte `json:"zk_proof_ref"`
 }
 
@@ -107,9 +91,8 @@ func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in ke
 // byzantineFakeFSMStatePrefix / byzantineForgeBTCHash / byzantineFalseDA /
 // byzantineCensorTxPrefix are ENGRAM_BYZANTINE_BEHAVIOR's recognized values
 // (cmd/engramd/main.go): controlled misbehavior for docs/EXPERIMENT.md's E8
-// A3/A4/A6/A7 rows, exercising the real ProcessProposal rejection path on
-// honest validators. Only docker/engram-validator-node04-byzantine.yml ever
-// sets this env var.
+// A3/A4/A6/A7 rows, exercising the real ProcessProposal rejection path.
+// Only docker/engram-node04-byzantine.yml ever sets this env var.
 const (
 	byzantineFakeFSMStatePrefix = "fake_fsm_state:"
 	byzantineForgeBTCHash       = "forge_btc_hash"
@@ -119,8 +102,8 @@ const (
 
 // applyByzantineBehavior mutates ext (and, for censor_tx, txs) per behavior.
 // Only called from the leader path (NewPrepareProposalHandler), matching a
-// real malicious proposer's actual capability: it can only lie about its
-// own proposal, never rewrite what other validators independently compute.
+// real malicious proposer's capability: it can only lie about its own
+// proposal, never rewrite what other validators independently compute.
 func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte) [][]byte {
 	switch {
 	case strings.HasPrefix(behavior, byzantineFakeFSMStatePrefix):
@@ -129,7 +112,7 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 	case behavior == byzantineForgeBTCHash:
 		// A4: claim the checkpoint advanced with a hash that doesn't match
 		// ExpectedBlockHash -- every honest validator's own bitcoind check
-		// (checks #3/#3b below) must reject this independently.
+		// (checks #3/#3b) must reject this independently.
 		ext.BTCReceipt.CheckpointBlockHash = anchor.BlockHash{
 			Tag: "FORGED", Height: ext.BTCReceipt.CheckpointBlockHeight,
 		}
@@ -140,9 +123,8 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 	case strings.HasPrefix(behavior, byzantineCensorTxPrefix):
 		// A7: omit one specific tx despite it being in the mempool/
 		// ForcedTxQueue, exercising IsCensoring against a real adversary.
-		// Target is hex-encoded since a real forced tx's raw bytes aren't
-		// guaranteed valid UTF-8 and don't survive Compose env/YAML
-		// interpolation unscathed.
+		// Target is hex-encoded since raw bytes aren't guaranteed valid UTF-8
+		// and don't survive Compose env/YAML interpolation unscathed.
 		targetHex := strings.TrimPrefix(behavior, byzantineCensorTxPrefix)
 		target, err := hex.DecodeString(targetHex)
 		if err != nil {
@@ -160,11 +142,11 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 	return txs
 }
 
-// NewPrepareProposalHandler builds the sdk.PrepareProposalHandler for this
-// module, mirroring ServerInsertProposal (spec/core/EngramServer.tla:52-102):
-// refreshes k.Metrics from live sensors, computes target_state via
-// CalculateNextState, builds da_receipt/btc_receipt from tracked heights,
-// and only attempts zk_proof_ref once hysteresis is satisfied.
+// NewPrepareProposalHandler builds the sdk.PrepareProposalHandler, mirroring
+// ServerInsertProposal (spec/core/EngramServer.tla:52-102): refreshes
+// k.Metrics from live sensors, computes target_state via CalculateNextState,
+// builds da_receipt/btc_receipt from tracked heights, and only attempts
+// zk_proof_ref once hysteresis is satisfied.
 //
 // byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
 // validator (see applyByzantineBehavior's doc).
@@ -178,61 +160,19 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		// The only place h_btc_anchored can advance: PreBlocker just
-		// re-persists whatever height lands in the winning proposal's
-		// btc_receipt, so without adopting AnchorTracker's own confirmed
-		// height here, it can never move forward (sensors_refresh.go's
-		// btcGapMetric doc).
-		//
-		// Capped at hBtcCurrent (no spec line; VerifySPVProof itself,
-		// anchor/verify.go, is the spec-mandated bound this cap keeps every
-		// proposal within -- checkpoint_block_height <= h_btc_current,
-		// EngramTendermint.tla:271-275). AnchorTracker.ConfirmedAnchorHeight
-		// is a per-validator LOCAL cache that only ever grows (it doesn't
-		// forget a real confirmation it once observed), while committed
-		// h_btc_current can only advance via a LIVE bitcoind read
-		// (sensors_refresh.go's btcGapMetric) and is force-reset down to the
-		// checkpoint value on every RECOVERING->ANCHORED transition
-		// (preblock.go's Step 5, verbatim from
-		// spec/core/EngramServer.tla:159-166). If a fresh BTC outage starts
-		// before the next live read lets h_btc_current climb back past that
-		// reset, ConfirmedAnchorHeight's already-cached (and un-lowerable)
-		// high-water mark can exceed the frozen h_btc_current -- uncapped,
-		// PrepareProposal would keep proposing that stale-high checkpoint on
-		// every leader's turn, and ProcessProposal's check #3
-		// (anchor.VerifyReceipt) would correctly keep rejecting it forever
-		// (until BTC becomes reachable again), since nothing besides
-		// committing a block can advance h_btc_current and nothing besides
-		// this check passing can commit a block -- confirmed live
-		// (2026-08-13): a real `docker stop bitcoin-node01` + celestia-bridge
-		// outage produced a unanimous prevote-nil loop for the full 90s
-		// outage window, docs/EXPERIMENT.md's E2 S6. Capping here means a
-		// leader that can't propose a checkpoint within the currently-known
-		// h_btc_current bound just re-proposes the last-committed one
-		// unchanged instead, which (already having passed check #3 once, and
-		// tolerance only widening with round) keeps passing -- letting the
-		// FSM transition to SUSPICIOUS/SOVEREIGN commit normally instead of
-		// deadlocking, matching S3's (DA-only outage) already-correct
-		// behavior.
+		// Advance h_btc_anchored via ConfirmedAnchorHeight, capped at
+		// hBtcCurrent to enforce checkpoint_block_height <= h_btc_current
+		// (EngramTendermint.tla:271-275) -- prevents proposer deadlocks when a
+		// local confirmed cache exceeds the committed, frozen hBtcCurrent.
 		if s != nil && s.Anchor != nil {
 			hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored && confirmed <= hBtcCurrent {
 				hBtcAnchored = confirmed
 			}
 		}
-		// hEngramVerifiedPrev preserves the persisted (start-of-round) value
-		// for zk_proof_ref's freshness check below, BEFORE the live-bump that
-		// follows. Bug found live: hEngramVerified was bumped in place here
-		// and then daReceipt.PublishedBlockHeight (set from the bumped value)
-		// was compared against that SAME now-bumped variable at line ~226 --
-		// PublishedBlockHeight > hEngramVerified was therefore comparing a
-		// value to itself, always false, making the zk_proof_ref exit from
-		// RECOVERING permanently unreachable regardless of DA state
-		// (confirmed live: every RECOVERING round with safe_blocks ==
-		// HysteresisWait round-skipped forever on ProcessProposal's check #5,
-		// since PrepareProposal could never actually attach a zk_proof_ref).
+		// Preserve the start-of-round value for the zk_proof_ref freshness check
+		// before applying any live updates from s.DAPublisher below.
 		hEngramVerifiedPrev := hEngramVerified
-		// Same fix, same reason, for DA (sensors_refresh.go's daGapMetric doc).
 		if s != nil && s.DAPublisher != nil {
 			if verified, ok := s.DAPublisher.VerifiedHeight(); ok && verified > hEngramVerified {
 				hEngramVerified = verified
@@ -241,17 +181,9 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		daReceipt := da.Receipt{
 			PublishedBlockHeight: hEngramVerified,
-			// Attestation reflects whether PublishedBlockHeight was EVER
-			// genuinely confirmed retrievable -- a historical fact that,
-			// once true, stays true (DA availability, once DAS-confirmed,
-			// doesn't retroactively un-confirm). NOT in.Metrics.IsAttestationFailed
-			// (a live, momentary health probe): using the live flag here
-			// made VerifyReceipt's `!receipt.Attestation -> reject` fire on
-			// the very first degraded block, regardless of how fresh
-			// PublishedBlockHeight still was -- defeating DATolerance's
-			// freshness window (spec/core/EngramTendermint.tla:290-294),
-			// which exists precisely to let a still-fresh-enough prior
-			// attestation carry a proposal through a brief outage.
+			// Attestation represents historical retrievability (PublishedBlockHeight > 0).
+			// We do not use the transient in.Metrics.IsAttestationFailed probe here
+			// to preserve DATolerance's freshness window (EngramTendermint.tla:290-294).
 			Attestation: hEngramVerified > 0,
 		}
 		btcReceipt := anchor.Receipt{
@@ -259,11 +191,8 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			CheckpointBlockHash:   anchor.ExpectedBlockHash(hBtcAnchored),
 		}
 
-		// zk_proof_ref mirrors ServerInsertProposal's proof_search_space
-		// (EngramServer.tla:73-76): only claimed once RECOVERING and
-		// safe_blocks == HysteresisWait, and only once VerifyZkProof's
-		// conditions (EngramTendermint.tla:257-260) are actually satisfiable.
-		// The claimed value is this validator's own LastAnchoredRoot.
+		// Attach zk_proof_ref (EngramServer.tla:73-76) once in RECOVERING,
+		// hysteresis is satisfied, and verification conditions are met.
 		var zkProofRef []byte
 		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait &&
 			daReceipt.Attestation && daReceipt.PublishedBlockHeight > hEngramVerifiedPrev {
@@ -280,11 +209,8 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			ZKProofRef: zkProofRef,
 		}
 		innerTxs := req.Txs
-		// Filter withdrawal-marked txs out of our own proposal before
-		// ProcessProposal's check #4 ever sees them -- otherwise a locked
-		// withdrawal tx sitting in mempool gets re-proposed and rejected by
-		// every leader forever (a permanent round-skip deadlock). Check #4
-		// stays as defense-in-depth against a byzantine leader.
+		// Filter withdrawal transactions early to avoid proposing rejected TXs
+		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:300-301).
 		if types.WithdrawLocked(targetState) {
 			filtered := innerTxs[:0:0]
 			for _, tx := range innerTxs {
@@ -326,11 +252,9 @@ func containsWithdrawal(tx []byte) bool {
 	return bytes.Contains(tx, []byte("TX_WITHDRAWAL"))
 }
 
-// NewProcessProposalHandler builds the sdk.ProcessProposalHandler for this
-// module, porting IsValidProposal (spec/core/EngramTendermint.tla:281-307)
-// branch-for-branch. Refreshes k.Metrics from this validator's own live
-// sensors before computing expectedState -- never the leader's readings,
-// matching "sensors propose, consensus decides."
+// NewProcessProposalHandler builds ProcessProposalHandler, porting IsValidProposal
+// (EngramTendermint.tla:281-307). Refreshes metrics locally to enforce
+// "sensors propose, consensus decides."
 func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	accept := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}
@@ -347,14 +271,8 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return nil, err
 		}
 
-		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315),
-		// evaluated before IsValidProposal per UponProposalInPropose's
-		// IF/ELSE order (EngramTendermint.tla:579-590).
-		//
-		// Gap vs. spec: the spec's censoring branch also forces an immediate
-		// round advance (StartRound(p, r+1)); vanilla ABCI 2.0 gives
-		// ProcessProposal no lever to shorten CometBFT's round timer, so
-		// REJECT here only yields a nil prevote, not an immediate skip.
+		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315/579-590).
+		// Note: ABCI 2.0 cannot force immediate round advance; REJECT yields a nil prevote.
 		forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 		if err != nil {
 			return reject, nil
@@ -378,23 +296,14 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 1b. Healthy cross-check -- this repo's concrete addition (no spec
-		// line; TLA+'s CalculateNextFSMState/ExecuteFSMTransition read
-		// IsHealthyCondition directly, since the spec has no wire-format
-		// boundary to cross). Every honest validator recomputes
-		// IsHealthyCondition independently here, same as expectedState above
-		// -- CommitFSMTransition trusts ext.Healthy only because it's
-		// cross-checked against every honest validator's own sensors first.
+		// 1b. Healthy cross-check. Independent recomputation of health status
+		// to safely validate ext.Healthy before CommitFSMTransition.
 		if ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
 			return reject, nil
 		}
 
-		// 2. DA pipeline check (IsValidProposal:290-294). req.Round is a
-		// fork-level addition to RequestProcessProposal (vanilla ABCI 2.0
-		// doesn't expose consensus round) that DATolerance's round-based
-		// tolerance widening needs -- load-bearing for the BTC check below,
-		// where a K-deep-confirmed (inherently lagging) anchor makes
-		// zero tolerance permanently unsatisfiable otherwise.
+		// 2. DA pipeline check (IsValidProposal:290-294), utilizing req.Round
+		// for round-based tolerance widening.
 		round := uint64(req.Round)
 		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
 		isDAHealthy := types.IsDAHealthy(in.Metrics, k.Params)
@@ -402,7 +311,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 3. Settlement monotonicity & BTC light-client hash check (IsValidProposal:296-312).
+		// 3. Settlement monotonicity & BTC check (IsValidProposal:296-312).
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
@@ -410,12 +319,8 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 3b. Real anchor advance verification -- this repo's concrete
-		// addition (no spec line; EngramConsensus.tla's CanElect/IsKDeep are
-		// refinement-proof-only). If the leader claims h_btc_anchored moved
-		// forward, independently confirm via our OWN bitcoind connection
-		// rather than trusting the claim, matching "sensors propose,
-		// consensus decides."
+		// 3b. Local anchor verification to independently confirm leader's
+		// h_btc_anchored claim via bitcoind before accepting.
 		if s != nil && s.Anchor != nil && ext.BTCReceipt.CheckpointBlockHeight > hBtcAnchored {
 			verified, verr := s.Anchor.VerifyAnchor(ctx, ext.BTCReceipt.CheckpointBlockHeight)
 			if verr != nil || !verified {

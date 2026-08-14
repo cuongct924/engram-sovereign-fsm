@@ -10,17 +10,11 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// Sensors bundles the three per-node background sensors that RefreshMetrics
-// snapshots into a PeripheralMetrics every block -- the real-ABCI-path
-// counterpart of tests/e2e/harness.go's Advance.
-//
-// BTC/DA/P2P's Source, and Anchor/DAPublisher, can each be wired to a real
-// observer (x/anchor, x/da, the CometBFT fork's lp2p.Switch) by
-// cmd/engramd/main.go. Anchor nil means h_btc_anchored never advances past
-// its last committed value (VerifyReceipt's monotonicity check eventually
-// rejects every proposal without it); DAPublisher nil is the same for
-// h_engram_verified. Fine for tests/fault-injection that don't wire a live
-// Source either.
+// Sensors bundles the per-node background sensors RefreshMetrics snapshots
+// into a PeripheralMetrics each block (real-ABCI counterpart of
+// tests/e2e/harness.go's Advance). nil Anchor/DAPublisher keeps
+// h_btc_anchored/h_engram_verified static -- fine for tests without a
+// live Source.
 type Sensors struct {
 	BTC         *sensors.BTCSensor
 	DA          *sensors.DASensor
@@ -29,12 +23,10 @@ type Sensors struct {
 	DAPublisher *da.Publisher
 }
 
-// RefreshMetrics snapshots s's sensors and writes the result into k.Metrics,
-// so the following FSM-state computation (currentFSMInput,
-// CalculateNextState) sees this block's live readings rather than a stale
-// prior value. Called by both PrepareProposal and ProcessProposal so each
-// node's target_state is always driven by its own current readings, never a
-// value another node reported ("sensors propose, consensus decides").
+// RefreshMetrics snapshots sensors into k.Metrics so the FSM computation
+// reads this block's live readings. Called from both proposal handlers so
+// each node's target_state comes from its own readings, never another
+// node's ("sensors propose, consensus decides").
 func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 	if s == nil {
 		return nil
@@ -48,18 +40,16 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		return err
 	}
 	if s.Anchor != nil {
-		// Idempotent per pending submission: only actually broadcasts a new
-		// tx once the previous one has resolved, so calling this from both
-		// PrepareProposal and ProcessProposal in the same block never
-		// double-submits (see AnchorTracker.MaybeSubmit's doc).
+		// Idempotent per pending submission -- never double-submits across
+		// the PrepareProposal/ProcessProposal pair in a block (see
+		// AnchorTracker.MaybeSubmit's doc).
 		if err := s.Anchor.MaybeSubmit(ctx, uint64(ctx.BlockHeight())); err != nil {
 			return err
 		}
 	}
 	if s.DAPublisher != nil {
-		// Idempotent per pending submission, same as Anchor.MaybeSubmit above --
-		// calling this from both PrepareProposal and ProcessProposal in the same
-		// block never double-submits (see da.Publisher.MaybePublish's doc).
+		// Same idempotence as Anchor.MaybeSubmit above (see
+		// da.Publisher.MaybePublish's doc).
 		if err := s.DAPublisher.MaybePublish(ctx, uint64(ctx.BlockHeight()), da.HeightMarker(uint64(ctx.BlockHeight()))); err != nil {
 			return err
 		}
@@ -89,17 +79,14 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 	return k.Metrics.Set(ctx, metrics)
 }
 
-// daGapMetric computes da_gap (spec/core/EngramFSM.tla:87:
-// h_engram_current - h_engram_verified) plus is_das_failed/
-// is_attestation_failed. With no live Source wired, mirrors DASensor's
-// static SetAvailable/SetFailureFlags reading. With a Source (da.Publisher),
-// computes the real gap against this validator's own current chain height,
-// persisted to k.HEngramCurrent (mirrors btcGapMetric's k.HBtcCurrent).
+// daGapMetric computes da_gap (EngramFSM.tla:87, h_engram_current -
+// h_engram_verified) plus is_das_failed/is_attestation_failed. Without a live
+// Source it mirrors DASensor's static flags; with one (da.Publisher) it
+// measures the real gap vs this validator's own chain height, persisted to
+// k.HEngramCurrent.
 //
-// Simplification: Source.Failed() stands in for both is_das_failed and
-// is_attestation_failed -- da.Publisher doesn't distinguish "sampling
-// failed" from "attestation failed" the way the abstract spec's two
-// booleans do.
+// Simplification: Source.Failed() stands in for both failure flags --
+// da.Publisher can't separate "sampling failed" from "attestation failed".
 func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (gap uint64, dasFailed, attestationFailed bool, err error) {
 	src := sensor.Source()
 	if src == nil {
@@ -114,11 +101,9 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 		return 0, false, false, err
 	}
 
-	// failed combines Failed()'s slower, stateful submission-bookkeeping
-	// signal with ProbeHealthy's fresh, stateless reachability check --
-	// Failed() alone can lag an in-flight background Submit by up to its
-	// own timeout, during which different validators observe different
-	// stale values and disagree on Healthy (see ProbeHealthy's doc).
+	// Failed() can lag an in-flight Submit by up to its own timeout, so
+	// different validators see different stale values and disagree on Healthy
+	// -- OR in ProbeHealthy's fresh, stateless check (see ProbeHealthy's doc).
 	failed := src.Failed() || !src.ProbeHealthy(ctx)
 	hVerified, ok := src.VerifiedHeight()
 	if !ok {
@@ -130,30 +115,18 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 	return hCurrent - hVerified, failed, failed, nil
 }
 
-// btcGapMetric computes btc_gap. With no live Source wired, it's exactly
-// btc.GetMetric's static SetGap value. With a Source, it applies the
-// CONCRETE layer's formula, not the abstract one: ServerUponProposalInPrecommitNoDecision
-// Step 3 (spec/core/EngramServer.tla:148) writes h_btc_anchored' from the
-// committed proposal's btc_receipt every block, independent of FSM state --
-// so h_btc_anchored alone is the live anchor baseline here, unlike the
-// abstract btc_gap = H_current - min(H_submitted, H_anchored)
-// (spec/core/EngramFSM.tla:95). That min() only resolves to h_btc_anchored
-// abstractly because BTCNormalUpdate/BTCSPVFailure keep the two in lockstep
-// (EngramFSM.tla:173-188); concretely h_btc_submitted is written only by
-// Step 4's RECOVERING+zk_proof_ref path (EngramServer.tla:151-159), so
-// outside a re-anchoring cycle it's always 0 -- applying min() here would
-// collapse btc_gap to ~h_btc_current regardless of the real anchor state.
-// h_btc_submitted's actual role is refreshReanchoringProofValid, below.
+// btcGapMetric computes btc_gap. Without a live Source it uses
+// btc.GetMetric's static SetGap; with one it uses h_btc_anchored, written
+// each block from the committed proposal's btc_receipt
+// (spec/core/EngramServer.tla:148) -- not the abstract
+// min(H_submitted, H_anchored) (EngramFSM.tla:95), which would collapse to
+// ~h_btc_current since h_btc_submitted is 0 outside a re-anchoring cycle
+// (EngramServer.tla:151-159).
 //
-// spvFailed independently re-verifies the agreed h_btc_anchored (committed
-// from the leader's btc_receipt via CommitFSMTransition, never locally
-// re-derived -- see preblock.go) against our OWN bitcoind via
-// AnchorTracker.VerifyAnchor's OP_RETURN scan, mirroring is_btc_spv_failed
-// (spec/core/EngramFSM.tla:184: "OP_RETURN inclusion check & Block header
-// verification failure flag"). Without this, a forged or since-reorged
-// h_btc_anchored is trusted until btc_gap organically grows past
-// SOVEREIGN_THRESHOLD -- a multi-block window where withdrawals stay
-// unlocked against an unverifiable anchor.
+// spvFailed re-verifies the agreed h_btc_anchored against our own bitcoind
+// (VerifyAnchor's OP_RETURN scan, mirroring is_btc_spv_failed,
+// EngramFSM.tla:184) so a forged/reorged anchor isn't trusted until btc_gap
+// crosses SOVEREIGN_THRESHOLD.
 func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, err error) {
 	src := btc.Source()
 	if src == nil {
@@ -161,25 +134,19 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 		return gap, false, err
 	}
 
-	// Reachable first, ahead of CurrentHeight: a stale pooled connection can
-	// let CurrentHeight succeed on one validator while it fails on another
-	// at the same real instant, disagreeing on btc_gap/Healthy even though
-	// bitcoind is uniformly down for everyone (confirmed live). Gating on a
-	// fresh, stateless TCP check first makes the down/up determination
-	// itself consistent across validators, independent of any single
-	// validator's own connection-pool timing.
+	// Reachable first: a stale pooled connection can succeed on one validator
+	// and fail on another at the same instant, disagreeing on btc_gap/Healthy
+	// while bitcoind is uniformly down. The fresh, stateless TCP check keeps
+	// the down/up determination consistent across validators.
 	if !src.Reachable(ctx) {
 		return k.Params.SovereignThreshold, false, nil
 	}
 
 	hCurrent, err := src.CurrentHeight(ctx)
 	if err != nil {
-		// A bitcoind outage degrades through btc_gap rather than failing
-		// PrepareProposal/ProcessProposal outright: report the maximum gap
-		// (matching daGapMetric's unhealthy-DASensor fallback), since zero
-		// visibility into Bitcoin is at least as severe as any gap this
-		// threshold catches, and unlike freezing at a stale value, doesn't
-		// silently look healthy.
+		// An outage degrades through btc_gap, not a failed proposal: report
+		// the maximum gap (matching daGapMetric's fallback) -- zero
+		// visibility is at least as severe as any gap this threshold catches.
 		return k.Params.SovereignThreshold, false, nil
 	}
 	if err := k.HBtcCurrent.Set(ctx, hCurrent); err != nil {
@@ -189,9 +156,8 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 	hAnchored, _ := k.HBtcAnchored.Get(ctx)
 	if anchorTracker != nil && hAnchored > 0 {
 		// A verification-RPC error is treated as failed, not swallowed like
-		// MaybeSubmit's own RPC errors above: silently trusting an
-		// unverifiable anchor is exactly the exploitation window this check
-		// exists to close, unlike MaybeSubmit's own submission retries.
+		// MaybeSubmit's RPC errors: trusting an unverifiable anchor is the
+		// exploitation window this check closes.
 		ok, verr := anchorTracker.VerifyAnchor(ctx, hAnchored)
 		spvFailed = verr != nil || !ok
 	}
@@ -203,9 +169,8 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 }
 
 // refreshReanchoringProofValid ports UpdateSensors' reanchoring_proof_valid
-// (spec/core/EngramFSM.tla:294-301) -- lives here, not preblock.go's commit
-// path, since the concrete layer (EngramServer.tla:151-159) never flips it
-// back to TRUE itself.
+// (spec/core/EngramFSM.tla:294-301). Lives here, not preblock.go, because
+// the concrete layer (EngramServer.tla:151-159) never flips it back TRUE.
 func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {

@@ -10,20 +10,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// NewPreBlocker builds the sdk.PreBlocker for this module, mirroring
-// ServerUponProposalInPrecommitNoDecision (spec/core/EngramServer.tla:135-189):
-// commits the ALREADY-AGREED fsm_state from the decided block's extended
-// proposal (Txs[0]), never recomputed locally -- "sensors propose,
-// consensus decides."
+// NewPreBlocker mirrors ServerUponProposalInPrecommitNoDecision
+// (spec/core/EngramServer.tla:135-189): commits the ALREADY-AGREED fsm_state
+// from the decided block's Txs[0], never recomputed locally -- "sensors
+// propose, consensus decides."
 //
-// Must never call RefreshMetrics (live, node-LOCAL sensor data) from here:
-// committing it would make each validator's local view part of AppHash,
-// causing honest validators with even slightly different local readings
-// (e.g. differing P2P peer sets) to diverge on AppHash for the identical
-// agreed block -- a real consensus-safety failure reproduced on a live
-// 4-node testnet. This function commits only fields already
-// deterministically embedded in the agreed proposal (ext.BTCReceipt/
-// ext.DAReceipt, via CommitFSMTransition below).
+// Never call RefreshMetrics (live, node-local sensor data) here: it puts
+// each validator's local view into AppHash, so honest validators with
+// slightly different local readings diverge (reproduced live on 4 nodes).
 func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
 		if err := recordDetectedEvidence(ctx, k, req); err != nil {
@@ -46,15 +40,12 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 	}
 }
 
-// updateForcedTxTracking ports UpdateIgnoredRounds (spec/core/EngramTendermint.tla:493-503),
-// run once per finalized block (vanilla ABCI 2.0 exposes no round number to
-// app hooks). No-op when forced_tx_queue is empty.
+// updateForcedTxTracking ports UpdateIgnoredRounds
+// (spec/core/EngramTendermint.tla:493-503), once per finalized block (vanilla
+// ABCI 2.0 exposes no round number). No-op when forced_tx_queue is empty.
 //
-// Dequeues a forced tx entirely once included, rather than just resetting
-// its ignored-round counter: this app's txs are one-shot (no resubmission),
-// so a tx left queued after its only possible inclusion has
-// included[tx]==false forever, permanently tripping IsCensoring (check #0)
-// on every future proposal from every validator.
+// Dequeues a forced tx once included instead of resetting its counter: txs are
+// one-shot, so a leftover queued tx would trip IsCensoring (check #0) forever.
 func updateForcedTxTracking(ctx sdk.Context, k *keeper.Keeper, txs [][]byte) error {
 	forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 	if err != nil || len(forcedTxQueue) == 0 {
@@ -100,11 +91,8 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 	if err := k.FSMState.Set(ctx, ext.FSMState); err != nil {
 		return err
 	}
-	// ext.Healthy is the already-agreed value (validated against every
-	// honest validator's own sensors in ProcessProposal's check #1b) -- NOT
-	// recomputed from this validator's own live local sensors, per
-	// CLAUDE.md's rule against writing live local sensor reads into
-	// committed state.
+	// ext.Healthy is the already-agreed value (ProcessProposal's check #1b),
+	// never recomputed from this validator's live local sensors (CLAUDE.md).
 	if err := k.SafeBlocks.Set(ctx, keeper.NextSafeBlocks(currState, ext.FSMState, safeBlocks, ext.Healthy, k.Params)); err != nil {
 		return err
 	}
@@ -114,13 +102,10 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 	if err := k.UnhealthyStreak.Set(ctx, keeper.NextUnhealthyStreak(currState, ext.FSMState, unhealthyStreak, ext.Healthy)); err != nil {
 		return err
 	}
-	// ext.Healthy is the already-agreed value, same rationale as SafeBlocks above.
 	if err := k.SuspiciousSafeBlocks.Set(ctx, keeper.NextSuspiciousSafeBlocks(currState, ext.FSMState, suspiciousSafeBlocks, ext.Healthy, k.Params)); err != nil {
 		return err
 	}
-	// NextFailedRecoveryAttempts depends only on the already-agreed
-	// (currState, ext.FSMState) transition and k.Params -- no local-sensor
-	// read needed here, unlike SafeBlocks/UnhealthyStreak above.
+	// No local-sensor read -- unlike SafeBlocks/UnhealthyStreak above.
 	if err := k.FailedRecoveryAttempts.Set(ctx, keeper.NextFailedRecoveryAttempts(currState, ext.FSMState, failedRecoveryAttempts, k.Params)); err != nil {
 		return err
 	}
@@ -131,8 +116,7 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		return err
 	}
 
-	// Step 4: ZK proof submission tracking -- mark as submitted (pending
-	// Bitcoin confirmation) once a proof was claimed while entering/staying RECOVERING.
+	// Step 4: mark a claimed ZK proof as submitted (pending BTC confirmation).
 	if ext.FSMState == types.StateRecovering && len(ext.ZKProofRef) > 0 {
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		if err := k.HBtcSubmitted.Set(ctx, hBtcCurrent); err != nil {
@@ -143,8 +127,8 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		}
 	}
 
-	// Step 5: force-sync local sensors when the network majority reaches
-	// ANCHORED from RECOVERING, suppressing any lingering local false alarms.
+	// Step 5: on ANCHORED from RECOVERING, force-sync local sensors to kill
+	// lingering local false alarms.
 	if currState == types.StateRecovering && ext.FSMState == types.StateAnchored {
 		if err := k.HBtcCurrent.Set(ctx, ext.BTCReceipt.CheckpointBlockHeight); err != nil {
 			return err
@@ -163,25 +147,21 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 		}
 	}
 
-	// Step 5b: a real ZK proof only applies to the SOVEREIGN/RECOVERING
-	// interval it was proven against -- reset once RECOVERING is left, so a
-	// stale latch can't apply to a new interval (see
-	// refreshReanchoringProofValid, the only reader).
+	// A proof only applies to the interval it was proven against -- reset on
+	// leaving RECOVERING (see refreshReanchoringProofValid, the only reader).
 	if currState == types.StateRecovering && ext.FSMState != types.StateRecovering {
 		if err := k.RealProofSubmittedHeight.Set(ctx, 0); err != nil {
 			return err
 		}
 	}
 
-	// Step 6: track per-block header history for the ZK re-anchoring
-	// circuit's witness (spec/README.md's §Re-anchoring via ZK-Proof of
-	// Recovery), only while SOVEREIGN/RECOVERING. StateRoot is CometBFT's
-	// real AppHash, not the keeper's SMT (see types.RecoveryHeader's doc).
+	// Step 6: track per-block header history for the ZK re-anchoring circuit's
+	// witness (spec/README.md's §Re-anchoring via ZK-Proof of Recovery), only
+	// while SOVEREIGN/RECOVERING. StateRoot is CometBFT's real AppHash.
 	if types.WithdrawLocked(ext.FSMState) {
 		if !types.WithdrawLocked(currState) {
-			// Entering the interval for the first time: rt_last is this
-			// block's incoming AppHash, the state right before the interval
-			// starts, which headers[0].prev_hash must bind to.
+			// First entry into the interval: rt_last is this block's incoming
+			// AppHash, the pre-interval state headers[0].prev_hash must bind to.
 			if err := k.LastAnchoredRoot.Set(ctx, types.ReduceToField(ctx.BlockHeader().AppHash)); err != nil {
 				return err
 			}
@@ -195,8 +175,7 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext ExtendedProposal
 			return err
 		}
 	} else if types.WithdrawLocked(currState) {
-		// Interval just ended (back to ANCHORED): a future interval starts
-		// its own LastAnchoredRoot from scratch above.
+		// Interval ended (back to ANCHORED): prune; next interval starts fresh.
 		if err := pruneHeaderHistory(ctx, k); err != nil {
 			return err
 		}
@@ -226,11 +205,9 @@ func pruneHeaderHistory(ctx sdk.Context, k *keeper.Keeper) error {
 	return nil
 }
 
-// recordDetectedEvidence logs req.Misbehavior -- CometBFT's own evidence
-// pool's DuplicateVote/LightClientAttack detections (docs/EXPERIMENT.md's
-// E8 "Double-signing" row). Safe to commit: Misbehavior is part of
-// RequestFinalizeBlock itself, deterministic across every honest validator,
-// exactly like req.Txs (unlike a live local sensor read; see NewPreBlocker's doc).
+// recordDetectedEvidence logs req.Misbehavior -- CometBFT's own
+// DuplicateVote/LightClientAttack detections (docs/EXPERIMENT.md's E8
+// "Double-signing" row). Safe to commit: deterministic across validators.
 func recordDetectedEvidence(ctx sdk.Context, k *keeper.Keeper, req *abci.RequestFinalizeBlock) error {
 	for _, m := range req.Misbehavior {
 		record := types.EvidenceRecord{

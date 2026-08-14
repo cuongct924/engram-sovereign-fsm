@@ -3,24 +3,19 @@ package sensors
 import "context"
 
 // DAAvailabilitySource abstracts a live Celestia availability observer --
-// concretely, a real da.Publisher (x/da/publisher.go, wired via SetSource by
-// cmd/engramd/main.go) tracking blob submissions against a real
-// celestia-bridge. This package intentionally does not depend on any
-// particular DA client library (mirrors BTCHeightSource's separation): the
-// adapter lives in x/da / cmd/engramd instead.
+// concretely a real da.Publisher (x/da/publisher.go, wired via SetSource by
+// cmd/engramd/main.go). This package stays independent of any DA client
+// library; the adapter lives in x/da / cmd/engramd.
 //
-// When a Source is set, RefreshMetrics (x/sovereignty/sensors_refresh.go)
-// computes da_gap from spec/core/EngramFSM.tla:87's real formula
-// (h_engram_current - h_engram_verified) using this live VerifiedHeight
-// reading, instead of GetMetric's static SetAvailable-injected value below.
+// When set, RefreshMetrics computes da_gap from EngramFSM.tla:87's real
+// formula (h_engram_current - h_engram_verified) instead of GetMetric's
+// static value.
 type DAAvailabilitySource interface {
 	VerifiedHeight() (height uint64, ok bool)
 	Failed() bool
-	// ProbeHealthy does a fresh, bounded, stateless reachability check --
-	// unlike Failed(), never stale relative to the call, so every honest
-	// validator converges on the same DA-down reading within about one
-	// block instead of racing against each other's independent
-	// submission-bookkeeping timing (x/da/publisher.go's Publisher.ProbeHealthy doc).
+	// ProbeHealthy is a fresh, bounded, stateless reachability check -- never
+	// stale (unlike Failed()), so validators converge on the same DA-down
+	// reading within ~1 block.
 	ProbeHealthy(ctx context.Context) bool
 }
 
@@ -61,9 +56,9 @@ func (s *DASensor) SetFailureFlags(dasFailed, attestationFailed bool) {
 	s.attestationFailed = attestationFailed
 }
 
-// DasFailed and AttestationFailed expose the static, test-controlled
-// failure flags set via SetFailureFlags -- read by RefreshMetrics
-// (x/sovereignty/sensors_refresh.go) when no live Source is wired.
+// DasFailed and AttestationFailed expose the static, test-controlled failure
+// flags set via SetFailureFlags -- read by RefreshMetrics when no live Source
+// is wired.
 func (s *DASensor) DasFailed() bool         { return s.dasFailed }
 func (s *DASensor) AttestationFailed() bool { return s.attestationFailed }
 

@@ -7,10 +7,9 @@ func DefaultGenesis() *GenesisState {
 	return DefaultGenesisWithParams(DefaultParams())
 }
 
-// DefaultGenesisWithParams is DefaultGenesis with p in place of
-// DefaultParams() -- used by cmd/engramd/main.go's genesis generation to
-// bake in an ENGRAM_PARAM_* override (see Params.Validate, called before
-// this by the caller) instead of the hardcoded default.
+// DefaultGenesisWithParams is DefaultGenesis with p instead of
+// DefaultParams() -- for cmd/engramd/main.go's genesis generation to bake
+// in an ENGRAM_PARAM_* override (validated by the caller).
 func DefaultGenesisWithParams(p Params) *GenesisState {
 	return &GenesisState{
 		FsmState:              StateAnchored,

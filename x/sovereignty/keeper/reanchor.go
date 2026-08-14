@@ -12,9 +12,9 @@ import (
 )
 
 // embeddedVK is circuit/reanchoring/src/main.nr's compiled verification key
-// (circuit/reanchoring/target/proof/vk, via `bb write_vk`), copied here since
-// the embed directive below can't reach outside this package and target/ is
-// gitignored. Must be replaced by hand if the circuit is ever recompiled.
+// (circuit/reanchoring/target/proof/vk, via `bb write_vk`), copied here
+// since the embed directive below can't reach outside this package and
+// target/ is gitignored. Replace by hand if the circuit is ever recompiled.
 //
 //go:embed zk_assets/vk
 var embeddedVK []byte
@@ -26,13 +26,12 @@ const bbBinary = "bb"
 // VerifyZKProof shells out to `bb verify` against the embedded verification
 // key -- the concrete counterpart of spec/core/EngramTendermint.tla's
 // VerifyZkProof, backing MsgSubmitRecoveryProofRequest (proposal.go's
-// verifyZkProofFlag implements the separate abstract, consensus-hot-path
-// black-box check).
+// verifyZkProofFlag is the separate abstract consensus-hot-path check).
 //
 // Runs inside DeliverTx, executed identically by every validator, so every
-// validator must run the same pinned bb release for this to stay
-// consensus-safe. Fails closed (false, never panics) on any error, so a
-// misconfigured validator rejects rather than silently accepts.
+// validator must run the same pinned bb release. Fails closed (false, never
+// panics) on any error, so a misconfigured validator rejects rather than
+// silently accepts.
 func (k *Keeper) VerifyZKProof(proof, inputs []byte) bool {
 	dir, err := os.MkdirTemp("", "engram-zkverify-*")
 	if err != nil {
