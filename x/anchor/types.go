@@ -1,7 +1,3 @@
-// Package anchor implements the Bitcoin settlement checkpoint receipt
-// type and SPV verification logic from spec/core/EngramTendermint.tla --
-// the "Settlement Monotonicity & BTC Light Client Hash Check" conjunct of
-// IsValidProposal (lines 296-298).
 package anchor
 
 // BlockHash mirrors ExpectedBlockHash's abstraction (spec/core/EngramTendermint.tla:266):

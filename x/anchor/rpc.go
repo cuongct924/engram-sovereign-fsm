@@ -12,30 +12,14 @@ import (
 	"time"
 )
 
-// rpcTimeout bounds every call below. Every one of them runs synchronously
-// inside RefreshMetrics (x/sovereignty/sensors_refresh.go), itself called
-// from PrepareProposal/ProcessProposal -- an http.Client with no Timeout can
-// hang on a stalled connection to a downed bitcoind indefinitely, stalling
-// ABCI (and so all of consensus) rather than degrading through btc_gap as
-// designed.
-//
-// Bounded well under CometBFT's timeout_propose (3s default,
-// config.toml) -- a single RefreshMetrics call can chain multiple
-// sequential RPC calls (CurrentHeight, VerifyAnchor, MaybeSubmit), each
-// against this SAME client, so an individual timeout anywhere near
-// timeout_propose still stalls the whole round if 2+ of them are slow at
-// once (confirmed live: 5s here alongside x/da's 3s produced "ProposalBlock
-// is nil" round-skips for the whole duration of a combined BTC+DA outage,
-// not just a graceful degrade). 800ms is still >>40x regtest's normal
-// sub-20ms latency.
+// rpcTimeout bounds every synchronous call inside RefreshMetrics (the ABCI
+// hot path): a hung connection to a downed bitcoind must degrade through
+// btc_gap, never stall consensus. Bounded well under timeout_propose (3s)
+// since one refresh can chain multiple calls; 800ms is >>40x regtest latency.
 const rpcTimeout = 800 * time.Millisecond
 
-// RPCClient is a minimal Bitcoin Core JSON-RPC client -- deliberately
-// stdlib-only (net/http, encoding/json), matching this package's existing
-// zero-dependency style, rather than pulling in btcsuite/btcd's much larger
-// dependency tree for what is currently a single call (getblockcount).
-// Plays the observing role of Babylon's real Vigilante Monitor daemon
-// (github.com/babylonlabs-io/vigilante) -- see CurrentHeight's doc.
+// RPCClient is a minimal, stdlib-only (net/http, encoding/json) Bitcoin Core
+// JSON-RPC client -- plays the observing role of Babylon's Vigilante Monitor.
 type RPCClient struct {
 	url      string
 	user     string
@@ -97,8 +81,7 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusInternalServerError {
 		// Bitcoin Core returns 500 with a JSON-RPC error body for RPC-level
-		// errors (e.g. block not found) -- only a genuinely unexpected status
-		// (auth failure, wrong port) short-circuits here.
+		// errors (e.g. block not found); only unexpected statuses short-circuit.
 		return fmt.Errorf("rpc request %s: unexpected status %d: %s", method, resp.StatusCode, string(respBody))
 	}
 
@@ -117,26 +100,14 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 	return nil
 }
 
-// Reachable reports whether c's host:port currently accepts a TCP
-// connection -- a raw, stateless liveness probe deliberately independent of
-// getblockcount/gettransaction's own request/response cycle, mirroring
-// x/da/rpc.go's RPCClient.Reachable (see that doc for the full rationale:
-// every honest validator dialing the same bitcoind at roughly the same
-// instant observes the same binary up/down fact, unlike a JSON-RPC call
-// whose success can depend on which validator's connection happens to be
-// stale vs freshly (re)established -- confirmed live as the source of
-// cross-validator btc_gap disagreement during a real bitcoind outage).
+// Reachable is a raw, stateless TCP liveness probe -- independent of
+// getblockcount's request/response cycle, so every validator dialing the same
+// bitcoind at once sees the same binary up/down fact (a stale connection was
+// a live-confirmed source of cross-validator btc_gap disagreement).
 //
-// Self-bounded by rpcTimeout, same as every other call in this file --
-// net.Dialer.DialContext has no timeout of its own beyond whatever deadline
-// ctx already carries, and the real PrepareProposal/ProcessProposal ctx
-// carries none. Confirmed live: with an unbounded ctx, a stopped bitcoind
-// left connect() hanging on the OS's own default TCP connect timeout
-// (~90-100s observed), stalling every proposer's round -- not a graceful
-// btc_gap degrade as designed, a full liveness halt (docs/EXPERIMENT.md's
-// E2 S6). x/da/rpc.go's own Reachable has the identical gap; d.Publisher.
-// ProbeHealthy already wraps its call in a bounded context, which is why
-// this bug only ever showed up on the BTC side.
+// Self-bounded by rpcTimeout: DialContext has no timeout of its own, and an
+// unbounded ctx left connect() hanging on the OS's ~90-100s TCP timeout -- a
+// full liveness halt instead of a graceful btc_gap degrade (E2 S6).
 func (c *RPCClient) Reachable(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
@@ -174,12 +145,9 @@ func (c *RPCClient) CurrentHeight(ctx context.Context) (uint64, error) {
 	return height, nil
 }
 
-// BlockHashAt calls getblockhash(height), returning the real Bitcoin block
-// hash at that height. Not consulted by VerifySPVProof (see that function's
-// doc for why ExpectedBlockHash's abstracted <<"BTC_BLOCK", height>> hash
-// stays as the spec-fidelity consensus-level check) -- used by AnchorTracker
-// instead, whose independent-per-validator verification is real, not
-// spec-abstracted (see anchor.go).
+// BlockHashAt calls getblockhash(height) -- real per-validator verification,
+// not VerifySPVProof (whose abstracted <<"BTC_BLOCK", height>> hash stays the
+// spec-fidelity check).
 func (c *RPCClient) BlockHashAt(ctx context.Context, height uint64) (string, error) {
 	var hash string
 	if err := c.call(ctx, "getblockhash", []any{height}, &hash); err != nil {
@@ -212,25 +180,14 @@ type utxoRef struct {
 	Vout uint32 `json:"vout"`
 }
 
-// SubmitOpReturn broadcasts a zero-value transaction carrying payload in an
-// OP_RETURN output -- this fork's minimal stand-in for Babylon's Vigilante
-// Submitter. Requires a wallet loaded on the connected bitcoind with
-// spendable funds (regtest: `createwallet` + mine to one of its addresses).
-// Returns the broadcast transaction's txid.
+// SubmitOpReturn broadcasts a zero-value tx carrying payload in an OP_RETURN
+// output -- this fork's minimal stand-in for Babylon's Vigilante Submitter.
+// Requires a loaded wallet with spendable funds; returns the txid.
 //
-// This repo's 4 validators share one bitcoind wallet, so every validator
-// calls this every block -- fundrawtransaction's coin selection and the
-// lock protecting it must be ATOMIC, or two validators can select the same
-// UTXO before either one locks it (the previous version called
-// fundrawtransaction, THEN decoderawtransaction, THEN a separate
-// lockunspent -- a real TOCTOU window between "select" and "lock" that let
-// concurrent submissions race on the same input in practice, live-confirmed
-// via "lockunspent: -8 Invalid parameter, output already locked"
-// and every submission failing/retrying forever, never actually anchoring).
-// Passing lockUnspents to fundrawtransaction itself makes bitcoind select
-// AND lock the chosen inputs as one atomic RPC call -- no separate
-// lockunspent(false, ...) needed, and no window for another validator's
-// concurrent fundrawtransaction to pick the same input.
+// The 4 validators share one bitcoind wallet, so coin selection+locking must
+// be ATOMIC: passing lockUnspents to fundrawtransaction selects AND locks in
+// one RPC call, closing the TOCTOU window where concurrent submitters could
+// pick the same UTXO (a real race seen live via "lockunspent: -8").
 func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string, error) {
 	dataHex := fmt.Sprintf("%x", payload)
 
@@ -252,9 +209,8 @@ func (c *RPCClient) SubmitOpReturn(ctx context.Context, payload []byte) (string,
 	if err := c.call(ctx, "decoderawtransaction", []any{funded.Hex}, &decoded); err != nil {
 		return "", fmt.Errorf("decoderawtransaction: %w", err)
 	}
-	// Inputs are already locked (lockUnspents above) -- this only unlocks
-	// them once we're done, whether signing/broadcasting below succeeds or
-	// fails, so a failed attempt's inputs are free for the next retry.
+	// Inputs are already locked (lockUnspents) -- unlock them on the way out,
+	// so a failed attempt's inputs are free for the next retry.
 	if len(decoded.Vin) > 0 {
 		defer func() {
 			_ = c.call(context.Background(), "lockunspent", []any{true, decoded.Vin}, nil)

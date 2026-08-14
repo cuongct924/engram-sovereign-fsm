@@ -2,10 +2,9 @@
 
 package anchor_test
 
-// This is a manual, opt-in smoke test against a REAL running bitcoind
-// regtest node (docker/bitcoin-regtest-cluster.yml's bitcoin-node01) --
-// not part of the normal `go test ./...` suite (build tag gated), since CI/
-// normal test runs have no bitcoind available. Run explicitly via:
+// Manual, opt-in smoke test against a REAL running bitcoind regtest node
+// (docker/bitcoin-regtest-cluster.yml's bitcoin-node01) -- build-tag gated
+// out of normal test runs (no bitcoind in CI). Run explicitly:
 //
 //	go test -tags btcsmoke ./x/anchor/... -run TestRPCClient_LiveSmoke -v
 
@@ -66,19 +65,14 @@ func TestAnchorTracker_LiveSmoke(t *testing.T) {
 	require.False(t, verifiedWrong, "must not verify a height that doesn't actually carry our tag")
 }
 
-// TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor exercises the
-// EXACT confirmation-count boundary the earlier TestAnchorTracker_LiveSmoke
-// mines past without noticing: at exactly kDeepFinality (2) confirmations
-// (not more), MaybeSubmit must NOT yet report confirmed -- and the first
-// height it DOES report confirmed at must always pass VerifyAnchor
-// immediately, with no extra confirmation needed. Found live: an earlier
-// version of AnchorTracker.MaybeSubmit required only `confirmations >=
-// kDeepFinality`, but VerifyAnchor (and every other validator's independent
-// ProcessProposal re-check) implements the spec's IsKDeep with one fewer
-// block of slack (h_btc_current - height >= kDeepFinality, no +1) --
-// bitcoind's inclusive confirmations field made these off by exactly one, so
-// every claimed anchor advance was rejected by every validator, 100% of the
-// time, on the real 4-node testnet.
+// Exercises the exact confirmation-count boundary LiveSmoke mines past: at
+// exactly kDeepFinality confirmations MaybeSubmit must NOT yet confirm, and
+// the first height it DOES confirm at must pass VerifyAnchor immediately.
+// Regression for the off-by-one found live: MaybeSubmit required
+// `confirmations >= kDeepFinality` but VerifyAnchor's spec IsKDeep has no
+// +1 slack (h_btc_current - height >= kDeepFinality), and bitcoind's
+// confirmations field is inclusive -- so every claimed anchor advance was
+// rejected by every validator on the real 4-node testnet.
 func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
 	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -102,20 +96,14 @@ func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
 	require.True(t, verified, "the height MaybeSubmit just reported confirmed must immediately pass VerifyAnchor -- this is exactly what failed live before the fix")
 }
 
-// TestRPCClient_ConcurrentSubmitOpReturnDoesNotRaceOnSharedUTXOs reproduces
-// the real 4-validator scenario (this repo's 4 validators share one
-// bitcoind wallet, x-engram-node-env's BITCOIN_HOST) by firing 4 concurrent
-// SubmitOpReturn calls against the same wallet. Found live: an earlier
-// version called fundrawtransaction (selects UTXOs, unlocked), THEN
-// decoderawtransaction, THEN a separate lockunspent -- a real TOCTOU window
-// where two concurrent calls could both select the same input before either
-// locked it, failing with "lockunspent: -8 Invalid parameter, output
-// already locked" and, on the real 4-node testnet, NEVER anchoring at all
-// (every validator's submission raced every block, forever). The fix passes
-// lockUnspents to fundrawtransaction itself so selection and locking happen
-// as one atomic RPC call -- every concurrent call here must either succeed
-// outright or fail with a benign "insufficient funds"/"already locked from
-// a DIFFERENT already-broadcast tx" reason, never the TOCTOU race itself.
+// Reproduces the real 4-validator scenario (all 4 share one bitcoind
+// wallet) by firing 4 concurrent SubmitOpReturn calls at the same wallet.
+// Regression for the TOCTOU found live: an earlier version selected UTXOs
+// in fundrawtransaction and only locked them in a separate lockunspent, so
+// concurrent calls could both select the same input and, on the real
+// testnet, never anchor at all. The fix passes lockUnspents to
+// fundrawtransaction (selection+lock become one atomic RPC); concurrent
+// calls here must succeed or fail benignly, never with the race itself.
 func TestRPCClient_ConcurrentSubmitOpReturnDoesNotRaceOnSharedUTXOs(t *testing.T) {
 	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

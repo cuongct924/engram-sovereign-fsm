@@ -14,14 +14,11 @@ import (
 // Babylon's "BBNT" tag (x/btccheckpoint's checkpoint_tag parameter).
 var AnchorTag = []byte("ENGR")
 
-// AnchorTracker is this fork's minimal stand-in for Babylon's real Vigilante
-// Submitter+Reporter pair: periodically submits a checkpoint marker to
-// Bitcoin via OP_RETURN and tracks its confirmation depth against
-// K_DEEP_FINALITY. Deliberately does not implement Babylon's BLS-aggregated
-// multi-validator checkpoint or its full Checkpointing/BTCLightClient state
-// machine -- this repo has no staking module to source a real
-// multi-validator-signed checkpoint from. Checkpoint content is simply
-// AnchorTag + the submitting node's Engram height.
+// AnchorTracker is this fork's minimal stand-in for Babylon's Vigilante
+// Submitter+Reporter: periodically submits a checkpoint OP_RETURN to Bitcoin
+// and tracks its confirmation depth against K_DEEP_FINALITY. No BLS-aggregated
+// multi-validator checkpoint (no staking module to source one from); content
+// is AnchorTag + the submitting node's Engram height.
 //
 // Each validator runs its own tracker against its own bitcoind. VerifyAnchor
 // never trusts a peer's claimed anchor -- every validator re-derives it from
@@ -31,21 +28,10 @@ type AnchorTracker struct {
 	kDeepFinality uint64
 	tag           []byte
 
-	// submissionPausedFile, when set, makes MaybeSubmit skip broadcasting a
-	// NEW checkpoint (an already-pending one still gets its confirmation
-	// checked and recorded normally -- an in-flight tx can't be un-sent)
-	// while the file exists, checked fresh every call. Existence-only, no
-	// content parsed -- mirrors bitcoin_miner_loop.sh's
-	// MINER_INTERVAL_OVERRIDE_FILE (fresh-every-call, no restart needed).
-	//
-	// This is the deliberate-delay analog of real BTC congestion (a
-	// checkpoint tx stuck behind mempool fee competition, delaying its own
-	// confirmation) for docs/EXPERIMENT.md's E2 S2 scenario -- global
-	// mining-rate slowdown was tried first and confirmed live NOT to grow
-	// btc_gap, since h_btc_current and h_btc_anchored both derive from the
-	// same block stream and stay proportionally in sync regardless of
-	// overall mining speed; only THIS validator's own submission falling
-	// behind (independent of mining speed) grows the gap.
+	// submissionPausedFile, when set, makes MaybeSubmit skip NEW checkpoint
+	// broadcasts (an already-pending one still confirms normally), checked
+	// fresh every call. Stands in for BTC congestion for E2's S2: only the
+	// submission path falls behind, growing btc_gap.
 	submissionPausedFile string
 
 	mu                  sync.Mutex
@@ -71,9 +57,8 @@ func (a *AnchorTracker) SetSubmissionPausedFile(path string) {
 }
 
 // submissionPaused reads a.submissionPausedFile without locking -- only
-// called from MaybeSubmit, which already holds a.mu; SetSubmissionPausedFile
-// is only ever called once at startup, before any concurrent MaybeSubmit
-// call, so this doesn't race in practice.
+// called from MaybeSubmit (which holds a.mu) after SetSubmissionPausedFile's
+// single startup call, so no race in practice.
 func (a *AnchorTracker) submissionPaused() bool {
 	if a.submissionPausedFile == "" {
 		return false
@@ -82,28 +67,19 @@ func (a *AnchorTracker) submissionPaused() bool {
 	return err == nil
 }
 
-// MaybeSubmit checks the previous submission's status and, once it has
-// either reached kDeepFinality+1 confirmations (recorded via
-// ConfirmedAnchorHeight) or none is pending, broadcasts a new checkpoint
-// marker for engramHeight. Safe to call every block -- at most one new
-// broadcast per call.
+// MaybeSubmit confirms the previous submission's status, then broadcasts a
+// new checkpoint marker for engramHeight once it has reached kDeepFinality+1
+// confirmations (recorded via ConfirmedAnchorHeight) or none is pending.
+// Safe to call every block -- at most one new broadcast per call.
 //
-// A SubmitOpReturn/confirmation-check failure is logged and swallowed, not
-// propagated as an error: this repo's 4 validators share bitcoind wallets
-// (docker/bitcoin-regtest-cluster.yml provisions only 2 for 4 validators),
-// so concurrent fundrawtransaction/sendrawtransaction calls can race on the
-// same UTXO and get rejected as an underpriced BIP125 replacement --
-// treating this as sensor data (btc_gap simply stops shrinking) rather than
-// a block-production fault lets the next block's retry recover on its own.
-// pendingTxid stays "" on failure so the next call retries fresh.
+// RPC failures are logged and swallowed, not propagated: concurrent
+// submitters race the same wallet UTXO and get rejected -- degrading through
+// btc_gap instead of failing block production.
 //
-// Requires confirmations >= kDeepFinality+1, not kDeepFinality: bitcoind's
-// `confirmations` field is INCLUSIVE (a tx mined in the current tip already
-// has confirmations=1), while VerifyAnchor/IsKDeep implements the spec's
-// EXCLUSIVE depth check (h_btc_current - c.btc_anchored >= k, no +1) -- one
-// block stricter. Matching bitcoind's own convention here would make every
-// height this tracker reports "confirmed" fail every other validator's
-// independent re-check by exactly one block.
+// Chocks at kDeepFinality+1, not kDeepFinality: bitcoind's `confirmations` is
+// INCLUSIVE (a tx in the current tip already has 1), while IsKDeep's check
+// (h_btc_current - btc_anchored >= k) is one block stricter -- matching
+// bitcoind here would fail every validator's re-check by exactly one block.
 func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -111,9 +87,8 @@ func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) er
 	if a.pendingTxid != "" {
 		confirmations, blockHeight, mined, err := a.client.TxConfirmation(ctx, a.pendingTxid)
 		if err != nil {
-			// A confirmation-check RPC error degrades through btc_gap (via
-			// h_btc_anchored no longer advancing) rather than failing
-			// PrepareProposal/ProcessProposal outright.
+			// RPC error degrades through btc_gap (h_btc_anchored stops
+			// advancing) rather than failing the ABCI call outright.
 			fmt.Println("engramd: anchor confirmation check failed this block, will retry next block:", err)
 			return nil
 		}
@@ -129,11 +104,9 @@ func (a *AnchorTracker) MaybeSubmit(ctx context.Context, engramHeight uint64) er
 	}
 
 	if a.submissionPaused() {
-		// Deliberately does not touch pendingTxid/lastConfirmedHeight: an
-		// already-broadcast tx (handled above) still confirms normally, only
-		// a NEW checkpoint is withheld -- h_btc_anchored freezes at its last
-		// confirmed value while h_btc_current keeps climbing, growing
-		// btc_gap, the effect real checkpoint-submission delay produces.
+		// Withhold only NEW submissions -- an already-broadcast tx (handled
+		// above) still confirms normally, so h_btc_anchored freezes while
+		// h_btc_current climbs, growing btc_gap.
 		return nil
 	}
 
@@ -197,10 +170,9 @@ func (c *RPCClient) BlockContainsTag(ctx context.Context, height uint64, tag []b
 		return false, fmt.Errorf("getblock: %w", err)
 	}
 
-	// An OP_RETURN script is opcode 0x6a followed by a single-byte push
-	// length (valid for our <= 76-byte payloads) then the pushed data --
-	// matching the tag hex right after that prefix is precise enough for
-	// our fixed-length (tag + 8-byte height) payloads without a full script parser.
+	// An OP_RETURN script is 0x6a + single-byte push length (valid for our
+	// <= 76-byte payloads) + data -- matching the tag hex after that prefix
+	// is precise enough for our fixed-length payloads.
 	tagHex := fmt.Sprintf("%x", tag)
 	for _, tx := range block.Tx {
 		for _, vout := range tx.Vout {
