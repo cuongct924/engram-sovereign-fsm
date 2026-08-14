@@ -6,33 +6,28 @@ option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty
 
 import "engram/sovereignty/v1/state.proto";
 
-// Cấu trúc khởi tạo máy trạng thái Engram FSM. fsm_state là string (không phải
-// enum) để khớp đúng biểu diễn "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING"
-// trong spec/core/EngramFSM.tla (state \in {"ANCHORED", ...}) và trong
-// x/sovereignty/types/state.go's StateAnchored/... constants.
+// Initial Engram FSM state. fsm_state is a string to match the
+// "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING" literals of
+// spec/core/EngramFSM.tla and x/sovereignty/types/state.go.
 message GenesisState {
-  string            fsm_state             = 1; // Thường khởi tạo là "ANCHORED"
-  uint64            safe_blocks_counter   = 2; // Bộ đếm biến `safe_blocks` trong TLA+
-  uint64            suspicious_duration   = 3; // Bộ đếm biến `suspicious_duration` trong TLA+
-  bool              reanchoring_proof_valid = 4; // Biến `reanchoring_proof_valid` trong TLA+
+  string            fsm_state             = 1; // Usually "ANCHORED" at genesis
+  uint64            safe_blocks_counter   = 2; // Counter for TLA+ `safe_blocks`
+  uint64            suspicious_duration   = 3; // Counter for TLA+ `suspicious_duration`
+  bool              reanchoring_proof_valid = 4; // TLA+ `reanchoring_proof_valid`
   // field 5 (hysteresis_wait_limit) removed -- superseded by params.hysteresis_wait
   // below; it was never actually read back into keeper state (dead field).
   reserved 5;
   reserved "hysteresis_wait_limit";
-  PeripheralMetrics initial_metrics       = 6; // Trạng thái sensor lúc khởi tạo
-  GenesisParams     params                = 7; // Tham số vận hành, xem GenesisParams
-  uint64            unhealthy_streak      = 8; // Bộ đếm biến `unhealthy_streak` trong TLA+ (down-hysteresis)
-  uint64            failed_recovery_attempts = 9; // Bộ đếm biến `failed_recovery_attempts` trong TLA+ (exponential backoff)
-  uint64            suspicious_safe_blocks = 10; // Bộ đếm biến `suspicious_safe_blocks` trong TLA+ (SUSPICIOUS exit hysteresis)
+  PeripheralMetrics initial_metrics       = 6; // Initial sensor snapshot
+  GenesisParams     params                = 7; // Operational params, see GenesisParams
+  uint64            unhealthy_streak      = 8; // TLA+ `unhealthy_streak` (down-hysteresis)
+  uint64            failed_recovery_attempts = 9; // TLA+ `failed_recovery_attempts` (exponential backoff)
+  uint64            suspicious_safe_blocks = 10; // TLA+ `suspicious_safe_blocks` (SUSPICIOUS exit hysteresis)
 }
 
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
-// genesis-time configuration -- every validator's genesis.json is generated
-// once and copied identically to all nodes (cmd/engramd/main.go's
-// testnetInitFiles), so values set here are guaranteed uniform across the
-// validator set, unlike a per-process env var. See DefaultParams() for the
-// meaning and cross-field constraints of each value; Params.Validate()
-// enforces those constraints on whatever lands here.
+// genesis-time config. genesis.json is generated once and copied identically
+// to all nodes, so values are uniform across the validator set.
 message GenesisParams {
   uint64 suspicious_threshold     = 1;
   uint64 sovereign_threshold      = 2;

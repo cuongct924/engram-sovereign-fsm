@@ -34,10 +34,9 @@ type MsgClient interface {
 	SubmitRecoveryProof(ctx context.Context, in *MsgSubmitRecoveryProofRequest, opts ...grpc.CallOption) (*MsgSubmitRecoveryProofResponse, error)
 	// Locally inject a qualitative fault for fault scenarios (serves E2-E7).
 	InjectFault(ctx context.Context, in *MsgInjectFaultRequest, opts ...grpc.CallOption) (*MsgInjectFaultResponse, error)
-	// Push a tx into forced_tx_queue -- see SubmitToCelestiaDA
-	// (spec/core/EngramTendermint.tla:886-892). The leader must include it
-	// within MAX_IGNORE_ROUNDS or its proposal is rejected (IsCensoring, lines
-	// 310-315).
+	// Push a tx into forced_tx_queue (spec/core/EngramTendermint.tla:886-892);
+	// the leader must include it within MAX_IGNORE_ROUNDS or its proposal is
+	// rejected (IsCensoring, lines 310-315).
 	SubmitForcedTx(ctx context.Context, in *MsgSubmitForcedTxRequest, opts ...grpc.CallOption) (*MsgSubmitForcedTxResponse, error)
 }
 
@@ -89,10 +88,9 @@ type MsgServer interface {
 	SubmitRecoveryProof(context.Context, *MsgSubmitRecoveryProofRequest) (*MsgSubmitRecoveryProofResponse, error)
 	// Locally inject a qualitative fault for fault scenarios (serves E2-E7).
 	InjectFault(context.Context, *MsgInjectFaultRequest) (*MsgInjectFaultResponse, error)
-	// Push a tx into forced_tx_queue -- see SubmitToCelestiaDA
-	// (spec/core/EngramTendermint.tla:886-892). The leader must include it
-	// within MAX_IGNORE_ROUNDS or its proposal is rejected (IsCensoring, lines
-	// 310-315).
+	// Push a tx into forced_tx_queue (spec/core/EngramTendermint.tla:886-892);
+	// the leader must include it within MAX_IGNORE_ROUNDS or its proposal is
+	// rejected (IsCensoring, lines 310-315).
 	SubmitForcedTx(context.Context, *MsgSubmitForcedTxRequest) (*MsgSubmitForcedTxResponse, error)
 }
 

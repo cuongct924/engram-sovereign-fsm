@@ -21,9 +21,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Initial Engram FSM state. fsm_state is a string (not enum) to match the
+// Initial Engram FSM state. fsm_state is a string to match the
 // "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING" literals of
-// spec/core/EngramFSM.tla and x/sovereignty/types/state.go's State* constants.
+// spec/core/EngramFSM.tla and x/sovereignty/types/state.go.
 type GenesisState struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
 	FsmState               string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                              // Usually "ANCHORED" at genesis
@@ -134,9 +134,7 @@ func (x *GenesisState) GetSuspiciousSafeBlocks() uint64 {
 
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
 // genesis-time config. genesis.json is generated once and copied identically
-// to all nodes (testnetInitFiles), so values here are uniform across the
-// validator set. See DefaultParams() for each value's meaning; Validate()
-// enforces cross-field constraints.
+// to all nodes, so values are uniform across the validator set.
 type GenesisParams struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	SuspiciousThreshold        uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`

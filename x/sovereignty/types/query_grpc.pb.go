@@ -31,10 +31,10 @@ const (
 // stress test and E2 observation (not part of consensus).
 type QueryClient interface {
 	State(ctx context.Context, in *QueryStateRequest, opts ...grpc.CallOption) (*QueryStateResponse, error)
-	// Dumps the current SOVEREIGN/RECOVERING interval's tracked header history
-	// plus rt_last, so an off-chain prover can build a ZK re-anchoring witness
-	// against this node's own tracked state (spec/README.md's §Re-anchoring via
-	// ZK-Proof of Recovery) without reconstructing it independently.
+	// Dumps the tracked header history plus rt_last for the current
+	// SOVEREIGN/RECOVERING interval, so an off-chain prover can build a ZK
+	// re-anchoring witness against this node's tracked state without
+	// reconstructing it independently (spec/README.md's §Re-anchoring).
 	RecoveryHeaders(ctx context.Context, in *QueryRecoveryHeadersRequest, opts ...grpc.CallOption) (*QueryRecoveryHeadersResponse, error)
 }
 
@@ -74,10 +74,10 @@ func (c *queryClient) RecoveryHeaders(ctx context.Context, in *QueryRecoveryHead
 // stress test and E2 observation (not part of consensus).
 type QueryServer interface {
 	State(context.Context, *QueryStateRequest) (*QueryStateResponse, error)
-	// Dumps the current SOVEREIGN/RECOVERING interval's tracked header history
-	// plus rt_last, so an off-chain prover can build a ZK re-anchoring witness
-	// against this node's own tracked state (spec/README.md's §Re-anchoring via
-	// ZK-Proof of Recovery) without reconstructing it independently.
+	// Dumps the tracked header history plus rt_last for the current
+	// SOVEREIGN/RECOVERING interval, so an off-chain prover can build a ZK
+	// re-anchoring witness against this node's tracked state without
+	// reconstructing it independently (spec/README.md's §Re-anchoring).
 	RecoveryHeaders(context.Context, *QueryRecoveryHeadersRequest) (*QueryRecoveryHeadersResponse, error)
 }
 

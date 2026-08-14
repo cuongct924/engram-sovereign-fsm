@@ -27,10 +27,9 @@ type MsgSubmitRecoveryProofRequest struct {
 	Authority    string                 `protobuf:"bytes,1,opt,name=authority,proto3" json:"authority,omitempty"`                           // Validator or rpc node submitting the proof
 	ZkProof      []byte                 `protobuf:"bytes,2,opt,name=zk_proof,json=zkProof,proto3" json:"zk_proof,omitempty"`                // Raw Noir ZK proof bytes, generated off-chain
 	PublicInputs []byte                 `protobuf:"bytes,3,opt,name=public_inputs,json=publicInputs,proto3" json:"public_inputs,omitempty"` // Public inputs accompanying the proof (da_receipt encoded), for VerifyZKProof
-	// Celestia height where the real header chain (this proof's witness) was
-	// published. Optional, NOT verified on-chain -- only a long-term audit
-	// pointer, since HeaderHistory is pruned once this proof is accepted.
-	// 0 = not published. Concrete-layer only, absent from the TLA+ spec.
+	// Celestia height where the proof's witness header chain was published.
+	// Optional, NOT verified on-chain -- only a long-term audit pointer, since
+	// HeaderHistory is pruned once the proof is accepted. 0 = not published.
 	DaCelestiaHeight uint64 `protobuf:"varint,4,opt,name=da_celestia_height,json=daCelestiaHeight,proto3" json:"da_celestia_height,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache

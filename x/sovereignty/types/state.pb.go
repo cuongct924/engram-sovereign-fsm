@@ -22,10 +22,8 @@ const (
 )
 
 // Raw peripheral snapshot, 1:1 with the sensor variables of
-// spec/core/EngramFSM.tla (btc_gap, da_gap/is_das_failed/is_attestation_failed,
-// the 6 P2P tri-interface metrics used by IsP2PQualityHealthy). Used directly
-// by MsgInjectFault and PrepareProposal -- don't rename fields without porting
-// all of x/sovereignty/types/predicates.go.
+// spec/core/EngramFSM.tla. Used by MsgInjectFault and PrepareProposal --
+// don't rename fields without porting x/sovereignty/types/predicates.go.
 type PeripheralMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Bitcoin settlement sensor.

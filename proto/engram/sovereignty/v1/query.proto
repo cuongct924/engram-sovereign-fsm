@@ -6,16 +6,15 @@ option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty
 
 import "engram/sovereignty/v1/state.proto";
 
-// Dịch vụ truy vấn trạng thái FSM hiện tại của node (phục vụ E9 trace-driven
-// stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
+// Query service for a node's current FSM state -- serves the E9 trace-driven
+// stress test and E2 observation (not part of consensus).
 service Query {
   rpc State(QueryStateRequest) returns (QueryStateResponse);
 
-  // RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
-  // tracked header history plus rt_last, so an off-chain prover can build a
-  // real ZK re-anchoring witness against this node's own on-chain-tracked
-  // state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
-  // reconstructing that state independently.
+  // Dumps the tracked header history plus rt_last for the current
+  // SOVEREIGN/RECOVERING interval, so an off-chain prover can build a ZK
+  // re-anchoring witness against this node's tracked state without
+  // reconstructing it independently (spec/README.md's §Re-anchoring).
   rpc RecoveryHeaders(QueryRecoveryHeadersRequest) returns (QueryRecoveryHeadersResponse);
 }
 
@@ -31,9 +30,8 @@ message QueryStateResponse {
 
 message QueryRecoveryHeadersRequest {}
 
-// QueryRecoveryHeader is the wire representation of a single tracked
-// header -- distinct from the Go keeper's internal types.RecoveryHeader
-// (which this mirrors field-for-field) to avoid a generated-type name clash.
+// QueryRecoveryHeader is the wire form of types.RecoveryHeader (mirrored
+// field-for-field) -- distinct name avoids a generated-type clash.
 message QueryRecoveryHeader {
   uint64 height            = 1;
   string fsm_state         = 2;

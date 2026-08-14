@@ -4,54 +4,51 @@ package engram.sovereignty.v1;
 
 option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types";
 
-// Thư viện annotations của Cosmos v0.50+ dùng để định tuyến bộ ký chữ ký tự động
+// Cosmos v0.50+ msg annotations route auto signing for this service.
 import "cosmos/msg/v1/msg.proto";
 import "engram/sovereignty/v1/state.proto";
 
-// Dịch vụ xử lý chữ ký giao dịch (Msg Server)
+// Transaction msg server.
 service Msg {
   option (cosmos.msg.v1.service) = true;
 
-  // Giao dịch đẩy chứng chỉ ZK Proof phục hồi lên chuỗi (Phục vụ E8/E9)
+  // Submit a ZK re-anchoring recovery proof on-chain (serves E8/E9).
   rpc SubmitRecoveryProof(MsgSubmitRecoveryProofRequest) returns (MsgSubmitRecoveryProofResponse);
 
-  // Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
+  // Locally inject a qualitative fault for fault scenarios (serves E2-E7).
   rpc InjectFault(MsgInjectFaultRequest) returns (MsgInjectFaultResponse);
 
-  // Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
-  // (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
-  // này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
-  // sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+  // Push a tx into forced_tx_queue (spec/core/EngramTendermint.tla:886-892);
+  // the leader must include it within MAX_IGNORE_ROUNDS or its proposal is
+  // rejected (IsCensoring, lines 310-315).
   rpc SubmitForcedTx(MsgSubmitForcedTxRequest) returns (MsgSubmitForcedTxResponse);
 }
 
 message MsgSubmitRecoveryProofRequest {
   option (cosmos.msg.v1.signer) = "authority";
-  string authority      = 1; // Validator hoặc rpc node gửi chứng chỉ
-  bytes  zk_proof       = 2; // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
-  bytes  public_inputs  = 3; // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
-  // Celestia height nơi chuỗi header thật (witness của proof này) đã được
-  // publish -- KHÔNG bắt buộc, KHÔNG được verify on-chain (chỉ ghi nhận làm
-  // con trỏ audit lâu dài, vì HeaderHistory sẽ bị prune sau khi proof này
-  // được chấp nhận). 0 nghĩa là chưa publish. Bổ sung thuần túy ở tầng
-  // concrete -- spec TLA+ không có khái niệm này.
+  string authority      = 1; // Validator or rpc node submitting the proof
+  bytes  zk_proof       = 2; // Raw Noir ZK proof bytes, generated off-chain
+  bytes  public_inputs  = 3; // Public inputs accompanying the proof (da_receipt encoded), for VerifyZKProof
+  // Celestia height where the proof's witness header chain was published.
+  // Optional, NOT verified on-chain -- only a long-term audit pointer, since
+  // HeaderHistory is pruned once the proof is accepted. 0 = not published.
   uint64 da_celestia_height = 4;
 }
 
-message MsgSubmitRecoveryProofResponse {} // Trả về trống nếu ZK Verify thành công
+message MsgSubmitRecoveryProofResponse {} // Empty on successful ZK verification
 
 message MsgInjectFaultRequest {
   option (cosmos.msg.v1.signer) = "sender";
-  string            sender  = 1; // Tài khoản quản trị môi trường thử nghiệm
-  PeripheralMetrics fault_inputs = 2; // Cấu hình thông số lỗi môi trường muốn ép chuỗi tuân theo
+  string            sender  = 1; // Experiment-environment admin account
+  PeripheralMetrics fault_inputs = 2; // Fault metrics the chain is forced to honor
 }
 
 message MsgInjectFaultResponse {}
 
 message MsgSubmitForcedTxRequest {
   option (cosmos.msg.v1.signer) = "sender";
-  string sender = 1; // Tài khoản gửi yêu cầu buộc bao gồm tx
-  bytes  tx     = 2; // Nội dung thô của tx cần được buộc đưa vào block
+  string sender = 1; // Account requesting the forced inclusion
+  bytes  tx     = 2; // Raw tx bytes to force into a block
 }
 
 message MsgSubmitForcedTxResponse {}

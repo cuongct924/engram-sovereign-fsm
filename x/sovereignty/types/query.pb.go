@@ -169,9 +169,8 @@ func (*QueryRecoveryHeadersRequest) Descriptor() ([]byte, []int) {
 	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{2}
 }
 
-// QueryRecoveryHeader is the wire representation of a single tracked
-// header -- distinct from the Go keeper's internal types.RecoveryHeader
-// (which this mirrors field-for-field) to avoid a generated-type name clash.
+// QueryRecoveryHeader is the wire form of types.RecoveryHeader (mirrored
+// field-for-field) -- distinct name avoids a generated-type clash.
 type QueryRecoveryHeader struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Height           uint64                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
