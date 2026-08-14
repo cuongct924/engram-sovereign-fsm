@@ -27,15 +27,14 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Dịch vụ truy vấn trạng thái FSM hiện tại của node (phục vụ E9 trace-driven
-// stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
+// Query service for a node's current FSM state -- serves the E9 trace-driven
+// stress test and E2 observation (not part of consensus).
 type QueryClient interface {
 	State(ctx context.Context, in *QueryStateRequest, opts ...grpc.CallOption) (*QueryStateResponse, error)
-	// RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
-	// tracked header history plus rt_last, so an off-chain prover can build a
-	// real ZK re-anchoring witness against this node's own on-chain-tracked
-	// state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
-	// reconstructing that state independently.
+	// Dumps the current SOVEREIGN/RECOVERING interval's tracked header history
+	// plus rt_last, so an off-chain prover can build a ZK re-anchoring witness
+	// against this node's own tracked state (spec/README.md's §Re-anchoring via
+	// ZK-Proof of Recovery) without reconstructing it independently.
 	RecoveryHeaders(ctx context.Context, in *QueryRecoveryHeadersRequest, opts ...grpc.CallOption) (*QueryRecoveryHeadersResponse, error)
 }
 
@@ -71,15 +70,14 @@ func (c *queryClient) RecoveryHeaders(ctx context.Context, in *QueryRecoveryHead
 // All implementations should embed UnimplementedQueryServer
 // for forward compatibility.
 //
-// Dịch vụ truy vấn trạng thái FSM hiện tại của node (phục vụ E9 trace-driven
-// stress test và quan sát thực nghiệm E2 -- không phải một phần của consensus).
+// Query service for a node's current FSM state -- serves the E9 trace-driven
+// stress test and E2 observation (not part of consensus).
 type QueryServer interface {
 	State(context.Context, *QueryStateRequest) (*QueryStateResponse, error)
-	// RecoveryHeaders dumps the CURRENT SOVEREIGN/RECOVERING interval's
-	// tracked header history plus rt_last, so an off-chain prover can build a
-	// real ZK re-anchoring witness against this node's own on-chain-tracked
-	// state (spec/README.md's §Re-anchoring via ZK-Proof of Recovery) without
-	// reconstructing that state independently.
+	// Dumps the current SOVEREIGN/RECOVERING interval's tracked header history
+	// plus rt_last, so an off-chain prover can build a ZK re-anchoring witness
+	// against this node's own tracked state (spec/README.md's §Re-anchoring via
+	// ZK-Proof of Recovery) without reconstructing it independently.
 	RecoveryHeaders(context.Context, *QueryRecoveryHeadersRequest) (*QueryRecoveryHeadersResponse, error)
 }
 

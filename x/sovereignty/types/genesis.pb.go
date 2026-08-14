@@ -21,21 +21,20 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Cấu trúc khởi tạo máy trạng thái Engram FSM. fsm_state là string (không phải
-// enum) để khớp đúng biểu diễn "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING"
-// trong spec/core/EngramFSM.tla (state \in {"ANCHORED", ...}) và trong
-// x/sovereignty/types/state.go's StateAnchored/... constants.
+// Initial Engram FSM state. fsm_state is a string (not enum) to match the
+// "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING" literals of
+// spec/core/EngramFSM.tla and x/sovereignty/types/state.go's State* constants.
 type GenesisState struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
-	FsmState               string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                              // Thường khởi tạo là "ANCHORED"
-	SafeBlocksCounter      uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`                // Bộ đếm biến `safe_blocks` trong TLA+
-	SuspiciousDuration     uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`               // Bộ đếm biến `suspicious_duration` trong TLA+
-	ReanchoringProofValid  bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"`    // Biến `reanchoring_proof_valid` trong TLA+
-	InitialMetrics         *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                            // Trạng thái sensor lúc khởi tạo
-	Params                 *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                                  // Tham số vận hành, xem GenesisParams
-	UnhealthyStreak        uint64                 `protobuf:"varint,8,opt,name=unhealthy_streak,json=unhealthyStreak,proto3" json:"unhealthy_streak,omitempty"`                        // Bộ đếm biến `unhealthy_streak` trong TLA+ (down-hysteresis)
-	FailedRecoveryAttempts uint64                 `protobuf:"varint,9,opt,name=failed_recovery_attempts,json=failedRecoveryAttempts,proto3" json:"failed_recovery_attempts,omitempty"` // Bộ đếm biến `failed_recovery_attempts` trong TLA+ (exponential backoff)
-	SuspiciousSafeBlocks   uint64                 `protobuf:"varint,10,opt,name=suspicious_safe_blocks,json=suspiciousSafeBlocks,proto3" json:"suspicious_safe_blocks,omitempty"`      // Bộ đếm biến `suspicious_safe_blocks` trong TLA+ (SUSPICIOUS exit hysteresis)
+	FsmState               string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                              // Usually "ANCHORED" at genesis
+	SafeBlocksCounter      uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`                // Counter for TLA+ `safe_blocks`
+	SuspiciousDuration     uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`               // Counter for TLA+ `suspicious_duration`
+	ReanchoringProofValid  bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"`    // TLA+ `reanchoring_proof_valid`
+	InitialMetrics         *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                            // Initial sensor snapshot
+	Params                 *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                                  // Operational params, see GenesisParams
+	UnhealthyStreak        uint64                 `protobuf:"varint,8,opt,name=unhealthy_streak,json=unhealthyStreak,proto3" json:"unhealthy_streak,omitempty"`                        // TLA+ `unhealthy_streak` (down-hysteresis)
+	FailedRecoveryAttempts uint64                 `protobuf:"varint,9,opt,name=failed_recovery_attempts,json=failedRecoveryAttempts,proto3" json:"failed_recovery_attempts,omitempty"` // TLA+ `failed_recovery_attempts` (exponential backoff)
+	SuspiciousSafeBlocks   uint64                 `protobuf:"varint,10,opt,name=suspicious_safe_blocks,json=suspiciousSafeBlocks,proto3" json:"suspicious_safe_blocks,omitempty"`      // TLA+ `suspicious_safe_blocks` (SUSPICIOUS exit hysteresis)
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -134,12 +133,10 @@ func (x *GenesisState) GetSuspiciousSafeBlocks() uint64 {
 }
 
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
-// genesis-time configuration -- every validator's genesis.json is generated
-// once and copied identically to all nodes (cmd/engramd/main.go's
-// testnetInitFiles), so values set here are guaranteed uniform across the
-// validator set, unlike a per-process env var. See DefaultParams() for the
-// meaning and cross-field constraints of each value; Params.Validate()
-// enforces those constraints on whatever lands here.
+// genesis-time config. genesis.json is generated once and copied identically
+// to all nodes (testnetInitFiles), so values here are uniform across the
+// validator set. See DefaultParams() for each value's meaning; Validate()
+// enforces cross-field constraints.
 type GenesisParams struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	SuspiciousThreshold        uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`

@@ -21,27 +21,27 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Snapshot ngoại vi thô, khớp 1:1 với các biến sensor trong spec/core/EngramFSM.tla
-// (btc_gap, da_gap/is_das_failed/is_attestation_failed, 6 chỉ số P2P tri-interface
-// profiler dùng bởi IsP2PQualityHealthy). Đây là struct được MsgInjectFault và
-// PrepareProposal dùng trực tiếp -- không đổi tên field nếu không port lại toàn bộ
-// x/sovereignty/types/predicates.go.
+// Raw peripheral snapshot, 1:1 with the sensor variables of
+// spec/core/EngramFSM.tla (btc_gap, da_gap/is_das_failed/is_attestation_failed,
+// the 6 P2P tri-interface metrics used by IsP2PQualityHealthy). Used directly
+// by MsgInjectFault and PrepareProposal -- don't rename fields without porting
+// all of x/sovereignty/types/predicates.go.
 type PeripheralMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Bitcoin settlement sensor.
 	BtcGap         uint64 `protobuf:"varint,1,opt,name=btc_gap,json=btcGap,proto3" json:"btc_gap,omitempty"`
-	IsBtcSpvFailed bool   `protobuf:"varint,11,opt,name=is_btc_spv_failed,json=isBtcSpvFailed,proto3" json:"is_btc_spv_failed,omitempty"`
+	IsBtcSpvFailed bool   `protobuf:"varint,2,opt,name=is_btc_spv_failed,json=isBtcSpvFailed,proto3" json:"is_btc_spv_failed,omitempty"`
 	// Celestia DA sensor.
-	DaGap               uint64 `protobuf:"varint,2,opt,name=da_gap,json=daGap,proto3" json:"da_gap,omitempty"`
-	IsDasFailed         bool   `protobuf:"varint,3,opt,name=is_das_failed,json=isDasFailed,proto3" json:"is_das_failed,omitempty"`
-	IsAttestationFailed bool   `protobuf:"varint,4,opt,name=is_attestation_failed,json=isAttestationFailed,proto3" json:"is_attestation_failed,omitempty"`
+	DaGap               uint64 `protobuf:"varint,3,opt,name=da_gap,json=daGap,proto3" json:"da_gap,omitempty"`
+	IsDasFailed         bool   `protobuf:"varint,4,opt,name=is_das_failed,json=isDasFailed,proto3" json:"is_das_failed,omitempty"`
+	IsAttestationFailed bool   `protobuf:"varint,5,opt,name=is_attestation_failed,json=isAttestationFailed,proto3" json:"is_attestation_failed,omitempty"`
 	// P2P tri-interface sensor.
-	SubnetDiversity uint64 `protobuf:"varint,5,opt,name=subnet_diversity,json=subnetDiversity,proto3" json:"subnet_diversity,omitempty"`
-	ActiveAnchors   uint64 `protobuf:"varint,6,opt,name=active_anchors,json=activeAnchors,proto3" json:"active_anchors,omitempty"`
-	CleanPeers      uint64 `protobuf:"varint,7,opt,name=clean_peers,json=cleanPeers,proto3" json:"clean_peers,omitempty"`
-	PeerChurnRate   uint64 `protobuf:"varint,8,opt,name=peer_churn_rate,json=peerChurnRate,proto3" json:"peer_churn_rate,omitempty"`
-	AvgPeerTenure   uint64 `protobuf:"varint,9,opt,name=avg_peer_tenure,json=avgPeerTenure,proto3" json:"avg_peer_tenure,omitempty"`
-	PeerLatency     uint64 `protobuf:"varint,10,opt,name=peer_latency,json=peerLatency,proto3" json:"peer_latency,omitempty"`
+	SubnetDiversity uint64 `protobuf:"varint,6,opt,name=subnet_diversity,json=subnetDiversity,proto3" json:"subnet_diversity,omitempty"`
+	ActiveAnchors   uint64 `protobuf:"varint,7,opt,name=active_anchors,json=activeAnchors,proto3" json:"active_anchors,omitempty"`
+	CleanPeers      uint64 `protobuf:"varint,8,opt,name=clean_peers,json=cleanPeers,proto3" json:"clean_peers,omitempty"`
+	PeerChurnRate   uint64 `protobuf:"varint,9,opt,name=peer_churn_rate,json=peerChurnRate,proto3" json:"peer_churn_rate,omitempty"`
+	AvgPeerTenure   uint64 `protobuf:"varint,10,opt,name=avg_peer_tenure,json=avgPeerTenure,proto3" json:"avg_peer_tenure,omitempty"`
+	PeerLatency     uint64 `protobuf:"varint,11,opt,name=peer_latency,json=peerLatency,proto3" json:"peer_latency,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -160,18 +160,18 @@ const file_engram_sovereignty_v1_state_proto_rawDesc = "" +
 	"!engram/sovereignty/v1/state.proto\x12\x15engram.sovereignty.v1\"\xac\x03\n" +
 	"\x11PeripheralMetrics\x12\x17\n" +
 	"\abtc_gap\x18\x01 \x01(\x04R\x06btcGap\x12)\n" +
-	"\x11is_btc_spv_failed\x18\v \x01(\bR\x0eisBtcSpvFailed\x12\x15\n" +
-	"\x06da_gap\x18\x02 \x01(\x04R\x05daGap\x12\"\n" +
-	"\ris_das_failed\x18\x03 \x01(\bR\visDasFailed\x122\n" +
-	"\x15is_attestation_failed\x18\x04 \x01(\bR\x13isAttestationFailed\x12)\n" +
-	"\x10subnet_diversity\x18\x05 \x01(\x04R\x0fsubnetDiversity\x12%\n" +
-	"\x0eactive_anchors\x18\x06 \x01(\x04R\ractiveAnchors\x12\x1f\n" +
-	"\vclean_peers\x18\a \x01(\x04R\n" +
+	"\x11is_btc_spv_failed\x18\x02 \x01(\bR\x0eisBtcSpvFailed\x12\x15\n" +
+	"\x06da_gap\x18\x03 \x01(\x04R\x05daGap\x12\"\n" +
+	"\ris_das_failed\x18\x04 \x01(\bR\visDasFailed\x122\n" +
+	"\x15is_attestation_failed\x18\x05 \x01(\bR\x13isAttestationFailed\x12)\n" +
+	"\x10subnet_diversity\x18\x06 \x01(\x04R\x0fsubnetDiversity\x12%\n" +
+	"\x0eactive_anchors\x18\a \x01(\x04R\ractiveAnchors\x12\x1f\n" +
+	"\vclean_peers\x18\b \x01(\x04R\n" +
 	"cleanPeers\x12&\n" +
-	"\x0fpeer_churn_rate\x18\b \x01(\x04R\rpeerChurnRate\x12&\n" +
-	"\x0favg_peer_tenure\x18\t \x01(\x04R\ravgPeerTenure\x12!\n" +
-	"\fpeer_latency\x18\n" +
-	" \x01(\x04R\vpeerLatencyBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x0fpeer_churn_rate\x18\t \x01(\x04R\rpeerChurnRate\x12&\n" +
+	"\x0favg_peer_tenure\x18\n" +
+	" \x01(\x04R\ravgPeerTenure\x12!\n" +
+	"\fpeer_latency\x18\v \x01(\x04R\vpeerLatencyBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_state_proto_rawDescOnce sync.Once

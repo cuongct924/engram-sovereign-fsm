@@ -24,14 +24,13 @@ const (
 
 type MsgSubmitRecoveryProofRequest struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
-	Authority    string                 `protobuf:"bytes,1,opt,name=authority,proto3" json:"authority,omitempty"`                           // Validator hoặc rpc node gửi chứng chỉ
-	ZkProof      []byte                 `protobuf:"bytes,2,opt,name=zk_proof,json=zkProof,proto3" json:"zk_proof,omitempty"`                // Chuỗi byte thô của bằng chứng Noir ZK sinh ra ngoài chuỗi
-	PublicInputs []byte                 `protobuf:"bytes,3,opt,name=public_inputs,json=publicInputs,proto3" json:"public_inputs,omitempty"` // Public input đi kèm proof (da_receipt encode), dùng cho VerifyZKProof
-	// Celestia height nơi chuỗi header thật (witness của proof này) đã được
-	// publish -- KHÔNG bắt buộc, KHÔNG được verify on-chain (chỉ ghi nhận làm
-	// con trỏ audit lâu dài, vì HeaderHistory sẽ bị prune sau khi proof này
-	// được chấp nhận). 0 nghĩa là chưa publish. Bổ sung thuần túy ở tầng
-	// concrete -- spec TLA+ không có khái niệm này.
+	Authority    string                 `protobuf:"bytes,1,opt,name=authority,proto3" json:"authority,omitempty"`                           // Validator or rpc node submitting the proof
+	ZkProof      []byte                 `protobuf:"bytes,2,opt,name=zk_proof,json=zkProof,proto3" json:"zk_proof,omitempty"`                // Raw Noir ZK proof bytes, generated off-chain
+	PublicInputs []byte                 `protobuf:"bytes,3,opt,name=public_inputs,json=publicInputs,proto3" json:"public_inputs,omitempty"` // Public inputs accompanying the proof (da_receipt encoded), for VerifyZKProof
+	// Celestia height where the real header chain (this proof's witness) was
+	// published. Optional, NOT verified on-chain -- only a long-term audit
+	// pointer, since HeaderHistory is pruned once this proof is accepted.
+	// 0 = not published. Concrete-layer only, absent from the TLA+ spec.
 	DaCelestiaHeight uint64 `protobuf:"varint,4,opt,name=da_celestia_height,json=daCelestiaHeight,proto3" json:"da_celestia_height,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -133,8 +132,8 @@ func (*MsgSubmitRecoveryProofResponse) Descriptor() ([]byte, []int) {
 
 type MsgInjectFaultRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sender        string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`                              // Tài khoản quản trị môi trường thử nghiệm
-	FaultInputs   *PeripheralMetrics     `protobuf:"bytes,2,opt,name=fault_inputs,json=faultInputs,proto3" json:"fault_inputs,omitempty"` // Cấu hình thông số lỗi môi trường muốn ép chuỗi tuân theo
+	Sender        string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`                              // Experiment-environment admin account
+	FaultInputs   *PeripheralMetrics     `protobuf:"bytes,2,opt,name=fault_inputs,json=faultInputs,proto3" json:"fault_inputs,omitempty"` // Fault metrics the chain is forced to honor
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -221,8 +220,8 @@ func (*MsgInjectFaultResponse) Descriptor() ([]byte, []int) {
 
 type MsgSubmitForcedTxRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sender        string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"` // Tài khoản gửi yêu cầu buộc bao gồm tx
-	Tx            []byte                 `protobuf:"bytes,2,opt,name=tx,proto3" json:"tx,omitempty"`         // Nội dung thô của tx cần được buộc đưa vào block
+	Sender        string                 `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"` // Account requesting the forced inclusion
+	Tx            []byte                 `protobuf:"bytes,2,opt,name=tx,proto3" json:"tx,omitempty"`         // Raw tx bytes to force into a block
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

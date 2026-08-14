@@ -28,16 +28,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Dịch vụ xử lý chữ ký giao dịch (Msg Server)
+// Transaction msg server.
 type MsgClient interface {
-	// Giao dịch đẩy chứng chỉ ZK Proof phục hồi lên chuỗi (Phục vụ E8/E9)
+	// Submit a ZK re-anchoring recovery proof on-chain (serves E8/E9).
 	SubmitRecoveryProof(ctx context.Context, in *MsgSubmitRecoveryProofRequest, opts ...grpc.CallOption) (*MsgSubmitRecoveryProofResponse, error)
-	// Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
+	// Locally inject a qualitative fault for fault scenarios (serves E2-E7).
 	InjectFault(ctx context.Context, in *MsgInjectFaultRequest, opts ...grpc.CallOption) (*MsgInjectFaultResponse, error)
-	// Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
-	// (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
-	// này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
-	// sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+	// Push a tx into forced_tx_queue -- see SubmitToCelestiaDA
+	// (spec/core/EngramTendermint.tla:886-892). The leader must include it
+	// within MAX_IGNORE_ROUNDS or its proposal is rejected (IsCensoring, lines
+	// 310-315).
 	SubmitForcedTx(ctx context.Context, in *MsgSubmitForcedTxRequest, opts ...grpc.CallOption) (*MsgSubmitForcedTxResponse, error)
 }
 
@@ -83,16 +83,16 @@ func (c *msgClient) SubmitForcedTx(ctx context.Context, in *MsgSubmitForcedTxReq
 // All implementations should embed UnimplementedMsgServer
 // for forward compatibility.
 //
-// Dịch vụ xử lý chữ ký giao dịch (Msg Server)
+// Transaction msg server.
 type MsgServer interface {
-	// Giao dịch đẩy chứng chỉ ZK Proof phục hồi lên chuỗi (Phục vụ E8/E9)
+	// Submit a ZK re-anchoring recovery proof on-chain (serves E8/E9).
 	SubmitRecoveryProof(context.Context, *MsgSubmitRecoveryProofRequest) (*MsgSubmitRecoveryProofResponse, error)
-	// Mạch tiêm lỗi cục bộ định tính phục vụ kịch bản lỗi (Phục vụ E2-E7)
+	// Locally inject a qualitative fault for fault scenarios (serves E2-E7).
 	InjectFault(context.Context, *MsgInjectFaultRequest) (*MsgInjectFaultResponse, error)
-	// Đưa một tx vào forced_tx_queue -- xem SubmitToCelestiaDA
-	// (spec/core/EngramTendermint.tla:886-892). Leader bị buộc phải bao gồm tx
-	// này trong đề xuất trong vòng MAX_IGNORE_ROUNDS, nếu không proposal của họ
-	// sẽ bị các validator khác từ chối (IsCensoring, dòng 310-315).
+	// Push a tx into forced_tx_queue -- see SubmitToCelestiaDA
+	// (spec/core/EngramTendermint.tla:886-892). The leader must include it
+	// within MAX_IGNORE_ROUNDS or its proposal is rejected (IsCensoring, lines
+	// 310-315).
 	SubmitForcedTx(context.Context, *MsgSubmitForcedTxRequest) (*MsgSubmitForcedTxResponse, error)
 }
 
