@@ -7,43 +7,19 @@ import (
 	"time"
 )
 
-// availableCheckTimeout bounds MaybePublish's synchronous Available() call
-// and ProbeHealthy -- unlike Submit (backgrounded, below), these run inline
-// in PrepareProposal/ProcessProposal's ABCI hot path, so they must return
-// well within a consensus round's own timeout even if celestia-bridge is
-// completely unreachable, degrading through is_das_failed rather than
-// stalling block production.
-//
-// Bounded well under CometBFT's timeout_propose (3s default) -- a single
-// RefreshMetrics call can run this alongside x/anchor's own sequential BTC
-// RPC calls (same reasoning as rpcTimeout's doc there), and 3s here alone
-// already ate most of that budget. Confirmed live: a combined BTC+DA outage
-// produced "ProposalBlock is nil" round-skips for an entire 90s scenario
-// window with the old 3s value.
+// availableCheckTimeout bounds the synchronous Available()/ProbeHealthy in
+// the ABCI hot path: must return within a consensus round even if
+// celestia-bridge is unreachable (degrade via is_das_failed, never stall).
 const availableCheckTimeout = 800 * time.Millisecond
 
-// maxPendingBlocks bounds how long MaybePublish waits on ONE pending
-// submission's Available() check before giving up and starting a fresh
-// Submit instead. Without this, a pending submission that never resolves
-// retrievable (confirmed live: celestia-bridge reported blob.Submit
-// succeeding at a given height, but blob.GetAll at that same height never
-// returned it available, for 40+ minutes straight) permanently blocks
-// VerifiedHeight from ever advancing -- since pendingEngramHeight != 0 gates
-// off the Submit branch entirely, no new attempt is ever made. 60 blocks is
-// several multiples of Celestia's own ~12s block time (at this testnet's
-// ~1.3s/block cadence), generous for a genuine in-flight confirmation, but
-// bounded well short of "stuck forever".
+// maxPendingBlocks bounds how long a pending submission gets Available()
+// checks before it's abandoned and resubmitted: a pending that never resolves
+// retrievable permanently gates off new Submits (pendingEngramHeight != 0).
 const maxPendingBlocks = 60
 
-// heightMarkerTag is the payload prefix identifying this repo's simplified
-// DA blob content -- mirrors x/anchor/anchor.go's AnchorTag (tag + height)
-// as a documented stand-in for publishing the block's actual transaction
-// data. RefreshMetrics (x/sovereignty/sensors_refresh.go), where MaybePublish
-// is called, only has access to sdk.Context, not the block's req.Txs -- real
-// block-data publication needs wiring at PrepareProposal itself, where Txs
-// are available. Available's DAS round-trip (blob.GetAll against a real
-// celestia-bridge) already exercises the real Celestia retrieval path; only
-// the blob's CONTENT is a placeholder here, not the availability mechanism.
+// heightMarkerTag prefixes the placeholder blob payload (tag + height),
+// mirroring x/anchor's AnchorTag. Only the content is a stand-in -- real
+// block data needs wiring at PrepareProposal (no req.Txs in RefreshMetrics).
 var heightMarkerTag = []byte("ENGRAMDA")
 
 // HeightMarker builds the placeholder blob payload for engramHeight.
@@ -54,22 +30,13 @@ func HeightMarker(engramHeight uint64) []byte {
 	return payload
 }
 
-// Publisher is this app's DA-availability tracker -- the concrete mechanism
-// giving h_engram_verified somewhere to come from, mirroring
-// x/anchor/anchor.go's AnchorTracker for h_btc_anchored. Follows
-// DANormalUpdate/DAFailure exactly (spec/core/EngramFSM.tla:196-212):
+// Publisher gives h_engram_verified a concrete source (cf. AnchorTracker for
+// h_btc_anchored), following DANormalUpdate/DAFailure
+// (spec/core/EngramFSM.tla:196-212) with no confirmation-depth wait -- DAS is
+// binary, so retrievable means h_engram_verified' = h_engram_current'.
 //
-//	DANormalUpdate: h_engram_verified' = h_engram_current'   (exact equality)
-//	DAFailure:      h_engram_verified' = h_engram_verified   (frozen)
-//
-// Unlike AnchorTracker, deliberately no confirmation-depth waiting period:
-// Celestia's DAS is binary per spec (no depth term in DANormalUpdate), so
-// once a submission is confirmed retrievable, h_engram_verified is set
-// EQUAL to that height immediately.
-//
-// Each validator runs its own Publisher against its own celestia-node --
-// VerifyAvailable never trusts a peer's claimed da_receipt ("sensors
-// propose, consensus decides").
+// Each validator runs its own Publisher: VerifyAvailable never trusts a
+// peer's claimed da_receipt ("sensors propose, consensus decides").
 type Publisher struct {
 	client    *RPCClient
 	namespace Namespace
@@ -90,17 +57,10 @@ func NewPublisher(client *RPCClient, namespace Namespace) *Publisher {
 	return &Publisher{client: client, namespace: namespace}
 }
 
-// MaybePublish checks the previous submission's availability and, once
-// confirmed retrievable, records engramHeight as the new VerifiedHeight
-// (DANormalUpdate) before starting to submit blockData as a new blob.
-//
-// Unlike AnchorTracker.MaybeSubmit (bitcoind returns as soon as a tx is
-// broadcast), a real celestia-node's blob.Submit blocks until the blob is
-// actually included in a Celestia block (~12s by default) -- calling that
-// synchronously here would block PrepareProposal/ProcessProposal past a
-// consensus round's own timeout. Submit runs in a background goroutine
-// instead; MaybePublish always returns near-instantly, and the result is
-// picked up on a later call.
+// MaybePublish confirms the previous submission, records engramHeight as
+// VerifiedHeight (DANormalUpdate) when retrievable, then starts submitting
+// blockData. Submit runs in a background goroutine: blob.Submit blocks ~12s
+// for Celestia inclusion, past a consensus round's timeout.
 func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, blockData []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -119,19 +79,11 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, block
 		available, err := p.client.Available(availCtx, p.pendingCelestiaHt, p.namespace)
 		cancel()
 		if err != nil {
-			// DAFailure: is_das_failed'/is_attestation_failed' may become
-			// TRUE while h_engram_current still advances -- record the
-			// failure but leave verifiedHeight frozen (DAFailure's
-			// h_engram_verified' = h_engram_verified), keeping the pending
-			// submission to retry.
-			//
-			// Returning nil (not err) is load-bearing: propagating a DA
-			// availability-check error up through RefreshMetrics is a hard
-			// ABCI failure (block production stalls) rather than the
-			// graceful "reject this proposal, degrade through SUSPICIOUS"
-			// path this protocol depends on -- the failure belongs in
-			// is_das_failed/is_attestation_failed, which the FSM already
-			// has a well-defined response to.
+			// DAFailure: verifiedHeight stays frozen, retry the pending
+			// submission later. Return nil, not err: an error here becomes a
+			// hard ABCI failure that stalls block production, instead of the
+			// graceful SUSPICIOUS degrade the FSM applies via the failure
+			// flags.
 			p.lastSubmitFailed = true
 			return nil
 		}
@@ -186,19 +138,12 @@ func (p *Publisher) Failed() bool {
 	return p.lastSubmitFailed
 }
 
-// ProbeHealthy does a fresh, bounded, stateless TCP reachability check
-// against celestia-bridge -- unlike Failed(), it never reads p's mutex or
-// its pending-submission bookkeeping, so it can't return a value that's
-// stale relative to this exact call. Failed() alone is not enough to
-// declare DA down: it only updates on the next MaybePublish call that
-// actually runs its synchronous branch, which can lag by however long an
-// in-flight background Submit (up to rpcTimeout) takes to resolve -- during
-// that lag, one validator's Failed() may still read healthy while another's
-// has already flipped, and ProcessProposal's Healthy cross-check
-// (proposal.go's check #1b) rejects every proposal until they happen to
-// agree. Called alongside Failed() in daGapMetric so an outage is detected
-// within about one block on every honest validator, not after an
-// unpredictable, potentially many-round race to converge.
+// ProbeHealthy is a fresh, stateless TCP check against celestia-bridge --
+// unlike Failed(), it reads no mutex or pending bookkeeping, so its answer
+// can never be stale. daGapMetric ORs it into Failed() to spot an outage
+// within ~1 block on every validator, instead of waiting for the stale
+// Failed() to flip in sync with ProcessProposal's Healthy cross-check
+// (proposal.go #1b).
 func (p *Publisher) ProbeHealthy(ctx context.Context) bool {
 	probeCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
 	defer cancel()

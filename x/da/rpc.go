@@ -14,18 +14,14 @@ import (
 	"time"
 )
 
-// rpcTimeout bounds every call below, including the background Submit call
-// (publisher.go's MaybePublish) which legitimately waits out Celestia's
-// ~12s block time -- an http.Client with no Timeout can otherwise hang on a
-// stalled connection to a downed celestia-bridge indefinitely. The
-// synchronous Available() call in MaybePublish's ABCI hot path additionally
-// gets its own much shorter per-call deadline (see that call site) since it
-// must never approach a consensus round's own timeout.
+// rpcTimeout bounds every RPC call below, including publisher.go's background
+// Submit that waits out Celestia's ~12s block time -- otherwise a stalled
+// connection to a downed bridge hangs forever. Available() gets its own
+// shorter deadline (see that call site) to stay within a consensus round.
 const rpcTimeout = 20 * time.Second
 
-// namespaceUserIDLen mirrors Celestia's v0 namespace format: a 1-byte
-// version prefix + 28-byte ID, where a v0 (user-specifiable) namespace's ID
-// is left-padded with 18 zero bytes and only the last 10 bytes are
+// namespaceUserIDLen mirrors Celestia's v0 namespace layout: 1 version byte +
+// 28-byte ID, left-padded with 18 zeros so only the last 10 bytes are
 // caller-chosen.
 const (
 	namespaceVersion    = 0
@@ -38,8 +34,7 @@ const (
 type Namespace [namespaceTotalLen]byte
 
 // NewNamespace builds a v0 namespace from a caller-chosen id of at most 10
-// bytes (e.g. "engramda01"), right-aligned into the 28-byte ID field per the
-// v0 layout described above.
+// bytes (e.g. "engramda01"), right-aligned into the ID field.
 func NewNamespace(id string) (Namespace, error) {
 	if len(id) > namespaceUserIDLen {
 		return Namespace{}, fmt.Errorf("namespace id %q longer than %d bytes", id, namespaceUserIDLen)
@@ -54,44 +49,28 @@ func (n Namespace) base64() string {
 	return base64.StdEncoding.EncodeToString(n[:])
 }
 
-// RPCClient is a minimal celestia-node JSON-RPC 2.0 client -- deliberately
-// stdlib-only (net/http, encoding/json), matching x/anchor/rpc.go's
-// zero-dependency style rather than pulling in celestiaorg/celestia-node's
-// full client SDK for the two calls (blob.Submit, blob.GetAll) this package
-// actually needs.
+// RPCClient is a minimal stdlib-only JSON-RPC 2.0 client for celestia-node,
+// matching x/anchor/rpc.go's zero-dependency style.
 type RPCClient struct {
 	url       string
 	authToken string
 	client    *http.Client
 }
 
-// NewRPCClient builds a client against a celestia-node RPC endpoint (bridge
-// or light node), e.g. the celestia-bridge service in
-// docker/celestia-local-cluster.yml, http://127.0.0.1:26658. authToken is
-// the node's admin/write JWT (celestia bridge auth admin) -- blob.Submit is
-// a write call and celestia-node rejects it unauthenticated.
+// NewRPCClient builds a client against a celestia-node RPC endpoint (the
+// docker bridge at http://127.0.0.1:26658). authToken is the admin/write JWT:
+// blob.Submit is a write call celestia-node rejects unauthenticated.
 func NewRPCClient(url, authToken string) *RPCClient {
 	return &RPCClient{url: url, authToken: authToken, client: &http.Client{Timeout: rpcTimeout}}
 }
 
-// Reachable reports whether c's host:port currently accepts a TCP
-// connection -- a raw, stateless liveness probe deliberately independent of
-// blob.Submit/blob.GetAll's own request/response cycle (and independent of
-// Publisher's per-node async submission bookkeeping, see its ProbeHealthy
-// doc): every validator dialing the same celestia-bridge at roughly the
-// same instant observes the same binary up/down fact, unlike a JSON-RPC
-// call's success depending on which node happens to have a stale vs fresh
-// in-flight request.
+// Reachable is a raw, stateless TCP liveness probe -- independent of the
+// JSON-RPC cycle and Publisher's async bookkeeping, so every validator dialing
+// the bridge at once sees the same up/down fact.
 //
-// Self-bounded by availableCheckTimeout (publisher.go), not rpcTimeout
-// above -- net.Dialer.DialContext has no timeout of its own beyond ctx's own
-// deadline, and 20s (rpcTimeout, sized for the background Submit call) would
-// be far too slow for a check meant to resolve within a single consensus
-// round. Publisher.ProbeHealthy already wraps its own call in a
-// short-deadline ctx, so this is defense-in-depth for any other caller, not
-// a fix for an observed live symptom here -- see x/anchor/rpc.go's identical
-// Reachable, where the missing self-bound was confirmed live to stall
-// consensus entirely (docs/EXPERIMENT.md's E2 S6).
+// Self-bounded by availableCheckTimeout, not rpcTimeout: DialContext has no
+// timeout of its own, and 20s is too slow for a consensus-round check (a
+// missing self-bound stalled consensus live, docs/EXPERIMENT.md E2 S6).
 func (c *RPCClient) Reachable(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
 	defer cancel()
@@ -176,33 +155,25 @@ func (c *RPCClient) call(ctx context.Context, method string, params []any, resul
 	return nil
 }
 
-// blobSubmitParam mirrors the blob.Submit request shape for this
-// celestia-node version (v0.14.1): [{namespace, data, share_version}], with
-// gas price as a plain float parameter (not the `state.TxConfig` object
-// newer upstream docs describe).
+// blobSubmitParam mirrors blob.Submit's request shape for celestia-node
+// v0.14.1: [{namespace, data, share_version}], gas price as a plain float
+// (not newer docs' state.TxConfig object).
 type blobSubmitParam struct {
 	Namespace    string `json:"namespace"`
 	Data         string `json:"data"`
 	ShareVersion int    `json:"share_version"`
 }
 
-// defaultGasPrice is the flat gas price used for every blob submission --
-// this is a local devnet/regtest-equivalent setup (see
-// docker/celestia-local-cluster.yml), not a fee market, so a fixed value
-// confirmed to work end-to-end is sufficient.
+// defaultGasPrice is the fixed gas price for every submission -- this is a
+// local devnet (docker/celestia-local-cluster.yml), not a fee market.
 const defaultGasPrice = 0.002
 
 // maxSubmitSequenceRetries/submitSequenceRetryBackoff handle blob.Submit's
-// "account sequence mismatch" error -- celestia-bridge signs every blob
-// submission from ONE shared account (all 4 validators' regular block-data
-// publishing plus reanchoring-prover's witness publishing, x/sovereignty/
-// docker/reanchoring-prover.yml's doc), and under concurrent submitters its
-// own sequence-number tracking can race: confirmed live, ~3-4 mismatches/sec
-// sustained once reanchoring-prover started submitting too. A bounded retry
-// with backoff gives the account's tracking time to resync between
-// concurrent submitters rather than failing outright on the first race.
+// "account sequence mismatch": all submitters share one bridge account, and
+// concurrent Submits race its sequence tracking. A bounded backoff retry
+// resyncs it instead of failing on the first race.
 const (
-	maxSubmitSequenceRetries  = 5
+	maxSubmitSequenceRetries   = 5
 	submitSequenceRetryBackoff = 400 * time.Millisecond
 )
 
@@ -210,11 +181,10 @@ func isSequenceMismatch(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "account sequence mismatch")
 }
 
-// Submit calls blob.Submit with a single blob of data under namespace,
-// returning the Celestia block height it landed in. This is the app's
-// concrete counterpart of "publish this Engram block to the DA layer" --
-// the precondition DANormalUpdate's h_engram_verified' = h_engram_current'
-// (spec/core/EngramFSM.tla:196-201) depends on actually having happened.
+// Submit publishes data as a blob under namespace via blob.Submit, returning
+// the Celestia block height it landed in -- the concrete counterpart of
+// "publish this block to DA", the precondition of DANormalUpdate's
+// h_engram_verified' = h_engram_current' (spec/core/EngramFSM.tla:196-201).
 func (c *RPCClient) Submit(ctx context.Context, ns Namespace, data []byte) (uint64, error) {
 	param := blobSubmitParam{
 		Namespace:    ns.base64(),
@@ -247,22 +217,16 @@ type blobResult struct {
 	Data      string `json:"data"`
 }
 
-// Available calls blob.GetAll(height, [ns]) and reports whether at least one
-// blob is retrievable under ns at that Celestia height -- the concrete DAS
-// check standing in for "the DA layer is publishing proofs within the
-// allowed gap" (IsDAHealthy, spec/core/EngramFSM.tla:89). Unlike BTC's
-// K-deep confirmation depth, Celestia's DAS is binary per spec (no depth
-// concept in DANormalUpdate) -- a single successful retrieval is the whole
-// check, matching the celestia-bridge blob.GetAll round-trip already
-// confirmed manually to return the exact bytes submitted.
+// Available calls blob.GetAll(height, [ns]) and reports whether any blob is
+// retrievable under ns at that height -- the DAS check behind IsDAHealthy
+// (spec/core/EngramFSM.tla:89). Unlike BTC's K-deep depth, DAS is binary:
+// one successful retrieval is the whole check.
 func (c *RPCClient) Available(ctx context.Context, celestiaHeight uint64, ns Namespace) (bool, error) {
 	var blobs []blobResult
 	err := c.call(ctx, "blob.GetAll", []any{celestiaHeight, []string{ns.base64()}}, &blobs)
 	if err != nil {
-		// celestia-node returns a "blob: not found" rpc error (not an empty
-		// result) when nothing is available yet at that height/namespace --
-		// treat that specific case as "not yet available", everything else
-		// as a real error.
+		// celestia-node reports "blob: not found" (not an empty result) when
+		// nothing is available yet -- treat that as "not yet available".
 		if isBlobNotFound(err) {
 			return false, nil
 		}
