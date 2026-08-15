@@ -434,9 +434,28 @@ Live (pairwise-link topology):
   environments identical (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`);
   `WithdrawalBlocked=0` throughout, confirmed by an explicit test assertion.
 
-* *Conclusion:* a clean positive result, unlike 5a — this parameter is swept against exactly the
-  noise level it's designed to absorb. Live spot-check not yet run
-  (`scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge down` is ready).
+  Live spot-check (5×1, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × `noisy_da`, 300s/run, all 4
+  validators identical at every sample):
+
+  | DownHysteresisThreshold | Flapping (300s) | Transitions | Anchored uptime |
+  |---:|---:|---:|---:|
+  | 1 | 5-6 | 14-15 | 13.48% |
+  | 2 | 4 | 7-8 | 4.23-5.63% |
+  | 4 | 12 | 13 | 30.00% |
+  | 6 | 12 | 13 | 36.46% |
+  | 8 | 8 | 13 | 28.24% |
+
+  Non-monotonic, unlike the in-process curve's clean 61%→100% rise — uptime jumps
+  13%→4%→30%→36%→28% across threshold 1→8, and threshold=2 (the production default) measures the
+  *lowest* live uptime of the five. Same attribution as 5a's live spot-check: each threshold value
+  is a separate genesis reset and a separate real noise injection, a confound live testing can't
+  control for the way a shared seed does in-process (`scripts/e5_hysteresis_flapping/results_live/`).
+
+* *Conclusion:* a clean positive result in-process, unlike 5a — this parameter is swept against
+  exactly the noise level it's designed to absorb. Live tells a different story: uptime is
+  non-monotonic across threshold, and the production default underperforms every other value
+  tested — not evidence the default is wrong (n=1 per value), but a concrete instance of the same
+  in-process-vs-live divergence 5a already found, now confirmed on a second hysteresis edge.
 
 **5c — SUSPICIOUS-exit hysteresis (SUSPICIOUS → ANCHORED)**
 
@@ -453,10 +472,31 @@ Live (pairwise-link topology):
   regardless of SHW. Only SHW=1,2 stay under the cap and reach ANCHORED (`AnchoredUptime` 43%,
   17%) (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`).
 
-* *Conclusion:* a real tuning tension, mirroring 5a's asymmetry from the opposite direction —
-  absorbing more noise on this edge accelerates the very escalation the absorption is meant to buy
-  time against. Live spot-check not yet run
-  (`live_spot_check_absorb.py --edge suspicious_exit` is ready).
+  Live spot-check (5×1, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, 300s/run, all 4 validators
+  identical at every sample, driven to SUSPICIOUS via a real `celestia-bridge` stop before each
+  window):
+
+  | SuspiciousHysteresisWait | Flapping (300s) | Transitions | Anchored uptime |
+  |---:|---:|---:|---:|
+  | 1 | 8 | 13 | 18.75% |
+  | 2 | 13 | 14 | 36.46-37.50% |
+  | 4 | 6 | 16 | 12.50% |
+  | 6 | 2 | 12 | 15.79% |
+  | 8 | 0 | 12 | 17.11% |
+
+  Flapping falls monotonically (8→13→6→2→0) as SHW grows — unlike uptime, this half matches
+  mechanistic expectation directly: a longer consecutive-healthy-block requirement makes an
+  immediate exit-then-re-enter cycle structurally harder, regardless of noise timing. Uptime stays
+  non-monotonic (peaks at SHW=2, not at either extreme) and diverges in direction from the
+  in-process sweep's own 43%→17% drop at SHW 1→2 — live rises at that same step instead. Same
+  genesis/noise-realization confound as 5a/5b (`scripts/e5_hysteresis_flapping/results_live/`).
+
+* *Conclusion:* a real tuning tension in-process, mirroring 5a's asymmetry from the opposite
+  direction — absorbing more noise on this edge accelerates the very escalation the absorption is
+  meant to buy time against. Live confirms flapping itself behaves exactly as designed (falls
+  monotonically with SHW), but uptime does not track the in-process curve at all, including
+  disagreeing on which direction the 1→2 step moves — a third hysteresis edge (after 5a, 5b) where
+  live timing overturns an in-process trend the model checker's fixed seed can't expose.
 
 **Open question — asymmetric hardening:** exponential backoff exists only on RECOVERING→SOVEREIGN.
 The same fixed-cost, repeatable-attack shape it defends against exists structurally on
