@@ -1,31 +1,16 @@
-// Package benchmark implements docs/EXPERIMENT.md's E7 (Consensus Overhead of
-// the Extended Proposal) as real Go benchmarks -- run via
-// `go test ./tests/benchmark/... -bench=. -benchmem -run=^$`.
+// Package benchmark implements E7 (Consensus Overhead of the Extended
+// Proposal) as Go benchmarks: `go test ./tests/benchmark/... -bench=. -benchmem`.
 //
-// V0-V5 (docs/EXPERIMENT.md's E7 variant table) don't correspond to separate
-// code paths in this repo -- x/sovereignty/proposal.go's ExtendedProposal and
-// ProcessProposal always carry/validate the full set of fields at once, since
-// that is what a real node does. So:
-//   - Proposal size overhead (BenchmarkProposalSize) is measured directly by
-//     json.Marshal-ing progressively larger real Go structs (da.Receipt,
-//     anchor.Receipt, the real PeripheralMetrics P2P fields, a bool),
-//     which is a faithful reproduction of V0-V5's cumulative wire size.
-//   - CPU cost is decomposed into the real validation sub-steps
-//     (CalculateNextState, da.VerifyReceipt, anchor.VerifyReceipt) that
-//     ProcessProposal actually calls, plus one end-to-end benchmark of the
-//     real NewProcessProposalHandler for the fully-featured (V5) case.
-//     scripts/e7_consensus_overhead composes V1-V4's cumulative CPU cost from
-//     these sub-benchmarks rather than this file re-implementing partial
-//     ProcessProposal variants that don't exist on a real node.
+// V0-V5 don't map to separate code paths -- the real ExtendedProposal always
+// carries the full field set. So size is measured by json.Marshal-ing
+// progressively larger structs (BenchmarkProposalSize), and CPU cost by the
+// real sub-steps ProcessProposal calls (CalculateNextState, da.VerifyReceipt,
+// anchor.VerifyReceipt) plus one end-to-end benchmark for V5.
+// scripts/e7_consensus_overhead composes V1-V4 from these.
 //
-// P2P health (V4) is NOT part of the real wire-format ExtendedProposal today
-// -- it's validated from the leader's own locally-tracked keeper.Metrics, not
-// carried in the proposal (see proposal.go's currentFSMInput). The
-// P2PDigestSizeEstimate struct below exists only to estimate what a P2P
-// digest's marginal size WOULD be if added to the wire format, using the
-// exact same 6 fields spec/core/EngramFSM.tla's IsP2PQualityHealthy reads
-// from PeripheralMetrics -- this is a documented estimate, not a measurement
-// of code that ships today.
+// P2P health (V4) isn't on the real wire today (validated from the leader's
+// keeper.Metrics, see currentFSMInput); P2PDigestSizeEstimate only estimates
+// what a digest would add -- an estimate, not a measurement of shipped code.
 package benchmark
 
 import (
@@ -48,9 +33,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// P2PDigestSizeEstimate mirrors the 6 fields IsP2PQualityHealthy reads from
-// PeripheralMetrics (spec/core/EngramFSM.tla:76-81) -- see the package doc
-// above for why this is an estimate, not a measurement of shipped code.
+// P2PDigestSizeEstimate mirrors IsP2PQualityHealthy's 6 fields
+// (spec/core/EngramFSM.tla:76-81) -- an estimate, not shipped code.
 type P2PDigestSizeEstimate struct {
 	SubnetDiversity uint64 `json:"subnet_diversity"`
 	ActiveAnchors   uint64 `json:"active_anchors"`
@@ -87,8 +71,7 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 	}
 }
 
-// BenchmarkProposalSize reports the real JSON-encoded byte size of each
-// V0-V5 cumulative payload (docs/EXPERIMENT.md's E7 table).
+// Real JSON byte size of each V0-V5 cumulative payload (E7's table).
 func BenchmarkProposalSize(b *testing.B) {
 	daReceipt := da.Receipt{PublishedBlockHeight: 12345, Attestation: true}
 	btcReceipt := anchor.Receipt{CheckpointBlockHeight: 6789, CheckpointBlockHash: anchor.ExpectedBlockHash(6789)}
@@ -139,9 +122,8 @@ func BenchmarkProposalSize(b *testing.B) {
 	}
 }
 
-// BenchmarkProcessProposal measures the real, full end-to-end
-// NewProcessProposalHandler cost (spec/core/EngramTendermint.tla's
-// IsValidProposal, all checks) -- the V5 (fully-featured) CPU cost.
+// End-to-end NewProcessProposalHandler cost (IsValidProposal, all checks) --
+// the V5 CPU cost.
 func BenchmarkProcessProposal(b *testing.B) {
 	k, ctx := newTestKeeperCtx(b)
 	ext := healthyExtendedProposal(k, ctx)
@@ -160,9 +142,8 @@ func BenchmarkProcessProposal(b *testing.B) {
 	}
 }
 
-// BenchmarkCalculateNextState isolates the FSM-state cross-check cost
-// (V1's marginal CPU cost -- every variant pays this, since fsm_state is the
-// baseline field).
+// Isolates CalculateNextState's cost -- V1's marginal CPU; every variant pays
+// it since fsm_state is the baseline field.
 func BenchmarkCalculateNextState(b *testing.B) {
 	k, ctx := newTestKeeperCtx(b)
 	metrics := &types.PeripheralMetrics{
@@ -180,8 +161,7 @@ func BenchmarkCalculateNextState(b *testing.B) {
 	_ = ctx
 }
 
-// BenchmarkDAVerifyReceipt isolates da.VerifyReceipt's cost (V2's marginal
-// CPU cost on top of V1).
+// Isolates da.VerifyReceipt -- V2's marginal CPU on top of V1.
 func BenchmarkDAVerifyReceipt(b *testing.B) {
 	receipt := da.Receipt{PublishedBlockHeight: 100, Attestation: true}
 	b.ResetTimer()
@@ -190,8 +170,7 @@ func BenchmarkDAVerifyReceipt(b *testing.B) {
 	}
 }
 
-// BenchmarkBTCVerifyReceipt isolates anchor.VerifyReceipt's cost (V3's
-// marginal CPU cost on top of V2).
+// Isolates anchor.VerifyReceipt -- V3's marginal CPU on top of V2.
 func BenchmarkBTCVerifyReceipt(b *testing.B) {
 	receipt := anchor.Receipt{CheckpointBlockHeight: 100, CheckpointBlockHash: anchor.ExpectedBlockHash(100)}
 	b.ResetTimer()

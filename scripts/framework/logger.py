@@ -1,13 +1,12 @@
 """Live-Docker data-collection framework, replacing tests/e2e's in-process
-Harness as the data source for E2/E3/E4/E7/E9 -- the user explicitly asked
-for these scripts to read from the REAL running docker testnet
-(engram-node01..04, bitcoin-node01, celestia-bridge), not from
+Harness as the data source for E2/E3/E4/E7/E9: reads from the REAL running
+docker testnet (engram-node01..04, bitcoin-node01, celestia-bridge), not
 tests/e2e/results/*.csv (in-process, mock-sensor Go harness).
 
 Every function here talks to real, already-running services over their real
 RPC/ABCI-query interfaces (the same endpoints `engramd query-*` and
-CometBFT's own RPC use) -- nothing here mocks or recomputes FSM logic
-locally; it only OBSERVES the real chain's already-committed state.
+CometBFT's RPC use) -- nothing mocks or recomputes FSM logic; it only
+OBSERVES the real chain's committed state.
 """
 
 import base64
@@ -39,12 +38,10 @@ def _rpc_get(port: int, path: str, timeout: float = 3.0) -> dict:
 
 def _decode_query_state(value_b64: str) -> dict:
     """Hand-decodes QueryStateResponse's protobuf wire format (fsm_state:
-    field 1 string, safe_blocks: field 2 varint, suspicious_duration: field 3
-    varint, reanchoring_proof_valid: field 4 bool, metrics: field 5 message).
-    Avoids depending on a generated Python protobuf stub for one small
-    message -- this is a deliberately minimal decoder, not a general
-    protobuf parser; it only handles the tag/wire-type combinations
-    QueryStateResponse actually uses.
+    field 1 string, safe_blocks: field 2 varint, suspicious_duration: field
+    3 varint, reanchoring_proof_valid: field 4 bool, metrics: field 5
+    message) -- a deliberately minimal decoder for the tag/wire-type
+    combinations this one message uses, avoiding a generated Python stub.
     """
     raw = base64.b64decode(value_b64) if value_b64 else b""
     out = {
@@ -67,10 +64,9 @@ def _decode_query_state(value_b64: str) -> dict:
             if field_num == 1:
                 out["fsm_state"] = payload.decode("utf-8")
             # field 5 (metrics) is an embedded message -- deliberately not
-            # decoded further: PreBlocker never writes k.Metrics into
-            # committed state (documented dead field, see
-            # x/sovereignty/preblock.go's NewPreBlocker doc), so its content
-            # is always stale/empty regardless.
+            # decoded: PreBlocker never writes k.Metrics into committed state
+            # (see x/sovereignty/preblock.go's NewPreBlocker doc), so its
+            # content is always stale/empty.
         elif wire_type == 0:  # varint
             value = 0
             shift = 0
@@ -108,9 +104,9 @@ class NodeSample:
 
 def query_node(node: str, port: Optional[int] = None) -> NodeSample:
     """Queries one real node's /status (CometBFT RPC) and Query.State
-    (routed through /abci_query, the same path engramd's own CLI commands
-    use -- see cmd/engramd/reanchor_cli.go's query-recovery-headers for the
-    precedent) -- both real, already-committed state, not recomputed here.
+    (routed through /abci_query, the same path engramd's CLI uses -- see
+    cmd/engramd/reanchor_cli.go's query-recovery-headers) -- both real,
+    committed state, not recomputed here.
     """
     port = port or NODE_RPC_PORTS[node]
     ts = time.time()
@@ -144,13 +140,11 @@ def query_node(node: str, port: Optional[int] = None) -> NodeSample:
         KeyError,
         ValueError,
         RuntimeError,
-        OSError,  # covers ConnectionResetError/ConnectionRefusedError etc. --
-        # a mid-response reset while docker compose force-recreates the node
-        # being polled raises these directly from the socket layer, NOT
-        # wrapped in urllib.error.URLError the way a failed connection
-        # attempt is -- without this, they escape the except clause and
-        # crash every long-running poll loop in this framework whenever a
-        # container is recreated mid-poll.
+        OSError,  # covers ConnectionResetError/RefusedError etc. -- a
+        # mid-response reset while docker compose force-recreates a polled
+        # node raises these from the socket layer, NOT wrapped in
+        # urllib.error.URLError; without this they'd crash every long-running
+        # poll loop whenever a container is recreated mid-poll.
     ) as e:
         return NodeSample(
             timestamp=ts,
@@ -222,12 +216,12 @@ def write_csv(samples: List[NodeSample], path: str) -> None:
 
 def net_info(node: str, port: Optional[int] = None) -> dict:
     """Real CometBFT /net_info RPC -- connected peer list with remote IPs,
-    independent of the app-layer Query.State gap (PeripheralMetrics.CleanPeers/
-    SubnetDiversity/ActiveAnchors are never written into committed state --
-    see _decode_query_state's own comment on field 5). This reads the SAME
-    real p2p.Switch.Peers() data vanillaP2PHealthAdapter and
-    x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr both use, just via
-    CometBFT's own /net_info endpoint instead of an app-level ABCI query.
+    independent of the app-layer Query.State gap (PeripheralMetrics.
+    CleanPeers/SubnetDiversity/ActiveAnchors are never written into
+    committed state -- see _decode_query_state's comment on field 5). Reads
+    the SAME real p2p.Switch.Peers() data vanillaP2PHealthAdapter and
+    x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr use, via
+    CometBFT's own /net_info endpoint.
     """
     port = port or NODE_RPC_PORTS[node]
     return _rpc_get(port, "/net_info")
@@ -249,9 +243,8 @@ def _subnet_of(ip: str) -> str:
 def peer_subnet_counts(node: str, port: Optional[int] = None) -> dict:
     """Real per-subnet connected-peer counts for node, computed the same way
     FilterPeerByAddr/vanillaP2PHealthAdapter do -- lets a live script confirm
-    the real ingress filter's view of the world (e.g. for E4/E8's A1/A2
-    attacker-swarm experiments) without needing app-level Query.State access.
-    """
+    the real ingress filter's view (e.g. E4/E8's A1/A2 attacker swarms)
+    without app-level Query.State access."""
     info = net_info(node, port)
     counts: dict = {}
     for p in info.get("result", {}).get("peers", []):
@@ -265,16 +258,13 @@ def peer_subnet_counts(node: str, port: Optional[int] = None) -> dict:
 
 def bitcoin_cli(*args: str, node: str = "bitcoin-node01") -> str:
     """Runs bitcoin-cli inside a real bitcoin node container (bitcoin-node01
-    by default) -- used to independently cross-check anchor state (OP_RETURN
-    scan) against what a manual bitcoin-cli query would show, or to drive a
-    real reorg via bitcoin-node02 (E10, see e10_bitcoin_reorg/).
+    by default) -- independently cross-checks anchor state (OP_RETURN scan)
+    against a manual bitcoin-cli query, or drives a real reorg via
+    bitcoin-node02 (E10, see e10_bitcoin_reorg/).
 
     Credentials read from BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD (matching
-    .env / bitcoin_miner_loop.sh's own convention) rather than hardcoded --
-    a prior hardcoded cuongct/cuongct123 here silently stopped working once
-    .env's real values (engram_admin/secure_password_123) diverged, an
-    unused-at-the-time bug only caught when this function got its first
-    real caller.
+    .env / bitcoin_miner_loop.sh's convention) rather than hardcoded -- a
+    prior hardcoded value silently stopped working once .env diverged.
     """
     user = os.environ.get("BITCOIN_RPC_USER", "engram_admin")
     password = os.environ.get("BITCOIN_RPC_PASSWORD", "secure_password_123")

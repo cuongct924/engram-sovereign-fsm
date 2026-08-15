@@ -1,16 +1,13 @@
-// Package e2e implements docs/EXPERIMENT.md's E2 (Fault-Injection End-to-End
-// Prototype) scenarios S1-S7 in-process: no CometBFT node, no Docker, no real
-// network partitioning. Harness.Advance() drives x/sovereignty's real
-// BeginBlocker against mock-controlled BTC/DA/P2P sensors across simulated
-// block heights, so the FSM transition logic under test is the exact same
-// code path a running chain would use -- only the peripheral I/O is mocked.
+// Package e2e implements docs/EXPERIMENT.md's E2 scenarios S1-S7 in-process:
+// no CometBFT node, no Docker, no real partitioning. Harness.Advance() drives
+// the real BeginBlocker against mock BTC/DA/P2P sensors, so the FSM logic
+// under test is the exact code path a running chain uses -- only the
+// peripheral I/O is mocked.
 //
-// This produces real data for E2's FSM-behavior metrics (time-to-fallback,
-// recovery time, withdrawal-blocked block count, flapping count), which are
-// pure functions of the (height, fsm_state, sensor readings) timeline and do
-// not depend on whether the network was actually distributed across Docker
-// containers. Standing up a real multi-node CometBFT testnet with Pumba
-// chaos injection is out of scope for this harness (tracked separately).
+// Produces real data for E2's FSM-behavior metrics (time-to-fallback,
+// recovery time, withdrawal-blocked count, flapping count), which are pure
+// functions of the (height, state, sensor) timeline -- a real Docker/Pumba
+// testnet is out of scope for this harness.
 package e2e
 
 import (
@@ -84,8 +81,8 @@ func itoa(v int) string {
 	return string(buf[i:])
 }
 
-// S1 -- Normal: BTC/DA/P2P all healthy throughout. Expect the FSM to remain
-// ANCHORED for the whole run (docs/EXPERIMENT.md's failure-matrix baseline row).
+// S1 -- Normal: all sensors healthy throughout; must stay ANCHORED for the
+// whole run (E2's failure-matrix baseline row).
 func TestE2_S1_Normal(t *testing.T) {
 	h := NewHarness(t)
 	for height := 0; height < 50; height++ {
@@ -103,18 +100,15 @@ func TestE2_S1_Normal(t *testing.T) {
 	t.Log(fmtMetrics("S1", m))
 }
 
-// S2 -- BTC congestion: btc_gap ramps up past SOVEREIGN_THRESHOLD then back
-// down to 0. Expect ANCHORED -> SUSPICIOUS -> SOVEREIGN -> (after healing)
-// RECOVERING -> ANCHORED, and the chain never stops producing blocks
-// (Harness.Advance never blocks/errors) throughout the outage.
+// S2 -- BTC congestion: btc_gap ramps past SOVEREIGN_THRESHOLD then heals.
+// Expect ANCHORED -> SUSPICIOUS -> SOVEREIGN -> RECOVERING -> ANCHORED, and
+// the chain never stops producing blocks throughout the outage.
 func TestE2_S2_BTCCongestion(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
 
-	// Ramp up: 0, then cross SuspiciousThreshold, then sit at/above
-	// SovereignThreshold for a few blocks -- derived from p's actual
-	// thresholds rather than hardcoded numbers, so this stays correct
-	// whichever DefaultParams() ends up using.
+	// Ramp: 0, cross SuspiciousThreshold, sit at SovereignThreshold -- derived
+	// from p's real thresholds, not hardcoded.
 	h.BTC.SetGap(0)
 	h.Advance()
 	h.BTC.SetGap(p.SuspiciousThreshold)
@@ -143,11 +137,9 @@ func TestE2_S2_BTCCongestion(t *testing.T) {
 	t.Log(fmtMetrics("S2", m))
 }
 
-// S3 -- DA unavailable: DA receipt missing. Alone this is only a warning
-// (IsCriticalCondition doesn't include DA), so escalation to SOVEREIGN only
-// happens via the gray-failure timeout (suspicious_duration >= MaxSuspiciousTime)
-// if the outage persists -- matching docs/EXPERIMENT.md's "reject invalid DA
-// blocks; chuyển fallback nếu kéo dài" expectation for S3.
+// S3 -- DA unavailable: a DA receipt alone is only a warning (IsCriticalCondition
+// has no DA disjunct), so SOVEREIGN only comes via the gray-failure timeout
+// (suspicious_duration >= MaxSuspiciousTime) if the outage persists.
 func TestE2_S3_DAUnavailable(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -156,8 +148,8 @@ func TestE2_S3_DAUnavailable(t *testing.T) {
 	for i := uint64(0); i < p.MaxSuspiciousTime+3; i++ {
 		h.Advance()
 	}
-	// With DefaultParams' MaxSuspiciousTime=1, a persistent DA outage must
-	// eventually force SOVEREIGN via the gray-failure timeout, not silently hang in SUSPICIOUS.
+	// DefaultParams has MaxSuspiciousTime=1 -- a persistent DA outage must
+	// escalate via gray-failure timeout, not hang in SUSPICIOUS.
 	require.Equal(t, types.StateSovereign, h.State(), "persistent DA outage must eventually escalate via gray-failure timeout")
 
 	h.DA.SetAvailable(true)
@@ -175,13 +167,10 @@ func TestE2_S3_DAUnavailable(t *testing.T) {
 	t.Log(fmtMetrics("S3", m))
 }
 
-// S4 -- P2P eclipse (partial): peer diversity/clean-peer count drop below
-// thresholds but at least one anchor peer remains (not a full isolation).
-// Expect a warning (SUSPICIOUS) once the reading has recurred
-// DownHysteresisThreshold times (E5's flapping fix, docs/EXPERIMENT.md --
-// down-hysteresis absorbs shorter blips instead of warning on the very
-// first noisy block), not an immediate jump to SOVEREIGN, unless the
-// gray-failure timeout fires on a sustained outage.
+// S4 -- P2P eclipse (partial): diversity/clean-peers drop below thresholds
+// but an anchor peer remains (not full isolation). Expect SUSPICIOUS after
+// DownHysteresisThreshold recurrences (E5's flapping fix absorbs short blips),
+// not an immediate SOVEREIGN -- unless the gray-failure timeout fires.
 func TestE2_S4_P2PEclipsePartial(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -210,14 +199,14 @@ func TestE2_S4_P2PEclipsePartial(t *testing.T) {
 	t.Log(fmtMetrics("S4", m))
 }
 
-// S5 -- Anchor isolation: ActiveAnchors drops to 0 (complete eclipse from
-// bootstrap/anchor nodes). Expect an immediate jump to SOVEREIGN regardless
-// of current state, per IsCriticalCondition's `Cardinality(ActiveAnchors) = 0` disjunct.
+// S5 -- Anchor isolation: ActiveAnchors hits 0 (complete anchor eclipse).
+// Expect an immediate jump to SOVEREIGN per IsCriticalCondition's
+// Cardinality(ActiveAnchors)=0 disjunct.
 func TestE2_S5_AnchorIsolation(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
 
-	h.Advance() // one healthy block first, to show the transition really happens on isolation
+	h.Advance() // one healthy block first, so the transition is clearly on-isolation
 	require.Equal(t, types.StateAnchored, h.State())
 
 	h.P2P.SetSnapshot(sensors.P2PSnapshot{
@@ -236,10 +225,9 @@ func TestE2_S5_AnchorIsolation(t *testing.T) {
 	t.Log(fmtMetrics("S5", m))
 }
 
-// S6 -- Combined BTC+DA failure: both peripherals unhealthy at once. Expect
-// SOVEREIGN (via the BTC critical branch) and withdrawals locked for the
-// entire outage, matching docs/EXPERIMENT.md's S6 expectation
-// ("chain vẫn xử lý local tx, khóa withdrawal").
+// S6 -- Combined BTC+DA failure: both peripherals down at once. Expect
+// SOVEREIGN (BTC critical branch) with withdrawals locked for the entire
+// outage (chain still processes local txs).
 func TestE2_S6_CombinedBTCAndDAFailure(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -262,9 +250,9 @@ func TestE2_S6_CombinedBTCAndDAFailure(t *testing.T) {
 	t.Log(fmtMetrics("S6", m))
 }
 
-// S7 -- Recovery: from SOVEREIGN, sensors heal and a valid reanchoring proof
-// is submitted. Expect SOVEREIGN -> RECOVERING -> ANCHORED only once BOTH
-// safe_blocks reaches HysteresisWait AND the proof is valid -- not before.
+// S7 -- Recovery: sensors heal and a valid reanchoring proof is submitted.
+// Expect SOVEREIGN -> RECOVERING -> ANCHORED only once BOTH hysteresis AND
+// the proof are satisfied -- not before.
 func TestE2_S7_Recovery(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -277,7 +265,7 @@ func TestE2_S7_Recovery(t *testing.T) {
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State(), "healed sensors must move SOVEREIGN -> RECOVERING")
 
-	// Hold in RECOVERING WITHOUT a valid proof yet -- must not exit early even
+	// Hold in RECOVERING without a valid proof -- must not exit early even
 	// once safe_blocks reaches HysteresisWait.
 	for i := uint64(0); i < p.HysteresisWait; i++ {
 		h.Advance()

@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """E5 -- Hysteresis and Flapping Sensitivity, LIVE-docker Figure 4
-(docs/EXPERIMENT.md's E5), built from
-scripts/e5_hysteresis_flapping/live_spot_check.py's real output against the
-real 4-node testnet (not tests/e2e's in-process mock).
+(docs/EXPERIMENT.md's E5), built from live_spot_check.py's real output
+against the real 4-node testnet (not tests/e2e's in-process mock).
 
-Purpose (see live_spot_check.py's own doc): confirm the in-process sweep's
-real finding -- flapping_count increases and anchored_uptime does not
-improve as HysteresisWait grows under sustained noise, no interior sweet
-spot -- holds under REAL consensus timing too, not just the in-process
-mock's synthetic per-block tick. This is a small 2x2 spot-check
-(HysteresisWait in {2, 10} x environment in {stable, noisy_da}), not a full
-6x5 sweep -- each combo needed its own params.go edit + image rebuild +
-fresh redeploy, so the live matrix is deliberately narrow.
+Purpose (see live_spot_check.py's doc): confirm the in-process sweep's real
+finding -- flapping_count increases and anchored_uptime doesn't improve as
+HysteresisWait grows under sustained noise, no interior sweet spot -- holds
+under REAL consensus timing too. A small 2x2 spot-check (HysteresisWait in
+{2, 10} x {stable, noisy_da}), not a full 6x5 sweep: each combo needed its
+own params.go edit + image rebuild + fresh redeploy.
 
-Reads each run's own *_summary.md (already has real per-node metrics
-tables, written by live_spot_check.py) rather than recomputing from the raw
-CSVs -- avoids duplicating that script's compute_metrics logic, and every
-node's numbers have agreed exactly in every run performed so far.
+Reads each run's *_summary.md (real per-node metrics written by
+live_spot_check.py) rather than recomputing from raw CSVs -- avoids
+duplicating compute_metrics, and every node's numbers have agreed in every
+run so far.
 
 Usage:
     python3 scripts/e5_hysteresis_flapping/live_figure_builder.py

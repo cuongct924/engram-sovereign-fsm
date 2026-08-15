@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Pulls a celestia-bridge container's admin/write JWT (generated on first
-# `bridge init`, written to /home/celestia/bridge_auth.txt inside the
-# container) and writes it into the given .env file's VAR_NAME= line -- all
-# 4 validators need CELESTIA_BRIDGE_AUTH_TOKEN in their environment before
-# they start (see docker/engram-validator-cluster.yml's doc);
-# reanchoring-prover needs CELESTIA_BRIDGE2_AUTH_TOKEN for its own separate
-# celestia-bridge-2 (docker/celestia-local-cluster.yml's doc).
+# Pulls a celestia-bridge container's admin/write JWT (written to
+# /home/celestia/bridge_auth.txt on `bridge init`) and writes it into the
+# given .env file's VAR_NAME= line. All 4 validators need
+# CELESTIA_BRIDGE_AUTH_TOKEN before start (docker/engram-validator-cluster.yml);
+# reanchoring-prover needs CELESTIA_BRIDGE2_AUTH_TOKEN for its own
+# celestia-bridge-2 (docker/celestia-local-cluster.yml).
 #
 # Usage: scripts/testnet_fetch_celestia_token.sh [env_file] [container] [var_name]
 set -euo pipefail
@@ -31,10 +30,8 @@ if grep -q "^${VAR_NAME}=" "$ENV_FILE"; then
   sed -i.bak "s#^${VAR_NAME}=.*#${VAR_NAME}=${TOKEN}#" "$ENV_FILE"
   rm -f "$ENV_FILE.bak"
 else
-  # A missing trailing newline on the file's last existing line would
-  # otherwise merge onto it (confirmed live: silently produced
-  # "...=8CELESTIA_BRIDGE2_AUTH_TOKEN=..." as ONE commented-out line,
-  # dropping the new var entirely).
+  # A missing trailing newline on the last line would otherwise merge onto it
+  # (confirmed live: silently dropped the new var into one commented-out line).
   [ -s "$ENV_FILE" ] && [ "$(tail -c1 "$ENV_FILE")" != "" ] && echo >> "$ENV_FILE"
   echo "${VAR_NAME}=${TOKEN}" >> "$ENV_FILE"
 fi

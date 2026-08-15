@@ -1,12 +1,10 @@
 """Real Pumba chaos-engineering injection against the live docker testnet --
-wraps the 4 profiles already scaffolded in the root compose.yml
-(pumba-latency/loss/kill/eclipse, profiles chaos-delay/chaos-loss/chaos-crash/
-chaos-eclipse). This module runs them for real, against the real
+wraps the profiles scaffolded in root compose.yml (chaos-delay/loss/crash/
+eclipse/btc-delay + WAN profiles) and runs them for real against the
 engram-nodeNN containers.
 
-Each pumba container's own `command:` already bakes in a --duration (e.g.
-"netem --duration=5m ..."), so once started it exits on its own -- no
-separate timer needed here, just polling for it to stop.
+Each pumba container's `command:` bakes in a --duration, so once started it
+exits on its own -- no separate timer needed here, just polling for stop.
 """
 
 import subprocess
@@ -24,16 +22,12 @@ PROFILE_TO_SERVICE = {
 }
 
 # Real CONTAINER names (compose.yml's `container_name:` override on each
-# pumba service) -- what `docker inspect`/`docker logs`/`docker wait` take.
-# These do NOT match the service names above (e.g. service "pumba-latency"
-# has container_name "pumba-latency-injector") -- using the service name for
-# `docker inspect` calls instead always returns "missing" (no container is
-# ever literally named "pumba-latency"), making every run look like Pumba
-# had already finished before it started. That false "already finished"
-# reading logs zero "during" samples and, worse, lets a SECOND netem profile
-# start while the first one's `tc qdisc` rule is still actually active,
-# which then fails for real ("qdisc add ... failed with exit code 2" -- a
-# root qdisc can't coexist with another root qdisc on the same interface).
+# pumba service) -- what docker inspect/logs/wait take. These differ from
+# the service names above (service "pumba-latency" is container
+# "pumba-latency-injector"); using a service name for `docker inspect`
+# returns "missing", reading as "already finished" before it started and
+# letting a second netem profile start while the first's `tc qdisc` rule is
+# still active (root qdiscs can't coexist -- "qdisc add ... exit code 2").
 PROFILE_TO_CONTAINER = {
     "chaos-delay": "pumba-latency-injector",
     "chaos-loss": "pumba-loss-injector",
@@ -55,14 +49,14 @@ PROFILE_DESCRIPTIONS = {
 
 
 # WAN-realism profiles (compose.yml's "WAN realism profiles" section): one
-# Pumba container per validator, each with a DIFFERENT delay/jitter or
-# loss%. Multi-service per profile, unlike every profile above -- service
-# name == container_name for these, so one list covers start and stop/rm.
+# Pumba container per validator, each with a different delay/jitter or
+# loss%; multi-service per profile, so service name == container_name (one
+# list covers start and stop/rm).
 #
-# chaos-wan-latency and chaos-wan-loss must never run concurrently on the
-# same validator: both add a root netem qdisc on the same eth0, and a
-# second root qdisc add fails outright (same conflict class as
-# cleanup_profile's doc below) -- mutually exclusive, not stackable.
+# chaos-wan-latency and chaos-wan-loss must never run concurrently: both add
+# a root netem qdisc on the same eth0, and a second root qdisc add fails
+# outright (same conflict class as cleanup_profile's doc) -- mutually
+# exclusive, not stackable.
 WAN_PROFILE_TO_SERVICES = {
     "chaos-wan-latency": [
         "pumba-wan-latency-01",
@@ -81,9 +75,9 @@ WAN_PROFILE_TO_SERVICES = {
 
 def start_pumba_wan_profile(profile: str, wait_running_timeout_s: float = 15.0) -> list:
     """Multi-service counterpart to start_pumba_profile -- starts all of
-    profile's per-validator containers together, explicit service names
-    always (see cleanup_wan_profile's doc for why a bare --profile stop/rm
-    is dangerous)."""
+    profile's per-validator containers together, always with explicit service
+    names (see cleanup_wan_profile's doc for why a bare --profile is
+    dangerous)."""
     services = WAN_PROFILE_TO_SERVICES[profile]
     subprocess.run(
         ["docker", "compose", "--profile", profile, "up", "-d", *services],
@@ -105,10 +99,9 @@ def start_pumba_wan_profile(profile: str, wait_running_timeout_s: float = 15.0) 
 def cleanup_wan_profile(profile: str) -> None:
     """Multi-service counterpart to cleanup_profile. ALWAYS passes explicit
     service names to stop/rm -- a bare `docker compose --profile X stop`
-    with no service list stops the ENTIRE cluster, not just profile X's own
-    containers (--profile only widens up's defaults, it does not narrow
-    stop/rm's scope). Hit this for real once; see the Makefile's
-    chaos-wan-stop target for the same fix at the make-target level."""
+    stops the ENTIRE cluster, not just profile X's containers (--profile only
+    widens up's defaults, it does not narrow stop/rm's scope).
+    """
     services = WAN_PROFILE_TO_SERVICES[profile]
     subprocess.run(
         ["docker", "compose", "--profile", profile, "stop", *services],
@@ -137,14 +130,10 @@ def _up_detached(profile: str) -> str:
     """Starts ONLY the profile's own service (detached) and returns its real
     container name.
 
-    IMPORTANT: `docker compose --profile X up` with NO service name targets
-    every service in the file, not just the profile-gated one -- every
-    engram-nodeNN/bitcoin/celestia/monitoring service here has no `profiles:`
-    key at all, so compose treats them as "always active" and would try to
-    (re)up all of them too (confirmed via `docker compose --profile
-    chaos-delay config --services`, which lists all 10 services, not just
-    pumba-latency). Naming the service explicitly (`up <service>`) restricts
-    the command to that one container.
+    `docker compose --profile X up` with no service name targets every
+    service in the file -- services without a `profiles:` key are "always
+    active", so the whole cluster would be (re)upped. Naming the service
+    explicitly restricts the command to that one container.
     """
     if profile not in PROFILE_TO_SERVICE:
         raise ValueError(
@@ -195,13 +184,9 @@ def run_pumba_profile(profile: str, timeout_s: float = 600.0) -> ChaosRunResult:
 
 
 def start_pumba_profile(profile: str, wait_running_timeout_s: float = 15.0) -> str:
-    """Non-blocking variant -- starts the profile's container and blocks
-    only until it's actually observed running/exited (confirms the
-    container really registered before the caller starts polling
-    is_running() -- see PROFILE_TO_CONTAINER's doc for why using the wrong
-    name here silently broke this before). Returns the real container name
-    for the caller to poll.
-    """
+    """Non-blocking variant -- starts the profile's container and blocks only
+    until it's observed running/exited, confirming it really registered
+    before the caller polls is_running(). Returns the real container name."""
     container = _up_detached(profile)
     deadline = time.time() + wait_running_timeout_s
     while time.time() < deadline:
@@ -219,12 +204,11 @@ def is_running(container: str) -> bool:
 
 
 def wait_for_no_active_netem(timeout_s: float = 20.0) -> None:
-    """Confirms no OTHER pumba netem container is still holding a `tc qdisc`
-    on any engram-node* target before starting a new netem-based profile --
-    see PROFILE_TO_CONTAINER's doc for the real failure this prevents.
-    chaos-crash (SIGKILL, no qdisc) doesn't strictly need this, but calling
-    it unconditionally is cheap and safe.
-    """
+    """Confirms no other pumba netem container still holds a `tc qdisc` on
+    any engram-node* target before starting a new netem profile (see
+    PROFILE_TO_CONTAINER's doc for the failure this prevents). chaos-crash
+    (SIGKILL, no qdisc) doesn't need it, but calling unconditionally is
+    cheap and safe."""
     netem_containers = [
         "pumba-latency-injector",
         "pumba-loss-injector",
@@ -246,21 +230,14 @@ def wait_for_no_active_netem(timeout_s: float = 20.0) -> None:
 
 def toggle_profile_bursts(profile: str, on_s: float, off_s: float, cycles: int) -> None:
     """Repeatedly starts and stops profile to simulate genuine peer
-    connect/disconnect churn (docs/EXPERIMENT.md's E4 A3 Churn-based
-    Rotation, E9's P2P churn-spike leg), rather than one sustained
-    degradation window like run_pumba_profile's normal use. Built from the
-    same start_pumba_profile/cleanup_profile primitives everything else
-    here uses -- no new Pumba/compose mechanism, just a different calling
-    pattern over the existing ones.
+    connect/disconnect churn (docs/EXPERIMENT.md's E4 A3, E9's P2P churn-spike
+    leg), built from the same start/cleanup primitives everything else uses.
 
-    Each on-phase blocks until the container is confirmed running (matching
-    start_pumba_profile's own wait_running_timeout_s default), then sleeps
-    on_s before cleaning it up and sleeping off_s -- this only makes sense
-    for the netem-based profiles (chaos-delay/chaos-loss/chaos-eclipse/
-    chaos-btc-delay), whose own `--duration` is normally long enough that
-    natural expiry wouldn't otherwise produce repeated cycles within a
-    reasonable observation window. chaos-crash (a one-shot SIGKILL, not a
-    sustained condition) is not a meaningful input here.
+    Each on-phase blocks until the container is confirmed running, sleeps
+    on_s, then cleans up and sleeps off_s. Only meaningful for the netem
+    profiles (chaos-delay/loss/eclipse/btc-delay), whose own --duration is
+    long enough that natural expiry wouldn't produce repeated cycles within
+    a reasonable window; chaos-crash (a one-shot SIGKILL) is not a valid input.
     """
     if profile == "chaos-crash":
         raise ValueError(
@@ -282,18 +259,13 @@ def toggle_profile_bursts(profile: str, on_s: float, off_s: float, cycles: int) 
 
 def cleanup_profile(profile: str) -> None:
     """Stops then removes profile's container. `docker compose rm -f` alone
-    only skips the interactive confirmation prompt -- it does NOT stop a
-    still-RUNNING container first (unlike plain `docker rm -f`), so it
-    silently no-ops when called on a container whose own `--duration` hasn't
-    elapsed yet. This only matters when interrupting a still-active profile
-    before its natural `--duration` expiry -- e.g. toggle_profile_bursts/E9's
-    live_combined_trace.py Phase 4 deliberately cuts a still-active
-    chaos-loss profile short (its own --duration is 2m, but the burst cycle
-    only holds it on for 20s). Without `stop` first, the container stays
-    stuck "Up" indefinitely, and the next wait_for_no_active_netem() call
-    correctly refuses to start a new profile on top of it, surfacing this as
-    a real RuntimeError rather than silently corrupting results.
-    """
+    does NOT stop a still-running container first (unlike plain `docker rm
+    -f`), so it silently no-ops while a profile's own --duration hasn't
+    elapsed. This matters when interrupting a still-active profile early
+    (e.g. toggle_profile_bursts holds chaos-loss for 20s of its 2m duration)
+    -- without `stop` first the container stays "Up" and the next
+    wait_for_no_active_netem() correctly refuses to start a new profile on
+    top of it."""
     service = PROFILE_TO_SERVICE[profile]
     subprocess.run(
         ["docker", "compose", "--profile", profile, "stop", service],

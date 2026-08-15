@@ -4,28 +4,26 @@ docs/EXPERIMENT.md's E8 "Timeout flooding by Byzantine nodes" row.
 
 Prior closure used `chaos-crash` (SIGKILL, sends nothing) -- never tested an
 ACTIVE validator that stays alive and floods genuinely signed Timeout
-messages to try to manipulate round-skip cadence. This script closes that
-gap: node04 stays honest everywhere else, but re-broadcasts a signed Timeout
-for round+1 every INTERVAL_MS (default 50ms, far faster than
-TIMEOUT_DURATION's real precommit-wait timer) via engram-consensus-core's
-consensus/state.go: timeoutFloodRoutine (gated by
-ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS).
+messages to manipulate round-skip cadence. This closes that gap: node04
+stays honest everywhere else, but re-broadcasts a signed Timeout for round+1
+every INTERVAL_MS (default 50ms, far faster than TIMEOUT_DURATION's real
+precommit-wait timer) via engram-consensus-core's consensus/state.go
+timeoutFloodRoutine (gated by ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS).
 
 Checks: (1) safety -- 3 honest nodes' AppHash never diverges; (2) cadence --
 block-production rate during the flood must not measurably drop versus
 baseline (extra forced round-skips would grow block interval).
 
-Node04 stays IN the real validator set (N=4,f=1) throughout. See also
+Node04 stays IN the real validator set (N=4,f=1). See also
 consensus/round_skip_test.go's TestStateTimeoutFloodCannotForceRoundSkipAlone
-(engram-consensus-core) -- the in-process version of check 2's underlying
-claim, confirmed here under real network timing instead.
+(engram-consensus-core) -- the in-process version of check 2's claim,
+confirmed here under real network timing.
 
---sample-stats adds `docker stats` CPU%/memory sampling (engram-node01..04)
-alongside each height poll, and counts real "rate limit exceeded" log lines
-on the honest nodes during the flood phase (docker logs --since) -- direct
-evidence the per-peer limiter (reactor.go's PeerState.allowTimeoutMessage)
-is actually engaging and that resource cost on honest nodes stays bounded,
-not just an inference from block cadence holding.
+--sample-stats adds `docker stats` CPU%/memory sampling alongside each poll,
+and counts real "rate limit exceeded" log lines on the honest nodes during
+the flood (docker logs --since) -- direct evidence the per-peer limiter
+(reactor.go's PeerState.allowTimeoutMessage) is engaging and resource cost
+stays bounded, not just an inference from cadence holding.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py

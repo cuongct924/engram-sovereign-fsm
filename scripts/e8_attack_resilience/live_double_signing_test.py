@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 """LIVE Double-signing detection test against the real 4-node testnet --
 docs/EXPERIMENT.md's E8 "Double-signing" row. Starts a SECOND, independent
-`engramd` process (docker/engram-node04-double-sign.yml) holding the
-exact same priv_validator_key.json as the real engram-node04, but with its
-own separate priv_validator_state.json (deliberately NOT sharing node04's
-signing-history file -- see that compose file's own doc for why sharing it
-would prevent double-signing from ever happening at all, since FilePV's
-state file is CometBFT's built-in anti-double-sign safety net).
+`engramd` process (docker/engram-node04-double-sign.yml) holding the exact
+same priv_validator_key.json as the real engram-node04, but with its own
+separate priv_validator_state.json (deliberately NOT sharing node04's
+signing-history file -- FilePV's state file is CometBFT's built-in
+anti-double-sign safety net; sharing it would prevent double-signing).
 
 Detection channel: x/sovereignty/preblock.go's recordDetectedEvidence prints
 "SLASHABLE EVIDENCE DETECTED" to stdout on every honest validator once
-CometBFT's own (stock, unmodified) evidence pool reports real
-DuplicateVoteEvidence -- this script polls `docker logs` on the 3 real
-validators (not node04 itself, nor the duplicate) for that marker, rather
-than requiring a new gRPC query (none exists for this yet -- the detected
-evidence IS committed to queryable keeper state, x/sovereignty/keeper.go's
-DetectedEvidenceCount/LastDetectedEvidence, just not yet exposed through a
-dedicated Query RPC, which would need a new .proto message + `make
-proto-gen`; log-grepping is a real, honest detection channel in the
-meantime, not a placeholder).
+CometBFT's own evidence pool reports real DuplicateVoteEvidence. This script
+polls `docker logs` on the 3 real validators (not node04 or the duplicate)
+for that marker -- no new gRPC query exists yet (the detected evidence IS
+committed to keeper state, DetectedEvidenceCount/LastDetectedEvidence, just
+not exposed through a Query RPC, which would need a new .proto message +
+`make proto-gen`); log-grepping is a real, honest detection channel.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_double_signing_test.py
@@ -32,14 +28,14 @@ import sys
 import time
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
-DUPLICATE_HOME = os.path.join(REPO_ROOT, "testnet-data", "engram-node04-duplicate")
+DUPLICATE_HOME = os.path.join(REPO_ROOT, "testnet-data", "engram-node04-double-sign")
 REAL_NODE04_KEY = os.path.join(
     REPO_ROOT, "testnet-data", "engram-node04", "config", "priv_validator_key.json"
 )
 REAL_GENESIS = os.path.join(
     REPO_ROOT, "testnet-data", "engram-node01", "config", "genesis.json"
 )
-DUPLICATE_SERVICE = "engram-node04-duplicate"
+DUPLICATE_SERVICE = "engram-node04-double-sign"
 WITNESS_CONTAINERS = ["engram-node01", "engram-node02", "engram-node03"]
 EVIDENCE_MARKER = re.compile(
     r"SLASHABLE EVIDENCE DETECTED type=(\S+) validator=(\S+) offense_height=(\d+) detected_at_height=(\d+)"
@@ -76,14 +72,12 @@ def compute_persistent_peers() -> str:
 def stage_duplicate_identity() -> None:
     """Copies the real node04 signing key + shared genesis onto the HOST at
     the duplicate's own home dir, BEFORE the container starts -- see
-    docker/engram-node04-double-sign.yml's volumes doc for why this
-    replaced two nested bind-mount lines (a real Docker Desktop virtiofs
-    limitation, confirmed live: mounting a specific file whose target path
-    resolves inside an already-bind-mounted directory fails with
-    "mountpoint ... is outside of rootfs"). Wiping any stale prior config/
-    first -- Docker itself can leave empty placeholder files at a failed
-    mount's target, which then block a clean file copy on retry (also
-    confirmed live).
+    docker/engram-node04-double-sign.yml's volumes doc for why this replaced
+    two nested bind-mount lines (a real Docker Desktop virtiofs limitation:
+    mounting a file whose target resolves inside an already-bind-mounted dir
+    fails with "mountpoint ... is outside of rootfs"). Wiping stale config/
+    first -- Docker can leave empty placeholder files at a failed mount's
+    target, which then block a clean file copy on retry.
     """
     config_dir = os.path.join(DUPLICATE_HOME, "config")
     data_dir = os.path.join(DUPLICATE_HOME, "data")
@@ -98,12 +92,10 @@ def stage_duplicate_identity() -> None:
     # FilePV's own state file (last-signed height/round/step) -- normally
     # created by `engramd init`, but init bails out early here since
     # genesis.json/priv_validator_key.json already exist (pre-copied above),
-    # so `engramd start` crashed on a missing file the first time this
-    # harness actually ran ("no such file or directory"). A brand-new
-    # validator that has never signed anything starts at height 0 -- this is
-    # the FRESH state the duplicate process needs (deliberately NOT copied
-    # from the real node04's own, already-advanced state file, which is the
-    # entire point of this harness, see the compose file's own doc).
+    # so `engramd start` crashed on a missing file the first real run. A
+    # brand-new validator starts at height 0 -- deliberately NOT copied from
+    # the real node04's advanced state file, which is the whole point of this
+    # harness.
     with open(os.path.join(data_dir, "priv_validator_state.json"), "w") as f:
         f.write('{"height":"0","round":0,"step":0}')
 

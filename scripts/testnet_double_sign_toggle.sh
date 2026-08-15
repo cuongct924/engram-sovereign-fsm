@@ -1,30 +1,28 @@
 #!/usr/bin/env bash
 # Manual on/off toggle for the duplicate-key double-signing harness
-# (docker/engram-node04-double-sign.yml) -- stages node04's real
+# (docker/engram-node04-double-sign.yml). Stages node04's real
 # priv_validator_key.json + the shared genesis.json into a FRESH identity
-# directory (own priv_validator_state.json, deliberately not shared with
-# the real node04 -- see that compose file's own doc for why), resolves
-# persistent_peers to the 3 honest validators' real node IDs, then starts
-# or stops the profile-gated engram-node04-duplicate service.
+# dir (own priv_validator_state.json, deliberately not shared -- see that
+# compose file's doc), resolves persistent_peers to the honest validators'
+# node IDs, then starts/stops the profile-gated duplicate service.
 #
-# For the fully automated E8 test (staging + start + poll for
-# "SLASHABLE EVIDENCE DETECTED" + stop), use
-# scripts/e8_attack_resilience/live_double_signing_test.py instead -- this
-# script is the manual/interactive equivalent behind `make double-sign-on/off`.
+# For the fully automated E8 test use
+# scripts/e8_attack_resilience/live_double_signing_test.py; this is the
+# manual equivalent behind `make double-sign-on/off`.
 #
 # Usage: scripts/testnet_double_sign_toggle.sh on|off
 set -euo pipefail
 
 ACTION="${1:?Usage: $0 on|off}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DUP_HOME="$REPO_ROOT/testnet-data/engram-node04-duplicate"
+DUP_HOME="$REPO_ROOT/testnet-data/engram-node04-double-sign"
 REAL_KEY="$REPO_ROOT/testnet-data/engram-node04/config/priv_validator_key.json"
 REAL_GENESIS="$REPO_ROOT/testnet-data/engram-node01/config/genesis.json"
 
 if [ "$ACTION" = "off" ]; then
-  echo "[testnet_double_sign_toggle] stopping engram-node04-duplicate"
-  docker compose --profile double-sign-harness stop engram-node04-duplicate
-  docker compose --profile double-sign-harness rm -f engram-node04-duplicate
+  echo "[testnet_double_sign_toggle] stopping engram-node04-double-sign"
+  docker compose --profile double-sign-harness stop engram-node04-double-sign
+  docker compose --profile double-sign-harness rm -f engram-node04-double-sign
   exit 0
 fi
 
@@ -41,8 +39,8 @@ rm -rf "$DUP_HOME/config" "$DUP_HOME/data"
 mkdir -p "$DUP_HOME/config" "$DUP_HOME/data"
 cp "$REAL_KEY" "$DUP_HOME/config/priv_validator_key.json"
 cp "$REAL_GENESIS" "$DUP_HOME/config/genesis.json"
-# Fresh FilePV state -- deliberately NOT copied from the real node04's own,
-# already-advanced state file (the entire point of this harness).
+# Fresh FilePV state -- deliberately NOT copied from the real node04's
+# already-advanced state file (the point of this harness).
 printf '{"height":"0","round":0,"step":0}' > "$DUP_HOME/data/priv_validator_state.json"
 
 echo "[testnet_double_sign_toggle] resolving honest validators' real node IDs"
@@ -59,6 +57,6 @@ for host in engram-node01 engram-node02 engram-node03; do
 done
 echo "[testnet_double_sign_toggle] DUPLICATE_PERSISTENT_PEERS=$peers"
 
-DUPLICATE_PERSISTENT_PEERS="$peers" docker compose --profile double-sign-harness up -d engram-node04-duplicate
-echo "[testnet_double_sign_toggle] engram-node04-duplicate is up -- watch for real"
+DUPLICATE_PERSISTENT_PEERS="$peers" docker compose --profile double-sign-harness up -d engram-node04-double-sign
+echo "[testnet_double_sign_toggle] engram-node04-double-sign is up -- watch for real"
 echo "  \"SLASHABLE EVIDENCE DETECTED\" via: docker logs -f engram-node01"

@@ -5,51 +5,45 @@ on 2 validator-link-* networks) instead of live_lifecycle_test.py's
 celestia-bridge stop/start.
 
 A full DA outage cannot demonstrate ANCHORED -> SUSPICIOUS: da.VerifyReceipt
-(x/da/verify.go, a faithful port of IsValidProposal's DA Pipeline Check,
+(x/da/verify.go, port of IsValidProposal's DA Pipeline Check,
 spec/core/EngramTendermint.tla:290-294) requires every ANCHORED/RECOVERING
-proposal to carry a FRESH DA attestation. When celestia-bridge is fully down,
-no proposal can ever attest, so the chain cannot commit ANY block while
-still classified ANCHORED -- including a block that would merely absorb one
-warning and stay ANCHORED. UnhealthyStreak (which only advances on a
-committed block) can never reach DownHysteresisThreshold, so SUSPICIOUS is
-unreachable; the only escape is BTC's own real height drifting past
-SOVEREIGN_THRESHOLD purely from elapsed wall-clock time (BTC keeps mining
-independently of the stalled Engram chain), which forces a direct
-ANCHORED -> SOVEREIGN jump once real. This is a genuine liveness gap between
-the abstract spec (which models attestation as instantaneous) and the
-concrete DA pipeline's real submission latency -- not a coding bug, and not
-this script's concern to fix.
+proposal to carry a FRESH DA attestation. With celestia-bridge fully down no
+proposal can attest, so the chain can't commit ANY block while ANCHORED --
+including one that would just absorb a warning. UnhealthyStreak can never
+reach DownHysteresisThreshold, so SUSPICIOUS is unreachable; the only escape
+is BTC's own height drifting past SOVEREIGN_THRESHOLD (BTC keeps mining
+independently), forcing a direct ANCHORED -> SOVEREIGN jump. This is a
+genuine liveness gap between the abstract spec (instantaneous attestation)
+and the concrete pipeline's real submission latency -- not a coding bug, and
+not this script's concern to fix.
 
 P2P health has no equivalent hard gate: ProcessProposal never requires a
-"P2P attestation" before a block can commit, so a P2P warning can be
-absorbed and committed normally, letting UnhealthyStreak accumulate and
-genuinely reach SUSPICIOUS, then (via the same sustained-SUSPICIOUS
-gray-failure timeout used for any cause) SOVEREIGN.
+"P2P attestation" before committing, so a P2P warning is absorbed normally,
+UnhealthyStreak accumulates and genuinely reaches SUSPICIOUS, then (via the
+same sustained-SUSPICIOUS gray-failure timeout) SOVEREIGN.
 
-Fault mechanism: disconnect 2 of the 6 validator-link-* networks (a perfect
+Fault mechanism: disconnect 2 of the 6 validator-link-* networks (perfect
 matching -- 01-02 and 03-04 -- so all 4 validators lose exactly 1 of their 3
 peers simultaneously, CleanPeers 3->2 < Params.MinPeers=3, a pure P2P
-warning; ActiveAnchors only drops to 2, still >= MinAnchorPeers=2, so this
-never trips IsCriticalCondition's ActiveAnchors==0 branch). NOT a pumba
-netem profile: compose.yml's pairwise-link networks comment explains why a
-container's eth0/eth1/... index for a given network is unpredictable across
-validators and redeploys, making `pumba netem --interface ethN` silently
-target the wrong network. `docker network disconnect`/`connect` resolves by
-network NAME instead, sidestepping that entirely.
+warning; ActiveAnchors only drops to 2, still >= MinAnchorPeers=2, so it
+never trips IsCriticalCondition's ActiveAnchors==0 branch). NOT a pumba netem
+profile: a container's ethN index for a given network is unpredictable across
+validators and redeploys, so `pumba netem --interface ethN` can silently
+target the wrong network; `docker network disconnect`/`connect` resolves by
+network NAME instead.
 
 Phases:
   1. Baseline: confirm ANCHORED.
-  2. Disconnect validator-link-01-02 (engram-node01 side) and
-     validator-link-03-04 (engram-node03 side) -> expect
-     ANCHORED -> SUSPICIOUS within a few blocks (DownHysteresisThreshold).
+  2. Disconnect validator-link-01-02 (node01 side) and validator-link-03-04
+     (node03 side) -> expect ANCHORED -> SUSPICIOUS within a few blocks.
   3. Keep holding -> expect SUSPICIOUS -> SOVEREIGN once suspicious_duration
-     reaches Params.MaxSuspiciousTime (the sustained-SUSPICIOUS escalation).
+     reaches Params.MaxSuspiciousTime.
   4. Reconnect both links (with their original static IPs) -> expect
      SOVEREIGN -> RECOVERING.
   5. Let health stabilize -> expect RECOVERING -> ANCHORED for real (the
-     real ZK re-anchoring pipeline, scripts/reanchoring_prover/watch_and_prove.sh,
-     must already be running -- the reanchoring-prover container in a
-     normal `make testnet-up` deployment).
+     real ZK re-anchoring pipeline, watch_and_prove.sh, must already be
+     running -- the reanchoring-prover container in a normal `make
+     testnet-up` deployment).
 
 Usage:
     python3 scripts/e3_failure_matrix/live_p2p_lifecycle_test.py

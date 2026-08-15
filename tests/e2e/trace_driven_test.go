@@ -1,11 +1,8 @@
-// E9 -- Trace-Driven Stress Test (docs/EXPERIMENT.md's E9, Figure 2).
-//
-// Replays a single combined-failure trace through the real Harness/
-// BeginBlocker path: BTC congestion ramps up, then DA outage overlaps it
-// while still SOVEREIGN, then a P2P churn spike overlaps both, then all three
-// heal in sequence and the chain recovers. Unlike S1-S7 (docs/EXPERIMENT.md's
-// E2, one fault per scenario), this is one continuous timeline with
-// overlapping faults, matching E9's "mixed failure" trace-driven design.
+// E9 -- Trace-Driven Stress Test (E9, Figure 2). Replays one continuous
+// combined-failure trace through the real Harness/BeginBlocker path: BTC
+// congestion ramps, DA outage overlaps it, P2P churn overlaps both, then all
+// three heal in sequence and the chain recovers. Unlike S1-S7 (one fault per
+// scenario), faults overlap here.
 package e2e
 
 import (
@@ -51,16 +48,16 @@ func TestE9_TraceDrivenCombinedFailure(t *testing.T) {
 	}
 	require.Equal(t, types.StateSovereign, h.State(), "phase 2: sustained BTC congestion must reach SOVEREIGN")
 
-	// Phase 3 (blocks 26-35): DA outage overlaps the still-active BTC failure
-	// (combined failure, matching S6's expectation but mid-trace).
+	// Phase 3 (blocks 26-35): DA outage overlaps the active BTC failure
+	// (S6's combined failure, mid-trace).
 	h.DA.SetAvailable(false)
 	for i := 0; i < 10; i++ {
 		record()
 	}
 	require.Equal(t, types.StateSovereign, h.State(), "phase 3: combined BTC+DA failure must stay SOVEREIGN")
 
-	// Phase 4 (blocks 36-40): P2P churn spike overlaps both existing failures
-	// (triple combined failure).
+	// Phase 4 (blocks 36-40): P2P churn spike overlaps both (triple combined
+	// failure).
 	h.P2P.SetSnapshot(sensors.P2PSnapshot{
 		ActiveAnchors:   p.MinAnchorPeers,
 		CleanPeers:      0,
@@ -87,8 +84,8 @@ func TestE9_TraceDrivenCombinedFailure(t *testing.T) {
 		record()
 	}
 
-	// Phase 6: BTC heals last -> SOVEREIGN -> RECOVERING, then wait hysteresis
-	// and submit the reanchoring proof.
+	// Phase 6: BTC heals last -> RECOVERING, then wait hysteresis and submit
+	// the reanchoring proof.
 	h.BTC.SetGap(0)
 	record()
 	require.Equal(t, types.StateRecovering, h.State(), "phase 6: all peripherals healed must move SOVEREIGN -> RECOVERING")

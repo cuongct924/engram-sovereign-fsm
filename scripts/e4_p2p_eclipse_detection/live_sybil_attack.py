@@ -3,20 +3,19 @@
 docs/EXPERIMENT.md's E4/E8 A1 (Peer Slot Exhaustion) and A2 (Sybil via
 simulated multi-subnet swarm), verifying the real ingress filter
 (x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr, Params.
-MaxPeersPerSubnet) against real attacker traffic, going beyond E4's
-synthetic Monte Carlo detection data (simulate_eclipse_attack.py).
+MaxPeersPerSubnet) against real attacker traffic, beyond E4's synthetic
+Monte Carlo data (simulate_eclipse_attack.py).
 
 Two legs, driven by docker/attacker-peer-swarm.yml's two profiles:
   a1 -- 10 attacker containers, all on engram-net (same /24 as the 4 real
-        validators), all dialing engram-node01 directly. Tests whether the
-        filter caps same-subnet admission at MaxPeersPerSubnet (8) well
-        before CometBFT's own MaxNumInboundPeers (40) would ever matter.
-  a2 -- 12 attacker containers spread across 4 distinct new subnets
-        (attacker-subnet-a/b/c/d, 3 each), all dialing engram-node01. Tests
-        whether spreading across subnets lets a swarm evade the same cap
-        the a1 leg demonstrates -- the honest, buildable analog of Sybil
-        via subnet diversity (real BGP hijacking is out of scope, see
-        compose.yml's own note).
+        validators), all dialing engram-node01. Tests that the filter caps
+        same-subnet admission at MaxPeersPerSubnet (8) well before
+        CometBFT's own MaxNumInboundPeers (40) would matter.
+  a2 -- 12 attackers across 4 distinct new subnets (attacker-subnet-a/b/c/d,
+        3 each), all dialing engram-node01. Tests whether spreading across
+        subnets evades the same cap the a1 leg demonstrates -- the honest,
+        buildable analog of Sybil via subnet diversity (real BGP hijacking
+        is out of scope, see compose.yml's note).
 
 Usage:
     python3 -u scripts/e4_p2p_eclipse_detection/live_sybil_attack.py a1
@@ -85,14 +84,13 @@ def swarm_up(profile: str, services: list) -> None:
 
 
 def swarm_down(profile: str, services: list) -> None:
-    # NEVER `docker compose down` here -- that tears down the ENTIRE project
-    # (all containers/networks, including the real 4-node cluster and
-    # bitcoin/celestia), regardless of --profile filtering; `down`'s scope is
-    # the whole compose project, not profile-gated services, unlike `up`.
-    # Confirmed live: an earlier version of this function used `down` and it
-    # destroyed the running real cluster mid-experiment. `stop` + `rm -f`
-    # with explicit service names (matching injector.py's cleanup_profile
-    # convention) is scoped correctly.
+    # NEVER `docker compose down` here -- `down` tears down the ENTIRE
+    # project (all containers/networks, including the real 4-node cluster
+    # and bitcoin/celestia) regardless of --profile; its scope is the whole
+    # project, unlike `up`. Confirmed live: an earlier version used `down`
+    # and destroyed the running cluster mid-experiment. `stop` + `rm -f`
+    # with explicit service names (matching injector.py's cleanup_profile)
+    # is scoped correctly.
     print(
         f"[{now()}] >>> docker compose stop/rm <services> (tearing down attacker swarm only)"
     )
@@ -196,13 +194,12 @@ def main():
     final_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
     filter_held = peak_count <= MAX_PEERS_PER_SUBNET
-    # Not a fixed ANCHORED/SUSPICIOUS allowlist -- the cluster's baseline
-    # state depends on whatever the real BTC/DA/P2P pipeline's own timing
-    # happens to be at the moment this script runs (e.g. RECOVERING is a
-    # legitimate non-degraded baseline mid-reanchoring, unrelated to this
-    # attack). The real claim to check is "the attack itself didn't cause a
-    # WORSE transition" -- i.e. fsm_state during/after the attack never
-    # regressed relative to the baseline phase's own state set.
+    # Not a fixed ANCHORED/SUSPICIOUS allowlist: the cluster's baseline
+    # depends on whatever the real BTC/DA/P2P pipeline's timing is at run
+    # time (e.g. RECOVERING mid-reanchoring is legitimate and unrelated to
+    # the attack). The real claim to check is "the attack didn't cause a
+    # WORSE transition" -- fsm_state during/after never regresses relative
+    # to the baseline phase's own state set.
     baseline_states = {
         r["fsm_state"] for r in tr.rows if r["phase"] == "baseline" and r["fsm_state"]
     }

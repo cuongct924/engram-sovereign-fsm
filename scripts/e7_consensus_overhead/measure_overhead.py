@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-E7 -- Consensus Overhead of the Extended Proposal (docs/EXPERIMENT.md's E7, Table 4).
+E7 -- Consensus Overhead of the Extended Proposal (docs/EXPERIMENT.md's E7,
+Table 4).
 
 Runs the REAL Go benchmarks in tests/benchmark/fsm_latency_test.go
 (`go test -bench=. -benchmem`) and builds Table 4. See that file's package
-doc for why V0-V5 are decomposed into real proposal-size measurements
+doc for why V0-V5 decompose into real proposal-size measurements
 (json.Marshal on real Go structs) plus real validation sub-step benchmarks
 (CalculateNextState, da.VerifyReceipt, anchor.VerifyReceipt) composed
 cumulatively, rather than pretending ProcessProposal has 6 separate code
 paths -- it has exactly one, which always validates the full proposal.
 
 Also builds a real vanilla-CometBFT baseline comparison (docs/EXPERIMENT.md's
-E2/E3/E7 "so sánh overhead" ask) from scripts/e7_consensus_overhead/results/
-{normal,vanilla}_samples.csv, produced by running
-`scripts/e7_consensus_overhead/vanilla_comparison.sh` first -- two real
-engramd processes side by side (one normal, one --vanilla), sampled via RPC.
+E2/E3/E7) from {normal,vanilla}_samples.csv, produced by running
+`scripts/e7_consensus_overhead/vanilla_comparison.sh` first.
 
 Usage:
     python3 scripts/e7_consensus_overhead/measure_overhead.py

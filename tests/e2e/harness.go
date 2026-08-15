@@ -35,11 +35,9 @@ type TimelineRow struct {
 	WithdrawLocked     bool
 }
 
-// Harness drives x/sovereignty's BeginBlocker across simulated block heights
-// with mock-controlled sensors, for the E2 fault-injection scenarios in
-// docs/EXPERIMENT.md. It runs entirely in-process: no CometBFT node, no
-// Docker, no real network -- only cmtproto.Header{} (an empty struct) is used
-// to satisfy sdk.Context's constructor signature.
+// Harness drives x/sovereignty's BeginBlocker across simulated heights with
+// mock sensors, for E2's fault-injection scenarios -- fully in-process (no
+// CometBFT/Docker/network; cmtproto.Header{} only satisfies sdk.Context's ctor).
 type Harness struct {
 	t      *testing.T
 	keeper *keeper.Keeper
@@ -53,9 +51,8 @@ type Harness struct {
 	timeline []TimelineRow
 }
 
-// NewHarness builds an in-memory Keeper (colltest.MockStore + an in-memory
-// SMT backing store) and three mock sensors, all starting from a healthy
-// baseline (types.DefaultParams()'s thresholds, zero gaps, full P2P health).
+// NewHarness builds an in-memory Keeper and three mock sensors from a healthy
+// baseline (DefaultParams thresholds, zero gaps, full P2P health).
 func NewHarness(t *testing.T) *Harness {
 	t.Helper()
 
@@ -74,7 +71,7 @@ func NewHarness(t *testing.T) *Harness {
 		P2P:    sensors.NewP2PSensor(),
 	}
 
-	// Start the P2P sensor at a fully-healthy snapshot (DefaultParams' minimums).
+	// Start the P2P sensor at a fully-healthy snapshot.
 	p := k.Params
 	h.P2P.SetSnapshot(sensors.P2PSnapshot{
 		ActiveAnchors:   p.MinAnchorPeers,
@@ -88,9 +85,8 @@ func NewHarness(t *testing.T) *Harness {
 	return h
 }
 
-// SetReanchoringProofValid mirrors submitting a valid ZK recovery proof
-// (normally done via MsgSubmitRecoveryProof) -- used by scenario S7 to drive
-// RECOVERING -> ANCHORED once hysteresis is also satisfied.
+// SetReanchoringProofValid mirrors MsgSubmitRecoveryProof -- S7 uses it to
+// drive RECOVERING -> ANCHORED once hysteresis is also satisfied.
 func (h *Harness) SetReanchoringProofValid(valid bool) {
 	require := h.t
 	if err := h.keeper.ReanchoringProofValid.Set(h.sdkCtx, valid); err != nil {
@@ -107,9 +103,8 @@ func (h *Harness) State() string {
 	return s
 }
 
-// Advance runs one simulated block: composes the mock sensors into a
-// PeripheralMetrics snapshot, stores it (as MsgInjectFault would), runs
-// BeginBlocker, and appends a TimelineRow.
+// Advance runs one simulated block: compose mock sensors into a
+// PeripheralMetrics snapshot (as MsgInjectFault would), run BeginBlocker, log a row.
 func (h *Harness) Advance() {
 	h.height++
 	h.sdkCtx = h.sdkCtx.WithBlockHeight(h.height)
@@ -155,8 +150,8 @@ func (h *Harness) Advance() {
 	})
 }
 
-// daGapMetric converts the DASensor's coarse healthy/unhealthy reading into
-// the raw da_gap scalar CalculateNextState's predicates expect.
+// daGapMetric maps the DASensor's coarse healthy/unhealthy reading onto the
+// da_gap scalar CalculateNextState's predicates expect.
 func daGapMetric(healthy bool) uint64 {
 	if healthy {
 		return 0
@@ -169,9 +164,8 @@ func (h *Harness) Timeline() []TimelineRow {
 	return h.timeline
 }
 
-// WriteCSV dumps the timeline to tests/e2e/results/<name>.csv, creating the
-// directory if needed. Used so scripts/notebooks/analysis.ipynb-style
-// tooling can consume real E2 run data instead of synthetic placeholders.
+// WriteCSV dumps the timeline to tests/e2e/results/<name>.csv for
+// scripts/notebooks/analysis.ipynb-style tooling.
 func (h *Harness) WriteCSV(name string) string {
 	h.t.Helper()
 
@@ -225,10 +219,9 @@ func (h *Harness) ComputeMetrics() E2Metrics {
 	m.TimeToFallback = -1
 	m.RecoveryTime = -1
 
-	// Seed with the FSM's actual initial default (see FSMInit in
-	// spec/core/EngramFSM.tla / the zero-value fallback in abci.go's
-	// BeginBlocker) so a transition that happens on the very first recorded
-	// block is still counted, instead of being silently skipped.
+	// Seed with the FSM's real initial default (FSMInit in EngramFSM.tla /
+	// abci.go's BeginBlocker fallback) so a transition on the first recorded
+	// block is still counted, not silently skipped.
 	prevState := types.StateAnchored
 	var recoveringSince int64 = -1
 	var lastTransition string

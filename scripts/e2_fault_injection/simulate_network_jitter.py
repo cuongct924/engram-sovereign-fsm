@@ -7,11 +7,10 @@ Consumes REAL data from tests/e2e/results/s*.csv -- produced by
 in-process against mock BTC/DA/P2P sensors across 7 scenarios (S1-S7). No
 synthetic/placeholder data.
 
-Scope note: docs/EXPERIMENT.md's E2 design also calls for a live 4/7/10/16
-validator Docker testnet and a vanilla-CometBFT baseline comparison -- neither
-is available in this environment (no Docker daemon running, no vanilla-chain
-harness implemented). This script reports Engram FSM's own real behavior
-across S1-S7 only; it does not fabricate a baseline comparison.
+Scope: this in-process figure covers S1-S7 only. E2's live 4-node Docker
+testnet and the vanilla-CometBFT baseline are handled separately --
+live_scenario_matrix.py (scripts/e2_fault_injection) and
+vanilla_comparison.sh (scripts/e7_consensus_overhead).
 
 Usage:
     go test ./tests/e2e/...          # regenerate tests/e2e/results/*.csv

@@ -5,44 +5,35 @@
 # uses for its constraint-count sweep.
 #
 # Pipeline:
-#   1. engramd query-recovery-headers  -- pull the CURRENT SOVEREIGN/
-#      RECOVERING interval's real tracked headers off-chain (x/sovereignty/
-#      keeper.HeaderHistory, via the gRPC-over-ABCI query registered in
-#      app.go).
-#   2. circuit/reanchoring_witness     -- link the raw headers into a real
-#      prev_hash chain (Poseidon2), WITHOUT a Go-side hash implementation --
-#      see that crate's own doc for why.
-#   3. circuit/reanchoring             -- the real N_MAX=256 circuit: nargo
-#      execute + bb prove, against the SAME verification key
-#      (x/sovereignty/keeper/zk_assets/vk) the Go node embeds and checks
-#      proofs against, so a proof produced here is guaranteed to verify
-#      against exactly what the chain will check it with.
+#   1. engramd query-recovery-headers   -- pull the CURRENT SOVEREIGN/
+#      RECOVERING interval's real tracked headers (keeper.HeaderHistory).
+#   2. circuit/reanchoring_witness      -- link the raw headers into a real
+#      prev_hash chain (Poseidon2), without a Go-side hash implementation
+#      (see that crate's doc).
+#   3. circuit/reanchoring              -- the real N_MAX=256 circuit: nargo
+#      execute + bb prove against the SAME verification key the Go node
+#      embeds (x/sovereignty/keeper/zk_assets/vk), so the proof verifies
+#      against exactly what the chain will check.
 #   4. engramd tx-submit-recovery-proof -- broadcast the real proof.
 #
 # Requires: nargo, bb on PATH; a running engramd node; the engramd binary
-# built from THIS checkout (so query-recovery-headers/tx-submit-recovery-proof
-# exist -- both new, see cmd/engramd/reanchor_cli.go).
+# built from THIS checkout (query-recovery-headers/tx-submit-recovery-proof
+# are new, see cmd/engramd/reanchor_cli.go).
 #
 # Rolling checkpoint, oldest-COUNT slice, COUNT dynamic up to N_MAX=256 (see
-# x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc for the full
-# design): this script proves the OLDEST min(TOTAL_N, N_MAX) tracked headers
-# after the current checkpoint (rt_last), padding the remaining N_MAX-COUNT
-# circuit slots with zero-valued headers (unconstrained -- see
-# circuit/reanchoring/src/main.nr's `active` gate). Unlike the old fixed-N=4
-# design, COUNT is NOT required to equal N_MAX -- any COUNT from 1 to N_MAX
-# is provable in one proof, which closes two real problems the fixed-N
-# design had: (1) a trailing remainder shorter than a fixed N could never be
-# proven at all once the interval stopped growing (a genuine liveness gap,
-# not just a performance one); (2) the interval racing ahead of a small
-# fixed N=4's coverage (docs/EXPERIMENT.md's E2 S7: 29/52 real proof
-# attempts rejected).
+# x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc): proves the
+# OLDEST min(TOTAL_N, N_MAX) tracked headers after rt_last, padding the
+# remaining N_MAX-COUNT circuit slots with zero-valued (unconstrained, see
+# main.nr's `active` gate) headers. Any COUNT from 1 to N_MAX is provable in
+# one proof -- unlike the old fixed-N=4 design, which could never prove a
+# trailing remainder shorter than N once the interval stopped growing
+# (liveness gap), and raced behind a backlog it couldn't cover (E2 S7:
+# 29/52 real proof attempts rejected).
 #
-# x/sovereignty/keeper.HeaderHistory keeps every header from the checkpoint
-# onward until the proven segment is pruned, so the oldest COUNT entries are
-# always a valid, provable segment regardless of how many MORE have
-# accumulated past them since (up to N_MAX -- beyond that, a long interval
-# still needs this script run repeatedly, scripts/reanchoring_prover/watch_and_prove.sh
-# does this automatically).
+# HeaderHistory keeps every header from the checkpoint until the proven
+# segment is pruned, so the oldest COUNT entries stay a valid, provable
+# segment however many more accumulate -- up to N_MAX, beyond which this
+# script must be re-run (watch_and_prove.sh does this automatically).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,24 +70,18 @@ if [ "$TOTAL_N" -lt 1 ]; then
   exit 1
 fi
 
-# COUNT = min(TOTAL_N, N_MAX) -- unlike the old fixed-N design, ANY COUNT
-# from 1 to N_MAX is provable in one proof; no need to wait for an exact or
-# minimum count. A long interval (TOTAL_N > N_MAX) is still capped to the
-# oldest N_MAX headers per proof, same rolling-checkpoint mechanism as
-# before, just with a much larger per-proof window.
+# COUNT = min(TOTAL_N, N_MAX) -- any COUNT from 1 to N_MAX is provable in
+# one proof, so no waiting for an exact/minimum count; a longer interval is
+# capped to the oldest N_MAX headers per proof.
 COUNT="$TOTAL_N"
 if [ "$COUNT" -gt "$N_MAX" ]; then
   COUNT="$N_MAX"
 fi
 
-# Here-string, NOT `echo ... | head -n "$COUNT"` -- found live (real bug,
-# not a proof rejection) in the old fixed-N version of this script: once
-# TOTAL_N grows large enough that ALL_HEADER_LINES exceeds the OS pipe
-# buffer (~64KB, i.e. a few hundred tracked headers), `head` reads its N
-# lines and exits BEFORE `echo` finishes writing the rest, so `echo` gets
-# SIGPIPE -- under `set -o pipefail` that aborts this entire script with
-# exit 141, before Step 4 ever submits anything to the chain. A here-string
-# has no live pipe to race; `head` just reads from it directly.
+# Here-string, NOT `echo ... | head -n "$COUNT"`: once TOTAL_N exceeds the
+# OS pipe buffer (~64KB), `head` exits before `echo` finishes writing, so
+# `echo` gets SIGPIPE and (under pipefail) the script aborts with 141 before
+# submitting anything. A here-string has no live pipe to race.
 HEADER_LINES=$(head -n "$COUNT" <<< "$ALL_HEADER_LINES")
 
 field() {
@@ -164,20 +149,17 @@ RT_NEW=$(linked_field "$COUNT" "state_root")
 )
 
 # Publish the real (non-padding) header chain to Celestia DA before
-# submitting the proof -- pure audit trail (never verified on-chain, see
-# publish-recovery-witness's doc): HeaderHistory gets pruned once this proof
-# is accepted, so without this a late-joining node or external auditor has
-# no way to retrieve the real header chain it was built from. A failure here
-# degrades to skipping --da-height, not aborting the whole proof submission.
+# submitting the proof -- pure audit trail, never verified on-chain (see
+# publish-recovery-witness's doc): HeaderHistory is pruned once the proof is
+# accepted, so without this no late-joining node or external auditor could
+# retrieve the header chain it was built from. A publish failure degrades to
+# skipping --da-height, not aborting the submission.
 #
 # Throttled, not on every proof: celestia-bridge signs every blob submission
-# (this AND every validator's own regular block-data publishing) from one
-# shared account -- confirmed live, publishing on every proof (accepted as
-# often as every ~12s) sustained 3-4 account-sequence-mismatch races/sec on
-# that shared account, degrading regular DA health for all 4 validators, not
-# just this script. WITNESS_PUBLISH_MIN_INTERVAL_S bounds how often this
-# script actually publishes; skipped attempts still submit the proof itself
-# (never throttled) with no --da-height.
+# (this AND the validators' regular block-data publishing) from one shared
+# account -- publishing per proof sustained 3-4 account-sequence-mismatch
+# races/sec, degrading DA health for all 4 validators. Skipped attempts still
+# submit the proof itself (never throttled) with no --da-height.
 WITNESS_PUBLISH_MIN_INTERVAL_S="${WITNESS_PUBLISH_MIN_INTERVAL_S:-120}"
 WITNESS_PUBLISH_MARKER="$MAIN_CIRCUIT_DIR/target/.last_witness_publish"
 NOW_S=$(date +%s)

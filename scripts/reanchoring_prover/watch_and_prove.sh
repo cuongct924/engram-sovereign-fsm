@@ -1,50 +1,35 @@
 #!/usr/bin/env bash
-# Polls the real, live node's currently-tracked SOVEREIGN/RECOVERING header
-# count (via `engramd query-recovery-headers`) and fires prove_and_submit.sh
-# once ready -- prove_and_submit.sh proves up to min(TOTAL_N, N_MAX=256) of
-# them (see its own header comment). Unlike the old fixed-N=4 design (which
-# required at least EXPECTED_N=4 tracked before attempting anything, and
-# could never prove a trailing remainder shorter than 4 at all -- a real
-# liveness gap), ANY count from 1 to 256 is immediately provable in one
-# proof, so this never blocks waiting for a batch that might not arrive.
+# Polls the live node's tracked SOVEREIGN/RECOVERING header count (via
+# `engramd query-recovery-headers`) and fires prove_and_submit.sh once
+# ready. Any count from 1 to N_MAX=256 is provable in one proof (unlike the
+# old fixed-N=4 design, which required N=4 and could never prove a shorter
+# trailing remainder -- a real liveness gap), so this never blocks waiting
+# for a batch.
 #
-# BATCH_THRESHOLD (default 256 = N_MAX, the circuit's own hard cap):
-# "ready" means N >= BATCH_THRESHOLD, OR N has been unchanged for
-# STABLE_POLLS_REQUIRED consecutive polls (stopped growing -- caught up to
-# the current tip, no benefit to waiting longer). Firing on the very first
-# tracked header (N>=1, the original design) was live-verified wasting most
-# of each ~10s proof-generation cycle's fixed cost on padding: nargo
-# execute/bb prove's wall-clock cost is dominated by the circuit's FIXED
-# N_MAX=256 size regardless of how many of those slots are real headers vs.
-# padding, so a 5-7-header proof costs essentially the same as a
-# 200-header one -- batching bigger, not proving faster, is what actually
-# speeds up catching up a real SOVEREIGN backlog.
+# BATCH_THRESHOLD (default 256 = N_MAX, the circuit's hard cap): "ready"
+# means N >= BATCH_THRESHOLD, OR N has been unchanged for
+# STABLE_POLLS_REQUIRED consecutive polls (caught up to the tip -- no
+# benefit in waiting longer). Firing on the very first header wasted most of
+# each ~10s proof cycle on padding: nargo execute/bb prove's wall-clock cost
+# is dominated by the circuit's FIXED N_MAX=256 size regardless of how many
+# slots are real, so batching bigger is what actually catches up a backlog.
 #
-# A single unchanged poll is NOT enough to call it stalled: live-observed
-# with POLL_INTERVAL_S=2, N climbs on almost every 2s poll while a real
-# backlog exists (e.g. 29,31,32,32 -- new-block timing just doesn't align
-# perfectly with the poll cadence), so requiring only 1 unchanged reading
-# fired repeatedly on batches of 7-20 instead of riding the real growth up
-# toward 256. STABLE_POLLS_REQUIRED consecutive unchanged polls (default 3,
-# ~6s of genuinely no new headers) distinguishes "just unlucky poll timing"
-# from "actually caught up" while still keeping the liveness fix intact for
-# a real trailing remainder.
+# A single unchanged poll is NOT stalled: with POLL_INTERVAL_S=2, N climbs
+# on almost every poll while a backlog exists (e.g. 29,31,32,32), so 1
+# unchanged reading fired repeatedly on batches of 7-20 instead of riding
+# growth toward 256. STABLE_POLLS_REQUIRED=3 (~6s of no new headers)
+# distinguishes unlucky timing from actually caught up.
 #
-# Keeps running after a successful submission rather than exiting -- see
+# Keeps running after a successful submission -- see
 # x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc on rolling
-# checkpoints: LastAnchoredRoot now advances (and HeaderHistory prunes only
-# the covered prefix) on EVERY accepted proof, not just once at the true end
-# of the interval, so the tracked count legitimately drops back to 0 and
-# starts climbing again for the NEXT segment. A long unhealthy interval
-# therefore needs this watcher to fire repeatedly, not once -- exiting after
-# the first hit (the original behavior) meant no further segments of a
-# still-open interval could ever be proven, exactly the gap that made the
-# fixed-N circuit unusable against a real, unbounded-length interval.
+# checkpoints: LastAnchoredRoot advances (and HeaderHistory prunes only the
+# covered prefix) on EVERY accepted proof, so the count drops back to 0 and
+# climbs again for the NEXT segment. A long unhealthy interval needs this
+# watcher to fire repeatedly, not once.
 #
-# Exits successfully (0) once --max-checks is exhausted (the natural way to
-# stop watching, e.g. once the interval has genuinely ended), or non-zero if
-# it never submitted a single proof in that budget. A rejected submission
-# logs a warning and keeps watching rather than aborting.
+# Exits 0 once --max-checks is exhausted (natural way to stop, e.g. interval
+# genuinely ended), non-zero if no proof was ever submitted in that budget.
+# A rejected submission logs a warning and keeps watching.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,14 +64,11 @@ while [ "$i" -lt "$MAX_CHECKS" ]; do
   fi
   prev_n=$N
   echo "[$TS] check $i: N=$N stable=$stable_count (proofs so far: $proofs_submitted submitted, $proofs_rejected rejected)"
-  # Fire once N reaches BATCH_THRESHOLD (make each fixed-cost proof cycle
-  # carry as much real work as possible), OR once N has held steady for
-  # STABLE_POLLS_REQUIRED consecutive polls (genuinely caught up to the
-  # current tip, not just an unlucky single poll -- see header doc). N>=1
-  # alone (the original trigger) fired on every single new header,
-  # live-confirmed submitting proofs carrying only 5-7 of 256 real headers
-  # each -- most of every ~10s proving cycle spent on padding instead of
-  # real backlog.
+  # Fire once N reaches BATCH_THRESHOLD (pack each fixed-cost proof cycle
+  # with as much real work as possible), OR once N has held steady for
+  # STABLE_POLLS_REQUIRED consecutive polls (genuinely caught up -- see
+  # header doc). N>=1 alone fired on every new header, submitting proofs
+  # carrying only 5-7 of 256 real headers each.
   if [ "$N" -ge 1 ] && { [ "$N" -ge "$BATCH_THRESHOLD" ] || [ "$stable_count" -ge "$STABLE_POLLS_REQUIRED" ]; }; then
     echo "[watch_and_prove] N=$N -- firing prove_and_submit.sh NOW"
     if "$SCRIPT_DIR/prove_and_submit.sh"; then

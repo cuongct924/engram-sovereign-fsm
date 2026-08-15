@@ -1,12 +1,10 @@
-// BenchmarkVerifyZKProof closes a real gap in E7's overhead measurement --
-// docs/EXPERIMENT.md's original V0-V5 decomposition and this file's own
-// BenchmarkProposalSize/BenchmarkProcessProposal never measured
-// keeper.VerifyZKProof's real `bb verify` shell-out cost, even though every
-// validator pays it on every accepted SubmitRecoveryProof tx (DeliverTx).
-// This is the "recovery-event cost" half of E7's steady-state/recovery-event
-// split (see live_overhead_scan.py's module doc) -- a real, measured CPU
-// number to sit alongside the real ~14,656-byte UltraHonk proof size (E6's
-// table6b_scaling.csv).
+// BenchmarkVerifyZKProof closes a real gap in E7's overhead measurement:
+// the V0-V5 decomposition never measured keeper.VerifyZKProof's real `bb
+// verify` shell-out cost, which every validator pays on every accepted
+// SubmitRecoveryProof tx (DeliverTx). This is the "recovery-event cost" half
+// of E7's steady-state/recovery-event split (see live_overhead_scan.py) -- a
+// measured CPU number alongside the real ~14,656-byte UltraHonk proof size
+// (E6's table6b_scaling.csv).
 package benchmark
 
 import (
@@ -20,13 +18,11 @@ import (
 )
 
 // BenchmarkVerifyZKProof shells out to the REAL, pinned `bb verify` binary
-// against the real N=4 proof/public_inputs already committed on disk from
-// this session's earlier E6/reanchoring work (circuit/reanchoring/target/
-// proof/{proof,public_inputs}) -- not a synthetic/mocked verification, the
-// exact same code path DeliverTx runs (x/sovereignty/keeper/reanchor.go's
-// VerifyZKProof). Skips (not fails) if the proof files or the `bb` binary
-// aren't present in this environment -- an external toolchain dependency,
-// not something every environment running `go test` is guaranteed to have.
+// against the real N=4 proof/public_inputs committed on disk
+// (circuit/reanchoring/target/proof/{proof,public_inputs}) -- the exact code
+// path DeliverTx runs (keeper/reanchor.go's VerifyZKProof), not a mock.
+// Skips (not fails) if the proof files or `bb` aren't present -- an external
+// toolchain dependency, not guaranteed in every environment.
 func BenchmarkVerifyZKProof(b *testing.B) {
 	repoRoot := findRepoRoot(b)
 	proofPath := filepath.Join(repoRoot, "circuit", "reanchoring", "target", "proof", "proof")
@@ -44,10 +40,9 @@ func BenchmarkVerifyZKProof(b *testing.B) {
 	storeService, _ := colltest.MockStore()
 	k := keeper.NewKeeper(storeService, nil)
 
-	// One real verification first, outside the timed loop, both as a
-	// warm-up and to fail loudly (not just report a misleadingly-fast
-	// "N ops, always false" benchmark) if the embedded VK doesn't actually
-	// match this proof's circuit compilation.
+	// One real verification first, outside the timed loop: warms up and
+	// fails loudly (not a misleadingly-fast "N ops, always false") if the
+	// embedded VK doesn't match this proof's circuit compilation.
 	if ok := k.VerifyZKProof(proof, inputs); !ok {
 		b.Skip("skipping: VerifyZKProof returned false against the on-disk proof -- " +
 			"embedded VK (x/sovereignty/keeper/zk_assets/vk) likely doesn't match this " +
@@ -60,10 +55,9 @@ func BenchmarkVerifyZKProof(b *testing.B) {
 	}
 }
 
-// findRepoRoot walks up from the working directory looking for go.mod --
-// `go test` runs with cwd set to the package directory (tests/benchmark/),
-// not the repo root, so the circuit/ path needs to be resolved relative to
-// that, not assumed to be the cwd itself.
+// findRepoRoot walks up from the cwd looking for go.mod -- `go test` sets
+// cwd to the package dir (tests/benchmark/), not the repo root, so the
+// circuit/ path must be resolved from there.
 func findRepoRoot(b *testing.B) string {
 	b.Helper()
 	dir, err := os.Getwd()

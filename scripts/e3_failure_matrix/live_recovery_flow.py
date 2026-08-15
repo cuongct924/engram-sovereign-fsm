@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """LIVE recovery-flow observation against the real 4-node docker testnet --
-the user explicitly asked for real e2e data on the FSM transitioning
-SOVEREIGN -> RECOVERING -> ANCHORED on the LIVE network (not tests/e2e's
-in-process mock-sensor harness, which already covers this transition
-synthetically in TestE2_S7_Recovery / TestRecoveryFlow_*).
+real e2e data on the FSM transitioning SOVEREIGN -> RECOVERING -> ANCHORED
+on the LIVE network (not tests/e2e's in-process mock harness, which already
+covers this synthetically in TestE2_S7_Recovery / TestRecoveryFlow_*).
 
 Polls all 4 real nodes' RPC/ABCI-query state continuously, prints every real
-state transition as it happens, and writes a full CSV timeline + a markdown
+state transition as it happens, and writes a full CSV timeline + markdown
 summary with real time-to-recovering / time-to-anchored numbers (or "not
-reached within the window" if the window runs out, which is itself a real,
-reportable result -- not glossed over).
+reached within the window" if the window runs out -- itself a real,
+reportable result).
 
 Usage:
     python3 scripts/e3_failure_matrix/live_recovery_flow.py --minutes 20

@@ -3,25 +3,21 @@
 docs/EXPERIMENT.md's E5, scoped as a small confirmatory check (2 values x 2
 environments), NOT a full 6x5 sweep. The in-process sweep
 (tests/e2e/hysteresis_sweep_test.go) already produced the real finding this
-checks: anchored_uptime decreases monotonically and flapping_count INCREASES
-monotonically as HysteresisWait grows under sustained noise -- no interior
-sweet spot on either metric (see docs/EXPERIMENT.md's E5 section for the
-mechanism). Purpose here is confirming that finding holds under REAL
-consensus timing noise (round-skip stalls, real jitter), which the
-in-process harness can't reproduce -- not re-deriving it from scratch.
+checks: anchored_uptime decreases and flapping_count INCREASES monotonically
+as HysteresisWait grows under sustained noise -- no interior sweet spot (see
+docs/EXPERIMENT.md's E5 for the mechanism). Purpose here is confirming that
+holds under REAL consensus timing noise (round-skip stalls, real jitter),
+which the in-process harness can't reproduce -- not re-deriving it.
 
-A full live sweep is impractical to run unattended: each HysteresisWait value needs its
-own fresh genesis + redeploy cycle, several minutes minimum. HysteresisWait is NOT
-compile-time-fixed -- ENGRAM_PARAM_HYSTERESIS_WAIT in .env, read by `engramd testnet
-init-files` at genesis-generation time and carried through to the running Keeper by
-app/app.go's newInitChainer (gs.Params.ToParams()), overrides x/sovereignty/types/
-params.go's DefaultParams() without any source edit or rebuild -- see docs/DEVELOPMENT.md
-§3. This script measures ONE already-deployed cluster per invocation -- the operator sets
-ENGRAM_PARAM_HYSTERESIS_WAIT in .env, wipes testnet-data/ and regenerates genesis
-(`engramd testnet init-files --v 4`, this repo's standing operational practice for
-priv_validator_state.json round-regression), redeploys, THEN runs this script with
---hysteresis-wait matching what was just deployed, once per (value, environment)
-combination:
+A full live sweep is impractical unattended: each HysteresisWait value needs
+its own fresh genesis + redeploy cycle (several minutes minimum). HysteresisWait
+is NOT compile-time-fixed -- ENGRAM_PARAM_HYSTERESIS_WAIT in .env, read by
+`engramd testnet init-files` at genesis-generation time and carried to the
+running Keeper by app/app.go's newInitChainer (gs.Params.ToParams()),
+overriding params.go's DefaultParams() without a rebuild (docs/DEVELOPMENT.md
+§3). This script measures ONE already-deployed cluster per invocation -- set
+ENGRAM_PARAM_HYSTERESIS_WAIT in .env, wipe testnet-data/, regenerate genesis,
+redeploy, THEN run with --hysteresis-wait matching what was deployed:
 
     # after setting ENGRAM_PARAM_HYSTERESIS_WAIT=2 and regenerating genesis:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 2 --env noisy_da
@@ -29,13 +25,11 @@ combination:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env stable
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env noisy_da
 
-Metric caveat, honestly flagged: FlappingCount/AnchoredUptime here are
-computed from fixed-interval RPC polling samples, not the in-process
-harness's per-BLOCK timeline -- a transition that both starts and fully
-reverses within a single polling interval (real block time varies, can be
-sub-second once round-skip stalls are absent) could be missed. This is a
-real granularity difference from the in-process numbers, not a bug to
-silently paper over -- reported explicitly in the summary output.
+Metric caveat, honestly flagged: FlappingCount/AnchoredUptime are computed
+from fixed-interval RPC polling, not the in-process harness's per-BLOCK
+timeline -- a transition that starts AND fully reverses within one polling
+interval can be missed. A real granularity difference, reported explicitly
+in the summary output.
 """
 
 import argparse

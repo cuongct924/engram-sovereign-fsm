@@ -1,51 +1,35 @@
 #!/usr/bin/env python3
 """LIVE E2 fault-injection scenario matrix against the real 4-node testnet --
 docs/EXPERIMENT.md's S1-S7, driven by REAL docker fault injection (not
-tests/e2e's in-process mock harness). scripts/ under this repo read from the
-live cluster, not a mock.
+tests/e2e's in-process mock harness).
 
-One continuous 7-phase run (chains phases like
-scripts/e3_failure_matrix/live_lifecycle_test.py already does, since a cold
-restabilization between 7 INDEPENDENT runs would cost ~250-300s of measured
-peer-tenure buildup each -- prohibitive seven times over). Each phase's
-"before" state is the previous phase's already-healed "after" state.
+One continuous 7-phase run (chains phases like live_lifecycle_test.py, since
+a cold restabilization between 7 INDEPENDENT runs costs ~250-300s of peer-tenure
+buildup each). Each phase's "before" is the previous phase's healed "after".
 
     S1 baseline        -- no injection, confirm ANCHORED
-    S2 BTC congestion   -- new chaos-btc-delay Pumba profile on bitcoin-node01.
-                           GENUINELY UNPROVEN whether this produces a
-                           GRADUAL btc_gap growth (the doc's expectation) or
-                           an instant jump like S6 already shows -- this
-                           script reports whichever it actually observes,
-                           does not assume the expected shape.
-    S3 DA unavailable   -- docker stop/start celestia-bridge (proven
-                           mechanism, live_lifecycle_test.py).
+    S2 BTC congestion   -- pause checkpoint submission (AnchorTracker's
+                           ANCHOR_SUBMISSION_PAUSED_FILE): h_btc_anchored
+                           freezes while h_btc_current climbs, growing btc_gap.
+    S3 DA unavailable   -- docker stop/start celestia-bridge.
     S4 P2P eclipse partial -- 300ms+-50ms delay on all 6 real
-                           validator-link-01-0N interfaces to/from node01, 2m
-                           (see NODE01_P2P_LINK_TARGETS's doc: the original
-                           chaos-loss profile, eth0-only, never touched a
-                           P2P-carrying interface on this cluster and produced
-                           zero FSM-visible effect even at 40% loss).
-    S5 Anchor isolation -- existing chaos-eclipse profile (100% loss,
-                           engram-node01, 3m). ActiveAnchors is NOT
-                           independently confirmable via Query.State (that
-                           field is documented stale/never committed, see
-                           logger.py's _decode_query_state comment) -- this
-                           phase cross-checks via /net_info peer counts on
-                           the isolated node instead (logger.net_info).
+                           validator-link-01-0N interfaces to/from node01
+                           (see NODE01_P2P_LINK_TARGETS's doc).
+    S5 Anchor isolation -- existing chaos-eclipse profile (100% loss on
+                           engram-node01, 3m); ActiveAnchors is not
+                           confirmable via Query.State (stale field, see
+                           logger.py), so cross-checks via /net_info.
     S6 combined BTC+DA failure -- docker stop bitcoin-node01 AND
-                           celestia-bridge simultaneously. Also serves as
-                           the live regression check for anchor.go/
-                           btcGapMetric's error-swallowing fix, previously
-                           only unit-tested, not verified against a real
-                           BTC outage.
+                           celestia-bridge. Doubles as the live regression
+                           check for anchor.go/btcGapMetric's error-swallowing
+                           fix (previously only unit-tested).
     S7 recovery         -- restart everything, run to real ANCHORED via the
                            real ZK re-anchoring pipeline. REQUIRES
                            scripts/reanchoring_prover/watch_and_prove.sh
-                           already running in the background separately.
+                           running separately in the background.
 
-Output CSVs named s{N}_<name>.csv to match tests/e2e/results/s*.csv's
-existing naming convention, so scripts/e3_failure_matrix/measure_latency_live.py
-can read them with the same glob pattern.
+Output CSVs named s{N}_<name>.csv, matching tests/e2e/results/s*.csv's
+naming so measure_latency_live.py can read them with the same glob.
 
 Usage:
     python3 -u scripts/e2_fault_injection/live_scenario_matrix.py
@@ -75,10 +59,9 @@ NET_INFO_LOG = os.path.join(RESULTS_DIR, "s4_s5_net_info_check.md")
 def block_interval_stats(samples_for_node):
     """Block-interval throughput/latency proxy (docs/EXPERIMENT.md's E2
     Metrics table): consecutive-sample time deltas where height actually
-    increased, so this measures real block cadence, not polling-interval
-    noise from unchanged-height samples. Not a per-round consensus latency
-    (fixed-interval RPC polling can't see sub-interval timing) -- an honest
-    proxy, stated as such in the docs.
+    increased, so it measures real block cadence, not polling-interval noise.
+    Not per-round consensus latency (fixed-interval RPC polling can't see
+    sub-interval timing) -- an honest proxy, stated as such in the docs.
     """
     samples_for_node = sorted(samples_for_node, key=lambda s: s.timestamp)
     deltas = []
@@ -96,25 +79,18 @@ def block_interval_stats(samples_for_node):
 
 
 # S4's real P2P eclipse mechanism: delay on node01's 3 dedicated pairwise-link
-# interfaces to its peers, AND each peer's own link back to node01 --
-# bidirectional, all 3 links, not just node01's default eth0. Pumba's netem
-# defaults to eth0 (`-i`/`--interface` flag, default "eth0") when not told
-# otherwise; on this cluster eth0 maps to bitcoin-net for every validator (see
-# `docker inspect <node> --format '{{json .NetworkSettings.Networks}}'`,
-# cross-referenced against `docker exec <node> cat /sys/class/net/ethN/address`
-# for the MAC->network mapping), never a P2P-carrying interface at all. The
-# real inter-validator gossip/ping-pong CometBFT's own P2P layer uses runs
-# over validator-link-01-0N specifically (docs/ARCHITECTURE.md's pairwise-link
-# topology) -- confirmed live: a 5% or even 40% loss / 300ms delay on eth0
-# alone produced zero FSM-visible effect (real RPC-level disruption, but no
-# IsP2PQualityHealthy change), while the SAME delay correctly targeted at
-# these 6 links produces the full ANCHORED->SUSPICIOUS->SOVEREIGN->RECOVERING
-# ->ANCHORED cycle, matching the in-process gray-failure-timeout finding
-# exactly. One-sided delay (only node01's own egress) is NOT enough for a
-# CONSECUTIVE-streak-gated absorb mechanism (DownHysteresisThreshold) to
-# reliably trip: node01's degraded view only enters a proposal on node01's
-# own round-robin turn, so bidirectional (all 3 peers' own egress toward
-# node01 too) keeps every proposer's own local view degraded, every round.
+# interfaces to its peers AND each peer's own link back to node01 --
+# bidirectional, all 3 links. Pumba's netem defaults to eth0, which on this
+# cluster maps to bitcoin-net for every validator (never a P2P-carrying
+# interface), so eth0-only loss/delay produced zero FSM-visible effect even
+# at 40% loss; the real inter-validator gossip runs over
+# validator-link-01-0N (docs/ARCHITECTURE.md's pairwise-link topology), and
+# targeting these 6 links produces the full ANCHORED->SUSPICIOUS->SOVEREIGN
+# ->RECOVERING->ANCHORED cycle, matching the in-process gray-failure-timeout
+# finding. One-sided delay (only node01's own egress) is NOT enough for the
+# CONSECUTIVE-streak-gated absorb (DownHysteresisThreshold) to reliably trip:
+# node01's degraded view only enters a proposal on node01's round-robin turn,
+# so bidirectional delay keeps every proposer's own view degraded every round.
 NODE01_P2P_LINK_TARGETS = [
     ("engram-node01", "eth3"),  # node01 -> node02
     ("engram-node01", "eth4"),  # node01 -> node03
@@ -160,10 +136,9 @@ def docker(*args):
 class Tracker:
     def __init__(self):
         self.start = time.time()
-        # (scenario_key, NodeSample) -- scenario_key set by set_scenario(),
-        # so each write_scenario_csv() call writes ONLY that scenario's own
-        # samples, matching tests/e2e/results/s*.csv's per-scenario
-        # convention -- NOT a cumulative dump of every phase run so far.
+        # (scenario_key, NodeSample) -- scenario_key set by set_scenario(), so
+        # each write_scenario_csv() writes ONLY that scenario's own samples
+        # (per-scenario files, not a cumulative dump).
         self.samples = []
         self.transitions = []
         self.last_state = {}
@@ -230,7 +205,7 @@ class Tracker:
     def write_scenario_csv(self, name: str, scenario_key: str):
         """Writes ONLY samples recorded under scenario_key (see set_scenario)
         -- each scenario's CSV is self-contained, not a cumulative dump of
-        every phase run so far in this whole 7-phase script."""
+        every phase run so far."""
         path = os.path.join(RESULTS_DIR, f"{name}.csv")
         scenario_samples = [s for key, s in self.samples if key == scenario_key]
         write_csv(scenario_samples, path)
@@ -242,9 +217,8 @@ class Tracker:
 
     def _block_interval_summary(self, scenario_samples):
         """Aggregates block_interval_stats across all 4 nodes for one
-        scenario -- one throughput/latency-proxy number per scenario, not
-        per node, since all 4 validators stay in lockstep in every measured
-        run so far (see docs/EXPERIMENT.md's E2 Results)."""
+        scenario -- one throughput/latency-proxy number per scenario (all 4
+        validators stay in lockstep in every measured run)."""
         by_node = {}
         for s in scenario_samples:
             by_node.setdefault(s.node, []).append(s)
@@ -294,17 +268,14 @@ def main():
         "to grow btc_gap and force SOVEREIGN -- see docs/EXPERIMENT.md's S2 "
         "writeup) ==="
     )
-    # Two earlier mechanisms were tried and confirmed live NOT to grow
-    # btc_gap: chaos-btc-delay's RPC-level netem delay (~40x smaller than
-    # bitcoin_miner_loop.sh's 20s natural cadence, doesn't touch block-height
-    # deltas) and a global mining-rate slowdown (h_btc_current and
-    # h_btc_anchored both derive from the same slowed block stream, staying
-    # proportionally in sync regardless of overall speed). What actually
-    # works: AnchorTracker.SetSubmissionPausedFile (x/anchor/anchor.go) --
-    # MaybeSubmit skips broadcasting a NEW checkpoint while
-    # ANCHOR_SUBMISSION_PAUSED_FILE exists (an already-pending one still
-    # confirms normally), freezing h_btc_anchored while h_btc_current keeps
-    # climbing. Confirmed live: grew btc_gap to 12 (past SovereignThreshold=8)
+    # Two earlier mechanisms were confirmed live NOT to grow btc_gap:
+    # chaos-btc-delay's RPC-level netem delay (~40x smaller than the 20s
+    # natural cadence, doesn't touch block-height deltas) and a global
+    # mining-rate slowdown (h_btc_current and h_btc_anchored derive from the
+    # same slowed stream, staying in sync). What works:
+    # AnchorTracker.SetSubmissionPausedFile (x/anchor/anchor.go) -- MaybeSubmit
+    # skips NEW checkpoints while the file exists, freezing h_btc_anchored
+    # while h_btc_current climbs. Grew btc_gap to 12 (past SovereignThreshold=8)
     # and committed all 4 validators to SOVEREIGN in lockstep.
     tr.set_scenario("s2")
     for node in ENGRAM_NODES:
@@ -313,8 +284,8 @@ def main():
     for node in ENGRAM_NODES:
         docker("exec", node, "rm", "-f", ANCHOR_SUBMISSION_PAUSED_FILE)
     # wait_for_state, not a fixed poll -- same reasoning as S4/S5's cooldown
-    # fix below: a fixed window isn't guaranteed to be long enough for every
-    # validator to actually reach ANCHORED before S3 starts.
+    # fix below: a fixed window isn't guaranteed long enough for every
+    # validator to reach ANCHORED before S3 starts.
     tr.wait_for_state("ANCHORED", 90, phase="S2_btc_congestion_cooldown")
     tr.write_scenario_csv("s2_btc_congestion", "s2")
 
@@ -360,13 +331,10 @@ def main():
         tr.poll(10, interval=3.0, phase="S4_p2p_eclipse_partial")
         log_net_info("S4_p2p_eclipse_partial")
     cleanup_p2p_eclipse_partial()
-    # wait_for_state, not a fixed poll: confirmed live that a fixed 20s
-    # cooldown isn't always enough for every validator to reach ANCHORED
-    # before S5 starts -- node01 (S5's own isolation target) can still be
-    # mid-RECOVERING from S4 when that happens, confounding S5's own result
-    # (its slow recovery becomes unattributable between "S5's isolation" and
-    # "S4's recovery was still in flight"). S3->S4 and S7 already use this
-    # pattern; S4->S5 and S5->S6 didn't.
+    # wait_for_state, not a fixed poll: a fixed 20s cooldown isn't always
+    # enough for every validator to reach ANCHORED before S5 -- node01 (S5's
+    # isolation target) can still be mid-RECOVERING from S4, confounding S5
+    # (its slow recovery becomes unattributable between the two phases).
     tr.wait_for_state("ANCHORED", 90, phase="S4_p2p_cooldown")
     tr.write_scenario_csv("s4_p2p_eclipse_partial", "s4")
 
@@ -382,10 +350,9 @@ def main():
         tr.poll(10, interval=3.0, phase="S5_anchor_isolation")
         log_net_info("S5_anchor_isolation")
     cleanup_profile("chaos-eclipse")
-    # Same reasoning as S4's own cooldown fix above -- S6 stops real
-    # infrastructure (bitcoin-node01, celestia-bridge); starting it against a
-    # cluster that hasn't fully reconverged from S5 confounds S6's result the
-    # same way S4->S5 did.
+    # Same reasoning as S4's cooldown: S6 stops real infrastructure
+    # (bitcoin-node01, celestia-bridge); starting it against a cluster that
+    # hasn't fully reconverged from S5 would confound S6's result.
     tr.wait_for_state("ANCHORED", 90, phase="S5_cooldown")
     tr.write_scenario_csv("s5_anchor_isolation", "s5")
     net_info_log.close()

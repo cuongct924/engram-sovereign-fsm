@@ -64,20 +64,17 @@ def build_table6c(noir_rows, plonky3_rows):
         "commit a31a1443a114c58735850daa5b5fc5c43c138d9d), NOT a hand-rolled "
         "reimplementation of main.nr's exact header struct; see "
         "benchmark_plonky3.sh's header comment for why. The two circuits are "
-        "therefore not bit-identical, but both now genuinely isolate the same "
+        "therefore not bit-identical, but both genuinely isolate the same "
         "primitive (Poseidon2, two permutations per header on the Noir side) "
         "that dominates constraint count there (table6a_6b.md's regression). "
-        "Trusted setup / PQ secure "
-        "are well-established properties of the underlying commitment scheme "
-        "(KZG pairing-based for UltraHonk, FRI hash-based for Plonky3), not a "
-        "per-run measurement -- documented here as qualitative facts, not "
-        "fabricated numbers. Recursion support is left as a qualitative note, "
-        "not scored: Barretenberg ships documented recursive-UltraHonk-verification "
-        "support (used elsewhere in this repo's own toolchain notes); this "
-        "specific Plonky3 checkout (0.6.0-era, no dedicated recursion crate/example "
-        "found in its own README/CHANGELOG at the pinned commit) does not ship a "
-        "ready-made recursive-verifier example to measure against, so no claim is "
-        "made about its recursion maturity relative to Barretenberg's.",
+        "Trusted setup / PQ secure are well-established properties of the "
+        "underlying commitment scheme (KZG pairing-based for UltraHonk, FRI "
+        "hash-based for Plonky3), not per-run measurements -- qualitative "
+        "facts, not fabricated numbers. Recursion is a qualitative note, not "
+        "scored: Barretenberg ships documented recursive-UltraHonk support; "
+        "this Plonky3 checkout (0.6.0-era) has no ready-made recursive-verifier "
+        "example to measure against, so no claim is made about its recursion "
+        "maturity.",
         "",
         "| Metric | Noir + Honk | Plonky3 (Poseidon2/FRI) |",
         "| --- | ---: | ---: |",
@@ -107,12 +104,12 @@ def build_table6c(noir_rows, plonky3_rows):
 
 
 def build_figure7(noir_rows, plonky3_rows):
-    """Grouped bar chart across 3 real, measured, numeric axes (proof size,
-    verify time, prove time) at N=256 -- a radar chart across all 6 of Table
-    6C's rows would force the 3 qualitative rows (trusted setup / PQ secure /
-    recursion) into an arbitrary numeric 0-1 score, which is not a measurement;
-    keeping the figure to the 3 measured axes avoids implying false precision
-    on the other 3.
+    """Grouped bar chart across the 3 real, measured, numeric axes (proof
+    size, verify time, prove time) at N=256 -- a radar chart across all 6 of
+    Table 6C's rows would force the 3 qualitative rows (trusted setup / PQ
+    secure / recursion) into arbitrary numeric scores, which isn't a
+    measurement; keeping to the 3 measured axes avoids implying false
+    precision.
     """
     setup_academic_plot_style()
     noir = row_at_n(noir_rows, REPRESENTATIVE_N)

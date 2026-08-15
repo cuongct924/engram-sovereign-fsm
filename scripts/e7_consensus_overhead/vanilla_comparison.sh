@@ -3,7 +3,7 @@
 #
 # Runs two REAL engramd nodes locally, side by side: one normal (real
 # PrepareProposal/ProcessProposal/PreBlocker, carries ExtendedProposal), one
-# --vanilla (BaseApp's default handlers, no ExtendedProposal at all -- see
+# --vanilla (BaseApp's default handlers, no ExtendedProposal -- see
 # app/app.go's NewEngramApp doc). Measures real per-block proposal-size
 # overhead and block interval via RPC polling -- no synthetic numbers.
 #

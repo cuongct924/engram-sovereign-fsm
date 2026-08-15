@@ -2,20 +2,18 @@
 """LIVE Bitcoin reorg test against the real 4-node testnet -- new E10,
 exercising a code path formally specified (spec/core/EngramConsensus.tla's
 BitcoinReorg action, spec/README.md's SS7.3 "Threat Model Boundary: Bitcoin
-Reorg Depth") but never previously exercised by any live or in-process
-experiment in this repo (E1-E9 grep for "reorg" turn up nothing outside the
-spec itself).
+Reorg Depth") but never exercised by any live or in-process experiment here
+(E1-E9 grep for "reorg" turns up nothing outside the spec).
 
 Mechanism: bitcoin-node01 is the only bitcoind every validator's
-AnchorTracker/BTC sensor actually queries (BITCOIN_HOST); bitcoin-node02 is
-node01's regtest sync peer, never dialed directly by engramd
-(docker/bitcoin-regtest-cluster.yml, compose.yml's comment). Isolating
-node02 via `setnetworkactive false` (not `disconnectnode` -- node01's
+AnchorTracker/BTC sensor queries (BITCOIN_HOST); bitcoin-node02 is node01's
+regtest sync peer, never dialed directly by engramd
+(docker/bitcoin-regtest-cluster.yml). Isolating node02 via
+`setnetworkactive false` (not `disconnectnode` -- node01's
 `-addnode=bitcoin-node02` config would just silently redial and re-sync),
-mining extra blocks on node02 alone via RPC (no P2P needed for
-generatetoaddress), then reconnecting forces node01 -- and so every
-validator watching it -- through a real reorg onto node02's now-longer
-chain, orphaning whatever blocks (and checkpoint OP_RETURN transactions)
+mining extra blocks on node02 alone via RPC, then reconnecting forces node01
+-- and so every validator watching it -- through a real reorg onto node02's
+now-longer chain, orphaning whatever blocks (and checkpoint OP_RETURN txs)
 only existed on node01's abandoned branch.
 
 Two scenarios, matching spec/README.md SS7.3's own split:
@@ -72,15 +70,13 @@ def poll(seconds: float, samples: list, interval: float = 3.0, label: str = ""):
 
 
 def pause_node01_mining(paused: bool):
-    """Freezes/resumes bitcoin-miner-loop's own mining on node01 via the
-    live-reloadable interval override (bitcoin_miner_loop.sh, added for
-    E2's S2 congestion test) -- without this, node01 keeps extending its
-    OWN chain during node02's isolation window, and a first shallow-reorg
-    run confirmed live (no "reorg"/"disconnect block" log lines in
-    bitcoin-node01's logs at all) that node01's own continuous mining can
-    outrun node02's synthetic lead, so reconnecting never actually
-    triggers a reorg -- the FSM staying ANCHORED throughout proved nothing
-    by itself without first confirming a reorg really happened.
+    """Freezes/resumes bitcoin-miner-loop's mining on node01 via its
+    live-reloadable interval override (added for E2's S2 congestion test).
+    Without this, node01 keeps extending its OWN chain during node02's
+    isolation window and can outrun node02's synthetic lead (confirmed live:
+    a first shallow-reorg run produced no "reorg"/"disconnect block" log
+    lines -- reconnecting never actually triggered a reorg, so the FSM
+    staying ANCHORED proved nothing).
     """
     if paused:
         subprocess.run(
@@ -111,13 +107,11 @@ def main():
         help="number of node01's ORIGINAL blocks to orphan -- default 1 for "
         "shallow (< KDeepFinality=2), 5 for deep (>> KDeepFinality=2). "
         "invalidateblock targets height (h1_before - reorg_depth + 1), so "
-        "exactly this many original blocks get replaced -- NOT how many "
-        "new blocks get mined (that's reorg_depth+1, one longer to win "
-        "the longest-chain rule); an earlier version of this script "
-        "conflated the two and always invalidated only the tip (depth=1) "
-        "regardless of the requested depth, confirmed live via "
-        "getblockcount on node02 dropping by exactly 1 after invalidation "
-        "no matter what depth was requested.",
+        "exactly this many original blocks get replaced -- NOT how many new "
+        "blocks get mined (that's reorg_depth+1, one longer to win the "
+        "longest-chain rule); an earlier version conflated the two and "
+        "always invalidated only the tip regardless of requested depth "
+        "(confirmed live via getblockcount on node02).",
     )
     parser.add_argument(
         "--settle-s",
@@ -139,14 +133,11 @@ def main():
           f"pause to actually take effect")
     pause_node01_mining(True)
     # bitcoin_miner_loop.sh only re-reads its interval override at the START
-    # of its NEXT loop iteration (after its current sleep completes) -- with
-    # the normal 20s cadence, that's up to ~20s of lag. Capturing h1_before
-    # BEFORE this settle window (an earlier version of this script did) lets
-    # node01 mine one more block right as the pause is taking hold, making
-    # every later "is height still h1_before" check compare against a
-    # stale, already-superseded height -- confirmed live: produced a false
-    # "actually_reorged=False" even after a real reorg had happened,
-    # because the actual frozen tip was h1_before+1, not h1_before.
+    # of its next loop iteration (up to ~20s of lag at the normal cadence).
+    # Capturing h1_before BEFORE this settle window (an earlier version did)
+    # let node01 mine one more block as the pause took hold, so every later
+    # "is height still h1_before" check compared against a stale height --
+    # confirmed live: a false actually_reorged=False even after a real reorg.
     time.sleep(25)
 
     h1_before = bitcoin_height(NODE01)
@@ -159,12 +150,11 @@ def main():
     try:
         bitcoin_cli("setnetworkactive", "false", node=NODE02)
 
-        # node02 currently shares node01's exact chain (heights matched before
-        # isolation) -- mining on TOP of that shared tip would just extend the
-        # SAME chain, not create a competing one (confirmed live: a first
-        # attempt without this invalidateblock step produced
-        # actually_reorged=False, node02's "new" block just synced back onto
-        # node01 as a normal extension). invalidateblock targets
+        # node02 currently shares node01's exact chain (heights matched
+        # before isolation) -- mining on TOP of that shared tip would just
+        # extend the SAME chain, not create a competing one (confirmed live:
+        # a first attempt without invalidateblock produced
+        # actually_reorged=False). invalidateblock targets
         # fork_height = h1_before - reorg_depth + 1, not h1_before itself --
         # invalidating a block also invalidates every descendant, so this
         # orphans exactly reorg_depth original blocks (fork_height..h1_before)

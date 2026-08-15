@@ -1,14 +1,11 @@
 // E5c -- SUSPICIOUS-exit hysteresis sensitivity on SUSPICIOUS -> ANCHORED
-// (docs/EXPERIMENT.md's E5, sub-scenario 5c, the "Gray Failure Arbitrage" defense).
-//
-// Sweeps SuspiciousHysteresisWait over {1,2,4,6,8} starting from SUSPICIOUS, with a
-// sustained WARNING-level baseline (btc_gap at SuspiciousThreshold) interrupted by
-// occasional single-block healthy readings -- the exact shape the mechanism defends
-// against (an attacker who nudges sensors healthy for one block to buy a free exit
-// and restart the suspicious_duration clock). suspicious_duration keeps accumulating
-// through absorbed blips (NextSuspiciousDuration, circuit_breaker.go) and can itself
-// escalate to SOVEREIGN via IsCriticalCondition's MaxSuspiciousTime branch during a
-// long absorption run -- this test observes that rather than assuming it away.
+// (E5, sub-scenario 5c, the "Gray Failure Arbitrage" defense). Sweeps
+// SuspiciousHysteresisWait over {1,2,4,6,8} with a sustained WARNING-level
+// baseline interrupted by single-block healthy readings -- the exact attack
+// shape (nudge sensors healthy one block to buy a free exit and reset the
+// suspicious_duration clock). suspicious_duration keeps accumulating through
+// absorbed blips and can itself escalate to SOVEREIGN via MaxSuspiciousTime
+// during a long absorption run -- observed, not assumed away.
 package e2e
 
 import (
@@ -25,11 +22,9 @@ import (
 
 var suspiciousHysteresisSweepValues = []uint64{1, 2, 4, 6, 8}
 
-// driveToSuspicious pushes a freshly-constructed Harness from its default ANCHORED
-// state into SUSPICIOUS via sustained warning-level BTC gap -- takes
-// DownHysteresisThreshold+1 blocks in the worst case (the default Params' own
-// DownHysteresisThreshold=2, unmodified by this sweep), bounded generously so a
-// future default change can't silently hang the test.
+// driveToSuspicious pushes a fresh Harness into SUSPICIOUS via sustained
+// warning-level BTC gap (DownHysteresisThreshold+1 blocks worst case, bounded
+// at 10 so a future default change can't hang the test).
 func driveToSuspicious(t *testing.T, h *Harness) {
 	t.Helper()
 	for i := 0; i < 10 && h.State() != types.StateSuspicious; i++ {

@@ -8,32 +8,29 @@ nothing exercised it end-to-end against a real forced tx.
 Protocol, real and byte-exact throughout (no mocked queue/tx content):
 
   1. Build a real, independently-decodable "target" tx (another
-     MsgSubmitForcedTxRequest, chosen only because a CLI to build it already
-     exists -- its own content is otherwise irrelevant) via
+     MsgSubmitForcedTxRequest, chosen only because a CLI to build it exists
+     -- its own content is otherwise irrelevant) via
      `engramd tx-submit-forced-tx --dry-run`. buildMinimalTx
      (cmd/engramd/reanchor_cli.go) has no timestamp/nonce/random field, so
-     this is deterministic -- the same command run again reproduces the
-     exact same bytes.
+     this is deterministic -- re-running reproduces the exact same bytes.
   2. Register those exact raw bytes in ForcedTxQueue via a SEPARATE
      MsgSubmitForcedTxRequest{Tx: <target's raw bytes>}, using --payload-hex
      for byte-exact content (x/sovereignty/keeper/msg_server.go's
      SubmitForcedTx just does ForcedTxQueue.Set(ctx, string(msg.Tx))).
-  3. Broadcast the target tx itself as a real, standalone tx (so it can
-     ever appear verbatim in req.Txs[1:], which is what
-     IsCensoring/ProcessProposal's check #0 compares ForcedTxQueue entries
-     against -- x/sovereignty/proposal.go:305-318).
+  3. Broadcast the target tx itself as a real, standalone tx (so it can ever
+     appear verbatim in req.Txs[1:], which is what IsCensoring/
+     ProcessProposal's check #0 compares ForcedTxQueue entries against --
+     x/sovereignty/proposal.go:305-318).
   4. Set node04 byzantine with censor_tx:<hex of target's raw bytes> --
      applyByzantineBehavior hex-decodes this; the target is hex-encoded
-     rather than a raw string because Docker Compose env-var/YAML
-     interpolation does not survive arbitrary non-UTF8 tx bytes.
-  5. Poll: whenever node04 leads a round, its proposal should omit the
-     target tx (observable as it not landing in a block node04 proposed);
-     once MaxIgnoreRounds (Params default: 1) is exceeded, the NEXT
-     censoring proposal from node04 must be REJECTED by the 3 honest
-     validators' IsCensoring check -- never committed, safety bar (honest
-     AppHash never diverges) checked the whole time, matching
-     live_byzantine_attacks.py's Tracker pattern (including its same-height
-     AppHash-comparison fix).
+     because Docker Compose env-var/YAML interpolation doesn't survive
+     arbitrary non-UTF8 tx bytes.
+  5. Poll: whenever node04 leads a round, its proposal should omit the target
+     tx (observable as it not landing in a block node04 proposed); once
+     MaxIgnoreRounds (Params default: 1) is exceeded, the NEXT censoring
+     proposal must be REJECTED by the 3 honest validators' IsCensoring check
+     -- never committed, safety bar (honest AppHash never diverges) checked
+     the whole time, matching live_byzantine_attacks.py's Tracker pattern.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_censorship_test.py
@@ -236,20 +233,17 @@ def main():
     print("=== Phase 1: baseline ===")
     tr.poll_for(15.0, 3.0, "baseline")
 
-    # node04 goes byzantine BEFORE the target tx is ever registered/
-    # broadcast -- ordering matters: x/sovereignty/preblock.go's
-    # updateForcedTxTracking dequeues a forced tx the moment ANY leader
-    # (honest or not) includes it -- an earlier version left it queued
-    # forever after inclusion, permanently deadlocking the chain, since the
-    # tx can never reappear once consumed. If the target were registered
-    # while node04 is still
-    # honest, an honest leader could dequeue it before byzantine mode even
-    # activates, and the test would trivially pass without ever exercising
-    # node04's censor_tx path. Enabling byzantine first means whichever
-    # validator leads the round the target lands in mempool determines
-    # what's actually observed: node04 (25% of rounds) censors it and the
-    # NEXT leader picks it up; an honest leader just includes it directly --
-    # either way, height must keep progressing normally the whole time.
+    # node04 goes byzantine BEFORE the target tx is registered/broadcast --
+    # ordering matters: x/sovereignty/preblock.go's updateForcedTxTracking
+    # dequeues a forced tx the moment ANY leader includes it (an earlier
+    # version left it queued forever after inclusion, permanently
+    # deadlocking the chain). If the target were registered while node04 is
+    # still honest, an honest leader could dequeue it before byzantine mode
+    # activates and the test would pass without exercising node04's
+    # censor_tx path. Enabling byzantine first means whichever validator
+    # leads the round the target lands in determines what's observed: node04
+    # (25% of rounds) censors it and the NEXT leader picks it up; an honest
+    # leader just includes it -- either way, height keeps progressing.
     print("=== Phase 2: node04 byzantine (censor_tx), before target tx exists ===")
     build_only_hex = build_target_tx_hex()
     enable_byzantine(build_only_hex)

@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
 """LIVE full-lifecycle fault-injection test against the real 4-node docker
-testnet -- docs/EXPERIMENT.md's E2/E3 scenario blueprint (S3 DA unavailable +
-S7 Recovery), but driving the REAL celestia-bridge/celestia-app containers
-(docker stop/start) instead of tests/e2e's mock-sensor Harness, per the
-user's explicit requirement that this repo's scripts/ read from the live
-docker cluster, not tests/e2e.
+testnet -- docs/EXPERIMENT.md's E2/E3 blueprint (S3 DA unavailable + S7
+Recovery), driving the REAL celestia-bridge/celestia-app containers
+(docker stop/start) instead of tests/e2e's mock-sensor Harness.
 
 Exercises every edge in the full lifecycle:
     ANCHORED <-> SUSPICIOUS -> SOVEREIGN <-> RECOVERING -> ANCHORED
 
-Phases (each one a real, timed fault injection against real containers):
+Phases (each a real, timed fault injection against real containers):
   1. Baseline: confirm ANCHORED, healthy.
-  2. Stop celestia-bridge -> expect ANCHORED -> SUSPICIOUS (DA warning).
-  3. Quickly restart celestia-bridge (before MaxSuspiciousTime) -> expect
-     SUSPICIOUS -> ANCHORED directly (no escalation to SOVEREIGN).
-  4. Stop celestia-bridge again, this time held long enough to exceed
-     Params.MaxSuspiciousTime (real blocks, not mocked) -> expect
-     SUSPICIOUS -> SOVEREIGN (the "sustained suspicious = treat as attack"
-     escalation the user asked to verify).
-  5. Restart celestia-bridge -> expect SOVEREIGN -> RECOVERING.
-  6. Immediately stop celestia-bridge again for a short window while still
-     in RECOVERING -> expect RECOVERING -> SOVEREIGN (regression, the
-     other user-requested bidirectional edge).
-  7. Restart celestia-bridge for good, let health stabilize -> expect
-     SOVEREIGN -> RECOVERING -> ANCHORED again, this time let it run to
-     real completion (the real ZK re-anchoring proof pipeline,
-     scripts/reanchoring_prover/watch_and_prove.sh, must already be running
-     separately in the background for this final edge to close for real).
+  2. Stop celestia-bridge -> expect ANCHORED -> SUSPICIOUS.
+  3. Quickly restart (before MaxSuspiciousTime) -> expect SUSPICIOUS ->
+     ANCHORED directly (no escalation).
+  4. Stop again, held past Params.MaxSuspiciousTime (real blocks) -> expect
+     SUSPICIOUS -> SOVEREIGN (the "sustained suspicious = attack" escalation).
+  5. Restart -> expect SOVEREIGN -> RECOVERING.
+  6. Immediately re-stop briefly while RECOVERING -> expect RECOVERING ->
+     SOVEREIGN (regression edge).
+  7. Restart for good, let it stabilize -> expect SOVEREIGN -> RECOVERING ->
+     ANCHORED to real completion (needs
+     scripts/reanchoring_prover/watch_and_prove.sh running separately in the
+     background).
 
 Usage:
     python3 scripts/e3_failure_matrix/live_lifecycle_test.py

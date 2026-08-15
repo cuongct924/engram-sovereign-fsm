@@ -1,12 +1,8 @@
-// E5b -- Down-hysteresis sensitivity on ANCHORED -> SUSPICIOUS (docs/EXPERIMENT.md's E5,
-// sub-scenario 5b).
-//
-// Sweeps DownHysteresisThreshold over {1,2,4,6,8} starting from ANCHORED, using
-// WARNING-level noise only (btc_gap at SuspiciousThreshold, never SovereignThreshold
-// -- a critical reading bypasses this edge's absorption entirely by design, see
-// CalculateNextState's ANCHORED branch) so the absorb path this parameter actually
-// gates gets exercised, unlike hysteresis_sweep_test.go's noisy_btc/combined_adversarial
-// environments which are deliberately critical-level to target a different edge.
+// E5b -- Down-hysteresis sensitivity on ANCHORED -> SUSPICIOUS (E5,
+// sub-scenario 5b). Sweeps DownHysteresisThreshold over {1,2,4,6,8} using
+// WARNING-level noise only (btc_gap at SuspiciousThreshold, never critical --
+// a critical reading bypasses absorption by design, see CalculateNextState's
+// ANCHORED branch), unlike the deliberately critical-level 5a environments.
 package e2e
 
 import (
@@ -24,14 +20,11 @@ import (
 
 var downHysteresisSweepValues = []uint64{1, 2, 4, 6, 8}
 
-// warningDisturbances perturbs a normally-healthy baseline at WARNING level only
-// (IsWarningCondition true, IsCriticalCondition always false) -- the level
-// CalculateNextState's ANCHORED/SUSPICIOUS branches actually gate on
-// DownHysteresisThreshold/SuspiciousHysteresisWait. noisy_da/noisy_p2p are shared
-// with hysteresis_sweep_test.go's envDisturbances since those two were already
-// warning-level by construction (DA has no critical path at all; the P2P
-// disturbance sets ActiveAnchors to MinAnchorPeers, not 0, so IsCriticalCondition's
-// ActiveAnchors==0 branch never trips).
+// warningDisturbances perturbs a healthy baseline at WARNING level only
+// (IsCriticalCondition never true) -- the level the ANCHORED/SUSPICIOUS
+// branches gate on. noisy_da/noisy_p2p are reused from envDisturbances: both
+// are warning-level by construction (DA has no critical path; the P2P blip
+// keeps ActiveAnchors at MinAnchorPeers, never 0).
 var warningDisturbances = map[string]disturbance{
 	"warning_btc": func(h *Harness) { h.BTC.SetGap(h.keeper.Params.SuspiciousThreshold) },
 	"noisy_da":    envDisturbances["noisy_da"],
@@ -57,10 +50,9 @@ type downHysteresisRun struct {
 	AbsorptionRate          float64
 }
 
-// runNoisyAnchored starts a Harness at its default ANCHORED state (BeginBlocker's
-// own fallback, abci.go) and runs a fixed noisy window, tracking per-block which
-// blocks were disturbed so AbsorbedEvents/DemotionCount can be attributed to the
-// ANCHORED -> SUSPICIOUS edge specifically, not inferred from FlappingCount alone.
+// runNoisyAnchored starts at default ANCHORED and runs a fixed noisy window,
+// tracking per-block disturbances so AbsorbedEvents/DemotionCount are
+// attributed to the ANCHORED -> SUSPICIOUS edge, not FlappingCount alone.
 func runNoisyAnchored(t *testing.T, downHysteresisThreshold uint64, env string) downHysteresisRun {
 	t.Helper()
 	h := NewHarness(t)
@@ -160,9 +152,8 @@ func TestE5b_DownHysteresisSweep(t *testing.T) {
 	}
 
 	// SUSPICIOUS alone never locks withdrawals (CircuitBreakerSafety only locks
-	// SOVEREIGN/RECOVERING) -- a run confined to ANCHORED/SUSPICIOUS should never
-	// report WithdrawalBlocked > 0. Only warning-level noise is injected here, so
-	// this edge's sweep should never escalate past SUSPICIOUS into SOVEREIGN.
+	// SOVEREIGN/RECOVERING), and warning-level noise never escalates past
+	// SUSPICIOUS -- so no run may report WithdrawalBlocked > 0.
 	for _, r := range runs {
 		require.Equal(t, 0, r.WithdrawalBlocked, "DownHysteresisThreshold=%d env=%s: warning-level noise must never lock withdrawals", r.DownHysteresisThreshold, r.Environment)
 	}

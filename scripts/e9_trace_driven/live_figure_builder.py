@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 """E9 -- Trace-Driven Stress Test, LIVE-docker Figure 2 (docs/EXPERIMENT.md's
-E9), built from scripts/e9_trace_driven/live_combined_trace.py's real output
-against the real 4-node testnet (not tests/e2e's in-process mock).
+E9), built from live_combined_trace.py's real output against the real 4-node
+testnet (not tests/e2e's in-process mock).
 
-live_combined_trace.py's own doc explains why this can't be a drop-in
+live_combined_trace.py's doc explains why this can't be a drop-in
 replacement for simulate_acceptance.py's 6-panel layout: BTC finality gap,
 DA availability, and P2P health score are never written into COMMITTED
 state (x/sovereignty/preblock.go's NewPreBlocker only ever commits the
 already-agreed fsm_state/receipts, never a fresh local sensor read -- see
-that function's own doc for the real safety bug this restriction fixes),
-so a live RPC/ABCI-query poll structurally cannot observe them.
+that function's doc for the real safety bug this restriction fixes), so a
+live RPC/ABCI-query poll structurally cannot observe them.
 
 This script does NOT fabricate those 3 panels. It builds 6 DIFFERENT panels
 from what IS real and observable via CometBFT RPC + Query.State:
     1. FSM State timeline (one representative node -- all 4 matched at
        every sampled height this run, cross-checked by panel 6)
-    2. Block height progression (real commit pace/rate, the closest real
-       analogue to "block commit rate")
+    2. Block height progression (real commit pace/rate)
     3. Fault-injection windows (BTC congestion / DA outage / P2P churn),
-       shaded from the run's REAL marker timestamps -- ground truth of
-       when each fault was actually active, not a synthetic gap curve
+       shaded from the run's REAL marker timestamps -- ground truth of when
+       each fault was actually active, not a synthetic gap curve
     4. SafeBlocks (real hysteresis counter from Query.State)
     5. ReanchoringProofValid (real boolean flag from Query.State)
     6. Cross-node AppHash agreement (0/1 per sampled tick) -- the real
-       safety signal E8's tests use throughout: did every node that
-       reported a height in this tick agree on AppHash there
+       safety signal E8's tests use throughout
 
 Usage:
     python3 scripts/e9_trace_driven/live_figure_builder.py [csv_path]
@@ -134,10 +132,10 @@ def plot_figure2_live(rows, markers, csv_path):
         [r for r in rows if r["node"] == rep_node], key=lambda r: r["t"]
     )
     # Drop transient RPC-error samples (logger.py's query_node sentinel:
-    # height=-1, fsm_state="") -- an earlier version of this panel plotted
-    # every row unfiltered, producing a spurious dip to height=0 at the
-    # exact moment node04 was briefly unreachable mid-run (real blocks
-    # never go backwards; that was a polling artifact, not a real event).
+    # height=-1, fsm_state="") -- an earlier version plotted every row,
+    # producing a spurious dip to height=0 at the moment node04 was briefly
+    # unreachable mid-run (real blocks never go backwards; that was a polling
+    # artifact, not a real event).
     rep_rows = [r for r in all_rep_rows if r["height"] >= 0]
 
     fig, axes = plt.subplots(6, 1, figsize=figsize_multi_panel(6), sharex=True)

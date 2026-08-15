@@ -3,35 +3,22 @@
 #
 # bitcoind regtest never mines on its own -- AnchorTracker's OP_RETURN
 # checkpoints (x/anchor/anchor.go) need real confirmations to reach
-# kDeepFinality (default 2), and anchor.VerifyReceipt's tolerance window
-# at that setting is only kDeepFinality blocks wide (see verify.go's
-# Tolerance doc). Mining in irregular manual bursts (e.g. 5 blocks at once
-# to fund a wallet) advances h_btc_current far ahead of whatever checkpoint
-# height a proposal is carrying by the time it's cross-validated a few
-# consensus rounds later, permanently pushing it outside that tolerance --
-# confirmed empirically: this is what stalled the 4-node testnet at height 1
-# for good after a burst-mined wallet funding step, not a code bug.
+# kDeepFinality (default 2), and VerifyReceipt's tolerance window at that
+# setting is only kDeepFinality blocks wide (verify.go's Tolerance doc).
+# Burst-mining (e.g. 5 blocks to fund a wallet) advances h_btc_current past
+# whatever checkpoint a proposal carries when cross-validated, permanently
+# pushing it outside that tolerance. One block every ROUND_INTERVAL_S keeps
+# h_btc_current close to consensus's cadence so a just-confirmed checkpoint
+# stays inside the window.
 #
-# One block roughly every ROUND_INTERVAL_S keeps h_btc_current advancing
-# close to consensus's own round cadence, so a just-confirmed checkpoint
-# stays inside the tolerance window by the time it's used.
+# Talks to bitcoind over RPC directly (-rpcconnect), not `docker exec`, so
+# it can run as a container (docker/bitcoin-miner-loop.yml) with no socket
+# mount. POSIX sh only: the lncm/bitcoind image (Alpine) has busybox ash,
+# no arrays or `set -o pipefail`.
 #
-# Talks to bitcoind over RPC directly (-rpcconnect), not `docker exec` --
-# lets this run as a container itself (docker/bitcoin-miner-loop.yml)
-# without a docker socket mount.
-#
-# POSIX sh, not bash: the image it also runs inside (lncm/bitcoind, Alpine)
-# has no bash, only busybox ash -- no arrays, no `set -o pipefail`.
-#
-# OVERRIDE_FILE lets a fault-injection script (e.g. E2's S2 BTC-congestion
-# phase) genuinely slow real BTC confirmation mid-run without restarting
-# this container -- read fresh every loop iteration, mirroring this
-# session's other "fresh-every-call" reachability checks (x/anchor/x/da's
-# Reachable). A plain --duration'd sleep-longer command wouldn't do this:
-# netem/RPC-level delay (chaos-btc-delay) only slows queries against an
-# otherwise-unaffected bitcoind, not the actual confirmation cadence
-# btc_gap is computed from (confirmed live: zero FSM effect from 500ms
-# netem jitter against a 20s natural mining cadence).
+# OVERRIDE_FILE lets a fault-injection script (e.g. E2's S2 BTC-congestion)
+# slow real BTC confirmation mid-run -- read fresh every loop iteration,
+# mirroring the fresh-every-call Reachable checks in x/anchor/x/da.
 #
 # Usage: scripts/bitcoin_miner_loop.sh [interval_seconds]
 set -eu

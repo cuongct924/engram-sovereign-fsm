@@ -64,18 +64,12 @@ def load_scenario_csv(path):
 
 def representative_rows(rows):
     """Picks whichever node has the MOST height-filtered (real, non-error)
-    samples in this scenario, not just the alphabetically-first one:
-    several of E2's own scenarios deliberately isolate engram-node01
-    specifically (S4's chaos-loss targets node01+node02, S5's
-    chaos-eclipse targets node01 with 100% packet loss), so always
-    picking node01 produces a near-empty or truncated timeline for
-    exactly the scenarios most worth plotting -- e.g. S5's real ~190s
-    window collapses to ~3s once node01's almost-entirely-error samples
-    are filtered out. Picking the best-covered node keeps every panel
-    showing the real cluster-wide behavior (3/4 healthy nodes still agree
-    during a partial-isolation scenario) rather than the specific node
-    under direct attack.
-    """
+    samples, not the alphabetically-first one: E2's scenarios deliberately
+    isolate engram-node01 (S5's 100% loss), so always picking node01 produces
+    a near-empty timeline for exactly the scenarios most worth plotting.
+    Picking the best-covered node keeps every panel showing the real
+    cluster-wide behavior (3/4 healthy nodes still agree during partial
+    isolation)."""
     if not rows:
         return []
     by_node = {}
@@ -115,13 +109,11 @@ def plot_state_timelines(scenarios):
 
 
 def scenario_metrics(rows):
-    """Real, purely CSV-derived summary metrics -- no in-process-only
-    fields (time_to_fallback/withdrawal_blocked_blocks) are available from
-    live polling, so this reports what IS observable instead of leaving
-    those blank: real elapsed duration, real height delta (commit
-    throughput proxy), real transition count (flapping proxy), and real
-    fraction of samples spent outside ANCHORED (degraded-time fraction).
-    """
+    """Real, purely CSV-derived summary metrics -- in-process-only fields
+    (time_to_fallback/withdrawal_blocked_blocks) aren't observable from live
+    polling, so report what IS: elapsed duration, height delta (commit
+    throughput proxy), transition count (flapping proxy), and fraction of
+    samples outside ANCHORED (degraded-time fraction)."""
     rep = representative_rows(rows)
     if not rep:
         return {
@@ -150,19 +142,14 @@ def scenario_metrics(rows):
 def plot_summary_bars(scenarios):
     setup_academic_plot_style()
     names = list(scenarios.keys())
-    # Short codes ("S1".."S7"), not full scenario names -- a 3-subplot row
-    # at double-column width gives each panel only ~2.4in, nowhere near
-    # enough for labels like "S3 DA Unavailable" without the tick labels
-    # colliding with the panel title above them. Full names are already
-    # the y-axis of figure3_state_timelines_live, immediately above this
-    # figure in the same section -- this table's own SCENARIO_TITLES
-    # mapping is the legend.
+    # Short codes ("S1".."S7"), not full names -- a 3-subplot row at
+    # double-column width gives each panel ~2.4in, not enough for labels
+    # like "S3 DA Unavailable"; SCENARIO_TITLES is the legend.
     short_codes = [n.split("_")[0].upper() for n in names]
     metrics = {n: scenario_metrics(rows) for n, rows in scenarios.items()}
 
-    # Extra height beyond figsize_row's default -- the 2-line suptitle here
-    # (short-code legend) plus 2-line subplot titles need more vertical
-    # room than a single-line-title row chart does.
+    # Extra height beyond figsize_row's default: the 2-line suptitle plus
+    # 2-line subplot titles need more vertical room than a 1-line-title row.
     width, height = figsize_row(3)
     fig, axes = plt.subplots(1, 3, figsize=(width, height * 1.55), sharey=True)
     for i, (ax, key, title) in enumerate(

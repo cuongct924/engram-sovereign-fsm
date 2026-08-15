@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Idempotent Bitcoin regtest wallet setup for the local docker testnet --
-# creates + funds "engramwallet" (bitcoin_miner_loop.sh's hardcoded default
-# wallet name) with 101 blocks (100 confirmations needed before a coinbase
-# output is spendable), but only mines on first creation. Re-running against
-# an already-funded wallet must not burst-mine more blocks while engramd may
-# already be running -- see bitcoin_miner_loop.sh's own doc for why that
-# desyncs h_btc_current and stalls consensus.
+# Idempotent Bitcoin regtest wallet setup: creates + funds "engramwallet"
+# (bitcoin_miner_loop.sh's default) with 101 blocks (100 confirmations
+# before a coinbase output is spendable), but only mines on first creation.
+# Re-running against an already-funded wallet must not burst-mine while
+# engramd may already be running -- that desyncs h_btc_current (see
+# bitcoin_miner_loop.sh's doc).
 #
 # Usage: scripts/testnet_fund_wallet.sh [wallet_name]
 set -euo pipefail

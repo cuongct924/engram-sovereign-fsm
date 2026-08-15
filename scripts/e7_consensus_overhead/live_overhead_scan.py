@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
 """E7 LIVE (real docker testnet) -- distinct from measure_overhead.py, which
 reads `go test ./tests/benchmark/...`'s synthetic V0-V5 payload benchmarks.
-This script instead scans a real, already-committed range of blocks from the
-live engram-node01 RPC and measures the REAL ExtendedProposal marker
-overhead actually landing in Txs[0] on the running chain -- no synthetic
-payload construction, no mocked ProcessProposal call.
+This script scans a real, already-committed range of blocks from the live
+engram-node01 RPC and measures the REAL ExtendedProposal marker overhead
+landing in Txs[0] -- no synthetic payload construction, no mocked
+ProcessProposal.
 
-Split into TWO regimes, not one blended average, per docs/EXPERIMENT.md's
-E7 reconciliation -- a flat average both understates the common healthy
-case's near-zero cost and hides the recovery path's real, bounded cost:
+Split into TWO regimes, not one blended average, per docs/EXPERIMENT.md's E7
+reconciliation -- a flat average both understates the common healthy case's
+near-zero cost and hides the recovery path's real, bounded cost:
 
   - "steady-state tax": the ExtendedProposal marker (fsm_state/da_receipt/
-    btc_receipt/zk_proof_ref) present on EVERY block regardless of health,
-    bucketed by the real fsm_state decoded from that block's own marker
-    JSON (Go's `encoding/json` marshals the marker body directly after the
-    ENGRAM_EXTENDED_PROPOSAL_V1| prefix -- decoded here without needing a
-    Python protobuf/Go-JSON codegen dependency).
+    btc_receipt/zk_proof_ref) on EVERY block regardless of health, bucketed
+    by the real fsm_state decoded from that block's own marker JSON (Go's
+    `encoding/json` marshals the marker body after the ENGRAM_EXTENDED_PROPOSAL_V1|
+    prefix -- decoded without a Python protobuf/Go-JSON codegen dependency).
   - "recovery-event cost": blocks whose OTHER (non-marker) tx content is
     unusually large -- a heuristic flag for a likely SubmitRecoveryProof
     message (the real ~14,656-byte UltraHonk proof, measured in E6's
     table6b_scaling.csv, travels as a SEPARATE tx, not inside
     ExtendedProposal itself -- see x/sovereignty/proposal.go's ZKProofRef
-    doc). This is a byte-size heuristic, not real protobuf type decoding
-    (no Python codegen available) -- flagged explicitly as such in the
-    output, not presented as exact classification.
+    doc). A byte-size heuristic, not real protobuf type decoding (no Python
+    codegen available) -- flagged as such in the output.
 
 Usage:
     python3 scripts/e7_consensus_overhead/live_overhead_scan.py [--last-n 50]
@@ -41,8 +39,7 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 # A real SubmitRecoveryProof tx carries ~14,656 real proof bytes (E6's real
 # measurement) plus public inputs/envelope overhead -- comfortably clear of
 # any ordinary tx this app produces today (no bank/staking msgs exist, see
-# app/app.go's TODO), so a large gap above "normal" other_tx_bytes is a
-# reasonable heuristic trigger.
+# app/app.go's TODO).
 RECOVERY_PROOF_SIZE_HEURISTIC_BYTES = 5000
 
 
@@ -187,9 +184,8 @@ def main():
             f.write(
                 f"No blocks matched the heuristic in this scan window (heights {start}..{tip}) -- "
                 f"this scan likely never passed through a real RECOVERING proof-submission cycle. "
-                f"Re-run after driving the cluster through one (e.g. scripts/e3_failure_matrix/"
-                f"live_lifecycle_test.py's phase 7, or scripts/e2_fault_injection/"
-                f"live_scenario_matrix.py's S7 phase) to capture a real sample.\n"
+                f"Re-run after driving the cluster through one (e.g. live_lifecycle_test.py's "
+                f"phase 7, or live_scenario_matrix.py's S7 phase) to capture a real sample.\n"
             )
         f.write("\n")
 

@@ -3,17 +3,17 @@
 E8 -- Attack-Resilience Test Suite (docs/EXPERIMENT.md's E8, Table 3).
 
 Runs the REAL Go safety-property tests in x/sovereignty/proposal_test.go
-(via `go test -json`) and maps each pass/fail result onto docs/EXPERIMENT.md's
-E8 attack table. These tests exercise the exact same ProcessProposal/
-CommitFSMTransition code path a running node uses (IsValidProposal ported
-branch-for-branch from spec/core/EngramTendermint.tla:281-307), so a "Reject"
-result here is a real ABCI-level rejection, not a simulated one.
+(via `go test -json`) and maps each pass/fail onto E8's attack table. These
+exercise the same ProcessProposal/CommitFSMTransition path a running node
+uses (IsValidProposal ported branch-for-branch from
+spec/core/EngramTendermint.tla:281-307), so a "Reject" is a real
+ABCI-level rejection, not a simulated one.
 
-Scope note: two E8 rows genuinely cannot be covered by these in-process unit
-tests and are reported as not-covered rather than faked -- "Timeout flooding"
-and "Double-signing" both require a live multi-node consensus engine
-(round/timer behavior, CometBFT's evidence module) that this environment does
-not have running (see M0b/M7 in CLAUDE.md's "Not yet done" section).
+Scope note: two E8 rows genuinely can't be covered by in-process unit tests
+and are reported as not-covered rather than faked -- "Timeout flooding" and
+"Double-signing" both need a live multi-node consensus engine (round/timer
+behavior, CometBFT's evidence module) not running here (see M0b/M7 in
+CLAUDE.md's "Not yet done" section).
 
 Usage:
     python3 scripts/e8_attack_resilience/trigger_disconnect.py

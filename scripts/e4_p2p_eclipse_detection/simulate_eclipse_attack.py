@@ -2,17 +2,15 @@
 """
 E4 -- P2P Eclipse/Sybil Detection (docs/EXPERIMENT.md's E4, Table 6).
 
-IMPORTANT METHODOLOGY NOTE: live Pumba/Docker chaos injection against a real
-multi-node network is NOT available in this environment (no Docker daemon
-running -- see CLAUDE.md's M7 status). This consumes REAL data from
-tests/e2e/results/e4_p2p_detector_comparison.csv, produced by
-`go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`, which runs the
-real production detector function (types.IsP2PQualityHealthy) and a naive
-peer-count-only baseline against SYNTHETIC, hand-constructed randomized peer
-snapshots modeling each attack's known signature (2000 Monte Carlo trials per
-cell, fixed RNG seed for reproducibility). The detector code under test is
-real; the traffic it's tested against is simulated, not observed on a live
-network. Do not present this as a live-network measurement.
+METHODOLOGY: live Pumba/Docker chaos injection is NOT available in this
+environment (no Docker daemon -- see CLAUDE.md's M7 status). This consumes
+REAL data from tests/e2e/results/e4_p2p_detector_comparison.csv, produced
+by `go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`, which runs
+the real production detector (types.IsP2PQualityHealthy) and a naive
+peer-count-only baseline against SYNTHETIC randomized peer snapshots modeling
+each attack's signature (2000 Monte Carlo trials/cell, fixed RNG seed). The
+detector code is real; the traffic is simulated, not observed live. Do not
+present this as a live-network measurement.
 
 Usage:
     go test ./tests/e2e/... -run TestE4_P2PDetectorComparison

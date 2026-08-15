@@ -1,16 +1,10 @@
-// E5 -- Hysteresis and Flapping Sensitivity (docs/EXPERIMENT.md's E5, Figure 4).
-//
-// Sweeps HysteresisWait over {0,1,3,5,10,20} using the same real Harness/
-// BeginBlocker path as the E2 scenarios, under 5 environments matching
-// docs/EXPERIMENT.md's E5 design: stable, intermittent DA receipt,
-// intermittent BTC anchor, intermittent P2P churn, and combined adversarial
-// oscillation (all three noisy at once). The noisy environments use a
-// per-block Bernoulli disturbance (not a single one-shot flip) with a fixed
-// RNG seed shared across all HysteresisWait values in the same environment,
-// so the "weather" is identical and only HysteresisWait's filtering differs
-// -- an earlier version of this test used a single disturbance, which never
-// produced flapping at any HysteresisWait and didn't test what hysteresis is
-// actually for (filtering noise, not surviving one hit).
+// E5 -- Hysteresis and Flapping Sensitivity (E5, Figure 4). Sweeps
+// HysteresisWait over {0,1,3,5,10,20} through the real Harness/BeginBlocker
+// path under 5 environments (stable, noisy DA, noisy BTC, noisy P2P,
+// combined). Noisy envs use a per-block Bernoulli disturbance with a fixed
+// RNG seed across all HysteresisWait values, so only hysteresis filtering
+// differs -- an earlier one-shot-disturbance version never produced flapping
+// and didn't test what hysteresis is actually for.
 package e2e
 
 import (
@@ -58,9 +52,8 @@ func anchoredUptime(h *Harness) float64 {
 	return float64(anchored) / float64(len(timeline))
 }
 
-// runStableRecovery: SOVEREIGN -> heal -> RECOVERING -> wait exactly
-// HysteresisWait blocks -> submit proof -> expect ANCHORED. No noise -- the
-// control group every noisy environment below is compared against.
+// runStableRecovery: SOVEREIGN -> heal -> RECOVERING -> wait HysteresisWait
+// -> submit proof -> ANCHORED. No-noise control for the noisy environments.
 func runStableRecovery(t *testing.T, hysteresisWait uint64) hysteresisRun {
 	t.Helper()
 	h := NewHarness(t)
@@ -102,8 +95,7 @@ func firstAnchoredHeight(h *Harness) int64 {
 	return -1
 }
 
-// disturbance describes which sensor(s) a noisy environment perturbs for
-// exactly one block.
+// disturbance perturbs which sensor(s) for exactly one noisy block.
 type disturbance func(h *Harness)
 
 var envDisturbances = map[string]disturbance{
@@ -131,11 +123,9 @@ func healSensors(h *Harness) {
 	})
 }
 
-// runNoisyRecovery: enters RECOVERING with the proof already valid, then runs
-// a fixed window of blocks where each block independently has a
-// noiseProbability chance of a 1-block disturbance (env-specific), otherwise
-// healed. Uses a fixed per-environment RNG seed so every HysteresisWait value
-// sees the identical noise sequence -- isolating HysteresisWait's effect.
+// runNoisyRecovery: enter RECOVERING with the proof valid, then run a fixed
+// window where each block independently disturbs (noiseProbability) or heals.
+// Fixed per-env RNG seed => identical noise across HysteresisWait values.
 func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresisRun {
 	t.Helper()
 	h := NewHarness(t)
@@ -151,7 +141,7 @@ func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresi
 	require.Equal(t, types.StateRecovering, h.State(), "environment %s", env)
 	h.SetReanchoringProofValid(true)
 
-	rng := rand.New(rand.NewSource(7)) // fixed seed, identical noise sequence across all HysteresisWait values
+	rng := rand.New(rand.NewSource(7)) // fixed seed: identical noise sequence across all HysteresisWait values
 	for i := 0; i < noisyWindowBlocks; i++ {
 		if rng.Float64() < noiseProbability {
 			disturb(h)

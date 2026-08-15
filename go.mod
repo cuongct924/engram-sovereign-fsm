@@ -273,18 +273,13 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Phase 7: point at the local M0a/M0b/M0c fork instead of upstream CometBFT --
-// the fork keeps the same module path (github.com/cometbft/cometbft), just at
-// a different local checkout, so no import paths change anywhere in this repo.
-// Not pushed to a remote (per repo owner's direction), hence a filesystem
-// path rather than a pseudo-version/commit reference.
-// Relative (not absolute) so this resolves identically for local `go build`
-// (relative to this go.mod's own directory -- same absolute path as
-// before: .../Code/engram-consensus-core, a sibling of this repo) AND
+// Point at the local engram-consensus-core fork of CometBFT (not pushed to a
+// remote, so a filesystem path rather than a version). The fork keeps the
+// same module path (github.com/cometbft/cometbft), so no import paths change.
+// Relative (not absolute) so it resolves both for local `go build` (relative
+// to this go.mod: ../engram-consensus-core, a sibling of this repo) and
 // inside the Docker build, which copies that sibling in via BuildKit's
-// additional build context (see Dockerfile + docker/engram-validator-
-// node0N.yml's `additional_contexts`) -- an absolute host path can never
-// resolve inside a container, which is exactly what broke `docker compose
-// build` before this (found by actually running it: "reading
-// .../engram-consensus-core/go.mod: no such file or directory").
+// additional build context (see Dockerfile + docker/*.yml's
+// `additional_contexts`) -- an absolute host path can never resolve in a
+// container, which broke `docker compose build` before.
 replace github.com/cometbft/cometbft => ../engram-consensus-core

@@ -7,30 +7,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration exercises
-// the RECOVERING -> SOVEREIGN edge of spec/README.md's top-level FSM diagram
-// end-to-end, through the real BeginBlocker across multiple simulated
-// blocks -- fault_injection_test.go's S1-S7 scenarios never drive this
-// specific edge (S7 only ever goes SOVEREIGN -> RECOVERING -> ANCHORED, with
-// no regression along the way).
+// TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration exercises the
+// RECOVERING -> SOVEREIGN edge end-to-end through the real BeginBlocker
+// (S1-S7 never drive it: S7 only goes SOVEREIGN -> RECOVERING -> ANCHORED).
 //
-// It also pins down a real mismatch between spec/README.md's mermaid diagram
-// and the TLA+ CASE expression it's meant to summarize: the diagram labels
-// this edge "IsCriticalCondition", but spec/core/EngramFSM.tla actually
-// guards it with the strictly broader "~IsHealthyCondition" (gated by
-// down-hysteresis -- see below). IsHealthyCondition requires ALL of {BTC gap
-// clean, DA healthy, P2P healthy}; IsCriticalCondition only fires on BTC gap
-// >= SOVEREIGN_THRESHOLD, total anchor loss, or the suspicious-duration
-// timeout -- none of which a DA-only outage trips. This test regresses
-// RECOVERING -> SOVEREIGN using DA alone (never satisfying
-// IsCriticalCondition) to confirm keeper.CalculateNextState (and hence the
-// real chain) follows the TLA+ CASE expression, not the diagram's label.
+// It also pins a real spec/README.md diagram mismatch: the mermaid diagram
+// labels this edge "IsCriticalCondition", but spec/core/EngramFSM.tla guards
+// it with the strictly broader "~IsHealthyCondition". IsCriticalCondition
+// fires only on BTC gap >= SOVEREIGN_THRESHOLD, total anchor loss, or the
+// suspicious-duration timeout -- a DA-only outage satisfies none. This test
+// regresses with DA alone to confirm CalculateNextState follows the TLA+ CASE
+// expression, not the diagram's label.
 //
-// E5's flapping fix (docs/EXPERIMENT.md) means a single DA-only blip no
-// longer regresses immediately: down-hysteresis absorbs it (leaking
-// safe_blocks by 1, not hard-resetting to 0), and only a SUSTAINED
-// DownHysteresisThreshold-block-long outage actually regresses to SOVEREIGN.
-// This test drives both halves of that behavior explicitly.
+// E5's flapping fix means a single DA-only blip no longer regresses: down-
+// hysteresis absorbs it (safe_blocks leaks by 1, not reset to 0), and only a
+// SUSTAINED DownHysteresisThreshold-block outage regresses to SOVEREIGN.
+// Both halves are driven explicitly.
 func TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -46,19 +38,17 @@ func TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration(t *testing.T)
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State(), "healed sensors must move SOVEREIGN -> RECOVERING")
 
-	// safe_blocks only starts incrementing from the SECOND consecutive block
-	// spent in RECOVERING (NextSafeBlocks requires currentState == targetState
-	// == RECOVERING) -- advance one more healthy block so there is real
-	// hysteresis progress to lose when we regress below.
+	// safe_blocks only increments from the SECOND consecutive RECOVERING block
+	// (NextSafeBlocks needs currentState == targetState == RECOVERING) -- advance
+	// one more so there's real progress to lose on regression.
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State())
 	beforeOutage := h.Timeline()[len(h.Timeline())-1]
 	require.Greater(t, beforeOutage.SafeBlocks, uint64(0), "must have accumulated some hysteresis progress before the outage")
 
-	// DA outage begins: never satisfies IsCriticalCondition (no DA disjunct
-	// there), only ~IsHealthyCondition. The first DownHysteresisThreshold-1
-	// blocks must be ABSORBED (stay RECOVERING, safe_blocks leaking by 1 per
-	// block, not hard-reset), not regress immediately.
+	// DA outage: never satisfies IsCriticalCondition (no DA disjunct), only
+	// ~IsHealthyCondition. The first DownHysteresisThreshold-1 blocks must be
+	// ABSORBED (stay RECOVERING, safe_blocks leaking by 1, not hard-reset).
 	h.DA.SetAvailable(false)
 	for i := uint64(0); i < p.DownHysteresisThreshold-1; i++ {
 		h.Advance()
@@ -69,8 +59,7 @@ func TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration(t *testing.T)
 	require.Less(t, absorbed.SafeBlocks, beforeOutage.SafeBlocks,
 		"an absorbed outage block must leak safe_blocks by 1, not leave it untouched or hard-reset it to 0")
 
-	// Once the outage has recurred DownHysteresisThreshold times, it must
-	// finally regress.
+	// After DownHysteresisThreshold recurrences, it must finally regress.
 	h.Advance()
 	require.Equal(t, types.StateSovereign, h.State(),
 		"a SUSTAINED DA-only outage must eventually regress RECOVERING -> SOVEREIGN once down-hysteresis is exhausted")
@@ -86,17 +75,14 @@ func TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration(t *testing.T)
 
 // TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch covers
 // HysteresisSafety's "restarting the recovery process from the beginning"
-// clause (spec/README.md's Hysteresis Mechanism section): once a RECOVERING
-// attempt regresses back to SOVEREIGN, a second, later recovery attempt must
-// NOT inherit any safe_blocks progress from the first -- it has to
-// accumulate HysteresisWait again from zero.
+// clause: after a RECOVERING attempt regresses to SOVEREIGN, a second attempt
+// must NOT inherit safe_blocks -- it accumulates HysteresisWait from zero.
 func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
 
-	// First attempt: reach SOVEREIGN, heal, fully satisfy hysteresis in
-	// RECOVERING (but never submit a proof), then regress on a fresh, genuine
-	// critical failure.
+	// First attempt: reach SOVEREIGN, heal, fully satisfy hysteresis (no proof),
+	// then regress on a fresh genuine critical failure.
 	h.BTC.SetGap(p.SovereignThreshold)
 	h.Advance()
 	h.BTC.SetGap(0)
@@ -114,10 +100,9 @@ func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	h.Advance()
 	require.Equal(t, types.StateSovereign, h.State())
 
-	// Second attempt: heal again and recover from scratch. If safe_blocks had
-	// carried over from the first attempt, HysteresisWait would already be
-	// satisfied on the very first RECOVERING block of this second attempt --
-	// assert it is NOT.
+	// Second attempt: heal and recover from scratch. If safe_blocks carried over,
+	// HysteresisWait would already be satisfied on the first RECOVERING block
+	// of this attempt -- assert it is NOT.
 	h.BTC.SetGap(0)
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State())

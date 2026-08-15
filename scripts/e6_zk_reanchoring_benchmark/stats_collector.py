@@ -43,13 +43,12 @@ def build_table6a(rows):
     Table 6A -- Circuit Composition.
 
     The circuit (circuit/reanchoring/src/main.nr) has no separate SMT
-    inclusion/update subcircuit like docs/EXPERIMENT.md's original design
-    sketch envisioned (documented simplification: header-chain continuity
-    via Poseidon2 hashing stands in for a real SMT proof -- see the circuit's
-    header comment). So instead of an assumed static %-breakdown per
-    subcomponent, this derives a real two-term cost model -- fixed overhead
-    (Honk's lookup-table setup, independent of N) and marginal per-header
-    cost -- via linear regression across the N points actually measured.
+    inclusion/update subcircuit like docs/EXPERIMENT.md's original sketch
+    (documented simplification: header-chain continuity via Poseidon2 stands
+    in for a real SMT proof). Instead of an assumed static %-breakdown, this
+    derives a real two-term cost model -- fixed overhead (Honk's lookup-table
+    setup, independent of N) and marginal per-header cost -- via linear
+    regression across the N points actually measured.
     """
     n = np.array([r["n"] for r in rows], dtype=float)
     opcodes = np.array([r["acir_opcodes"] for r in rows], dtype=float)

@@ -2,11 +2,10 @@
 """E3/E4 LIVE (real docker testnet, real Pumba injection) -- distinct from
 scripts/e3_failure_matrix/measure_latency.py (reads tests/e2e/results/*.csv,
 in-process mock-sensor harness) and scripts/e4_p2p_eclipse_detection/
-simulate_eclipse_attack.py (synthetic Monte Carlo, no live network). This
-script instead drives the REAL 4-node engram-nodeNN testnet, injects a REAL
-Pumba chaos profile (root compose.yml's pumba-latency/loss/kill/eclipse
-services), and polls the real nodes' RPC/ABCI-query state throughout via
-scripts/framework/logger.py.
+simulate_eclipse_attack.py (synthetic Monte Carlo). Drives the REAL 4-node
+engram-nodeNN testnet with a REAL Pumba chaos profile (root compose.yml's
+pumba-latency/loss/kill/eclipse services) and polls real nodes' RPC/ABCI-query
+state throughout via scripts/framework/logger.py.
 
 Usage:
     python3 scripts/e3_failure_matrix/live_chaos_experiment.py chaos-delay

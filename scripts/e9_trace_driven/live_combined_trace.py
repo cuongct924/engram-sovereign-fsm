@@ -2,31 +2,30 @@
 """LIVE E9 combined-failure trace against the real 4-node testnet --
 docs/EXPERIMENT.md's E9 capstone: ONE continuous run layering multiple
 overlapping peripheral failures (not sequential isolated toggles like
-scripts/e3_failure_matrix/live_lifecycle_test.py), matching the doc's intent
-of a genuinely compounding stress trace across all 3 peripheral systems.
+live_lifecycle_test.py), a genuinely compounding stress trace across all 3
+peripheral systems.
 
 Run LAST, after these prerequisite mechanisms have each been individually
-validated in isolation -- betting a long combined run on unproven
-mechanisms compounds the risk of an inconclusive result:
-  - scripts/e2_fault_injection/live_scenario_matrix.py's S2 leg (confirms
-    whether chaos-btc-delay actually produces a gradual btc_gap ramp).
-  - scripts/e4_p2p_eclipse_detection/live_sybil_attack.py or
-    injector.toggle_profile_bursts (confirms real P2P churn behavior).
+validated in isolation -- betting a long combined run on unproven mechanisms
+compounds the risk of an inconclusive result:
+  - live_scenario_matrix.py's S2 leg (confirms chaos-btc-delay actually
+    produces a gradual btc_gap ramp).
+  - live_sybil_attack.py or injector.toggle_profile_bursts (confirms real
+    P2P churn behavior).
 
 Layering, one continuous timeline (not sequential):
   1. chaos-btc-delay ramp starts (BTC congestion pressure builds).
   2. WHILE BTC pressure is active and the FSM has likely reached SOVEREIGN,
-     overlay docker stop celestia-bridge (DA outage layered ON TOP, not
-     replacing the BTC pressure).
+     overlay docker stop celestia-bridge (DA outage layered ON TOP).
   3. WHILE both are still active, overlay a P2P churn burst
      (injector.toggle_profile_bursts("chaos-loss", ...)) -- three
      simultaneous fault classes at once.
   4. Heal in reverse order: P2P churn stops, then DA restored, then BTC
      delay profile expires/is cleaned up.
   5. Recovery to real ANCHORED via the real ZK re-anchoring pipeline
-     (REQUIRES scripts/reanchoring_prover/watch_and_prove.sh already
-     running in the background separately, same requirement as
-     live_lifecycle_test.py's/live_scenario_matrix.py's final phase).
+     (REQUIRES scripts/reanchoring_prover/watch_and_prove.sh running in the
+     background separately, same requirement as live_lifecycle_test.py's/
+     live_scenario_matrix.py's final phase).
 
 Usage:
     python3 -u scripts/e9_trace_driven/live_combined_trace.py
@@ -140,11 +139,11 @@ def main():
         default="chaos-wan-latency",
         help="per-validator WAN-realism baseline (each of the 4 validators gets a DIFFERENT "
         "delay/jitter or loss%%, approximating distinct real regions) held for the whole trace "
-        "EXCEPT Phase 4, which needs the same root netem qdisc slot for chaos-loss's own P2P "
-        "churn burst -- paused before Phase 4, resumed after. 'none' reproduces the old "
-        "uniform-LAN behavior. The profile's own --duration is 10 minutes; a slow Phase 7 can "
-        "outlast it, silently reverting to uniform-LAN for the remainder -- not fatal, Phase 7 "
-        "only waits for recovery, it doesn't need WAN chaos active to succeed.",
+        "EXCEPT Phase 4 -- chaos-wan-* and chaos-loss both add a root netem qdisc on the same "
+        "interfaces, so the WAN baseline is paused before Phase 4 and resumed after. 'none' "
+        "reproduces the old uniform-LAN behavior. The profile's own --duration is 10 minutes; a "
+        "slow Phase 7 can outlast it, silently reverting to uniform-LAN for the remainder -- not "
+        "fatal, Phase 7 only waits for recovery.",
     )
     args = parser.parse_args()
 
@@ -240,12 +239,12 @@ def main():
     print(f"wrote summary to {summary_path}")
     print(
         f"\nNote: a 6-panel timeline figure (BTC gap / DA gap / P2P health / block commit rate / "
-        f"withdrawal-lock status / proof-generation status, matching the existing "
-        f"figure2_trace_timeline layout) is NOT auto-generated here -- BTC/DA/P2P gap values are "
-        f"not available from committed state (same limitation as measure_latency_live.py's table; "
-        f"see x/sovereignty/preblock.go's NewPreBlocker doc) -- only fsm_state/height/markers are "
-        f"real live data. A figure built from this CSV would need to substitute those 3 panels for "
-        f"ones derived from what's actually observable (fsm_state timeline, transition markers)."
+        f"withdrawal-lock status / proof-generation status, matching figure2_trace_timeline's "
+        f"layout) is NOT auto-generated here -- BTC/DA/P2P gap values are not available from "
+        f"committed state (same limitation as measure_latency_live.py's table; see "
+        f"x/sovereignty/preblock.go's NewPreBlocker doc) -- only fsm_state/height/markers are "
+        f"real live data. live_figure_builder.py builds a substitute figure from what IS "
+        f"observable."
     )
 
 
