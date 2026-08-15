@@ -382,13 +382,25 @@ Live (pairwise-link topology):
 | `AbsorbedEvents` / `RealTransitions` / `AbsorptionRate` | noise absorbed vs. actually transitioned, at the edge under test |
 | `TimeOutsideAnchored` / `DemotionCount` | for ANCHORED-starting scenarios only |
 
+**Live vs. in-process — one finding shared across all three edges below:** every parameter is
+swept twice — the existing fixed-seed in-process sweep, and a real 4-node Docker live spot-check.
+All three edges show the same pattern: the in-process curve is clean and monotonic; the live curve
+is not. Each live value is a separate genesis reset and a separate real noise draw — a confound
+the in-process fixed seed removes by construction but a real deployment can't. This divergence is
+the section's headline result and isn't re-derived per edge below; each subsection reports only
+its own numbers and what's specific to it.
+
+5b/5c's live spot-checks run one noise source only (`celestia-bridge` stop/start); unlike 5a's
+`live_spot_check.py`, `live_spot_check_absorb.py` never implemented a `stable` (no-noise) baseline
+option, so there is no 5b/5c equivalent of 5a's `stable` column — a live-tooling scope gap, not a
+missing measurement of an existing option.
+
 **5a — Up-hysteresis (RECOVERING → ANCHORED)**
 
 * *Method:* `TestE5_HysteresisSweep`, `HYSTERESIS_WAIT` ∈ {0,1,3,5,10,20} × 5 environments
   (critical-level `noisy_btc`/`combined_adversarial`, warning-level `noisy_da`/`noisy_p2p`,
-  `stable`), fixed-seed 20%-per-block noise. Live spot-check: each `HYSTERESIS_WAIT` value needs
-  its own genesis (`ENGRAM_PARAM_HYSTERESIS_WAIT`, set at genesis-generation time —
-  `docs/DEVELOPMENT.md` §3) and a real 300s window.
+  `stable`), fixed-seed 20%-per-block noise. Live: own genesis per value
+  (`ENGRAM_PARAM_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md` §3), real 300s window.
 
 * *Results:* `noisy_btc` uptime 59.8%→0.0%, flapping 10→37 as HW 0→20
   (`tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4).
@@ -409,12 +421,8 @@ Live (pairwise-link topology):
   | 20 | stable | 0 | 0 | 100.00% |
   | 20 | noisy_da | 11 | 14 | 1.04% |
 
-  `stable` clean at every value; `noisy_da` non-monotonic — uptime rises HW 0→5
-  (11.70%→15.29%→18.75%) then collapses to ~1% at HW≥10, unlike the in-process curve's smooth
-  monotonic decrease. Attributed to live timing/network variance the in-process fixed RNG seed
-  removes by construction — each `HYSTERESIS_WAIT` value here is a separate genesis reset and a
-  separate real noise injection, a confound live testing can't control for the way a shared seed
-  does in-process (`scripts/e5_hysteresis_flapping/results_live/`, live Figure 4).
+  `stable` clean at every value; `noisy_da` rises HW 0→5 (11.70%→18.75%) then collapses to ~1% at
+  HW≥10 (`scripts/e5_hysteresis_flapping/results_live/`, live Figure 4).
 
 * *Conclusion:* negative result — critical-level noise bypasses hysteresis entirely by design
   (`IsCriticalCondition` checked first, before any absorption), so a longer required streak only
@@ -424,15 +432,12 @@ Live (pairwise-link topology):
 **5b — Down-hysteresis (ANCHORED → SUSPICIOUS)**
 
 * *Method:* `TestE5b_DownHysteresisSweep`, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × 4
-  warning-level environments (`warning_btc`, `noisy_da`, `noisy_p2p`, `combined_warning`), same
-  20%-per-block model, starting ANCHORED. Formally specified in `spec/core/EngramFSM.tla` as an
-  extension of `HysteresisSafety`; `StrictFSMTransitionSafety` is unaffected (only *when* a
-  transition fires changes, never which edges are legal), confirmed by the same
-  `MC_FSMSafety`/`MC_FSMLiveness` re-verification cited under E1.
+  warning-level environments, starting ANCHORED. Formally specified in `spec/core/EngramFSM.tla`
+  (extends `HysteresisSafety`; `StrictFSMTransitionSafety` unaffected), re-verified under E1's TLC run.
 
 * *Results:* `AnchoredUptime` 61%→100%, `AbsorptionRate` 0%→100% as threshold 1→8, all 4
   environments identical (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`);
-  `WithdrawalBlocked=0` throughout, confirmed by an explicit test assertion.
+  `WithdrawalBlocked=0` throughout.
 
   Live spot-check (5×1, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × `noisy_da`, 300s/run):
 
@@ -445,36 +450,24 @@ Live (pairwise-link topology):
   | 8 | 8 | 13 | 28.24% |
 
   3 of 4 validators agree exactly at every threshold; node04 diverges by ±1 transition/flapping at
-  threshold=1 (15/5, not 14/6) and threshold=2 (8 transitions and 5.63% uptime, not 7 and 4.23%) --
-  a granularity-caveat artifact (see this table's source script's doc), not a consensus
-  divergence. Table shows the 3/4 majority value.
+  threshold=1 and 2 — a granularity-caveat artifact (fixed-interval polling can catch a transition
+  on a different side across nodes), not a consensus divergence. Table shows the 3/4 majority value.
 
-  Non-monotonic, unlike the in-process curve's clean 61%→100% rise — uptime jumps
-  13%→4%→30%→36%→28% across threshold 1→8, and threshold=2 (the production default) measures the
-  *lowest* live uptime of the five. Same attribution as 5a's live spot-check: each threshold value
-  is a separate genesis reset and a separate real noise injection, a confound live testing can't
-  control for the way a shared seed does in-process (`scripts/e5_hysteresis_flapping/results_live/`).
-
-* *Conclusion:* a clean positive result in-process, unlike 5a — this parameter is swept against
-  exactly the noise level it's designed to absorb. Live tells a different story: uptime is
-  non-monotonic across threshold, and the production default underperforms every other value
-  tested — not evidence the default is wrong (n=1 per value), but a concrete instance of the same
-  in-process-vs-live divergence 5a already found, now confirmed on a second hysteresis edge.
+* *Conclusion:* a clean positive result in-process — this parameter is swept against exactly the
+  noise level it's designed to absorb. Live doesn't confirm it: uptime is non-monotonic, and the
+  production default (threshold=2) measures the *lowest* live uptime of the five tested (n=1/value,
+  not conclusive on its own).
 
 **5c — SUSPICIOUS-exit hysteresis (SUSPICIOUS → ANCHORED)**
 
-* *Method:* `TestE5c_SuspiciousExitHysteresisSweep`, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, a
-  sustained-warning baseline with 20%-per-block healthy blips, starting SUSPICIOUS — the "Gray
-  Failure Arbitrage" attack shape this mechanism closes. Formally specified in
-  `spec/core/EngramFSM.tla` (`SuspiciousHysteresisSafety`, mirroring `HysteresisSafety`). TLC
-  re-verification (`MC_FSMSafety`/`MC_FSMLiveness`/`MC_ServerRefinementSafety`) against the
-  complete spec — down-hysteresis, backoff, and this fix together — is pending, to run once
-  against the whole set rather than once per mechanism.
+* *Method:* `TestE5c_SuspiciousExitHysteresisSweep`, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8},
+  starting SUSPICIOUS — the "Gray Failure Arbitrage" attack shape this closes. Formally specified
+  (`SuspiciousHysteresisSafety`); full-spec TLC re-verification alongside down-hysteresis/backoff
+  is still pending.
 
-* *Results:* `AbsorptionRate` rises 0%→100% as SHW 1→4, but `suspicious_duration` accumulates on
-  every absorbed block and hits `MaxSuspiciousTime`(24) mid-run at SHW≥4, forcing SOVEREIGN
-  regardless of SHW. Only SHW=1,2 stay under the cap and reach ANCHORED (`AnchoredUptime` 43%,
-  17%) (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`).
+* *Results:* `AbsorptionRate` rises 0%→100% as SHW 1→4, but `suspicious_duration` hits
+  `MaxSuspiciousTime`(24) mid-run at SHW≥4, forcing SOVEREIGN regardless. Only SHW=1,2 stay under
+  the cap and reach ANCHORED (`AnchoredUptime` 43%, 17%) (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`).
 
   Live spot-check (5×1, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, 300s/run, driven to SUSPICIOUS
   via a real `celestia-bridge` stop before each window):
@@ -487,23 +480,14 @@ Live (pairwise-link topology):
   | 6 | 2 | 12 | 15.79% |
   | 8 | 0 | 12 | 17.11% |
 
-  All 4 validators agree exactly at every SHW value except SHW=2, an even 2/2 split on uptime
-  (36.46% vs. 37.50%, transitions/flapping identical across all 4) -- a granularity-caveat
-  artifact, not a consensus divergence. Table shows one side of that split.
+  Same granularity artifact as 5b: all 4 validators agree except SHW=2, an even 2/2 split on
+  uptime (36.46% vs. 37.50%); table shows one side.
 
-  Flapping falls monotonically (8→13→6→2→0) as SHW grows — unlike uptime, this half matches
-  mechanistic expectation directly: a longer consecutive-healthy-block requirement makes an
-  immediate exit-then-re-enter cycle structurally harder, regardless of noise timing. Uptime stays
-  non-monotonic (peaks at SHW=2, not at either extreme) and diverges in direction from the
-  in-process sweep's own 43%→17% drop at SHW 1→2 — live rises at that same step instead. Same
-  genesis/noise-realization confound as 5a/5b (`scripts/e5_hysteresis_flapping/results_live/`).
-
-* *Conclusion:* a real tuning tension in-process, mirroring 5a's asymmetry from the opposite
-  direction — absorbing more noise on this edge accelerates the very escalation the absorption is
-  meant to buy time against. Live confirms flapping itself behaves exactly as designed (falls
-  monotonically with SHW), but uptime does not track the in-process curve at all, including
-  disagreeing on which direction the 1→2 step moves — a third hysteresis edge (after 5a, 5b) where
-  live timing overturns an in-process trend the model checker's fixed seed can't expose.
+* *Conclusion:* a real tuning tension in-process — absorbing more noise on this edge accelerates
+  the very escalation the absorption is meant to buy time against. Live confirms the flapping half
+  of that mechanism works exactly as designed (falls monotonically 8→0 as SHW grows); the uptime
+  half doesn't track the in-process curve at all, including disagreeing on which direction the
+  1→2 step moves.
 
 **Open question — asymmetric hardening:** exponential backoff exists only on RECOVERING→SOVEREIGN.
 The same fixed-cost, repeatable-attack shape it defends against exists structurally on
