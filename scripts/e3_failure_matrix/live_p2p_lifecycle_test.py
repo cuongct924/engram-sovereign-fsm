@@ -1,26 +1,15 @@
 #!/usr/bin/env python3
 """LIVE full-lifecycle fault-injection test against the real 4-node docker
-testnet, driving a REAL P2P link failure (docker network disconnect/connect
+testnet, driving a real P2P link failure (docker network disconnect/connect
 on 2 validator-link-* networks) instead of live_lifecycle_test.py's
 celestia-bridge stop/start.
 
-A full DA outage cannot demonstrate ANCHORED -> SUSPICIOUS: da.VerifyReceipt
-(x/da/verify.go, port of IsValidProposal's DA Pipeline Check,
-spec/core/EngramTendermint.tla:290-294) requires every ANCHORED/RECOVERING
-proposal to carry a FRESH DA attestation. With celestia-bridge fully down no
-proposal can attest, so the chain can't commit ANY block while ANCHORED --
-including one that would just absorb a warning. UnhealthyStreak can never
-reach DownHysteresisThreshold, so SUSPICIOUS is unreachable; the only escape
-is BTC's own height drifting past SOVEREIGN_THRESHOLD (BTC keeps mining
-independently), forcing a direct ANCHORED -> SOVEREIGN jump. This is a
-genuine liveness gap between the abstract spec (instantaneous attestation)
-and the concrete pipeline's real submission latency -- not a coding bug, and
-not this script's concern to fix.
-
-P2P health has no equivalent hard gate: ProcessProposal never requires a
+P2P health has no hard attestation gate: ProcessProposal never requires a
 "P2P attestation" before committing, so a P2P warning is absorbed normally,
 UnhealthyStreak accumulates and genuinely reaches SUSPICIOUS, then (via the
-same sustained-SUSPICIOUS gray-failure timeout) SOVEREIGN.
+same sustained-SUSPICIOUS gray-failure timeout) SOVEREIGN. This is why the
+full ANCHORED -> SUSPICIOUS -> SOVEREIGN -> RECOVERING -> ANCHORED cycle is
+reachable here but not via a full DA outage.
 
 Fault mechanism: disconnect 2 of the 6 validator-link-* networks (perfect
 matching -- 01-02 and 03-04 -- so all 4 validators lose exactly 1 of their 3

@@ -5,14 +5,13 @@ E3 LIVE -- External-Dependency Failure Matrix from REAL docker cluster data
 results_live/s*.csv (live_scenario_matrix.py's output) instead of
 tests/e2e/results/s*.csv's in-process mock-harness data.
 
-Honest limitation vs. the in-process version (measure_latency.py): the live
-CSVs carry NO btc_gap/da_healthy/p2p_healthy columns -- NewPreBlocker
-deliberately never writes live PeripheralMetrics into committed state (it
-once caused a real AppHash-divergence consensus failure across the 4-node
-testnet; the in-process Harness has no such constraint since it isn't
-ABCI-committed state). So this table reports what IS honestly observable
-live (fsm_state, height, withdrawal-lock status computed from fsm_state
-alone) and omits the condition columns rather than fabricating them.
+The live CSVs carry NO btc_gap/da_healthy/p2p_healthy columns: NewPreBlocker
+deliberately never writes live PeripheralMetrics into committed state (writing
+it caused a real AppHash-divergence consensus failure; the in-process Harness
+has no such constraint since it isn't ABCI-committed state). So this table
+reports what IS honestly observable live (fsm_state, height, withdrawal-lock
+status computed from fsm_state alone) and omits the condition columns rather
+than fabricating them.
 
 Usage:
     python3 -u scripts/e2_fault_injection/live_scenario_matrix.py   # generate the live CSVs first

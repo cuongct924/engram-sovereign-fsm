@@ -3,12 +3,11 @@
 E3 -- External-Dependency Failure Matrix (docs/EXPERIMENT.md's E3, Table 2).
 
 Builds Table 2 (BTC/DA/P2P condition -> observed FSM state/withdrawal
-policy/block production) from REAL data in tests/e2e/results/s*.csv, instead
-of the hand-written aspirational table in the design doc. Each scenario's
-final (steady-state) row is taken as the settled outcome for its input
-condition. "Block production" is reported as continuous for every row here
+policy/block production) from REAL data in tests/e2e/results/s*.csv. Each
+scenario's final (steady-state) row is taken as the settled outcome for its
+input condition. "Block production" is reported as continuous for every row
 because tests/e2e/harness.go's Advance() never blocked or errored across any
-scenario -- that is itself part of the real result, not an assumption.
+scenario.
 
 Usage:
     go test ./tests/e2e/...          # regenerate tests/e2e/results/*.csv

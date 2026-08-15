@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LIVE full-lifecycle fault-injection test against the real 4-node docker
 testnet -- docs/EXPERIMENT.md's E2/E3 blueprint (S3 DA unavailable + S7
-Recovery), driving the REAL celestia-bridge/celestia-app containers
+Recovery), driving the real celestia-bridge/celestia-app containers
 (docker stop/start) instead of tests/e2e's mock-sensor Harness.
 
 Exercises every edge in the full lifecycle:

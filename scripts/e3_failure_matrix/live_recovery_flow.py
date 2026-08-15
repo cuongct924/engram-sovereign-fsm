@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """LIVE recovery-flow observation against the real 4-node docker testnet --
 real e2e data on the FSM transitioning SOVEREIGN -> RECOVERING -> ANCHORED
-on the LIVE network (not tests/e2e's in-process mock harness, which already
-covers this synthetically in TestE2_S7_Recovery / TestRecoveryFlow_*).
+on the live network (tests/e2e's in-process mock harness already covers this
+synthetically in TestE2_S7_Recovery / TestRecoveryFlow_*).
 
 Polls all 4 real nodes' RPC/ABCI-query state continuously, prints every real
 state transition as it happens, and writes a full CSV timeline + markdown
