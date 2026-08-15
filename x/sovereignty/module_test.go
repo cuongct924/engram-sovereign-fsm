@@ -57,12 +57,9 @@ func TestAppModuleBasic_ValidateGenesis_RejectsMalformedJSON(t *testing.T) {
 	require.Error(t, basic.ValidateGenesis(cdc, nil, []byte("not json")))
 }
 
-// TestAppModule_InitGenesis_SetsEveryCounter guards against a real regression:
-// UnhealthyStreak/FailedRecoveryAttempts/SuspiciousSafeBlocks are genesis
-// fields (genesis.proto's fields 8-10, backing E5b/5c/backoff's TLA+
-// counters) that InitGenesis silently dropped until this test was added --
-// invisible at fresh genesis (Go zero-value already 0) but would have reset
-// all 3 counters on every genesis export/import.
+// TestAppModule_InitGenesis_SetsEveryCounter guards the regression InitGenesis
+// used to have: UnhealthyStreak/FailedRecoveryAttempts/SuspiciousSafeBlocks
+// were silently dropped, invisible at fresh genesis but reset on export/import.
 func TestAppModule_InitGenesis_SetsEveryCounter(t *testing.T) {
 	mod, k, ctx, cdc := newTestModule(t)
 

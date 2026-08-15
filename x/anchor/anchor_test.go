@@ -15,10 +15,8 @@ import (
 )
 
 // fakeBitcoindHandler routes RPCClient's JSON-RPC calls to a per-method
-// canned response and counts calls -- a self-contained stand-in for real
-// bitcoind so AnchorTracker's submit/confirm state machine can be
-// unit-tested without docker/bitcoin-regtest-cluster.yml (that's
-// rpc_smoke_test.go's job, gated behind -tags btcsmoke).
+// canned response and counts calls -- a stand-in for real bitcoind so
+// AnchorTracker's state machine can be unit-tested without live infra.
 type fakeBitcoindHandler struct {
 	mu     sync.Mutex
 	calls  map[string]int
@@ -72,11 +70,8 @@ func (h *fakeBitcoindHandler) callCount(method string) int {
 	return h.calls[method]
 }
 
-// wireSuccessfulSubmit registers the 5-RPC chain SubmitOpReturn needs
-// (createrawtransaction -> fundrawtransaction -> decoderawtransaction ->
-// signrawtransactionwithwallet -> sendrawtransaction), plus lockunspent's
-// deferred unlock, all with fixed canned success responses -- the shape every
-// MaybeSubmit test that reaches an actual broadcast needs.
+// wireSuccessfulSubmit registers the 5-RPC chain SubmitOpReturn needs, plus
+// lockunspent's deferred unlock, with fixed canned success responses.
 func (h *fakeBitcoindHandler) wireSuccessfulSubmit(txid string) {
 	h.on("createrawtransaction", func() (any, error) { return "deadbeef", nil })
 	h.on("fundrawtransaction", func() (any, error) {
@@ -140,11 +135,8 @@ func TestAnchorTracker_MaybeSubmit_NotConfirmedBelowKDeepPlusOne(t *testing.T) {
 }
 
 // TestAnchorTracker_MaybeSubmit_ConfirmsAndImmediatelySubmitsNextInSameCall
-// covers MaybeSubmit's "resolved -- free to submit the next one below"
-// comment literally: the call that CONFIRMS a pending submission falls
-// through, unconditionally, to broadcasting the next one in that same
-// invocation -- callers relying on a separate later call to see the
-// resubmission would be off by one.
+// confirms the call that CONFIRMS a pending submission also broadcasts the
+// next one, in that same invocation -- not a separate later call.
 func TestAnchorTracker_MaybeSubmit_ConfirmsAndImmediatelySubmitsNextInSameCall(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")

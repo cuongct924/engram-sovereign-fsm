@@ -17,10 +17,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// newTestKeeperCtxAt mirrors newTestKeeperCtx (proposal_test.go) but with a
-// caller-controlled height/AppHash -- CommitFSMTransition's HeaderHistory/
-// LastAnchoredRoot writes (preblock.go's Step 6) key off both, so the
-// default-zero header proposal_test.go's helper uses can't exercise them.
+// newTestKeeperCtxAt mirrors newTestKeeperCtx but with a caller-controlled
+// height/AppHash, since Step 6's HeaderHistory/LastAnchoredRoot writes key off both.
 func newTestKeeperCtxAt(t *testing.T, height int64, appHash []byte) (*keeper.Keeper, sdk.Context) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
@@ -38,10 +36,8 @@ func lockedExt(state string) sovereignty.ExtendedProposal {
 }
 
 // TestCommitFSMTransition_HeaderHistory_FirstEntryWritesLastAnchoredRoot
-// covers Step 6's "first entry into the interval" branch: ANCHORED ->
-// SOVEREIGN must latch LastAnchoredRoot to the incoming block's AppHash (the
-// pre-interval root headers[0].prev_hash binds to) and write this block's own
-// HeaderHistory entry.
+// covers ANCHORED -> SOVEREIGN: latches LastAnchoredRoot to the incoming
+// block's AppHash and writes this block's own HeaderHistory entry.
 func TestCommitFSMTransition_HeaderHistory_FirstEntryWritesLastAnchoredRoot(t *testing.T) {
 	appHash := []byte{0xAA, 0xBB, 0xCC}
 	k, ctx := newTestKeeperCtxAt(t, 100, appHash)
@@ -64,10 +60,8 @@ func TestCommitFSMTransition_HeaderHistory_FirstEntryWritesLastAnchoredRoot(t *t
 }
 
 // TestCommitFSMTransition_HeaderHistory_ContinuingIntervalPreservesLastAnchoredRoot
-// covers staying locked (SOVEREIGN -> RECOVERING, both WithdrawLocked): a new
-// HeaderHistory entry is written, but LastAnchoredRoot -- rt_last, the
-// pre-interval anchor -- must NOT move, or every header after the first would
-// bind to a moving target instead of the actual interval start.
+// covers staying locked (SOVEREIGN -> RECOVERING): a new HeaderHistory entry
+// is written, but LastAnchoredRoot (rt_last) must not move.
 func TestCommitFSMTransition_HeaderHistory_ContinuingIntervalPreservesLastAnchoredRoot(t *testing.T) {
 	k, ctx := newTestKeeperCtxAt(t, 101, []byte{0xDE, 0xAD})
 	require.NoError(t, k.FSMState.Set(ctx, types.StateSovereign))
@@ -88,9 +82,7 @@ func TestCommitFSMTransition_HeaderHistory_ContinuingIntervalPreservesLastAnchor
 }
 
 // TestCommitFSMTransition_HeaderHistory_AccumulatesAcrossMultipleBlocks drives
-// 3 real blocks (ANCHORED -> SOVEREIGN -> RECOVERING, staying locked
-// throughout) against ONE keeper/store and confirms every height's own header
-// survives -- Step 6 must accumulate, never overwrite a prior height.
+// 3 real blocks against one keeper/store and confirms every height's header survives.
 func TestCommitFSMTransition_HeaderHistory_AccumulatesAcrossMultipleBlocks(t *testing.T) {
 	storeService, rawCtx := colltest.MockStore()
 	k := keeper.NewKeeper(storeService, nil)
@@ -115,10 +107,8 @@ func TestCommitFSMTransition_HeaderHistory_AccumulatesAcrossMultipleBlocks(t *te
 	require.Equal(t, types.ReduceToField([]byte{0x10}), root)
 }
 
-// TestCommitFSMTransition_HeaderHistory_PrunedOnReturnToAnchored covers Step
-// 6's other branch: RECOVERING -> ANCHORED must clear every HeaderHistory
-// entry from the closed interval, so the next SOVEREIGN/RECOVERING interval
-// starts from an empty witness chain rather than inheriting stale headers.
+// TestCommitFSMTransition_HeaderHistory_PrunedOnReturnToAnchored confirms
+// RECOVERING -> ANCHORED clears every HeaderHistory entry from the closed interval.
 func TestCommitFSMTransition_HeaderHistory_PrunedOnReturnToAnchored(t *testing.T) {
 	k, ctx := newTestKeeperCtxAt(t, 50, []byte{0x50})
 	require.NoError(t, k.HeaderHistory.Set(ctx, 48, types.RecoveryHeader{FsmState: types.StateSovereign, WithdrawalLocked: true, StateRoot: []byte("h48")}))
@@ -136,9 +126,7 @@ func TestCommitFSMTransition_HeaderHistory_PrunedOnReturnToAnchored(t *testing.T
 }
 
 // TestCommitFSMTransition_HeaderHistory_NoWriteWhileStayingAnchored confirms
-// Step 6 is a strict no-op outside WithdrawLocked -- ANCHORED -> ANCHORED
-// (the steady-state, every-block case) must never touch HeaderHistory or
-// LastAnchoredRoot.
+// ANCHORED -> ANCHORED never touches HeaderHistory or LastAnchoredRoot.
 func TestCommitFSMTransition_HeaderHistory_NoWriteWhileStayingAnchored(t *testing.T) {
 	k, ctx := newTestKeeperCtxAt(t, 5, []byte{0x05})
 

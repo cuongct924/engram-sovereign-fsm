@@ -2,20 +2,13 @@
 
 package da_test
 
-// Manual, opt-in smoke test against a REAL running celestia-bridge
-// (docker/celestia-local-cluster.yml) -- build-tag gated out of normal test
-// runs (no celestia-bridge in CI), mirroring x/anchor/rpc_smoke_test.go's
-// pattern. Run explicitly:
+// Manual, opt-in smoke test against a REAL celestia-bridge, mirroring
+// x/anchor/rpc_smoke_test.go's pattern. Reads its endpoint/token from the
+// environment (fetched fresh per redeploy, unlike bitcoind's fixed creds).
 //
 //	CELESTIA_BRIDGE_URL=http://127.0.0.1:26658 \
 //	CELESTIA_BRIDGE_AUTH_TOKEN=$(grep ^CELESTIA_BRIDGE_AUTH_TOKEN .env | cut -d= -f2) \
 //	go test -tags celestiasmoke ./x/da/... -run LiveSmoke -v
-//
-// Unlike x/anchor's smoke test (bitcoind's regtest RPC user/password are
-// fixed in .env.example), the bridge's auth JWT is fetched fresh per
-// redeploy (scripts/testnet_fetch_celestia_token.sh) -- there's no fixed
-// value to hardcode, so this reads both from the environment and skips with
-// a clear message if unset, rather than failing opaquely.
 
 import (
 	"context"
@@ -50,10 +43,8 @@ func TestRPCClient_LiveSmoke(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("submitted at celestia height: %d", height)
 
-	// blob.Submit already waits out Celestia's own inclusion (~12s block
-	// time, see Submit's doc) before returning, so the blob should be
-	// retrievable immediately -- poll briefly anyway rather than assume a
-	// single immediate check, since availability is a separate RPC path.
+	// Submit already waits out Celestia's ~12s inclusion, but availability is
+	// a separate RPC path -- poll briefly rather than assume one check.
 	require.Eventually(t, func() bool {
 		available, err := c.Available(ctx, height, ns)
 		return err == nil && available
@@ -70,9 +61,8 @@ func TestPublisher_LiveSmoke(t *testing.T) {
 
 	require.NoError(t, p.MaybePublish(context.Background(), 999, []byte("engram-publisher-smoke")))
 
-	// MaybePublish's own Submit runs in a background goroutine (~12s
-	// Celestia inclusion); a second call is what checks Available() against
-	// the pending submission and marks it verified once retrievable.
+	// Submit runs in a background goroutine; a second call checks Available()
+	// against the pending submission and marks it verified once retrievable.
 	require.Eventually(t, func() bool {
 		require.NoError(t, p.MaybePublish(context.Background(), 999, nil))
 		_, ok := p.VerifiedHeight()

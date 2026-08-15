@@ -15,11 +15,8 @@ import (
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 )
 
-// runForcedTxDryRun invokes txSubmitForcedTxCmd's RunE directly (bypassing
-// cobra's arg-parsing/usage machinery, matching reanchor_cli_test.go's
-// preference for exercising real behavior over mocks) and captures --dry-run's
-// output, since it writes via fmt.Println directly to os.Stdout rather than
-// cmd.OutOrStdout().
+// runForcedTxDryRun invokes txSubmitForcedTxCmd's RunE directly and captures
+// --dry-run's output, which writes to os.Stdout directly, not cmd.OutOrStdout().
 func runForcedTxDryRun(t *testing.T, flags map[string]string) (string, error) {
 	t.Helper()
 	cmd := txSubmitForcedTxCmd()
@@ -43,9 +40,7 @@ func runForcedTxDryRun(t *testing.T, flags map[string]string) (string, error) {
 }
 
 // decodeForcedTx decodes dry-run's printed hex via the same TxDecoder
-// app.go's BaseApp uses (mirroring
-// TestBuildMinimalTx_IsDecodableByTheRealAppTxDecoder in reanchor_cli_test.go)
-// and returns the single MsgSubmitForcedTxRequest it carries.
+// app.go's BaseApp uses, returning the single MsgSubmitForcedTxRequest it carries.
 func decodeForcedTx(t *testing.T, hexOut string) *sovereigntytypes.MsgSubmitForcedTxRequest {
 	t.Helper()
 	txBytes, err := hex.DecodeString(hexOut)
@@ -112,10 +107,8 @@ func TestSubmitForcedTx_PayloadHexTakesPrecedence(t *testing.T) {
 	require.Equal(t, []byte{0xde, 0xad, 0xbe, 0xef}, got.Tx)
 }
 
-// TestSubmitForcedTx_DryRunIsDeterministic backs the same assumption as
-// reanchor_cli_test.go's TestBuildMinimalTx_IsDeterministic: no
-// timestamp/nonce/random field, so a driver can capture --dry-run's hex once
-// and later register/broadcast byte-identical content.
+// TestSubmitForcedTx_DryRunIsDeterministic confirms a driver can capture
+// --dry-run's hex once and later broadcast byte-identical content.
 func TestSubmitForcedTx_DryRunIsDeterministic(t *testing.T) {
 	first, err := runForcedTxDryRun(t, map[string]string{"dry-run": "true", "payload": "TX_WITHDRAWAL"})
 	require.NoError(t, err)

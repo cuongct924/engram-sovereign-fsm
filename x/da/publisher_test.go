@@ -15,10 +15,7 @@ import (
 )
 
 // fakeCelestiaNodeHandler mirrors x/anchor/anchor_test.go's fakeBitcoindHandler
-// -- a self-contained stand-in for real celestia-node so Publisher's
-// submit/confirm state machine can be unit-tested without
-// docker/celestia-local-cluster.yml (that's rpc_smoke_test.go's job, gated
-// behind -tags celestiasmoke).
+// -- a stand-in for real celestia-node for unit-testing Publisher's state machine.
 type fakeCelestiaNodeHandler struct {
 	mu     sync.Mutex
 	calls  map[string]int
@@ -80,9 +77,7 @@ func testPublisher(t *testing.T, srv *httptest.Server) *Publisher {
 }
 
 // waitForPendingSubmission polls until MaybePublish's background Submit
-// goroutine (see MaybePublish's doc: it runs async since blob.Submit blocks
-// ~12s for Celestia inclusion) has recorded a pending submission -- reading
-// the unexported field directly since this file shares Publisher's package.
+// goroutine has recorded a pending submission.
 func waitForPendingSubmission(t *testing.T, p *Publisher) {
 	t.Helper()
 	require.Eventually(t, func() bool {
@@ -117,10 +112,8 @@ func TestPublisher_MaybePublish_SubmitsAndBecomesPending(t *testing.T) {
 }
 
 // TestPublisher_MaybePublish_DoesNotDoubleSubmitWhileInFlight blocks
-// blob.Submit's handler so the first Submit is still running when the second
-// MaybePublish call happens -- `submitting` is set synchronously before the
-// goroutine launches (MaybePublish's own doc), so this is deterministic, not
-// a timing race.
+// blob.Submit so the first Submit is still running when the second
+// MaybePublish call happens -- deterministic, not a timing race.
 func TestPublisher_MaybePublish_DoesNotDoubleSubmitWhileInFlight(t *testing.T) {
 	release := make(chan struct{})
 	srv, h := newFakeCelestiaNode(t)
