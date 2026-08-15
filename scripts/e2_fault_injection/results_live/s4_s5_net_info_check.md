@@ -4,29 +4,25 @@ Query.State never carries ActiveAnchors/p2p_healthy (documented stale field, log
 
 | t (s) | phase | n_peers |
 |---:|---|---:|
-| 350 | S4_p2p_eclipse_partial | 3 |
+| 351 | S4_p2p_eclipse_partial | 3 |
 | 362 | S4_p2p_eclipse_partial | 3 |
-| 374 | S4_p2p_eclipse_partial | 3 |
-| 391 | S4_p2p_eclipse_partial | 3 |
-| 406 | S4_p2p_eclipse_partial | 3 |
-| 418 | S4_p2p_eclipse_partial | 3 |
-| 434 | S4_p2p_eclipse_partial | 3 |
-| 450 | S4_p2p_eclipse_partial | 3 |
-| 464 | S4_p2p_eclipse_partial | 3 |
-| 477 | S4_p2p_eclipse_partial | 3 |
-| 531 | S5_anchor_isolation | 3 |
-| 543 | S5_anchor_isolation | 3 |
-| 555 | S5_anchor_isolation | 3 |
-| 567 | S5_anchor_isolation | 3 |
-| 579 | S5_anchor_isolation | 3 |
-| 591 | S5_anchor_isolation | 3 |
-| 603 | S5_anchor_isolation | 3 |
-| 616 | S5_anchor_isolation | 3 |
-| 628 | S5_anchor_isolation | 3 |
-| 640 | S5_anchor_isolation | 3 |
-| 652 | S5_anchor_isolation | 3 |
-| 664 | S5_anchor_isolation | 3 |
-| 676 | S5_anchor_isolation | 3 |
-| 689 | S5_anchor_isolation | 3 |
-| 701 | S5_anchor_isolation | 3 |
-| 713 | S5_anchor_isolation | 3 |
+| 373 | S4_p2p_eclipse_partial | 3 |
+| 385 | S4_p2p_eclipse_partial | 3 |
+| 401 | S4_p2p_eclipse_partial | 3 |
+| 412 | S4_p2p_eclipse_partial | 3 |
+| 428 | S4_p2p_eclipse_partial | 3 |
+| 442 | S4_p2p_eclipse_partial | 3 |
+| 457 | S4_p2p_eclipse_partial | 3 |
+| 468 | S4_p2p_eclipse_partial | 3 |
+| 509 | S5_anchor_isolation | error: timed out |
+| 527 | S5_anchor_isolation | error: timed out |
+| 545 | S5_anchor_isolation | error: timed out |
+| 564 | S5_anchor_isolation | error: timed out |
+| 582 | S5_anchor_isolation | error: timed out |
+| 600 | S5_anchor_isolation | error: timed out |
+| 618 | S5_anchor_isolation | error: timed out |
+| 636 | S5_anchor_isolation | error: timed out |
+| 654 | S5_anchor_isolation | error: timed out |
+| 673 | S5_anchor_isolation | error: timed out |
+| 683 | S5_anchor_isolation | 3 |
+| 695 | S5_anchor_isolation | 3 |
