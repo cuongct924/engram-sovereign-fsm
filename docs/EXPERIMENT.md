@@ -516,6 +516,8 @@ apply, on another:
     leaving less time to count as "uptime."
   * Headline number: `noisy_btc` uptime falls 59.8%→0.0% as HW goes 0→20.
 
+  ![E5 in-process Figure 4 — recovery stability vs HYSTERESIS_WAIT](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis.png)
+
   Live spot-check (5×2: `HYSTERESIS_WAIT` ∈ {0,2,5,10,20}, × {stable, noisy_da}, 300s each run.
   All 4 validators agreed on every sample):
 
@@ -534,7 +536,9 @@ apply, on another:
 
   * `stable` stays clean (0 flapping, 100% uptime) at every HW.
   * `noisy_da` uptime rises HW 0→5 (11.70%→18.75%), then drops to ~1% once HW≥10
-    (`scripts/e5_hysteresis_flapping/results_live/`, live Figure 4).
+    (`scripts/e5_hysteresis_flapping/results_live/`).
+
+  ![E5 live Figure 4 — recovery stability vs HYSTERESIS_WAIT](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.png)
 
 * *Conclusion:* a negative result, by design — `IsCriticalCondition` is checked before any
   absorption happens, so critical-level noise skips hysteresis entirely: a longer required streak
@@ -1071,6 +1075,8 @@ depth.
 so the deep reorg is caught on the next check, `is_btc_spv_failed` goes true,
 `IsCriticalCondition` fires.
 
+![E10 FSM reaction to real Bitcoin reorgs by depth, 5 trials](../scripts/e10_bitcoin_reorg/results/figure8_reorg_depth_reaction_live.png)
+
 **Boundary finding:** depths 2 and 3 orphan real blocks (`invalidateblock` + longer competing chain
 confirmed via `getblockhash`, not assumed from height) but never trip the FSM. `x/sovereignty/types/params.go`
 requires `SuspiciousThreshold > KDeepFinality+1` (i.e. ≥4), so a `btc_gap` of 2-3 sits below the
@@ -1125,6 +1131,7 @@ the chain reached ANCHORED at t≈676s after reconnect (11m16s total). Two thing
 | **Fig. 4** | Recovery stability vs. `HYSTERESIS_WAIT` *(E5)* |
 | **Fig. 6** | Recovery Proof Scaling: 4 panels (Constraint Count, Proving Time, Verification Time, Proof Size) *(E6)* |
 | **Fig. 7** | Backend trade-off radar chart: Noir+Honk vs. Plonky3 *(E6, optional)* |
+| **Fig. 8** | FSM reaction to real Bitcoin reorgs by depth, 5 trials *(E10)* |
 | **Table 1** | Formal verification state-space results *(E1)* |
 | **Table 2** | Failure matrix and expected policy *(E3)* |
 | **Table 3** | Attack-resilience tests *(E8)* |
