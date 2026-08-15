@@ -78,8 +78,11 @@ ByzantineForgedFSMState ==
                ]
                forced_tx == CHOOSE tx \in forced_tx_queue : TRUE
 
+               \* healthy = the real IsHealthyCondition, matching honest_da/
+               \* honest_btc's own honesty -- isolates fsm_state forgery as
+               \* the ONLY defect under test (module doc's own stated goal).
                bad_prop == Proposal(forced_tx, real_time, r, forged_fsm_state,
-                                     honest_da, honest_btc, FALSE)
+                                     honest_da, honest_btc, FALSE, IsHealthyCondition)
            IN
            /\ BroadcastProposal(Proposer[r], r, bad_prop, NilRound)
            /\ UNCHANGED <<tendermintCoreVars, temporalVars, invariantVars, propAuditVars>>

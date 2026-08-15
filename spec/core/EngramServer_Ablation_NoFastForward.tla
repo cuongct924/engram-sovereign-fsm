@@ -80,7 +80,8 @@ ServerInsertProposal(p) ==
                        IF valid_value[p] /= NilProposal
                        THEN valid_value[p]
                        ELSE Proposal(v, local_clock[p], round[p], target_state,
-                                     da_receipt, btc_receipt, proof_found)
+                                     da_receipt, btc_receipt, proof_found,
+                                     IsHealthyCondition)
                IN
                \* Inject the concrete proposal into Tendermint
                /\ InsertProposal(p, prop)
@@ -522,6 +523,13 @@ ZKProofConsistency ==
          /\ safe_blocks = HYSTERESIS_WAIT)
         => decision[p].prop.zk_proof_ref = TRUE
 
+\* Decided proposal's healthy claim must match the current sensor state --
+\* mirrors x/sovereignty/proposal.go:299-303's cross-check.
+\* @type: Bool;
+HealthyConsistency ==
+    \A p \in HonestNodes :
+        decision[p] /= NilDecision => decision[p].prop.healthy = IsHealthyCondition
+
 \* Master hybrid invariant — checked together with CoreTendermintInvariant in TLC
 \* @type: Bool;
 HybridTendermintInvariant ==
@@ -529,6 +537,7 @@ HybridTendermintInvariant ==
     /\ DAReceiptConsistency
     /\ BTCConsistency
     /\ ZKProofConsistency
+    /\ HealthyConsistency
 
 
 (* ======================== LIVENESS PROPERTIES ============================ *)

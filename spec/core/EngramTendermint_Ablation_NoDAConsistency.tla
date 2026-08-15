@@ -51,7 +51,13 @@ CONSTANTS
     \* @type: Int;
     MAX_ENGRAM_HEIGHT,  \* Engram block height upper bound for TLC
     \* @type: Int;
-    MAX_IGNORE_ROUNDS   \* Censorship threshold: rounds a tx can be ignored
+    MAX_IGNORE_ROUNDS,  \* Censorship threshold: rounds a tx can be ignored
+    \* @type: Int;
+    MAX_CENSORSHIP_ROUNDS \* Liveness bound: round past which IsCensoring stops
+                          \* rejecting -- an unincludable forced tx would
+                          \* otherwise block every proposal forever, since
+                          \* forced_tx_queue has no other eviction path.
+                          \* Must be > MAX_IGNORE_ROUNDS.
 
 ASSUME(N = Cardinality(HonestNodes \union ByzantineNodes))
 
@@ -139,7 +145,7 @@ NilDAReceipt == [
 DAReceiptsOrNil == DAReceipts \union {NilDAReceipt}
 
 (* ======================== PROPOSAL & DECISION STRUCTURE ============================= *)
-\* @type: Set({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool });
+\* @type: Set({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool });
 Proposals == [
     value: ValuesOrNil,
     timestamp: TimestampsOrNil,
@@ -149,7 +155,7 @@ Proposals == [
     btc_receipt: BTCReceiptsOrNil,
     zk_proof_ref: BOOLEAN
 ]
-\* @type: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool };
+\* @type: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool };
 NilProposal == [
     value           |-> NilValue,
     timestamp       |-> NilTimestamp,
@@ -159,20 +165,20 @@ NilProposal == [
     btc_receipt     |-> NilBTCReceipt,
     zk_proof_ref    |-> FALSE
 ]
-\* @type: Set({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool });
+\* @type: Set({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool });
 ProposalsOrNil == Proposals \union {NilProposal}
 
-\* @type: Set({ prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, round: Int });
+\* @type: Set({ prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, round: Int });
 Decisions == [
     prop: Proposals,
     round: Rounds  \* The round where the decision is made
 ]
-\* @type: { prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, round: Int };
+\* @type: { prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, round: Int };
 NilDecision == [
     prop  |-> NilProposal,
     round |-> NilRound
 ]
-\* @type: Set({ prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, round: Int });
+\* @type: Set({ prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, round: Int });
 DecisionsOrNil == Decisions \union {NilDecision}
 
 (* ======================== QUORUM THRESHOLDS ============================== *)
@@ -277,16 +283,20 @@ VerifySPVProof(receipt) ==
 
 (********************* CORE PROPOSAL VALIDITY (SEMANTIC FIREWALL) ******************************)
 \* The core validity predicate for proposals
-\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }) => Bool;
+\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
 IsValidProposal(prop) ==
-    LET 
+    LET
         da_tol  == DATolerance(prop.round)
         btc_tol == BTCTolerance(prop.round)
     IN
         /\ prop.value \in ValidValues
         /\ prop.timestamp \in MIN_TIMESTAMP..MAX_TIMESTAMP
         /\ prop.fsm_state = CalculateNextFSMState   \* Cross-check
-        
+
+        \* Healthy cross-check (x/sovereignty/proposal.go:299-303) -- see
+        \* core/EngramTendermint.tla's IsValidProposal for the full comment.
+        /\ prop.healthy = IsHealthyCondition
+
         \* DA Pipeline Check: Data must be available and within the allowed gap
         \* ABLATION (Remove DA Consistency): the attestation check has been
         \* deleted for this experiment -- see core/EngramTendermint.tla's
@@ -311,16 +321,17 @@ IsValidProposal(prop) ==
 
 
 \* Censorship sensor: TRUE iff process p should reject proposal for being censored
-\* @type: (Str, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }) => Bool;
+\* @type: (Str, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
 IsCensoring(p, prop) ==
-    \E tx \in forced_tx_queue :
+    /\ prop.round < MAX_CENSORSHIP_ROUNDS
+    /\ \E tx \in forced_tx_queue :
         /\ tx_ignored_rounds[p][tx] >= MAX_IGNORE_ROUNDS
         /\ prop.value /= tx
 
 
 (* ======================== RECORD CONSTRUCTORS ============================ *)
-\* @type: (Str, Int, Int, Str, { published_block_height: Int, attestation: Bool }, { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, Bool) => { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool };
-Proposal(v, t, r, fsm_s, da_receipt, btc_receipt, has_proof) ==
+\* @type: (Str, Int, Int, Str, { published_block_height: Int, attestation: Bool }, { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, Bool, Bool) => { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool };
+Proposal(v, t, r, fsm_s, da_receipt, btc_receipt, has_proof, has_healthy) ==
     [
         value        |-> v,
         timestamp    |-> t,
@@ -328,10 +339,11 @@ Proposal(v, t, r, fsm_s, da_receipt, btc_receipt, has_proof) ==
         fsm_state    |-> fsm_s,
         da_receipt   |-> da_receipt,
         btc_receipt  |-> btc_receipt,
-        zk_proof_ref |-> has_proof
+        zk_proof_ref |-> has_proof,
+        healthy      |-> has_healthy
     ]
 
-\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, Int) => { prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, round: Int };
+\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, Int) => { prop: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, round: Int };
 Decision(prop, r) ==
     [
         prop  |-> prop,
@@ -350,17 +362,17 @@ Decision(prop, r) ==
 \* msgs_timeout structurally identical so Apalache's Snowcat can unify sets
 \* built from different message kinds without needing a Variant type.
 \* Behaviorally inert: no comparison reads a field outside its own kind.
-\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
+\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } });
 FaultyTimeouts(r) ==
     { [type |-> "TIMEOUT",    src |-> f, round |-> r,
        proposal |-> NilProposal, valid_round |-> NilRound, id |-> NilProposal] : f \in ByzantineNodes }
 
-\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
+\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } });
 FaultyPrevotes(r) ==
     { [type |-> "PREVOTE",   src |-> f, round |-> r, id |-> Id(NilProposal),
        proposal |-> NilProposal, valid_round |-> NilRound] : f \in ByzantineNodes }
 
-\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } });
+\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } });
 FaultyPrecommits(r) ==
     { [type |-> "PRECOMMIT", src |-> f, round |-> r, id |-> Id(NilProposal),
        proposal |-> NilProposal, valid_round |-> NilRound] : f \in ByzantineNodes }
@@ -371,7 +383,7 @@ FaultyPrecommits(r) ==
 \* literal 5-field shape rather than the unified 6-field message shape used
 \* by BroadcastProposal, since nothing ever mixes this Set with the real
 \* msgs_propose sets.
-\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int });
+\* @type: (Int) => Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int });
 RoundProposals(r) ==
     [
         type        : {"PROPOSAL"},
@@ -382,7 +394,7 @@ RoundProposals(r) ==
     ]
 
 \* Sanity check: message function contains only messages for their own round
-\* @type: (Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } })) => Bool;
+\* @type: (Int -> Set({ type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } })) => Bool;
 BenignRoundsInMessages(msgfun) ==
   \* the message function never contains a message for a wrong round
   \A r \in Rounds:
@@ -428,10 +440,10 @@ TendermintInit ==
 
 
 (* ======================== MESSAGE BROADCAST HELPERS ====================== *)
-\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, Int) => Bool;
+\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, Int) => Bool;
 BroadcastProposal(pSrc, pRound, pProposal, pValidRound) ==
     LET
-        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } };
+        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } };
         new_msg == [
             type        |-> "PROPOSAL",
             src         |-> pSrc,
@@ -443,10 +455,10 @@ BroadcastProposal(pSrc, pRound, pProposal, pValidRound) ==
     IN
     msgs_propose' = [msgs_propose EXCEPT ![pRound] = msgs_propose[pRound] \union {new_msg}]
 
-\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }) => Bool;
+\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
 BroadcastPrevote(pSrc, pRound, pId) ==
     LET
-        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } };
+        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } };
         new_msg == [
             type        |-> "PREVOTE",
             src         |-> pSrc,
@@ -458,10 +470,10 @@ BroadcastPrevote(pSrc, pRound, pId) ==
     IN
     msgs_prevote' = [msgs_prevote EXCEPT ![pRound] = msgs_prevote[pRound] \union {new_msg}]
 
-\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }) => Bool;
+\* @type: (Str, Int, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
 BroadcastPrecommit(pSrc, pRound, pId) ==
     LET
-        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } };
+        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } };
         new_msg == [
             type        |-> "PRECOMMIT",
             src         |-> pSrc,
@@ -476,7 +488,7 @@ BroadcastPrecommit(pSrc, pRound, pId) ==
 \* @type: (Str, Int) => Bool;
 BroadcastTimeout(pSrc, pRound) ==
     LET
-        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool } };
+        \* @type: { type: Str, src: Str, round: Int, proposal: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, valid_round: Int, id: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool } };
         new_msg == [
             type        |-> "TIMEOUT",
             src         |-> pSrc,
@@ -519,7 +531,7 @@ StartRound(p, r) ==
 (* ======================== PROTOCOL ACTIONS ================================ *)
 
 \* -- InsertProposal: called by EngramServer to inject a pre-built proposal --
-\* @type: (Str, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool }) => Bool;
+\* @type: (Str, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
 InsertProposal(p, prop) ==
     LET r == round[p] IN
     /\ p = Proposer[r]
@@ -870,8 +882,11 @@ ByzantineDataWithholding ==
 
             forced_tx == CHOOSE tx \in forced_tx_queue : TRUE
             
+            \* healthy = the real IsHealthyCondition, not an additional forged
+            \* value -- this attack isolates DA-forgery as its one dishonesty
+            \* axis, matching expected_fsm_state's own honest computation.
             bad_prop == Proposal(forced_tx, real_time, r, expected_fsm_state,
-                                bad_da, perfect_btc, FALSE)
+                                bad_da, perfect_btc, FALSE, IsHealthyCondition)
 
            IN
             /\ BroadcastProposal(Proposer[r], r, bad_prop, NilRound)
