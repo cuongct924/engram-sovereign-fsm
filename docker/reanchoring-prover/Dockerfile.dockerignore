@@ -1,40 +1,67 @@
-# Per-Dockerfile override (BuildKit's <dockerfile-path>.dockerignore) for
-# docker/reanchoring-prover/Dockerfile -- same as the root .dockerignore
-# except circuit/ and scripts/ aren't blanket-excluded, since this image
-# needs circuit/reanchoring(_witness) and scripts/reanchoring_prover.
+# Per-Dockerfile override (BuildKit's <dockerfile-path>.dockerignore) --
+# same as the root .dockerignore, but circuit/ and scripts/ aren't fully
+# excluded since this image needs reanchoring(_witness) + reanchoring_prover.
+
+# VCS / editor / tooling
 .git
 .github
 .gitignore
-.DS_Store
+.claude
 .idea
 .vscode
-.claude
-*.log
+**/.DS_Store
+
+# Logs / PID files
+**/*.log
+nohup.out
+**/*.pid
+
+# Language toolchains not needed for this build
 node_modules
+.venv
 dist
 build
 tmp
-testdata
+
+# Not needed for this build
 spec
 tests
+docs
+docker
+proto
+buf.gen.yaml
+buf.lock
+buf.yaml
 
-# Runtime data bind-mounted from running containers, and generated testnet
-# homes -- unbounded growth, never needed for this build.
+# Local env / secrets -- never needed at build time
+.env
+.env.example
+.air.toml
+
+# Runtime data bind-mounted from containers, and generated testnet homes --
+# unbounded growth, never needed for this build.
 data
 testnet-data
 
+# Built binary artifacts
+engramd
+
+# Docs / config / root files
 *.md
 LICENSE
-.env.example
-.golangci.yml
 Makefile
 requirements.txt
+compose.yml
+celestia-cluster-compose.yml
+bitcoin-cluster-compose.yml
+engram-validator-compose.yml
+engram-cluster-compose.dev.yml
+.golangci.yml
 Dockerfile.dev
-.air.toml
 
-# circuit/: only reanchoring + reanchoring_witness are needed. The
-# recursion-spike experiments (NO-GO, see their own RESULTS.md) are dead
-# weight; each circuit's target/ is excluded so builds prove fresh.
+# circuit/: only reanchoring + reanchoring_witness needed. The recursion-
+# spike experiments (NO-GO, see their RESULTS.md) are dead weight; target/
+# excluded so builds prove fresh.
 circuit/reanchoring_recursion_spike
 circuit/reanchoring_recursion_spike_aggregator
 circuit/reanchoring/target

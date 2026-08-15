@@ -14,25 +14,15 @@ import (
 )
 
 // txSubmitForcedTxCmd broadcasts a real MsgSubmitForcedTxRequest carrying an
-// arbitrary raw payload, for docs/EXPERIMENT.md's E8 live tests:
+// arbitrary payload -- E8's live-test driver for A5 (--payload "TX_WITHDRAWAL",
+// scanned by containsWithdrawal) and A7 (--payload a byzantine leader should
+// censor via ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<payload>). Reuses
+// buildMinimalTx/newSovereigntyInterfaceRegistry (reanchor_cli.go).
 //
-//   - A5 (Withdrawal During SOVEREIGN): --payload containing the literal
-//     "TX_WITHDRAWAL" marker containsWithdrawal scans for.
-//   - A7 (Censorship): --payload identifying tx content to force into
-//     ForcedTxQueue, for a byzantine leader (ENGRAM_BYZANTINE_BEHAVIOR=
-//     censor_tx:<payload>) to then be observed omitting.
-//
-// Reuses buildMinimalTx/newSovereigntyInterfaceRegistry (reanchor_cli.go) --
-// same minimal, intentionally-unsigned tx envelope (no x/auth signing flow
-// in this prototype).
-//
-// --payload-hex and --dry-run exist for A7's censorship driver: ForcedTxQueue
-// stores msg.Tx verbatim, matched against real req.Txs[1:] bytes -- so the
-// "forced" tx must be some OTHER real, independently decodable tx's raw
-// bytes, not a plain string. --dry-run builds that other tx deterministically
-// and prints its hex without broadcasting, so a driver script can capture
-// byte-identical content for both a --payload-hex registration call and a
-// separate real broadcast.
+// --payload-hex/--dry-run drive A7: ForcedTxQueue matches msg.Tx verbatim
+// against real req.Txs[1:] bytes, so the forced content must be another real
+// tx's raw bytes -- --dry-run builds that tx and prints its hex so a driver
+// can register and later broadcast byte-identical content.
 func txSubmitForcedTxCmd() *cobra.Command {
 	var nodeURL, payload, payloadHex string
 	var dryRun bool
@@ -59,7 +49,7 @@ func txSubmitForcedTxCmd() *cobra.Command {
 				return err
 			}
 			addressCodec := addresscodec.NewBech32Codec("engram")
-			sender, err := addressCodec.BytesToString(make([]byte, 20)) // unused by SubmitForcedTx's handler; a fixed placeholder is fine
+			sender, err := addressCodec.BytesToString(make([]byte, 20)) // unused by SubmitForcedTx's handler; fixed placeholder is fine
 			if err != nil {
 				return err
 			}
@@ -83,8 +73,8 @@ func txSubmitForcedTxCmd() *cobra.Command {
 				return err
 			}
 
-			// Same BroadcastTxSync + manual poll pattern as
-			// txSubmitRecoveryProofCmd, same reasoning (see its doc).
+			// Same BroadcastTxSync + manual poll as txSubmitRecoveryProofCmd
+			// (see its doc).
 			syncResult, err := client.BroadcastTxSync(context.Background(), txBytes)
 			if err != nil {
 				return err

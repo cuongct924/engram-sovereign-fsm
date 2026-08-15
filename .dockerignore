@@ -1,36 +1,62 @@
+# Build context for the engramd image (root Dockerfile, used by all 4
+# validator nodes). Only Go source needed: app/, cmd/, x/, go.mod, go.sum.
+
+# VCS / editor / tooling
 .git
 .github
 .gitignore
-.DS_Store
+.claude
 .idea
 .vscode
-.claude
-.github
-*.log
+**/.DS_Store
+
+# Logs / PID files
+**/*.log
+nohup.out
+**/*.pid
+
+# Language toolchains not needed for a CGO_ENABLED=0 Go build
 node_modules
+.venv
 dist
 build
 tmp
-testdata
+
+# Not Go-build-relevant source trees
 circuit
 spec
 scripts
 tests
-# Runtime data bind-mounted from running containers (bitcoind/celestia chain
-# state) and generated testnet homes -- neither is needed to compile
-# engramd, and both grow unbounded over time (found: 77M+ of real chain
-# data was being sent as build context on every build with no benefit).
+docs
+docker
+proto
+buf.gen.yaml
+buf.lock
+buf.yaml
+
+# Local env / secrets -- never needed at build time
+.env
+.env.example
+.air.toml
+
+# Runtime data bind-mounted from containers (bitcoind/celestia chain state)
+# and generated testnet homes -- neither is needed to compile engramd, and
+# both grow unbounded (GBs), ballooning every build's context tar.
 data
 testnet-data
+
+# Built binary artifacts
+engramd
+
+# Docs / config / root files
 *.md
 LICENSE
-.env.example
-.golangci.yml
 Makefile
 requirements.txt
+compose.yml
 celestia-cluster-compose.yml
 bitcoin-cluster-compose.yml
 engram-validator-compose.yml
 engram-cluster-compose.dev.yml
+.golangci.yml
 Dockerfile.dev
-.air.toml

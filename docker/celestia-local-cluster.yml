@@ -9,12 +9,11 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.50
     ports:
-      # Host-side 27656/27657, not CometBFT's standard 26656/26657 (which
-      # engram-node01 also needs on the host) -- container-internal ports
-      # are unchanged, only the host mapping shifts.
-      - "27656:26656"
-      - "27657:26657"
-      - "9090:9090"
+      # Host-mapped to 27656/27657 (not 26656/26657, which engram-node01
+      # needs) -- container-internal ports unchanged.
+      - "${CELESTIA_APP_P2P_PORT:-27656}:26656"
+      - "${CELESTIA_APP_RPC_PORT:-27657}:26657"
+      - "${CELESTIA_APP_GRPC_PORT:-9090}:9090"
     # No 26658 mapping here -- that's celestia-node's RPC port (used by
     # celestia-bridge below), not celestia-appd's.
     environment:
@@ -23,8 +22,7 @@ services:
       - ../data/celestia-app:/home/celestia
     restart: unless-stopped
     healthcheck:
-      # wget only (no curl in this image); --spider needs no shell/pipe,
-      # unlike a piped "url | grep" test under exec-form CMD.
+      # wget only (no curl in this image); --spider avoids shell/pipe.
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:26657/status"]
       interval: 30s
       timeout: 10s
@@ -33,25 +31,20 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 1G
+          cpus: '${CELESTIA_APP_CPU_LIMIT:-0.5}'
+          memory: ${CELESTIA_APP_MEM_LIMIT:-1G}
         reservations:
           cpus: '0.2'
           memory: 512M
-    # Overrides the image's default ENTRYPOINT (a bare, non-shell
-    # `exec /bin/celestia-appd "$@"`) -- the multi-statement
-    # init-then-start script below needs a real shell.
+    # The image's default ENTRYPOINT is a bare non-shell exec -- the
+    # multi-statement init-then-start script below needs a real shell.
     entrypoint: ["/bin/sh", "-c"]
     command:
-      # celestia-appd's `init` has no --keyring-backend flag (`keys add`
-      # does) and doesn't register a validator on its own -- keys/genesis
-      # account/gentx/collect-gentxs are required manually, or `start`
-      # boots with an empty validator set. Gated on gentx being collected
-      # (config/gentx/ removed by collect-gentxs), not genesis.json's
-      # existence, since `init` writes genesis.json before gentx runs.
-      # `start` also requires an explicit --minimum-gas-prices to boot.
-      # Also patches config.toml's tx indexer to "kv" (default "null") --
-      # x/da's blob-submission client needs it to look up txs by hash.
+      # `init` doesn't register a validator nor accept --keyring-backend --
+      # keys/account/gentx/collect-gentxs are manual or `start` boots with
+      # an empty validator set. Gated on gentx collected (not genesis.json,
+      # which `init` writes first). Sets tx indexer "kv" for x/da's hash
+      # lookups; `start` also needs an explicit --minimum-gas-prices.
       - |
         if [ ! -f /home/celestia/.celestia-app/config/genesis.json ] || [ -d /home/celestia/.celestia-app/config/gentx ]; then
           celestia-appd init mynode --chain-id private &&
@@ -71,15 +64,14 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.51
     ports:
-      - "2121:2121"
-      - "26658:26658"
+      - "${CELESTIA_BRIDGE_P2P_PORT:-2121}:2121"
+      - "${CELESTIA_BRIDGE_RPC_PORT:-26658}:26658"
     volumes:
       - ../data/celestia-bridge:/home/celestia
     restart: unless-stopped
     healthcheck:
-      # celestia-node's RPC is JSON-RPC 2.0 over POST only -- a plain GET
-      # always returns HTTP 400 regardless of real health. --rpc.skip-auth
-      # below is fine here (local devnet, not public-facing).
+      # celestia-node's RPC is JSON-RPC 2.0 POST-only -- a plain GET always
+      # returns 400. --rpc.skip-auth is fine on this local devnet.
       test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
              "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
              "http://127.0.0.1:26658/"]
@@ -89,8 +81,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 512M
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
         reservations:
           cpus: '0.1'
           memory: 256M
@@ -100,22 +92,15 @@ services:
     environment:
       - NODE_TYPE=bridge
       - P2P_NETWORK=private
-    # Same entrypoint-override reasoning as celestia-app above: this
-    # image's auto-init doesn't generate the admin JWT x/da's
-    # blob-submission client needs, so a plain args-only command isn't
-    # enough here either.
+    # Same entrypoint override as celestia-app: auto-init doesn't generate
+    # the admin JWT x/da's blob-submission client needs.
     entrypoint: ["/bin/sh", "-c"]
     command:
-      # --p2p.network must be passed to both init and start; with `private`
-      # the node store lands at /home/celestia/.celestia-bridge-private
-      # (not the default path) -- gate the skip-init check on that
-      # directory. --core.ip on init records Core.IP/RPCPort/GRPCPort but
-      # not [Header] TrustedHash (no CLI flag for it in this version),
-      # which start requires -- fetch block 1's real hash from
-      # celestia-app's RPC and patch it into config.toml directly.
-      #
-      # $$-escaped (HOME_DIR/TRUSTED_HASH) so Compose passes a literal $VAR
-      # through to the container's shell instead of interpolating it first.
+      # With `--p2p.network private` the store lands in
+      # .celestia-bridge-private -- gate skip-init on that dir. `init`
+      # doesn't set [Header] TrustedHash (no CLI flag), which `start`
+      # requires, so fetch block 1's hash from celestia-app and patch
+      # config.toml. $$-escaped so Compose passes literal $VARs through.
       - |
         HOME_DIR=/home/celestia/.celestia-bridge-private
         if [ ! -d "$$HOME_DIR" ]; then
@@ -126,17 +111,12 @@ services:
         fi
         celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
-  # celestia-bridge-2: a SECOND bridge node against the SAME celestia-app
-  # chain, with its OWN keyring/account -- exists only so
-  # reanchoring-prover's witness-publish (docker/reanchoring-prover.yml) has
-  # a submitter account separate from the 4 validators' shared celestia-bridge
-  # above. Confirmed live: adding reanchoring-prover as a 5th concurrent
-  # submitter on ONE shared account sustained 3-4 account-sequence-mismatch
-  # races/sec, degrading real DA health for all 4 validators, not just the
-  # new feature (x/da/rpc.go's Submit retry mitigates but doesn't eliminate
-  # this under sustained contention). Multiple bridge/light nodes reading
-  # AND writing to one Celestia chain is normal; only the signing ACCOUNT
-  # needs to differ per contending submitter group.
+  # celestia-bridge-2: a SECOND bridge against the same celestia-app chain
+  # with its OWN account -- so reanchoring-prover's witness-publish has a
+  # submitter separate from the validators' shared celestia-bridge. Five
+  # submitters on one account caused 3-4 sequence-mismatch races/sec
+  # (x/da's Submit retry mitigates but doesn't eliminate it); only the
+  # signing ACCOUNT must differ per contending submitter group.
   celestia-bridge-2:
     image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
     container_name: celestia-bridge-2
@@ -145,8 +125,8 @@ services:
       celestia-net:
         ipv4_address: 172.22.0.52
     ports:
-      - "2122:2121"
-      - "26668:26658"
+      - "${CELESTIA_BRIDGE2_P2P_PORT:-2122}:2121"
+      - "${CELESTIA_BRIDGE2_RPC_PORT:-26668}:26658"
     volumes:
       - ../data/celestia-bridge-2:/home/celestia
     restart: unless-stopped
@@ -160,8 +140,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 512M
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
         reservations:
           cpus: '0.1'
           memory: 256M
@@ -184,11 +164,9 @@ services:
         celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
 
-# celestia-net is declared once in the root compose.yml, which owns it;
-# services above reference it by name directly. Redeclaring it here (even as
-# `external: true`) makes `docker compose config` fail with "conflicts with
-# imported resource" once this file is resolved via compose.yml's `include:`
-# (see M6).
+# celestia-net is declared once in the root compose.yml, which owns it --
+# redeclaring it here (even `external: true`) makes `docker compose config`
+# fail with "conflicts with imported resource".
 
 
 volumes:

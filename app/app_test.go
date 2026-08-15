@@ -4,34 +4,21 @@ import (
 	"reflect"
 	"testing"
 
-	dbm "github.com/cosmos/cosmos-db"
 	log "cosmossdk.io/log/v2"
+	dbm "github.com/cosmos/cosmos-db"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewEngramApp_VanillaSkipsPreBlocker proves the structural fact
-// docs/EXPERIMENT.md's E2 "Vanilla comparison" rests on: with vanilla=true,
+// Proves the fact E2's "Vanilla comparison" rests on: with vanilla=true,
 // NewEngramApp never registers PreBlocker (app.go's only vanilla-conditional
-// branch), so BaseApp's private abciHandlers never holds
-// sovereignty.NewPreBlocker -- the sole place FSMState is ever mutated
-// post-genesis (preblock.go's CommitFSMTransition). A vanilla node's
-// FSMState is provably pinned at its genesis value (StateAnchored) for the
-// lifetime of the process, regardless of real BTC/DA/P2P health, since the
-// code path that could change it is never wired -- not something that needs
-// a live fault-injection run to show.
+// branch), so a vanilla node's FSMState stays pinned at genesis forever --
+// the sole post-genesis mutation path (CommitFSMTransition) is never wired.
 //
-// Only PreBlocker is asserted, not PrepareProposal/ProcessProposal:
-// baseapp.BaseApp's own Init() (called from LoadLatestVersion) auto-fills
-// NewDefaultProposalHandler's generic versions of those two whenever they
-// weren't explicitly set, so they're non-nil even in vanilla mode -- just
-// not the FSM-aware ones, and neither reads/writes FSMState anyway.
-// PreBlocker has no such SDK-side default fallback; nil is nil.
-//
-// Reads baseapp.BaseApp's unexported abciHandlers field via reflection: the
-// SDK exposes no public getter for "is PreBlocker set", and
-// reflect.Value.IsNil() works on an unexported field's value without unsafe
-// (only calling .Interface() on it would panic).
+// Only PreBlocker is asserted: BaseApp.Init() auto-fills defaults for
+// PrepareProposal/ProcessProposal, so they're non-nil even in vanilla mode;
+// PreBlocker has no such fallback. Read via reflection on the unexported
+// abciHandlers field (no public getter; IsNil() needs no unsafe).
 func TestNewEngramApp_VanillaSkipsPreBlocker(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

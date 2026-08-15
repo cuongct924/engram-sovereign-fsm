@@ -11,10 +11,9 @@ import (
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 )
 
-// testEngramAddress returns a valid "engram"-HRP bech32 address for use as a
-// placeholder Authority/Sender in these tests (mirroring the fixed
-// placeholder pattern txSubmitRecoveryProofCmd/txSubmitForcedTxCmd themselves
-// use), rather than a hand-typed literal whose checksum could be wrong.
+// testEngramAddress returns a valid "engram"-HRP bech32 address as the
+// placeholder Authority/Sender (mirroring the CLI's fixed placeholder), rather
+// than a hand-typed literal whose checksum could be wrong.
 func testEngramAddress(t *testing.T) string {
 	t.Helper()
 	addr, err := addresscodec.NewBech32Codec("engram").BytesToString(make([]byte, 20))
@@ -34,9 +33,8 @@ func TestBoolToField(t *testing.T) {
 }
 
 // TestBuildMinimalTx_IsDecodableByTheRealAppTxDecoder confirms buildMinimalTx's
-// output round-trips through the SAME authtx.NewTxConfig TxDecoder app.go
-// wires into BaseApp -- the actual real-world requirement (found live per
-// this command's doc comment, not assumed).
+// output round-trips through the SAME authtx.NewTxConfig TxDecoder app.go wires
+// into BaseApp -- the actual real-world requirement.
 func TestBuildMinimalTx_IsDecodableByTheRealAppTxDecoder(t *testing.T) {
 	registry, err := newSovereigntyInterfaceRegistry()
 	require.NoError(t, err)
@@ -64,11 +62,11 @@ func TestBuildMinimalTx_IsDecodableByTheRealAppTxDecoder(t *testing.T) {
 	require.Equal(t, msg.PublicInputs, got.PublicInputs)
 }
 
-// TestBuildMinimalTx_IsDeterministic backs --dry-run's documented assumption
-// (e8_cli.go's txSubmitForcedTxCmd doc): buildMinimalTx has no
-// timestamp/nonce/random field, so encoding the same msg twice must produce
-// byte-identical output -- required for a driver script to capture --dry-run's
-// printed hex and later register/broadcast it as a separate, matching tx.
+// TestBuildMinimalTx_IsDeterministic backs --dry-run's assumption
+// (e8_cli.go): buildMinimalTx has no timestamp/nonce/random field, so encoding
+// the same msg twice must give byte-identical output -- required for a driver
+// to capture --dry-run's printed hex and later register/broadcast it as a
+// separate, matching tx.
 func TestBuildMinimalTx_IsDeterministic(t *testing.T) {
 	registry, err := newSovereigntyInterfaceRegistry()
 	require.NoError(t, err)

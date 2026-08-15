@@ -1,9 +1,8 @@
 name: engram-validator-cluster
 
-# Shared shape for all 4 validators -- only what differs per node (hostname/
-# container_name, the 3 network IPs, host-mapped ports, volume path,
-# MONIKER, NODE_ID) is set per-service below; everything else lives here
-# once via the `<<: *engram-node-base` merge key.
+# Shared shape for all 4 validators -- per-node differences only
+# (hostname/container_name, IPs, ports, volume, MONIKER, NODE_ID); the
+# rest lives here via the `<<: *engram-node-base` merge key.
 x-engram-node-base: &engram-node-base
   build:
     context: ..
@@ -12,10 +11,8 @@ x-engram-node-base: &engram-node-base
       - cometbft-fork=../../engram-consensus-core
   command: ["start"]
   restart: unless-stopped
-  # No depends_on celestia-lightNN: x/da's Publisher/RPCClient talk to
-  # celestia-bridge directly, never to a per-node light client -- that
-  # scaffolding was removed as unused (a real DAS light-client integration
-  # remains a documented future item if pursued).
+  # No depends_on celestia-lightNN: x/da talks to celestia-bridge directly,
+  # never a per-node light client (that scaffolding was removed as unused).
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
     interval: 30s
@@ -31,15 +28,10 @@ x-engram-node-base: &engram-node-base
         cpus: '0.2'
         memory: 256M
 
-# Shared env: BITCOIN_HOST/CELESTIA_BRIDGE_URL wire the live BTC/DA sensors
-# (x/anchor/rpc.go, x/da/rpc.go's wireDASensor) to the shared bitcoin-net/
-# celestia-net service names -- all 4 validators point at the same
-# bitcoin-node01 (only 2 bitcoind instances are provisioned for 4
-# validators, a documented prototype simplification) and the same
-# celestia-bridge. CELESTIA_BRIDGE_AUTH_TOKEN is the bridge's own
-# admin/write JWT (written to /home/celestia/bridge_auth.txt on first
-# init), pinned here since all 4 validators share one bridge instance.
-# MONIKER/NODE_ID are per-node, set in each service below.
+# Shared env wiring the live BTC/DA sensors: all 4 validators point at the
+# same bitcoin-node01 (2 bitcoind for 4 validators -- prototype
+# simplification) and the same celestia-bridge; AUTH_TOKEN is that bridge's
+# admin/write JWT. MONIKER/NODE_ID are per-node, set in each service below.
 x-engram-node-env: &engram-node-env
   MINIMUM_GAS_PRICES: 0uengram
   BITCOIN_HOST: bitcoin-node01
@@ -53,20 +45,13 @@ x-engram-node-env: &engram-node-env
   # inside each container -- see AnchorTracker.SetSubmissionPausedFile's doc.
   ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
 
-# engram-net/bitcoin-net/celestia-net/validator-link-* are declared once in
-# the root compose.yml, which owns them -- redeclaring them here (even as
-# `external: true`) makes `docker compose config` fail with "conflicts
-# with imported resource" once resolved via compose.yml's `include:`.
-#
-# bitcoin-net/celestia-net joins exist so BITCOIN_HOST/CELESTIA_BRIDGE_URL
-# are DNS-resolvable: without them every PrepareProposal fails to reach
-# bitcoin-node01/celestia-bridge and consensus round-skips forever at
-# height 1 (bitcoin-node01/02 are bitcoin-net-only, docker/
-# bitcoin-regtest-cluster.yml; celestia-bridge is celestia-net-only,
-# docker/celestia-local-cluster.yml -- both otherwise unreachable from
-# engram-net's separate Docker network). validator-link-* joins are the
-# real P2P mesh -- see compose.yml's own comment and
-# cmd/engramd/main.go's pairwiseLinkPeerIP.
+# Networks are declared once in the root compose.yml, which owns them --
+# redeclaring them here (even `external: true`) hits "conflicts with
+# imported resource". bitcoin-net/celestia-net joins exist so
+# BITCOIN_HOST/CELESTIA_BRIDGE_URL are DNS-resolvable (bitcoind/celestia
+# services live on their own networks, unreachable from engram-net
+# otherwise); validator-link-* joins are the real P2P mesh
+# (cmd/engramd/main.go's pairwiseLinkPeerIP).
 
 services:
   engram-node01:
@@ -181,17 +166,11 @@ services:
       MONIKER: engram-node04
       NODE_ID: 3
 
-  # Non-validator observer node, plain CometBFT/Cosmos SDK consensus (`start
-  # --vanilla`, app/app.go's NewEngramApp skips SetPrepareProposal/
-  # SetProcessProposal/SetPreBlocker) -- docs/EXPERIMENT.md's E2 "Vanilla
-  # comparison": syncs the SAME real chain via engram-net (persistent_peers
-  # dials the 4 real validators, testnet-data/engram-node-vanilla/config/
-  # config.toml), reads the SAME real BITCOIN_HOST/CELESTIA_BRIDGE_URL
-  # sensors as engram-node01..04, but its x/sovereignty FSMState can never
-  # leave genesis ANCHORED regardless of real BTC/DA/P2P health -- the only
-  # code path that mutates it (CommitFSMTransition, inside NewPreBlocker)
-  # is never wired. Not part of the validator set (genesis unchanged, no
-  # validator-link-* pairwise mesh membership needed) -- a pure observer.
+  # Non-validator observer for E2's "Vanilla comparison": `start --vanilla`
+  # (NewEngramApp skips the ABCI++ hooks), syncing the SAME real chain and
+  # reading the same BTC/DA sensors -- but its FSMState can never leave
+  # genesis ANCHORED since CommitFSMTransition is never wired. Not part of
+  # the validator set (genesis unchanged); a pure observer.
   engram-node-vanilla:
     <<: *engram-node-base
     hostname: engram-node-vanilla

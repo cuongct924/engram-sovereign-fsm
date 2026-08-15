@@ -16,8 +16,8 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
-// stubTx is a minimal sdk.Tx that carries a fixed message list -- enough for
-// CircuitBreakerDecorator.AnteHandle, which only ever calls tx.GetMsgs().
+// stubTx is a minimal sdk.Tx carrying a fixed message list -- enough for
+// CircuitBreakerDecorator.AnteHandle, which only calls tx.GetMsgs().
 type stubTx struct {
 	msgs []sdk.Msg
 }
@@ -25,9 +25,9 @@ type stubTx struct {
 func (s stubTx) GetMsgs() []sdk.Msg                    { return s.msgs }
 func (s stubTx) GetMsgsV2() ([]protov2.Message, error) { return nil, nil }
 
-// newTestAnteFixture wires a real Keeper (same colltest.MockStore pattern as
-// x/sovereignty/keeper's own tests) into an sdk.Context whose underlying
-// context.Context is the mock store's, so collections reads/writes resolve.
+// newTestAnteFixture wires a real Keeper (colltest.MockStore pattern) into an
+// sdk.Context whose underlying context.Context is the mock store's, so
+// collections reads/writes resolve.
 func newTestAnteFixture(t *testing.T) (CircuitBreakerDecorator, sdk.Context, *sovereigntykeeper.Keeper) {
 	t.Helper()
 	storeService, mockCtx := colltest.MockStore()
@@ -43,9 +43,9 @@ func callNext(nextCalled *bool) sdk.AnteHandler {
 	}
 }
 
-// TestAnteHandle_NoPersistedStateDefaultsToAnchored mirrors the fallback in
-// AnteHandle: FSMState.Get erroring (nothing persisted yet, e.g. genesis)
-// must default to ANCHORED, not block anything.
+// TestAnteHandle_NoPersistedStateDefaultsToAnchored mirrors AnteHandle's
+// fallback: FSMState.Get erroring (nothing persisted, e.g. genesis) must
+// default to ANCHORED, not block anything.
 func TestAnteHandle_NoPersistedStateDefaultsToAnchored(t *testing.T) {
 	cbd, ctx, _ := newTestAnteFixture(t)
 	tx := stubTx{msgs: []sdk.Msg{&banktypes.MsgSend{}}}
@@ -57,8 +57,7 @@ func TestAnteHandle_NoPersistedStateDefaultsToAnchored(t *testing.T) {
 }
 
 // TestAnteHandle_BlocksHighRiskTxWhileSovereign mirrors WithdrawLocked in
-// spec/core/EngramFSM.tla: withdrawals must be halted while fsm_state is
-// SOVEREIGN.
+// spec/core/EngramFSM.tla: withdrawals must halt while fsm_state is SOVEREIGN.
 func TestAnteHandle_BlocksHighRiskTxWhileSovereign(t *testing.T) {
 	cbd, ctx, k := newTestAnteFixture(t)
 	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSovereign))
@@ -71,9 +70,8 @@ func TestAnteHandle_BlocksHighRiskTxWhileSovereign(t *testing.T) {
 }
 
 // TestAnteHandle_BlocksHighRiskTxWhileRecovering covers the RECOVERING half
-// of WithdrawLocked -- re-anchoring proof isn't finalized until safe_blocks
-// reaches HysteresisWait, so withdrawals must stay halted here too, not just
-// in SOVEREIGN.
+// of WithdrawLocked -- re-anchoring isn't finalized until safe_blocks reaches
+// HysteresisWait, so withdrawals stay halted here too, not just in SOVEREIGN.
 func TestAnteHandle_BlocksHighRiskTxWhileRecovering(t *testing.T) {
 	cbd, ctx, k := newTestAnteFixture(t)
 	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateRecovering))
@@ -86,8 +84,8 @@ func TestAnteHandle_BlocksHighRiskTxWhileRecovering(t *testing.T) {
 }
 
 // TestAnteHandle_AllowsHighRiskTxWhileAnchoredOrSuspicious confirms the
-// circuit breaker is scoped to WithdrawLocked's exact two states, not a
-// broader "anything but healthy" condition.
+// breaker is scoped to WithdrawLocked's exact two states, not a broader
+// "anything but healthy" condition.
 func TestAnteHandle_AllowsHighRiskTxWhileAnchoredOrSuspicious(t *testing.T) {
 	for _, state := range []string{fsmtypes.StateAnchored, fsmtypes.StateSuspicious} {
 		t.Run(state, func(t *testing.T) {
@@ -103,9 +101,9 @@ func TestAnteHandle_AllowsHighRiskTxWhileAnchoredOrSuspicious(t *testing.T) {
 	}
 }
 
-// TestAnteHandle_AllowsNonWithdrawalTxWhileSovereign confirms the circuit
-// breaker only targets isHighRiskTransaction's specific message types, not
-// every transaction, while SOVEREIGN.
+// TestAnteHandle_AllowsNonWithdrawalTxWhileSovereign confirms the breaker
+// only targets isHighRiskTransaction's specific message types, not every
+// transaction, while SOVEREIGN.
 func TestAnteHandle_AllowsNonWithdrawalTxWhileSovereign(t *testing.T) {
 	cbd, ctx, k := newTestAnteFixture(t)
 	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSovereign))

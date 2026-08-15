@@ -23,10 +23,9 @@ import (
 )
 
 // newSovereigntyInterfaceRegistry builds the same InterfaceRegistry shape as
-// app.go's NewEngramApp (real bech32 address codec, "engram" HRP) -- needed
-// here too since MsgSubmitRecoveryProofRequest's `authority` field has its
-// GetSigners() auto-derived via address-codec decoding (see app.go's own doc
-// on this, found by actually broadcasting a tx against a running node).
+// app.go (real bech32 address codec, "engram" HRP) -- required because
+// MsgSubmitRecoveryProofRequest's `authority` field has GetSigners()
+// auto-derived via address-codec decoding.
 func newSovereigntyInterfaceRegistry() (codectypes.InterfaceRegistry, error) {
 	registry, err := codectypes.NewInterfaceRegistryWithOptions(codectypes.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
@@ -42,12 +41,57 @@ func newSovereigntyInterfaceRegistry() (codectypes.InterfaceRegistry, error) {
 	return registry, nil
 }
 
-// queryRecoveryHeadersCmd dumps the CURRENT SOVEREIGN/RECOVERING interval's
+// queryStateCmd dumps this node's current FSM snapshot via the same real
+// ABCI query path as queryRecoveryHeadersCmd (no separate gRPC server) --
+// previously only reachable by hand-decoding /abci_query's raw protobuf (see
+// scripts/framework/logger.py's _decode_query_state, which exists solely
+// because no CLI did this).
+func queryStateCmd() *cobra.Command {
+	var nodeURL string
+	cmd := &cobra.Command{
+		Use:   "query-state",
+		Short: "Query this node's current FSM state and peripheral metrics",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := rpchttp.New(nodeURL, "/websocket")
+			if err != nil {
+				return err
+			}
+			reqBytes, err := proto.Marshal(&sovereigntytypes.QueryStateRequest{})
+			if err != nil {
+				return err
+			}
+			resp, err := client.ABCIQuery(context.Background(), "/engram.sovereignty.v1.Query/State", reqBytes)
+			if err != nil {
+				return err
+			}
+			if resp.Response.Code != 0 {
+				return fmt.Errorf("query failed: %s", resp.Response.Log)
+			}
+			var out sovereigntytypes.QueryStateResponse
+			if err := proto.Unmarshal(resp.Response.Value, &out); err != nil {
+				return err
+			}
+
+			fmt.Printf("fsm_state=%s safe_blocks=%d suspicious_duration=%d reanchoring_proof_valid=%t\n",
+				out.FsmState, out.SafeBlocks, out.SuspiciousDuration, out.ReanchoringProofValid)
+			if m := out.Metrics; m != nil {
+				fmt.Printf("btc_gap=%d is_btc_spv_failed=%t da_gap=%d is_das_failed=%t is_attestation_failed=%t\n",
+					m.BtcGap, m.IsBtcSpvFailed, m.DaGap, m.IsDasFailed, m.IsAttestationFailed)
+				fmt.Printf("subnet_diversity=%d active_anchors=%d clean_peers=%d peer_churn_rate=%d avg_peer_tenure=%d peer_latency=%d\n",
+					m.SubnetDiversity, m.ActiveAnchors, m.CleanPeers, m.PeerChurnRate, m.AvgPeerTenure, m.PeerLatency)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
+	return cmd
+}
+
+// queryRecoveryHeadersCmd dumps the current SOVEREIGN/RECOVERING interval's
 // tracked header history via the real ABCI query path (CometBFT's
-// /abci_query, which BaseApp routes internally to the GRPCQueryRouter
-// registered in app.go -- no separate gRPC server needed), in a plain
-// line-based format scripts/reanchoring_prover.sh (A6) parses directly to
-// build the real Noir witness (see that script for the exact consumer).
+// /abci_query, routed by BaseApp to the GRPCQueryRouter registered in
+// app.go -- no separate gRPC server), in a line-based format
+// scripts/reanchoring_prover.sh (A6) parses to build the real Noir witness.
 func queryRecoveryHeadersCmd() *cobra.Command {
 	var nodeURL string
 	cmd := &cobra.Command{
@@ -88,7 +132,7 @@ func queryRecoveryHeadersCmd() *cobra.Command {
 }
 
 // fsmStateToField mirrors circuit/reanchoring/src/main.nr's Header.fsm_state
-// encoding: "2: SOVEREIGN, 3: RECOVERING" (the only two values HeaderHistory
+// encoding: 2: SOVEREIGN, 3: RECOVERING (the only two values HeaderHistory
 // ever stores, per preblock.go's types.WithdrawLocked gate).
 func fsmStateToField(state string) int {
 	if state == sovereigntytypes.StateRecovering {
@@ -105,13 +149,12 @@ func boolToField(b bool) int {
 }
 
 // publishRecoveryWitnessCmd publishes a proof's real header-chain witness
-// (the same data prove_and_submit.sh feeds the circuit) to Celestia DA
-// before the proof is submitted. Pure audit trail: SubmitRecoveryProof never
-// verifies this blob, and HeaderHistory (the on-chain source of this same
-// data) gets pruned once the proof is accepted -- without this, a
-// late-joining node or external auditor has no way to retrieve the real
-// header chain a past proof was built from. Concrete-only addition, no spec
-// line (see msg_server.go's RecoveryProofDAHeights doc).
+// (the same data prove_and_submit.sh feeds the circuit) to Celestia DA before
+// the proof is submitted. Pure audit trail: SubmitRecoveryProof never verifies
+// this blob, and HeaderHistory (the on-chain source of this data) gets pruned
+// once the proof is accepted -- without this, no late joiner/auditor could
+// retrieve the real header chain a past proof was built from. Concrete-only,
+// no spec line (see msg_server.go's RecoveryProofDAHeights doc).
 func publishRecoveryWitnessCmd() *cobra.Command {
 	var headersFile string
 	cmd := &cobra.Command{
@@ -152,11 +195,11 @@ func publishRecoveryWitnessCmd() *cobra.Command {
 }
 
 // txSubmitRecoveryProofCmd builds and broadcasts a real
-// MsgSubmitRecoveryProofRequest. There is no x/auth/x/bank in this
-// prototype and the ante chain never checks a signature, so rather than a
-// real signed tx (which would need a keyring and account this chain can't
-// query), this builds the minimal structurally valid tx envelope BaseApp's
-// TxDecoder requires: one SignerInfo, one empty signature.
+// MsgSubmitRecoveryProofRequest. There is no x/auth/x/bank in this prototype
+// and the ante chain never checks a signature, so instead of a real signed tx
+// (which would need a keyring/account this chain can't query), it builds the
+// minimal structurally-valid envelope BaseApp's TxDecoder requires: one
+// SignerInfo, one empty signature.
 func txSubmitRecoveryProofCmd() *cobra.Command {
 	var nodeURL, proofFile, publicInputsFile string
 	var daCelestiaHeight uint64
@@ -199,13 +242,11 @@ func txSubmitRecoveryProofCmd() *cobra.Command {
 				return err
 			}
 
-			// BroadcastTxCommit blocks the RPC server for a fixed,
-			// non-configurable ~10s waiting for DeliverTx -- a real
-			// bottleneck against this testnet's occasional round-skip
-			// stalls. BroadcastTxSync returns as soon as CheckTx passes;
-			// DeliverTx's real result is polled here directly instead, with
-			// a timeout matched to this testnet's observed worst-case block
-			// latency.
+			// BroadcastTxCommit blocks the RPC server ~10s waiting for
+			// DeliverTx -- a real bottleneck against this testnet's occasional
+			// round-skip stalls. BroadcastTxSync returns as soon as CheckTx
+			// passes; DeliverTx's real result is polled here directly with a
+			// timeout matched to this testnet's worst-case block latency.
 			syncResult, err := client.BroadcastTxSync(context.Background(), txBytes)
 			if err != nil {
 				return err

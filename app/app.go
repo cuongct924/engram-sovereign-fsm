@@ -31,18 +31,13 @@ import (
 
 const Name = "engramd"
 
-// EngramApp wires x/sovereignty onto a real BaseApp: codec/interface
-// registry, a single KVStoreKey (the module holds all its own state via
-// cosmossdk.io/collections), the ante handler (circuit breaker), and the
-// three ABCI++ hooks built in x/sovereignty/proposal.go + preblock.go.
+// EngramApp wires x/sovereignty onto a real BaseApp: codec, a single
+// KVStoreKey (the module keeps its own state via collections), the
+// circuit-breaker ante handler, and the three ABCI++ hooks from
+// x/sovereignty/proposal.go + preblock.go.
 //
-// TODO(future work): BankKeeper, AuthKeeper, StakingKeeper (and
-// therefore real signed transactions, fee handling, and a dynamic multi-
-// validator set) are intentionally not wired -- this app demonstrates the
-// FSM/ABCI++ flow driven by sensor data, which doesn't require any of that.
-// InitChainer below relies entirely on CometBFT's genesis validator list
-// (RequestInitChain.Validators), matching a fixed single/few-validator
-// testnet rather than staking-driven validator rotation.
+// Bank/Auth/Staking are intentionally unwired -- this demo needs none of
+// them; the validator set comes only from genesis (no staking rotation).
 type EngramApp struct {
 	*baseapp.BaseApp
 
@@ -51,35 +46,27 @@ type EngramApp struct {
 
 	SovereigntyKeeper *sovereigntykeeper.Keeper
 
-	// Sensors backs PrepareProposal/ProcessProposal's live sensor refresh
-	// (x/sovereignty/sensors_refresh.go). P2P is exported so
-	// cmd/engramd/main.go can wire it to the CometBFT fork's real
-	// lp2p.Switch.PeerHealthSnapshot() once node.NewNode() constructs the
-	// Switch -- NewEngramApp runs before that, so this starts on the static
-	// SetSnapshot-based mock reading and gets upgraded via SetSource
-	// shortly after, before the node starts handling any real proposals.
+	// P2P is exported so cmd/engramd/main.go can rewire it to the CometBFT
+	// fork's real lp2p.Switch.PeerHealthSnapshot() after node.NewNode() --
+	// NewEngramApp runs first, so it starts on the static SetSnapshot mock
+	// and gets upgraded via SetSource before any real proposal.
 	Sensors *sovereignty.Sensors
 }
 
-// NewEngramApp constructs a real, runnable EngramApp: BaseApp + codec +
-// store + keeper + ante handler + the ABCI++ handlers, loaded and ready.
-// chainID must match the genesis file's chain_id -- BaseApp's InitChain
-// handshake rejects a mismatch.
+// NewEngramApp builds a real, runnable EngramApp (BaseApp + codec + store +
+// keeper + ante + ABCI++ handlers). chainID must match the genesis file's
+// chain_id (InitChain handshake rejects a mismatch).
 //
-// vanilla, when true, skips SetPrepareProposal/SetProcessProposal/
-// SetPreBlocker entirely -- BaseApp falls back to its own default handlers
-// (plain CometBFT/Cosmos SDK consensus with no ExtendedProposal), docs/
-// EXPERIMENT.md's E2/E3/E7 vanilla-CometBFT baseline: same binary, same
-// x/sovereignty module mounted, only the ABCI hook wiring differs.
+// vanilla skips the three Set*Proposal/SetPreBlocker calls, so BaseApp falls
+// back to default handlers -- E2/E3/E7's vanilla baseline: same binary and
+// module, only the hook wiring differs.
 //
 // byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
-// validator -- forwarded to NewPrepareProposalHandler, see
-// applyByzantineBehavior's doc for the recognized values.
+// validator -- forwarded to NewPrepareProposalHandler (see its doc).
 func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, byzantineBehavior string) *EngramApp {
 	// "engram" HRP: GetSigners() auto-decodes bech32 from the
-	// `cosmos.msg.v1.signer` field (MsgSubmitRecoveryProofRequest's
-	// authority) even without SigVerificationDecorator -- address codec
-	// required regardless of sig verification.
+	// `cosmos.msg.v1.signer` field even without SigVerificationDecorator --
+	// address codec required regardless of sig verification.
 	interfaceRegistry, err := codectypes.NewInterfaceRegistryWithOptions(codectypes.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
 		SigningOptions: txsigning.Options{
@@ -110,16 +97,14 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc)
 
 	// Lets SubmitForcedTx reject content that can never appear as real
-	// block-tx bytes before it ever enters ForcedTxQueue -- see
-	// Keeper.TxDecoder's doc for the live permanent-deadlock incident this
-	// closes. Uses the SAME txConfig BaseApp itself decodes with, just
-	// below.
+	// block-tx bytes before it enters ForcedTxQueue -- see Keeper.TxDecoder's
+	// doc for the live permanent-deadlock incident this closes. Same txConfig
+	// BaseApp itself decodes with.
 	sovKeeper.TxDecoder = txConfig.TxDecoder()
 
 	// Real active Sybil/eclipse ingress defense (peer_filter.go's
-	// FilterPeerByAddr) -- fails open until wirePeerFilter late-binds a
-	// live PeerFilterSource after node.NewNode() (same ordering as
-	// Sensors.P2P above).
+	// FilterPeerByAddr) -- fails open until wirePeerFilter late-binds a live
+	// PeerFilterSource after node.NewNode() (same ordering as Sensors.P2P).
 	bApp.SetAddrPeerFilter(sovKeeper.FilterPeerByAddr)
 
 	sensorBundle := &sovereignty.Sensors{
@@ -132,10 +117,9 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	bApp.SetAnteHandler(anteHandler)
 
 	// Route x/sovereignty's Msg/Query services directly against BaseApp's
-	// routers -- this app has no module.Manager (InitChain is a hand-rolled
-	// InitChainer below), so AppModule.RegisterServices(module.Configurator)
-	// is never called; without this, no Msg/Query is routable via a real
-	// submitted tx, only by calling MsgServerImpl/QueryServerImpl directly.
+	// routers -- no module.Manager here (InitChain is hand-rolled below), so
+	// AppModule.RegisterServices is never called; without this nothing is
+	// routable via a real submitted tx.
 	sovereigntytypes.RegisterMsgServer(bApp.MsgServiceRouter(), sovereigntykeeper.NewMsgServerImpl(sovKeeper))
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
@@ -173,9 +157,8 @@ func newConsensusParamStore(storeService store.KVStoreService) collections.Item[
 }
 
 // newInitChainer seeds FSM genesis state (types.DefaultGenesis, unless
-// AppState overrides it) and echoes back req.Validators as-is: BaseApp's
-// ABCI handshake requires ResponseInitChain.Validators to match the genesis
-// validator count exactly.
+// AppState overrides it) and echoes req.Validators back as-is: BaseApp's
+// handshake requires ResponseInitChain.Validators to match genesis exactly.
 func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 	return func(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
 		gs := sovereigntytypes.DefaultGenesis()
@@ -212,11 +195,9 @@ func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 		// Genesis-supplied Params (nil -> DefaultParams(), see
 		// GenesisParams.ToParams) -- the ONLY point k.Params is ever set.
 		// Every validator's genesis.json is generated once and copied
-		// identically to all nodes (cmd/engramd/main.go's testnetInitFiles),
-		// so this is safe: unlike an env var read per-process, it can't
-		// diverge between validators. Validated here, not just at
-		// genesis-generation time, so a hand-edited or malformed
-		// AppStateBytes still can't start a chain with unsafe params.
+		// identically to all nodes, so this can't diverge between validators
+		// (unlike a per-process env var). Validated here too, so a
+		// hand-edited AppStateBytes can't start a chain with unsafe params.
 		params := gs.Params.ToParams()
 		if err := params.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid genesis params: %w", err)

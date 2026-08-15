@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1
 # ZK re-anchoring prover -- containerized scripts/reanchoring_prover/watch_and_prove.sh.
-# Separate from the root Dockerfile (which excludes circuit/scripts/ from
-# its context) since this image needs both, plus nargo. Uses its own
-# sibling Dockerfile.dockerignore (BuildKit's per-Dockerfile convention),
-# not the root one.
+# Separate from the root Dockerfile (which excludes circuit/scripts/) --
+# this image needs both, plus nargo, and uses its own sibling
+# Dockerfile.dockerignore instead of the root one.
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /app

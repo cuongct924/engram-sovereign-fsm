@@ -1,11 +1,8 @@
 name: bitcoin-miner-loop
 
-# Containerized scripts/bitcoin_miner_loop.sh, reaching bitcoin-node01 over
-# bitcoin-net via RPC (no docker socket needed, unlike Pumba). Requires
-# bitcoin-node01's wallet (engramwallet) to already exist --
-# scripts/testnet_fund_wallet.sh creates it first (Makefile's testnet-up
-# ordering); the script's own retry loop only tolerates bitcoin-node01
-# still starting up, not a not-yet-created wallet.
+# Containerized scripts/bitcoin_miner_loop.sh over bitcoin-net RPC (no
+# docker socket, unlike Pumba). Requires bitcoin-node01's engramwallet to
+# exist first -- scripts/testnet_fund_wallet.sh creates it before this.
 services:
   bitcoin-miner-loop:
     image: lncm/bitcoind:${BITCOIN_VERSION:-v25.0}

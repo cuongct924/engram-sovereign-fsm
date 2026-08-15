@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/celestiaorg/smt"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	cmtcrypto "github.com/cometbft/cometbft/crypto"
 	cmtlog "github.com/cometbft/cometbft/libs/log"
@@ -55,7 +53,8 @@ func main() {
 	rootCmd.AddCommand(initCmd(homeFlag))
 	rootCmd.AddCommand(startCmd(homeFlag))
 	rootCmd.AddCommand(testnetInitFilesCmd())
-	rootCmd.AddCommand(demoSMTCmd())
+
+	rootCmd.AddCommand(queryStateCmd())
 	rootCmd.AddCommand(queryRecoveryHeadersCmd())
 	rootCmd.AddCommand(publishRecoveryWitnessCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
@@ -67,12 +66,9 @@ func main() {
 	}
 }
 
-// initCmd generates a single-validator home directory: CometBFT config,
-// a FilePV validator key, a node key, and a genesis file whose
-// consensus-layer validator set is this one key (power 10) -- there is no
-// x/staking module in this prototype (see app/app.go's package doc), so the
-// genesis validator list IS the validator set, not a starting point for
-// staking-driven rotation.
+// initCmd generates a single-validator home: CometBFT config, FilePV key,
+// node key, and a genesis whose validator set is this one key (power 10) --
+// no x/staking module, so the genesis validator list IS the validator set.
 func initCmd(homeFlag *string) *cobra.Command {
 	var moniker string
 	cmd := &cobra.Command{
@@ -97,11 +93,10 @@ func initHome(home, moniker string) error {
 	cmtcfg.EnsureRoot(home)
 
 	config.Moniker = moniker
-	// Enables the ABCI ingress peer filter (x/sovereignty/keeper/peer_filter.go's
-	// FilterPeerByAddr, wired via app.go's baseapp.SetAddrPeerFilter) -- a
-	// stock cosmos-sdk/CometBFT mechanism, node/setup.go's
-	// createCometTransport already builds the "/p2p/filter/addr/..." ABCI
-	// query path whenever this is true, no fork changes needed.
+	// Enables the ABCI ingress peer filter (peer_filter.go's FilterPeerByAddr,
+	// via baseapp.SetAddrPeerFilter) -- a stock CometBFT mechanism,
+	// createCometTransport already builds the "/p2p/filter/addr/..." query
+	// path when true, no fork changes needed.
 	config.FilterPeers = true
 	cmtcfg.WriteConfigFile(filepath.Join(home, "config", "config.toml"), config)
 
@@ -162,16 +157,12 @@ func mustMarshalGenesis(gs *sovereigntytypes.GenesisState) json.RawMessage {
 	return bz
 }
 
-// paramsFromEnv builds x/sovereignty's consensus-critical Params from
-// ENGRAM_PARAM_* env vars, falling back to DefaultParams() per-field when
-// unset. Read ONLY here, at genesis-generation time (initHome/
-// testnetInitFiles) -- never by `start`. Every validator's genesis.json is
-// generated once and copied identically to all nodes, so baking an
-// override in at generation time is safe (guaranteed uniform across the
-// validator set); reading these same env vars again at `start` time would
-// let each node's own local .env silently diverge from the others, which
-// for a consensus-compared value like Params is a liveness/safety bug, not
-// a convenience -- see Params.Validate's doc.
+// paramsFromEnv builds x/sovereignty's Params from ENGRAM_PARAM_* env vars,
+// DefaultParams() per-field. Read ONLY at genesis-generation time
+// (initHome/testnetInitFiles), never by `start`: every node copies the same
+// generated genesis.json, so an override baked in stays uniform; re-reading
+// env at `start` would let each node's local .env silently diverge -- a
+// liveness/safety bug for consensus-compared values (see Params.Validate).
 func paramsFromEnv() (sovereigntytypes.Params, error) {
 	p := sovereigntytypes.DefaultParams()
 	fields := []struct {
@@ -214,14 +205,11 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 	return p, nil
 }
 
-// testnetInitFilesCmd generates N validator home directories sharing ONE
-// genesis (all N validators listed, power 10 each) and per-node
-// persistent_peers -- initCmd/initHome above only produce a single-validator
-// genesis (this app has no x/staking module, so the genesis validator list
-// IS the validator set), which is correct for M5's single-node path but
-// cannot bootstrap a real multi-validator testnet (docs/EXPERIMENT.md's E2's
-// "4, 7, 10, 16 nodes" / M7's Docker testnet) -- every node would otherwise
-// generate a DIFFERENT single-validator genesis and never agree.
+// testnetInitFilesCmd generates N validator homes sharing ONE genesis (all
+// power 10) and per-node persistent_peers. initHome only makes a
+// single-validator genesis -- correct for single-node but can't bootstrap a
+// real multi-node testnet, where each node would otherwise generate a
+// DIFFERENT single-validator genesis and never agree.
 func testnetInitFilesCmd() *cobra.Command {
 	var (
 		numValidators  int
@@ -245,11 +233,10 @@ func testnetInitFilesCmd() *cobra.Command {
 	return cmd
 }
 
-// pairwiseLinkIndex returns the 0-indexed link number for the unordered
-// pair {i, j} (0-indexed among n validators), row-major order: (0,1),
-// (0,2),...,(0,n-1),(1,2),... -- must match
-// docker/engram-validator-cluster.yml's validator-link-NN-MM networks 1:1;
-// no shared source of truth between the YAML and this file.
+// pairwiseLinkIndex returns the 0-indexed link for unordered pair {i,j} in
+// row-major order: (0,1),(0,2),...,(0,n-1),(1,2),... -- must match
+// docker/engram-validator-cluster.yml's validator-link-NN-MM networks 1:1
+// (no shared source of truth between the YAML and this file).
 func pairwiseLinkIndex(i, j, n int) int {
 	if i > j {
 		i, j = j, i
@@ -257,14 +244,12 @@ func pairwiseLinkIndex(i, j, n int) int {
 	return i*n - i*(i+1)/2 + (j - i - 1)
 }
 
-// pairwiseLinkPeerIP returns validator `peer`'s static IP, as dialed by
-// `self`, on their dedicated pairwise-link network (172.40.<link>.0/29,
-// gateway .1, lower-indexed validator .2, higher .3) -- a literal IP, not
-// a hostname, so real SubnetDiversity (SubnetOf, x/sovereignty/types/subnet.go)
-// reads each peer from a genuinely distinct subnet instead of the one
-// shared bridge every validator used to have in common. Peer
-// authentication is unaffected: CometBFT verifies nodeID via the secret
-// handshake regardless of which address reached it.
+// pairwiseLinkPeerIP returns validator `peer`'s static IP as dialed by `self`
+// on their dedicated link (172.40.<link>.0/29, gateway .1, lower-indexed
+// validator .2, higher .3) -- a literal IP, not a hostname, so real
+// SubnetDiversity reads each peer from a genuinely distinct subnet. Peer auth
+// is unaffected: CometBFT verifies nodeID via the secret handshake regardless
+// of which address reached it.
 func pairwiseLinkPeerIP(self, peer, n int) string {
 	link := pairwiseLinkIndex(self, peer, n)
 	if peer < self {
@@ -343,10 +328,8 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 		config.P2P.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%d", p2pPort)
 		config.P2P.AddrBookStrict = false // container-internal IPs/hostnames aren't publicly routable
 		config.P2P.AllowDuplicateIP = true
-		// RPC defaults to 127.0.0.1 (cmtcfg.DefaultConfig()), unreachable
-		// through a Docker port mapping from the host -- 0.0.0.0 is safe
-		// here since these are isolated Docker networks, not
-		// public-internet-facing.
+		// RPC defaults to 127.0.0.1, unreachable through a Docker port mapping
+		// from the host -- 0.0.0.0 is safe on isolated Docker networks.
 		config.RPC.ListenAddress = "tcp://0.0.0.0:26657"
 		config.Instrumentation.Prometheus = true
 		// See initHome's identical FilterPeers comment.
@@ -370,9 +353,9 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 	return nil
 }
 
-// startCmd boots a single-node CometBFT instance running EngramApp
-// in-process (proxy.NewLocalClientCreator) -- no multi-node P2P networking
-// is exercised here (see M6 for the Docker multi-node testnet path).
+// startCmd boots a single CometBFT instance running EngramApp in-process
+// (proxy.NewLocalClientCreator) -- no multi-node P2P here (see M6 for the
+// Docker multi-node testnet path).
 func startCmd(homeFlag *string) *cobra.Command {
 	var vanilla bool
 	cmd := &cobra.Command{
@@ -386,12 +369,11 @@ func startCmd(homeFlag *string) *cobra.Command {
 	return cmd
 }
 
-// loadConfig reads config/config.toml from home and unmarshals it onto
-// cmtcfg's defaults via viper -- cmtcfg.DefaultConfig() alone does not read
-// anything from disk, so per-node customization (RPC/P2P ports, seeds,
-// persistent_peers) written by `engramd init` would otherwise be silently
-// ignored at `start` time. Mirrors CometBFT's own cmd/cometbft/commands
-// bootstrap pattern.
+// loadConfig reads config/config.toml from home onto cmtcfg's defaults via
+// viper -- cmtcfg.DefaultConfig() alone reads nothing from disk, so per-node
+// customization (RPC/P2P ports, persistent_peers) written by `engramd init`
+// would otherwise be silently ignored at `start`. Mirrors CometBFT's own
+// command bootstrap pattern.
 func loadConfig(home string) (*cmtcfg.Config, error) {
 	v := viper.New()
 	v.SetConfigFile(filepath.Join(home, "config", "config.toml"))
@@ -430,9 +412,8 @@ func runStart(home string, vanilla bool) error {
 	}
 	// ENGRAM_BYZANTINE_BEHAVIOR: unset ("") on every real validator --
 	// deliberate misbehavior for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 rows,
-	// only ever set by docker/engram-validator-node04-byzantine.yml. See
-	// x/sovereignty/proposal.go's applyByzantineBehavior for recognized
-	// values.
+	// only ever set by docker/engram-node04-byzantine.yml. See
+	// x/sovereignty/proposal.go's applyByzantineBehavior for recognized values.
 	byzantineBehavior := os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR")
 	if byzantineBehavior != "" {
 		fmt.Println("engramd: WARNING -- ENGRAM_BYZANTINE_BEHAVIOR is set:", byzantineBehavior,
@@ -478,11 +459,10 @@ func runStart(home string, vanilla bool) error {
 }
 
 // lp2pHealthAdapter converts the CometBFT fork's raw lp2p.HealthSnapshot
-// (github.com/cuongct090_04/engram-consensus-core, M0a) into the
-// field-compatible sensors.P2PSnapshot shape x/sovereignty expects --
-// implements sensors.P2PHealthSource. Lives here, not in x/sovereignty,
-// because this is the only layer that imports both the fork's lp2p package
-// and x/sovereignty's sensors package (see P2PHealthSource's doc).
+// (github.com/cuongct090_04/engram-consensus-core) into the field-compatible
+// sensors.P2PSnapshot shape x/sovereignty expects -- implements
+// sensors.P2PHealthSource. Lives here because it's the only layer importing
+// both the fork's lp2p package and x/sovereignty's sensors package.
 type lp2pHealthAdapter struct {
 	sw *lp2p.Switch
 }
@@ -501,30 +481,21 @@ func (a lp2pHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 
 // vanillaP2PHealthAdapter computes real P2PSnapshot readings from the
 // STANDARD (non-libp2p) CometBFT p2p.Switch -- the transport actually
-// carrying consensus traffic in every deployment of this repo to date
-// (libp2p is disabled in every generated config.toml). Reads real,
-// already-flowing p2p.Switch data (Peers(), IsPersistent(),
-// Status().Duration); does not touch the active consensus data plane, only
-// observes it.
+// carrying consensus traffic in every deployment (libp2p is disabled in every
+// generated config.toml). Reads real, already-flowing switch data
+// (Peers(), IsPersistent(), Status().Duration); observes the data plane,
+// never touches it.
 //
-// ActiveAnchors mirrors persistent_peers (config.toml's trusted bootstrap
-// set every validator dials on startup): a known, pre-designated peer, as
-// opposed to one discovered dynamically via PEX and therefore more exposed
-// to Sybil/Eclipse manipulation. Counted by matching each connected peer's
-// ID against persistentPeerIDs, NOT via p2p.Peer's own IsPersistent() --
-// IsPersistent() matches by NetAddress (IP:port), and only the DIALING side
-// of a connection has a NetAddress that can match a persistent_peers entry;
-// the ACCEPTING side sees the remote peer's ephemeral source port instead,
-// so IsPersistent() undercounts asymmetrically depending on who dialed whom.
-// ID-based matching is symmetric.
+// ActiveAnchors mirrors persistent_peers (the trusted bootstrap set, vs.
+// dynamically PEX-discovered peers more exposed to Sybil/Eclipse), matched by
+// peer ID -- NOT p2p.Peer.IsPersistent(), which matches by NetAddress and
+// only on the DIALING side (the ACCEPTING side sees the remote's ephemeral
+// source port), undercounting asymmetrically; ID matching is symmetric.
 //
-// CleanPeers has no independent "blacklist" concept in this app yet (the
-// fork's own HealthMonitor.Blacklist is likewise never called) -- counts
-// total connected peers, a documented simplification matching that.
-//
-// Latency piggybacks on MConnection's existing PacketPing/PacketPong
-// keep-alive (p2p.Peer.RTT()) rather than a new reactor/protobuf message --
-// 0 per-peer until that peer's first exchange completes.
+// CleanPeers has no blacklist yet (the fork's HealthMonitor.Blacklist is
+// likewise never called) -- counts total connected peers, a documented
+// simplification. Latency piggybacks MConnection's PacketPing/PacketPong
+// keep-alive (p2p.Peer.RTT()); 0 per-peer until the first exchange.
 type vanillaP2PHealthAdapter struct {
 	sw                *p2p.Switch
 	persistentPeerIDs map[p2p.ID]bool
@@ -535,11 +506,9 @@ type vanillaP2PHealthAdapter struct {
 }
 
 // parsePersistentPeerIDs extracts just the "id@host:port" -> id portion of
-// config.toml's persistent_peers string, for ActiveAnchors' ID-based
-// matching (see vanillaP2PHealthAdapter's doc for why raw IsPersistent()
-// isn't reliable). Malformed entries (no "@") are skipped rather than
-// erroring -- this is a best-effort health signal, not consensus-critical
-// parsing.
+// persistent_peers, for ActiveAnchors' ID-based matching (see the adapter doc
+// for why raw IsPersistent() isn't reliable). Malformed entries (no "@") are
+// skipped, not erroring -- best-effort health, not consensus-critical.
 func parsePersistentPeerIDs(raw string) map[p2p.ID]bool {
 	ids := make(map[p2p.ID]bool)
 	for _, entry := range strings.Split(raw, ",") {
@@ -645,14 +614,11 @@ func (a *vanillaP2PHealthAdapter) PeerCountInSubnet(subnet string) uint64 {
 }
 
 // wireP2PSensor upgrades engramApp's P2P sensor from its static SetSnapshot
-// mock to a live source. n.Switch() only exists after node.NewNode()
-// returns, so this late-binds the source in rather than passing it at
-// construction time -- runs before n.Start(), so no real proposal is ever
-// processed with the mock source still active.
-//
-// Tries the fork's lp2p.Switch first (for if libp2p networking is ever
-// enabled); falls back to vanillaP2PHealthAdapter against the standard
-// p2p.Switch, which every real deployment has actually used to date.
+// mock to a live source. n.Switch() only exists after node.NewNode() returns,
+// so the source is late-bound rather than passed at construction -- runs
+// before n.Start(), so no real proposal is ever processed with the mock
+// still active. Tries the fork's lp2p.Switch first; falls back to the
+// vanilla adapter against the standard switch, which every deployment uses.
 func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers string) {
 	if lsw, ok := n.Switch().(*lp2p.Switch); ok {
 		engramApp.Sensors.P2P.SetSource(lp2pHealthAdapter{sw: lsw})
@@ -669,15 +635,14 @@ func wireP2PSensor(engramApp *app.EngramApp, n *node.Node, persistentPeers strin
 	})
 }
 
-// wirePeerFilter upgrades engramApp's ingress peer filter
-// (peer_filter.go's FilterPeerByAddr) from its fail-open default to a live
-// PeerFilterSource, mirroring wireP2PSensor's late-binding pattern. Only the
-// vanilla *p2p.Switch case is wired (lp2p is dormant on every real
-// deployment) -- stays a no-op (fail-open) if lp2p is ever enabled instead.
+// wirePeerFilter upgrades engramApp's ingress peer filter (peer_filter.go's
+// FilterPeerByAddr) from its fail-open default to a live PeerFilterSource,
+// mirroring wireP2PSensor's late-binding. Only the vanilla *p2p.Switch case
+// is wired (lp2p is dormant) -- stays fail-open if lp2p is ever enabled.
 //
-// Builds its own lightweight vanillaP2PHealthAdapter rather than reusing
-// wireP2PSensor's instance, since PeerCountInSubnet only reads a.sw.Peers()
-// fresh and needs none of the stateful churn-tracking fields.
+// Builds its own lightweight adapter rather than reusing wireP2PSensor's
+// instance: PeerCountInSubnet only reads a.sw.Peers() fresh and needs none
+// of the stateful churn-tracking fields.
 func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
 	sw, ok := n.Switch().(*p2p.Switch)
 	if !ok {
@@ -688,15 +653,13 @@ func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
 
 // wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap mock
 // to a real bitcoind JSON-RPC connection, and wires an AnchorTracker against
-// the same connection so h_btc_anchored has a real submission-and-confirmation
-// pipeline behind it -- when BITCOIN_HOST is set. Left unwired (silent
-// no-op) when unset.
+// it so h_btc_anchored has a real submit-and-confirm pipeline -- when
+// BITCOIN_HOST is set; silent no-op when unset.
 //
-// Requires a wallet with spendable funds already loaded on the connected
-// bitcoind. This repo does not run the real babylonlabs/babylond vigilante
-// images -- those expect a real Babylon chain's checkpointing modules this
-// app doesn't have; AnchorTracker is a minimal in-process stand-in achieving
-// the same submit-and-confirm goal without that dependency.
+// Requires a wallet with spendable funds on the connected bitcoind. This repo
+// doesn't run the real babylonlabs/babylond vigilante images (they need a
+// real Babylon chain this app lacks); AnchorTracker is a minimal in-process
+// stand-in for the same submit-and-confirm goal.
 func wireBTCSensor(engramApp *app.EngramApp) {
 	host := os.Getenv("BITCOIN_HOST")
 	if host == "" {
@@ -713,8 +676,8 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 	engramApp.Sensors.BTC.SetSource(client)
 	tracker := anchor.NewAnchorTracker(client, engramApp.SovereigntyKeeper.Params.KDeepFinality)
 	// ANCHOR_SUBMISSION_PAUSED_FILE lets a fault-injection script pause new
-	// checkpoint submissions mid-run (see AnchorTracker.SetSubmissionPausedFile's
-	// doc) -- unset on every real validator, only used by
+	// checkpoint submissions mid-run (see SetSubmissionPausedFile's doc) --
+	// unset on every real validator, only used by
 	// scripts/e2_fault_injection/live_scenario_matrix.py's S2 phase.
 	if pauseFile := os.Getenv("ANCHOR_SUBMISSION_PAUSED_FILE"); pauseFile != "" {
 		tracker.SetSubmissionPausedFile(pauseFile)
@@ -724,9 +687,8 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 
 // wireDASensor upgrades engramApp's DA sensor from its static SetAvailable
 // mock to a real celestia-bridge JSON-RPC connection, and wires a Publisher
-// against the same connection so h_engram_verified has a real
-// submission-and-retrieval pipeline behind it -- when CELESTIA_BRIDGE_URL is
-// set. Left unwired (silent no-op) when unset.
+// against it so h_engram_verified has a real submit-and-retrieve pipeline --
+// when CELESTIA_BRIDGE_URL is set; silent no-op when unset.
 //
 // CELESTIA_BRIDGE_AUTH_TOKEN must be the bridge's admin/write JWT --
 // blob.Submit is a write call celestia-node rejects unauthenticated.
@@ -750,37 +712,4 @@ func wireDASensor(engramApp *app.EngramApp) {
 	client := da.NewRPCClient(url, authToken)
 	engramApp.Sensors.DAPublisher = da.NewPublisher(client, ns)
 	engramApp.Sensors.DA.SetSource(engramApp.Sensors.DAPublisher)
-}
-
-// demoSMTCmd is the original SMT proof-of-concept (unrelated to the
-// sovereignty Keeper's own SMT usage) -- kept as a standalone command
-// instead of deleted.
-func demoSMTCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "demo-smt",
-		Short: "Standalone Sparse Merkle Tree proof-of-concept (unrelated to node state)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			nodes := smt.NewSimpleMap()
-			values := smt.NewSimpleMap()
-			tree := smt.NewSparseMerkleTree(nodes, values, sha256.New())
-
-			key := []byte("user_1")
-			val := []byte("state_anchored")
-			if _, err := tree.Update(key, val); err != nil {
-				return err
-			}
-
-			root := tree.Root()
-			fmt.Printf("Current Root: %x\n", root)
-
-			proof, err := tree.Prove(key)
-			if err != nil {
-				return err
-			}
-
-			valid := smt.VerifyProof(proof, root, key, val, sha256.New())
-			fmt.Printf("Proof valid: %v\n", valid)
-			return nil
-		},
-	}
 }

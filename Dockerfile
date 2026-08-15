@@ -4,71 +4,49 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies -- apk's own cache mounted too, so this layer
-# doesn't re-fetch the package index on every build even after go.mod churn
-# invalidates layers below it.
+# Build deps. apk's cache is mounted so the package index isn't re-fetched
+# every rebuild even when go.mod churn invalidates lower layers.
 RUN --mount=type=cache,target=/var/cache/apk \
     apk add --no-cache git make
 
 # Copy go mod files first so dependency downloads are cached independently
-# of source changes (unchanged from before -- already correct).
+# of source changes.
 COPY go.mod go.sum ./
 
 # go.mod's `replace github.com/cometbft/cometbft => ../engram-consensus-core`
-# is a relative filesystem-path replace pointing at a sibling repo (the
-# forked CometBFT core, see CLAUDE.md's M0a-M0d) -- it's not a real module
-# version `go mod download` can fetch, and by definition lives outside this
-# repo's own directory tree, so plain `COPY . .` can never see it. Pulled in
-# via a second BuildKit build context (`cometbft-fork`, wired in each
-# docker/engram-validator-node0N.yml's `build.additional_contexts`) and
-# copied to `/engram-consensus-core` -- exactly where `../engram-consensus-core`
-# resolves to from this stage's `/app` WORKDIR, matching the host layout
-# (both repos as siblings under the same parent) so the SAME relative
-# replace directive works unmodified for both local `go build` and this
-# Docker build. Found by actually running `docker compose build`: it failed
-# with "reading .../engram-consensus-core/go.mod: no such file or
-# directory" using the old absolute-host-path replace, which could never
-# have worked in any container regardless of caching.
+# is a relative path to a sibling repo (the forked CometBFT core, see
+# CLAUDE.md) that `COPY . .` can never see. Pulled in via a second BuildKit
+# context (`cometbft-fork`, wired in each docker/engram-validator-node0N.yml's
+# build.additional_contexts) to /engram-consensus-core, exactly where
+# `../engram-consensus-core` resolves from /app -- so the same replace works
+# for both local `go build` and this Docker build.
 COPY --from=cometbft-fork . /engram-consensus-core
 
 # GOMODCACHE mounted as a persistent BuildKit cache: modules are fetched
-# once and reused across rebuilds (and across all 4 engram-nodeNN image
-# builds from this same Dockerfile) instead of re-downloading from GOPROXY
-# every time go.mod/go.sum or COPY . . invalidates the layer below.
+# once and reused across rebuilds (and across all 4 node images) instead of
+# re-downloading every time go.mod/go.sum or COPY . . invalidates the layer.
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Copy source code (.dockerignore already excludes circuit/spec/scripts/
-# tests/docs -- everything here is Go-build-relevant).
+# Copy source (.dockerignore excludes circuit/spec/scripts/tests/docs --
+# everything Go-build-relevant).
 COPY . .
 
-# Both the module cache and Go's build cache (/root/.cache/go-build) are
-# mounted -- without the build-cache mount, every source-changing rebuild
-# recompiles the entire dependency graph from scratch even though the
-# module cache mount above avoids re-downloading it.
+# Module and build caches both mounted: without the build-cache mount, every
+# source-changing rebuild recompiles the whole dependency graph from scratch.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -o engramd ./cmd/engramd
 
 # Runtime stage
 #
-# glibc-based (debian:bookworm-slim), NOT alpine -- x/sovereignty/keeper/
-# reanchor.go's VerifyZKProof shells out to a real `bb` (Barretenberg)
-# binary during DeliverTx, and every validator running the SAME bb build is
-# consensus-safety-load-bearing (see that file's doc). The official `bb`
-# release is glibc-linked; Alpine's musl + gcompat compatibility shim is NOT
-# a full glibc and is missing symbols this binary actually needs (confirmed
-# live: `bb --version` under alpine+gcompat failed with "Error relocating
-# ...: mallinfo2: symbol not found" / "__res_init: symbol not found", both
-# real glibc symbols gcompat doesn't provide). This was a real, previously-
-# undiscovered gap: every prior test of this repo's re-anchoring pipeline
-# ran `bb` on the HOST (scripts/reanchoring_prover/, scripts/e6_.../
-# benchmark_prover.sh) -- this is the first time a real proof tx actually
-# reached DeliverTx on the dockerized 4-node cluster, and VerifyZKProof's
-# fail-closed behavior (return false, never panic) silently rejected every
-# submission with no indication beyond a log line ("ZK proof verification
-# rejected: exec: bb: executable file not found in $PATH") -- not a proof-
-# math failure at all.
+# glibc-based (debian:bookworm-slim), NOT alpine -- reanchor.go's
+# VerifyZKProof shells out to a real `bb` (Barretenberg) binary during
+# DeliverTx, and every validator running the SAME bb build is consensus-
+# safety-load-bearing (see that file's doc). The official bb release is
+# glibc-linked; Alpine's musl + gcompat shim is missing symbols it actually
+# needs (e.g. mallinfo2, __res_init), so `bb --version` fails under
+# alpine+gcompat.
 FROM debian:bookworm-slim
 
 WORKDIR /root
@@ -78,12 +56,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates bash curl jq && \
     rm -rf /var/lib/apt/lists/*
 
-# Pin the SAME bb version this repo's off-chain proving tooling uses
-# (scripts/reanchoring_prover/, docs/EXPERIMENT.md's E6 section) -- proofs
-# generated by one bb version aren't guaranteed wire-compatible with
-# another's verifier, and this doesn't need to float independently anyway.
-# uname -m on this base image reports aarch64/x86_64 (not arm64/amd64,
-# Barretenberg's own artifact-naming convention), hence the translation.
+# Pin the same bb version this repo's off-chain proving tooling uses
+# (scripts/reanchoring_prover/, docs/EXPERIMENT.md's E6) -- proofs from one
+# bb version aren't guaranteed wire-compatible with another's verifier.
+# uname -m reports aarch64/x86_64, not Barretenberg's arm64/amd64 naming,
+# hence the translation.
 ARG BB_VERSION=5.0.0-nightly.20260522
 RUN ARCH=$(uname -m) && \
     case "$ARCH" in \

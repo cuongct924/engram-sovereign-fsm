@@ -1,13 +1,10 @@
 name: reanchoring-prover
 
-# Containerized scripts/reanchoring_prover/watch_and_prove.sh -- without it
-# running, zk_proof_ref stays null forever and RECOVERING can never reach
-# ANCHORED. Talks to engram-node01's RPC over engram-net; not a validator,
-# doesn't need bitcoin-net. Needs celestia-net too now: prove_and_submit.sh's
-# publish-recovery-witness step publishes each proof's real header-chain
-# witness to Celestia DA as an audit trail (HeaderHistory gets pruned once a
-# proof is accepted) -- see x/sovereignty/keeper/msg_server.go's
-# RecoveryProofDAHeights doc.
+# Containerized watch_and_prove.sh -- the ZK re-anchoring prover (not a
+# validator, no bitcoin-net). Without it zk_proof_ref stays null and
+# RECOVERING never reaches ANCHORED. Talks to node01's RPC over engram-net;
+# also on celestia-net so the witness-publish step stores each proof's
+# header witness on DA as an audit trail (RecoveryProofDAHeights).
 services:
   reanchoring-prover:
     build:
@@ -31,14 +28,8 @@ services:
     deploy:
       resources:
         limits:
-          # bb prove (UltraHonk) spawns one worker thread per available CPU
-          # ("Scheme is: ultra_honk, num threads: 8" in its own log line on
-          # an 8-core host) -- capping this container at 1.0 CPU forced all
-          # of bb's own 8 threads to contend for a single core, pure
-          # scheduling overhead with none of the parallel speedup UltraHonk
-          # proving is designed to get from multiple cores. Raised to 6.0
-          # (leaving headroom for the 4 validators + bitcoind + celestia on
-          # the same host) rather than removed entirely -- this is still a
-          # cap, not a guarantee of 6 full cores.
+      # bb prove (UltraHonk) spawns one worker thread per CPU -- a 1.0 cap
+      # made threads contend for one core (pure scheduling overhead). Raised
+      # to 6.0, leaving headroom for the validators + bitcoind + celestia.
           cpus: '6.0'
           memory: 2048M

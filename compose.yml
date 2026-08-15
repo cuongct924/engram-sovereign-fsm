@@ -37,19 +37,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     profiles:
       - chaos-loss
-    # SCENARIO: Packet Loss - Drop 5% of network traffic on nodes 01 and 02 for 2m.
-    # Confirmed live (docs/EXPERIMENT.md's E2 S4) that even 40% loss over TCP
-    # (CometBFT's MConnection) is absorbed by retransmission: persistent P2P
-    # connections stay up (real /net_info n_peers unchanged throughout), so
-    # MinPeers/ChurnRate/ActiveAnchors never move -- loss-based netem simply
-    # doesn't target any conjunct IsP2PQualityHealthy checks
-    # (x/sovereignty/types/predicates.go), at any realistic percentage. Kept at
-    # the original mild 5% here since E9 also uses this exact profile for its
-    # own "P2P churn burst" framing. S4 no longer uses this profile at all --
-    # see scripts/e2_fault_injection/live_scenario_matrix.py's
-    # start_p2p_eclipse_partial for its real mechanism, which needs 6 different
-    # (container, interface) pairs simultaneously and doesn't fit one static
-    # compose service/profile.
+    # Loss-based netem never moves P2P metrics: TCP retransmission (CometBFT
+    # MConnection) absorbs even 40% loss. Kept at 5% for E9's churn framing;
+    # E2's S4 eclipse uses scripts/e2_fault_injection's start_p2p_eclipse_partial
+    # instead (needs 6 (container, interface) pairs, not a static profile).
     command:
       - "netem"
       - "--duration=2m"
@@ -93,12 +84,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     profiles:
       - chaos-btc-delay
-    # BTC congestion (docs/EXPERIMENT.md's E2 S2): delay/jitter applied
-    # directly to bitcoin-node01, the only RPC target every validator's
-    # AnchorTracker/btcGapMetric points at (bitcoin-node02 is only
-    # bitcoin-node01's regtest sync peer, never dialed by engramd). Duration
-    # matched to scripts/e2_fault_injection's staged-ramp orchestration, not
-    # a single fixed window.
+    # BTC congestion (E2 S2): delay applied to bitcoin-node01, the only RPC
+    # target validators' AnchorTracker/btcGapMetric dial (bitcoin-node02 is
+    # just its regtest sync peer). Duration matches e2_fault_injection's
+    # staged-ramp orchestration.
     command:
       - "netem"
       - "--duration=2m"
@@ -107,15 +96,10 @@ services:
       - "--jitter=100"
       - "bitcoin-node01"
 
-  # --- WAN realism profiles (chaos-wan-latency/-loss) -------------------------
-  # Unlike pumba-latency/-loss above (one uniform value for all/some nodes),
-  # each of the 4 validators gets its OWN delay/jitter or loss%, simulating
-  # distinct real regions. Illustrative magnitudes, real tc netem rules.
-  #
-  # A third profile (bandwidth cap via `pumba netem rate`, for "congestion")
-  # was dropped: `tc qdisc add ... netem rate 5mbit` fails with exit code 2
-  # on this Docker Desktop VM's kernel (no rate-limiting in its sch_netem
-  # build). Would need a TBF/HTB qdisc instead; not attempted.
+  # --- WAN realism profiles: each validator gets its OWN delay/jitter or
+  # loss%, simulating distinct regions (vs the uniform pumba-latency/-loss).
+  # A bandwidth-cap profile was dropped -- `netem rate` isn't available in
+  # this Docker Desktop VM's sch_netem (exit 2); would need a TBF/HTB qdisc.
   pumba-wan-latency-01:
     image: gaiaadm/pumba:latest
     container_name: pumba-wan-latency-01
@@ -190,11 +174,9 @@ services:
 
 networks:
   # Main validator network: external clients (reanchoring-prover, attacker
-  # swarm) reach validators here. NOT used for validator-to-validator P2P
-  # gossip anymore -- cmd/engramd/main.go's testnetInitFiles dials
-  # persistent_peers over the pairwise-link networks below instead, so real
-  # SubnetDiversity (x/sovereignty/types/subnet.go's SubnetOf) reads each
-  # peer from a genuinely distinct subnet.
+  # swarm) reach validators here. NOT for validator P2P gossip -- peers dial
+  # each other over the pairwise-link networks below so SubnetDiversity
+  # reads each peer from a genuinely distinct subnet.
   engram-net:
     name: engram-net
     driver: bridge
@@ -207,20 +189,14 @@ networks:
           gateway: 172.28.0.1
 
   # Pairwise validator-to-validator P2P links -- one dedicated /29 per pair
-  # (6 for 4 validators' full mesh), each validator statically addressed so
-  # cmd/engramd/main.go's pairwiseLinkPeerIP can dial a literal IP instead
-  # of a hostname. Index/IP scheme is defined there; both sides must stay
-  # in sync by construction.
+  # (6 for 4 validators' full mesh), statically addressed so
+  # cmd/engramd/main.go's pairwiseLinkPeerIP dials literal IPs. Index/IP
+  # scheme defined there; both sides must stay in sync.
   #
-  # A validator's in-container interface index (eth0, eth1, ...) for a given
-  # network is NOT stable or predictable across the 4 validators or across
-  # redeploys -- confirmed by cross-referencing `docker network inspect`'s
-  # per-network MacAddress against each container's /sys/class/net/ethN/address.
-  # A pumba `netem --interface ethN` chaos profile can silently land on the
-  # wrong network (e.g. engram-net instead of a pairwise link) with zero
-  # error. To fault-inject P2P specifically, disconnect/reconnect a
-  # validator-link-* network by NAME (`docker network disconnect`/`connect
-  # --ip`) instead -- see scripts/e3_failure_matrix/live_p2p_lifecycle_test.py.
+  # In-container interface indices (ethN) aren't stable, so pumba
+  # `netem --interface ethN` can silently hit the wrong network. Inject P2P
+  # faults by network NAME (`docker network disconnect`/`connect --ip`) --
+  # see scripts/e3_failure_matrix/live_p2p_lifecycle_test.py.
   validator-link-01-02:
     name: validator-link-01-02
     driver: bridge
@@ -288,13 +264,10 @@ networks:
         - subnet: 172.22.0.0/24
           gateway: 172.22.0.1
 
-  # attacker-subnet-a/b/c/d: 4 distinct bridge networks for E4/E8's A2
-  # (Sybil via simulated multi-subnet swarm, docker/attacker-peer-swarm.yml).
-  # Honest validators now arrive at each other over 6 separate /29 pairwise
-  # links (see this file's validator-link-* networks), so these give an
-  # attacker swarm its own genuine multi-subnet diversity to test the real
-  # ingress filter (FilterPeerByAddr) against, on engram-net where A2's
-  # dynamic peers connect in.
+  # attacker-subnet-a/b/c/d: 4 distinct bridges for E4/E8's A2 (Sybil via
+  # multi-subnet swarm, docker/attacker-peer-swarm.yml). Honest validators
+  # already use separate /29 links, so these give the swarm its own genuine
+  # multi-subnet diversity to test FilterPeerByAddr on engram-net.
   attacker-subnet-a:
     name: attacker-subnet-a
     driver: bridge

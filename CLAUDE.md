@@ -88,7 +88,7 @@ only, 2-3 lines per comment unless a genuine divergence from the spec needs just
 
 ## Current status
 
-M0-M7 and the full E1-E9 experiment suite (`docs/EXPERIMENT.md`) are done, with real (not
+The full E1-E10 experiment suite (`docs/EXPERIMENT.md`) are done, with real (not
 synthetic) data measured against a live 4-node Docker testnet plus real Bitcoin regtest and
 Celestia infrastructure. Real active Sybil/eclipse P2P ingress defense, double-signing detection,
 and the ZK re-anchoring pipeline (Noir/Barretenberg, max-N=256 circuit) are wired end-to-end.

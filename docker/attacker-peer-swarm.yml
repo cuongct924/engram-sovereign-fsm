@@ -1,27 +1,21 @@
 name: engram-attacker-swarm
 
 # Live Sybil/slot-exhaustion attacker swarm for E4/E8's A1 (Peer Slot
-# Exhaustion) and A2 (Sybil via simulated multi-subnet swarm) -- verifies
-# the real ingress filter (x/sovereignty/keeper/peer_filter.go's
-# FilterPeerByAddr, Params.MaxPeersPerSubnet) against real attacker
-# traffic, not just synthetic Monte Carlo simulation.
+# Exhaustion) and A2 (Sybil via multi-subnet swarm) -- tests the real
+# ingress filter (FilterPeerByAddr, Params.MaxPeersPerSubnet) with real
+# traffic, not synthetic simulation.
 #
-# Every attacker* service is a real `engramd` full-node process -- same
-# image as the 4 real validators, same real CometBFT P2P handshake -- but
-# not part of the genesis validator set (no stake, never signs/proposes),
-# pure P2P participants that dial the target validator(s) aggressively.
-# BTC/DA sensor env vars are deliberately omitted: wireBTCSensor/
-# wireDASensor no-op cleanly when unset, exactly what a pure-P2P attacker
-# needs.
+# Every attacker* is a real `engramd` full-node process (same image as the
+# validators, same P2P handshake) but outside the genesis validator set --
+# pure P2P participants dialing targets aggressively. BTC/DA sensor env
+# vars omitted: wireBTCSensor/wireDASensor no-op cleanly when unset.
 #
-# Profile-gated (attacker-swarm-a1 / attacker-swarm-a2) so neither leg runs
-# with a plain `docker compose up` -- must be requested explicitly via
-# `docker compose --profile attacker-swarm-a1 up` (or -a2).
+# Profile-gated (attacker-swarm-a1/a2) -- only runs when the profile is
+# explicitly requested.
 #
-# Requires the real 4-node cluster's shared genesis already generated at
-# ../testnet-data/engram-node01/config/genesis.json (`engramd testnet
-# init-files --v 4`) -- bind-mounted read-only into each attacker so its
-# CometBFT handshake matches the real cluster's chain-id/network.
+# Requires the real cluster's shared genesis (../testnet-data/engram-node01/
+# config/genesis.json, `engramd testnet init-files --v 4`) -- bind-mounted
+# read-only so each attacker matches the cluster's chain-id/network.
 
 x-attacker-common: &attacker-common
   build:
@@ -30,18 +24,15 @@ x-attacker-common: &attacker-common
     additional_contexts:
       - cometbft-fork=../../engram-consensus-core
   restart: "no"
-  # entrypoint: run `engramd init` first (idempotent -- only generates keys
-  # if this attacker's volume doesn't already have them; skips genesis
-  # generation since the real shared genesis is already bind-mounted),
+  # Run `engramd init` first (idempotent; genesis already bind-mounted),
   # then dial the target and start.
   entrypoint: ["/bin/sh", "-c"]
 
 services:
   # ===========================================================
-  # A1 leg -- Peer Slot Exhaustion: all attackers on engram-net, dialing
-  # engram-node01 directly, exceeding MaxPeersPerSubnet (default 8) well
-  # before CometBFT's own MaxNumInboundPeers (default 40) would trip --
-  # shows the ingress filter as the binding constraint, not CometBFT's cap.
+  # A1 leg -- Peer Slot Exhaustion: all attackers on engram-net dialing
+  # node01, tripping MaxPeersPerSubnet (8) before CometBFT's own
+  # MaxNumInboundPeers (40) -- the filter is the binding constraint.
   # ===========================================================
   attacker-a1-01: &attacker-a1
     <<: *attacker-common
@@ -239,11 +230,9 @@ services:
         exec engramd start --home /root/.engramd
 
   # ===========================================================
-  # A2 leg -- Sybil via simulated multi-subnet swarm: 3 attackers per new
-  # subnet x 4 subnets = 12 total, spread across distinct Docker bridge
-  # networks (attacker-subnet-a/b/c/d, compose.yml) so the real
-  # subnet-masking (types.SubnetOf) sees genuine diversity -- the
-  # buildable analog of A2 (real BGP-level hijacking is out of scope).
+  # A2 leg -- Sybil via multi-subnet swarm: 3 attackers x 4 subnets = 12,
+  # spread across attacker-subnet-a/b/c/d so SubnetOf sees genuine
+  # diversity -- the buildable analog of A2 (BGP hijacking is out of scope).
   # ===========================================================
   attacker-a2-a1: &attacker-a2
     <<: *attacker-common
@@ -490,9 +479,6 @@ services:
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
 
-# engram-net is declared once in the root compose.yml (owns it); the A1 leg
-# joins it by name, same convention as docker/engram-validator-cluster.yml.
-# attacker-subnet-a/b/c/d are declared in compose.yml too (added alongside
-# engram-net/bitcoin-net/celestia-net) -- redeclaring them here would hit the
-# same "conflicts with imported resource" error engram-validator-cluster.yml's
-# own trailing comment already documents for this exact include: pattern.
+# Networks (engram-net, attacker-subnet-a/b/c/d) are declared once in the
+# root compose.yml, which owns them -- services join by name; redeclaring
+# here would hit "conflicts with imported resource".

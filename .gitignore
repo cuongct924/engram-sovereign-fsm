@@ -85,13 +85,9 @@ docs/spec/core/EngramTypes.tla
 
 
 build/
-# Anchored to repo root only -- an unanchored "engramd" here previously
-# matched the cmd/engramd/ directory too (gitignore patterns with no "/"
-# match a path component at any depth), silently excluding every file added
-# to that directory after this rule existed (e8_cli.go, its tests) from git
-# entirely, even though they built and tested fine locally. That's what
-# caused a real CI failure (undefined: txSubmitForcedTxCmd) despite the
-# function existing on disk -- it just never reached the pushed commit.
+# Anchored to root -- without the "/", "engramd" would also match the
+# cmd/engramd/ directory and silently exclude its files (e.g. e8_cli.go)
+# from git, causing CI failures that don't reproduce locally.
 /engramd
 
 .claude/worktrees
