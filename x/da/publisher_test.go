@@ -1,1 +1,208 @@
 package da
+
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+// fakeCelestiaNodeHandler mirrors x/anchor/anchor_test.go's fakeBitcoindHandler
+// -- a self-contained stand-in for real celestia-node so Publisher's
+// submit/confirm state machine can be unit-tested without
+// docker/celestia-local-cluster.yml (that's rpc_smoke_test.go's job, gated
+// behind -tags celestiasmoke).
+type fakeCelestiaNodeHandler struct {
+	mu     sync.Mutex
+	calls  map[string]int
+	handle map[string]func() (any, error)
+}
+
+func newFakeCelestiaNode(t *testing.T) (*httptest.Server, *fakeCelestiaNodeHandler) {
+	t.Helper()
+	h := &fakeCelestiaNodeHandler{calls: map[string]int{}, handle: map[string]func() (any, error){}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+		h.mu.Lock()
+		h.calls[req.Method]++
+		fn, ok := h.handle[req.Method]
+		h.mu.Unlock()
+
+		resp := map[string]any{"id": req.ID}
+		switch {
+		case !ok:
+			t.Errorf("fakeCelestiaNode: unexpected method %q (no handler registered)", req.Method)
+			resp["error"] = map[string]any{"code": -32601, "message": "method not found"}
+		default:
+			result, err := fn()
+			if err != nil {
+				resp["error"] = map[string]any{"code": -1, "message": err.Error()}
+			} else {
+				resp["result"] = result
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(resp))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, h
+}
+
+func (h *fakeCelestiaNodeHandler) on(method string, fn func() (any, error)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.handle[method] = fn
+}
+
+func (h *fakeCelestiaNodeHandler) callCount(method string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.calls[method]
+}
+
+func testPublisher(t *testing.T, srv *httptest.Server) *Publisher {
+	t.Helper()
+	ns, err := NewNamespace("smoketest0")
+	require.NoError(t, err)
+	return NewPublisher(NewRPCClient(srv.URL, "token"), ns)
+}
+
+// waitForPendingSubmission polls until MaybePublish's background Submit
+// goroutine (see MaybePublish's doc: it runs async since blob.Submit blocks
+// ~12s for Celestia inclusion) has recorded a pending submission -- reading
+// the unexported field directly since this file shares Publisher's package.
+func waitForPendingSubmission(t *testing.T, p *Publisher) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return p.pendingEngramHeight != 0
+	}, time.Second, time.Millisecond, "background Submit never recorded a pending submission")
+}
+
+func TestHeightMarker(t *testing.T) {
+	m := HeightMarker(7)
+	require.True(t, bytes.HasPrefix(m, heightMarkerTag))
+	require.Equal(t, uint64(7), binary.BigEndian.Uint64(m[len(heightMarkerTag):]))
+}
+
+func TestPublisher_MaybePublish_SubmitsAndBecomesPending(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("data")))
+	waitForPendingSubmission(t, p)
+
+	p.mu.Lock()
+	pendingHeight, pendingCelestiaHt := p.pendingEngramHeight, p.pendingCelestiaHt
+	p.mu.Unlock()
+	require.Equal(t, uint64(10), pendingHeight)
+	require.Equal(t, uint64(50), pendingCelestiaHt)
+
+	_, ok := p.VerifiedHeight()
+	require.False(t, ok, "must not be verified before an Available() check confirms it")
+}
+
+// TestPublisher_MaybePublish_DoesNotDoubleSubmitWhileInFlight blocks
+// blob.Submit's handler so the first Submit is still running when the second
+// MaybePublish call happens -- `submitting` is set synchronously before the
+// goroutine launches (MaybePublish's own doc), so this is deterministic, not
+// a timing race.
+func TestPublisher_MaybePublish_DoesNotDoubleSubmitWhileInFlight(t *testing.T) {
+	release := make(chan struct{})
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) {
+		<-release
+		return uint64(50), nil
+	})
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("a")))
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("b")))
+
+	close(release)
+	require.Eventually(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return !p.submitting
+	}, time.Second, time.Millisecond)
+
+	require.Equal(t, 1, h.callCount("blob.Submit"), "a second MaybePublish while one Submit is in flight must not launch another")
+}
+
+func TestPublisher_MaybePublish_MarksVerifiedOnceAvailable(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("a")))
+	waitForPendingSubmission(t, p)
+
+	h.on("blob.GetAll", func() (any, error) {
+		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
+	})
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("b")))
+
+	height, ok := p.VerifiedHeight()
+	require.True(t, ok)
+	require.Equal(t, uint64(10), height, "must record the height that was actually confirmed retrievable, not the new call's height")
+}
+
+func TestPublisher_MaybePublish_NotYetAvailableKeepsWaiting(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("a")))
+	waitForPendingSubmission(t, p)
+
+	h.on("blob.GetAll", func() (any, error) { return []map[string]any{}, nil })
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("b")))
+
+	_, ok := p.VerifiedHeight()
+	require.False(t, ok, "must keep waiting, not verify, while the blob isn't retrievable yet")
+	p.mu.Lock()
+	stillPending := p.pendingEngramHeight
+	p.mu.Unlock()
+	require.Equal(t, uint64(10), stillPending, "the original pending submission must not be abandoned this early")
+}
+
+func TestPublisher_MaybePublish_AbandonsPendingPastMaxPendingBlocks(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("a")))
+	waitForPendingSubmission(t, p)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10+maxPendingBlocks+1, []byte("b")))
+
+	require.True(t, p.Failed(), "abandoning a stuck pending submission must surface as a failure")
+	require.Equal(t, 0, h.callCount("blob.GetAll"), "an abandoned submission must not spend an Available() check on the same call")
+}
+
+func TestPublisher_ProbeHealthy_TrueWhenReachable(t *testing.T) {
+	srv, _ := newFakeCelestiaNode(t)
+	p := testPublisher(t, srv)
+	require.True(t, p.ProbeHealthy(context.Background()))
+}
+
+func TestPublisher_ProbeHealthy_FalseWhenUnreachable(t *testing.T) {
+	ns, err := NewNamespace("smoketest0")
+	require.NoError(t, err)
+	p := NewPublisher(NewRPCClient("http://127.0.0.1:1", "token"), ns) // nothing listens on port 1
+	require.False(t, p.ProbeHealthy(context.Background()))
+}
