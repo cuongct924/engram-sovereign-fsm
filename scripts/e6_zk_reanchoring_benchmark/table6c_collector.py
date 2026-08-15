@@ -129,10 +129,15 @@ def build_figure7(noir_rows, plonky3_rows):
 
     fig, axes = plt.subplots(1, 3, figsize=figsize_row(3))
     for ax, metric, nv, pv in zip(axes, metrics, noir_vals, p3_vals):
-        bars = ax.bar(["Noir+Honk", "Plonky3"], [nv, pv], color=["C0", "C1"])
+        # width<1 separates the two bars so each value label has room; padding
+        # pushes the label above the bar top (log scale would otherwise clip
+        # or overlap it on the neighboring bar).
+        bars = ax.bar(["Noir+Honk", "Plonky3"], [nv, pv], width=0.6, color=["C0", "C1"])
         ax.set_title(metric)
-        ax.bar_label(bars, fmt="%.3g")
+        ax.bar_label(bars, fmt="%.3g", padding=4)
         ax.set_yscale("log")
+        ymin, ymax = ax.get_ylim()
+        ax.set_ylim(ymin, ymax * 3)
 
     fig.suptitle(
         f"Figure 7 -- Backend Trade-off at N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale)"
