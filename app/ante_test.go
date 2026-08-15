@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
@@ -118,4 +119,84 @@ func TestAnteHandle_AllowsNonWithdrawalTxWhileSovereign(t *testing.T) {
 func TestIsHighRiskTransaction(t *testing.T) {
 	require.True(t, isHighRiskTransaction(&banktypes.MsgSend{}))
 	require.False(t, isHighRiskTransaction(&fsmtypes.MsgInjectFaultRequest{}))
+}
+
+// seedForcedTxQueue queues n distinct forced txs, for tests exercising the
+// SUSPICIOUS admission cap against a specific starting queue size.
+func seedForcedTxQueue(t *testing.T, ctx sdk.Context, k *sovereigntykeeper.Keeper, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		require.NoError(t, k.ForcedTxQueue.Set(ctx, fmt.Sprintf("seed-tx-%d", i)))
+	}
+}
+
+func TestAnteHandle_AllowsForcedTxWhileSuspiciousUnderCap(t *testing.T) {
+	cbd, ctx, k := newTestAnteFixture(t)
+	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSuspicious))
+	k.Params.MaxSuspiciousForcedTxQueue = 3
+	seedForcedTxQueue(t, ctx, k, 2) // under cap
+
+	tx := stubTx{msgs: []sdk.Msg{&fsmtypes.MsgSubmitForcedTxRequest{}}}
+	var nextCalled bool
+	_, err := cbd.AnteHandle(ctx, tx, false, callNext(&nextCalled))
+	require.NoError(t, err)
+	require.True(t, nextCalled)
+}
+
+func TestAnteHandle_BlocksForcedTxWhileSuspiciousAtCap(t *testing.T) {
+	cbd, ctx, k := newTestAnteFixture(t)
+	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSuspicious))
+	k.Params.MaxSuspiciousForcedTxQueue = 3
+	seedForcedTxQueue(t, ctx, k, 3) // exactly at cap
+
+	tx := stubTx{msgs: []sdk.Msg{&fsmtypes.MsgSubmitForcedTxRequest{}}}
+	var nextCalled bool
+	_, err := cbd.AnteHandle(ctx, tx, false, callNext(&nextCalled))
+	require.Error(t, err, "must reject once the queue is already at cap")
+	require.False(t, nextCalled)
+}
+
+// TestAnteHandle_ForcedTxThrottleOnlyAppliesToSuspicious confirms the new
+// check never fires outside SUSPICIOUS, even at/over cap.
+func TestAnteHandle_ForcedTxThrottleOnlyAppliesToSuspicious(t *testing.T) {
+	for _, state := range []string{fsmtypes.StateAnchored, fsmtypes.StateSovereign, fsmtypes.StateRecovering} {
+		t.Run(state, func(t *testing.T) {
+			cbd, ctx, k := newTestAnteFixture(t)
+			require.NoError(t, k.FSMState.Set(ctx, state))
+			k.Params.MaxSuspiciousForcedTxQueue = 3
+			seedForcedTxQueue(t, ctx, k, 5) // over cap
+
+			tx := stubTx{msgs: []sdk.Msg{&fsmtypes.MsgSubmitForcedTxRequest{}}}
+			var nextCalled bool
+			_, err := cbd.AnteHandle(ctx, tx, false, callNext(&nextCalled))
+			require.NoError(t, err, "the SUSPICIOUS-only throttle must never fire outside SUSPICIOUS")
+			require.True(t, nextCalled)
+		})
+	}
+}
+
+func TestAnteHandle_NeverThrottlesRecoveryProofWhileSuspiciousAtCap(t *testing.T) {
+	cbd, ctx, k := newTestAnteFixture(t)
+	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSuspicious))
+	k.Params.MaxSuspiciousForcedTxQueue = 3
+	seedForcedTxQueue(t, ctx, k, 5) // over cap
+
+	tx := stubTx{msgs: []sdk.Msg{&fsmtypes.MsgSubmitRecoveryProofRequest{}}}
+	var nextCalled bool
+	_, err := cbd.AnteHandle(ctx, tx, false, callNext(&nextCalled))
+	require.NoError(t, err, "the only escape from SOVEREIGN/RECOVERING must never be throttled")
+	require.True(t, nextCalled)
+}
+
+func TestAnteHandle_AllowsNonForcedTxWhileSuspiciousAtCap(t *testing.T) {
+	cbd, ctx, k := newTestAnteFixture(t)
+	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateSuspicious))
+	k.Params.MaxSuspiciousForcedTxQueue = 3
+	seedForcedTxQueue(t, ctx, k, 5) // over cap
+
+	tx := stubTx{msgs: []sdk.Msg{&fsmtypes.MsgInjectFaultRequest{}}}
+	var nextCalled bool
+	_, err := cbd.AnteHandle(ctx, tx, false, callNext(&nextCalled))
+	require.NoError(t, err, "the throttle must be scoped to MsgSubmitForcedTxRequest only")
+	require.True(t, nextCalled)
 }

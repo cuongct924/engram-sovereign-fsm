@@ -38,6 +38,27 @@ func (cbd CircuitBreakerDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simula
 		}
 	}
 
+	// Concrete-only, no spec line: caps forced-tx admission while SUSPICIOUS
+	// (unbounded otherwise). Gates admission only, never a queued tx's
+	// IsCensoring countdown. count is local, not re-fetched per message,
+	// since nothing is queued until after AnteHandle returns.
+	if currentState == fsmtypes.StateSuspicious {
+		queue, err := cbd.fsmKeeper.ForcedTxQueueSlice(ctx)
+		if err != nil {
+			return ctx, err
+		}
+		count := len(queue)
+		for _, msg := range tx.GetMsgs() {
+			if _, ok := msg.(*fsmtypes.MsgSubmitForcedTxRequest); !ok {
+				continue
+			}
+			if uint64(count) >= cbd.fsmKeeper.Params.MaxSuspiciousForcedTxQueue {
+				return ctx, errors.New("SUSPICIOUS THROTTLE ACTIVE: forced-tx queue is at capacity while fsm_state is SUSPICIOUS")
+			}
+			count++
+		}
+	}
+
 	return next(ctx, tx, simulate)
 }
 
