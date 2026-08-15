@@ -197,7 +197,8 @@ RECOVERING):
 | S7 Recovery | 1 | 1 | 3 | 4 | 0 | 3 |
 
 Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
-across all 4 validators):
+across all 4 validators). Times are elapsed seconds since the run started, not per-scenario —
+each phase begins where the previous one's recovery left off:
 
 | Scenario | →SUSPICIOUS | →SOVEREIGN | →RECOVERING | →ANCHORED |
 |---|---:|---:|---:|---:|
