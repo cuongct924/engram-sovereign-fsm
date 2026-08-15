@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Orchestrates E5's 5b/5c live spot-check sweep (docs/EXPERIMENT.md) across the
 in-process sweep's value set, DownHysteresisThreshold / SuspiciousHysteresisWait
-in {1,2,4,6,8}: for each (edge, value) pair, redeploys the real 4-node testnet
-with that param baked into a fresh genesis, waits for the cluster to reach a
-healthy ANCHORED baseline, then runs live_spot_check_absorb.py's 300s
-measurement window. live_spot_check_absorb.py itself only measures one already
--deployed value; this script is what drives the redeploy between values.
+in {1,2,4,6,8}, x2 environments (stable, noisy_da -- matching 5a's 5x2 design):
+for each (edge, value) pair, redeploys the real 4-node testnet with that param
+baked into a fresh genesis, then runs live_spot_check_absorb.py's 300s
+measurement window once per env against that same deployed genesis (no
+redeploy needed between envs, just re-waiting for a healthy ANCHORED
+baseline). live_spot_check_absorb.py itself only measures one already-deployed
+(value, env) pair; this script is what drives the redeploy between values.
 
 Bitcoin regtest and Celestia stay running for the whole sweep (only engramd's
 genesis/Params changes between iterations, not their state) -- `make
@@ -136,13 +138,14 @@ def wait_for_healthy_anchored(timeout_s: float = 240.0, interval_s: float = 5.0)
     return False
 
 
-def run_spot_check(edge: str, value: int, duration_s: float, wan_profile: str) -> None:
+def run_spot_check(edge: str, value: int, env: str, duration_s: float, wan_profile: str) -> None:
     cmd = [
         sys.executable,
         "-u",
         os.path.join(REPO_ROOT, "scripts", "e5_hysteresis_flapping", "live_spot_check_absorb.py"),
         "--edge", edge,
         "--value", str(value),
+        "--env", env,
         "--duration-s", str(duration_s),
         "--wan-profile", wan_profile,
     ]
@@ -153,6 +156,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--edges", default="down,suspicious_exit")
     parser.add_argument("--values", default="1,2,4,6,8")
+    parser.add_argument("--envs", default="stable,noisy_da", help="matches 5a's 5x2 design; comma-separated subset of stable,noisy_da")
     parser.add_argument("--duration-s", type=float, default=300.0)
     parser.add_argument("--wan-profile", default="chaos-wan-latency", choices=["none", "chaos-wan-latency", "chaos-wan-loss"])
     parser.add_argument("--health-timeout-s", type=float, default=1500.0)
@@ -160,34 +164,43 @@ def main() -> None:
 
     edges = args.edges.split(",")
     values = [int(v) for v in args.values.split(",")]
+    envs = args.envs.split(",")
     for e in edges:
         if e not in PARAM_FIELD:
             sys.exit(f"unknown edge {e!r}, must be one of {list(PARAM_FIELD)}")
+    for e in envs:
+        if e not in ("stable", "noisy_da"):
+            sys.exit(f"unknown env {e!r}, must be one of stable, noisy_da")
 
-    log(f"=== E5b/5c absorb sweep: edges={edges} values={values} duration={args.duration_s:.0f}s ===")
+    log(f"=== E5b/5c absorb sweep: edges={edges} values={values} envs={envs} duration={args.duration_s:.0f}s ===")
     results = []
     for edge in edges:
         for value in values:
             log(f"--- {edge}={value}: redeploying ---")
             redeploy(edge, value)
 
-            log("waiting for cluster to reach healthy ANCHORED baseline")
-            if not wait_for_healthy_anchored(timeout_s=args.health_timeout_s):
-                log(f"ERROR: cluster did not reach healthy ANCHORED within {args.health_timeout_s:.0f}s, skipping {edge}={value}")
-                results.append((edge, value, "SKIPPED-unhealthy"))
-                continue
+            # Same deployed genesis serves every env at this value -- no
+            # redeploy between envs, just the ANCHORED-baseline wait each
+            # measurement window assumes, re-run before every env including
+            # the first.
+            for env in envs:
+                log(f"waiting for cluster to reach healthy ANCHORED baseline ({edge}={value}, env={env})")
+                if not wait_for_healthy_anchored(timeout_s=args.health_timeout_s):
+                    log(f"ERROR: cluster did not reach healthy ANCHORED within {args.health_timeout_s:.0f}s, skipping {edge}={value} env={env}")
+                    results.append((edge, value, env, "SKIPPED-unhealthy"))
+                    continue
 
-            log(f"--- {edge}={value}: running {args.duration_s:.0f}s measurement ---")
-            try:
-                run_spot_check(edge, value, args.duration_s, args.wan_profile)
-                results.append((edge, value, "OK"))
-            except subprocess.CalledProcessError as ex:
-                log(f"ERROR: spot-check failed for {edge}={value}: {ex}")
-                results.append((edge, value, "FAILED"))
+                log(f"--- {edge}={value} env={env}: running {args.duration_s:.0f}s measurement ---")
+                try:
+                    run_spot_check(edge, value, env, args.duration_s, args.wan_profile)
+                    results.append((edge, value, env, "OK"))
+                except subprocess.CalledProcessError as ex:
+                    log(f"ERROR: spot-check failed for {edge}={value} env={env}: {ex}")
+                    results.append((edge, value, env, "FAILED"))
 
     log("=== sweep complete ===")
-    for edge, value, status in results:
-        log(f"  {edge}={value}: {status}")
+    for edge, value, env, status in results:
+        log(f"  {edge}={value} env={env}: {status}")
 
 
 if __name__ == "__main__":

@@ -1,42 +1,54 @@
 #!/usr/bin/env python3
-"""LIVE spot-check for E5's 5b/5c sub-scenarios (docs/EXPERIMENT.md) -- down-hysteresis
-(ANCHORED -> SUSPICIOUS, DownHysteresisThreshold) and SUSPICIOUS-exit hysteresis
-(SUSPICIOUS -> ANCHORED, SuspiciousHysteresisWait) against the real 4-node testnet.
-Sibling to live_spot_check.py (5a, HysteresisWait), kept as a separate file rather than
-folded in so a bug here can't regress the already-proven 5a workflow.
+"""LIVE spot-check for E5's 5b/5c sub-scenarios (docs/EXPERIMENT.md) --
+down-hysteresis (ANCHORED -> SUSPICIOUS, DownHysteresisThreshold) and
+SUSPICIOUS-exit hysteresis (SUSPICIOUS -> ANCHORED, SuspiciousHysteresisWait)
+against the real 4-node testnet. Sibling to live_spot_check.py (5a), kept
+separate so a bug here can't regress the already-proven 5a workflow.
 
-Both DownHysteresisThreshold and SuspiciousHysteresisWait are genesis params, not
-compile-time-fixed: set ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD /
-ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT in .env, wipe testnet-data/, regenerate genesis
-(`engramd testnet init-files --v 4`), and redeploy before running this script with
---edge/--value matching what was just deployed -- see docs/DEVELOPMENT.md §3.
+Both params are genesis params, not compile-time-fixed: set
+ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD / ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT
+in .env, wipe testnet-data/, regenerate genesis, redeploy, then run with
+--edge/--value matching what was deployed (docs/DEVELOPMENT.md §3).
 
-Noise source: celestia-bridge stop/start (the same live-proven mechanism live_spot_check.py
-uses for noisy_da) -- DA unhealthiness is warning-level only (types.IsDAHealthy has no
-critical path, x/sovereignty/types/predicates.go), so it exercises down-hysteresis/
-SUSPICIOUS-exit hysteresis's absorb path without ever risking an accidental critical-level
-bypass, unlike a real BTC-gap-based warning noise source would (calibrating h_btc_current
-into the SuspiciousThreshold..SovereignThreshold band via ANCHOR_SUBMISSION_PAUSED_FILE
-needs tight closed-loop gap monitoring this script does not attempt -- out of scope here,
-a candidate follow-up if BTC-specific live noise is ever needed).
+Noise source: celestia-bridge stop/start (the live-proven mechanism
+live_spot_check.py uses for noisy_da). DA unhealthiness is warning-level only
+(types.IsDAHealthy has no critical path, x/sovereignty/types/predicates.go),
+so it exercises down/SUSPICIOUS-exit hysteresis's absorb path without risking
+an accidental critical-level bypass -- unlike a BTC-gap-based noise source
+(calibrating h_btc_current into the Suspicious..Sovereign band via
+ANCHOR_SUBMISSION_PAUSED_FILE needs tight closed-loop gap monitoring this
+script doesn't attempt).
 
---edge down (5b): cluster is assumed to start ANCHORED (the real chain's own genesis
+--edge down (5b): cluster assumed to start ANCHORED (the chain's own genesis
 default) -- measures directly.
---edge suspicious_exit (5c): a pre-phase stops celestia-bridge and polls until every node
-reports SUSPICIOUS (bounded by --drive-timeout-s) before the measurement window starts,
-mirroring the in-process sweep's driveToSuspicious helper
-(tests/e2e/suspicious_exit_sweep_test.go).
+--edge suspicious_exit (5c): a pre-phase stops celestia-bridge and polls until
+every node reports SUSPICIOUS (bounded by --drive-timeout-s) before the
+measurement window starts, mirroring tests/e2e/suspicious_exit_sweep_test.go's
+driveToSuspicious.
 
-Usage, once per (edge, value) combination already deployed:
+--env stable vs noisy_da mirrors live_spot_check.py's (5a) same flag, but the MEANING inverts for
+--edge suspicious_exit -- see ENVIRONMENTS below. stable never toggles celestia-bridge during the
+measurement window; for --edge down that's a 100%-healthy control, for --edge suspicious_exit
+(which still needs the drive-phase stop to reach SUSPICIOUS first) it's the opposite: celestia-bridge
+stays down for the whole window, a sustained-warning control. noisy_da toggles on the
+--noise-on-s/--noise-off-s cadence, defaulted asymmetrically per edge (see --noise-off-s's help)
+to approximate tests/e2e/{hysteresis,suspicious_exit}_sweep_test.go's actual
+noiseProbability=0.2 model -- down's noise is a minority warning blip against a healthy baseline
+(matches 5a's own noisy_da), but suspicious_exit's noise is a minority HEALTHY blip against a
+sustained-warning baseline (inverted), so a symmetric 50/50 toggle would misrepresent it.
+
+Usage, once per (edge, value, env) combination already deployed:
 
     # after redeploying with ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD=4:
-    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge down --value 4
+    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge down --value 4 --env stable
+    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge down --value 4 --env noisy_da
     # after redeploying with ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT=4:
-    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge suspicious_exit --value 4
+    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge suspicious_exit --value 4 --env stable
+    python3 -u scripts/e5_hysteresis_flapping/live_spot_check_absorb.py --edge suspicious_exit --value 4 --env noisy_da
 
-Granularity caveat (shared with live_spot_check.py): metrics are computed from
-fixed-interval RPC polling, not per-block state -- a transition that both starts and
-fully reverses within one polling interval can be missed.
+Granularity caveat (shared with live_spot_check.py): metrics are computed
+from fixed-interval RPC polling, not per-block state -- a transition that
+starts and fully reverses within one polling interval can be missed.
 """
 
 import argparse
@@ -50,6 +62,19 @@ from injector import start_pumba_wan_profile, cleanup_wan_profile  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 CELESTIA_BRIDGE = "celestia-bridge"
+
+ENVIRONMENTS = {
+    "stable": {
+        "description": "down (5b): no injected noise, 100% healthy control. "
+        "suspicious_exit (5c): sustained warning, 0% healthy blips -- the "
+        "opposite control (system must exhaust MaxSuspiciousTime)."
+    },
+    "noisy_da": {
+        "description": "down (5b): ~80% healthy baseline, ~20% warning blips. "
+        "suspicious_exit (5c): ~80% warning baseline, ~20% healthy blips -- "
+        "inverted from down, matching suspicious_exit_sweep_test.go's actual model."
+    },
+}
 
 
 def now() -> str:
@@ -132,6 +157,7 @@ def main():
         "(--edge suspicious_exit) value the deployed cluster was just redeployed with "
         "(label only, not enforced)",
     )
+    parser.add_argument("--env", choices=list(ENVIRONMENTS.keys()), required=True)
     parser.add_argument("--duration-s", type=float, default=300.0)
     parser.add_argument("--interval-s", type=float, default=3.0)
     parser.add_argument(
@@ -144,14 +170,15 @@ def main():
     parser.add_argument(
         "--noise-on-s",
         type=float,
-        default=20.0,
-        help="seconds celestia-bridge stays DOWN per cycle",
+        default=None,
+        help="seconds celestia-bridge stays DOWN per cycle (default: 20.0)",
     )
     parser.add_argument(
         "--noise-off-s",
         type=float,
-        default=20.0,
-        help="seconds celestia-bridge stays UP per cycle",
+        default=None,
+        help="seconds celestia-bridge stays UP per cycle (default: 20.0 for --edge down, "
+        "4.0 for --edge suspicious_exit -- see module doc's asymmetric-ratio note)",
     )
     parser.add_argument(
         "--wan-profile",
@@ -161,6 +188,17 @@ def main():
         "baseline held for the whole run.",
     )
     args = parser.parse_args()
+    if args.noise_on_s is None:
+        args.noise_on_s = 20.0
+    if args.noise_off_s is None:
+        # suspicious_exit's "noise" is the MINORITY state (a healthy blip
+        # against a sustained-warning baseline) -- 20/4 approximates
+        # tests/e2e/suspicious_exit_sweep_test.go's noiseProbability=0.2
+        # (hysteresis_sweep_test.go:27) as an 80/20 time split per cycle,
+        # not a symmetric toggle. down's own noise IS the minority state
+        # already (healthy baseline, warning blip), so it keeps 20/20.
+        args.noise_off_s = 4.0 if args.edge == "suspicious_exit" else 20.0
+
     if args.wan_profile != "none" and args.duration_s > 570:
         print(
             f"WARNING: --duration-s={args.duration_s:.0f} exceeds the WAN profile's own "
@@ -169,8 +207,8 @@ def main():
         )
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    label = f"{args.edge}{args.value}"
-    print(f"=== E5{'b' if args.edge == 'down' else 'c'} live spot-check: edge={args.edge} value={args.value} wan_profile={args.wan_profile} ===")
+    label = f"{args.edge}{args.value}_{args.env}"
+    print(f"=== E5{'b' if args.edge == 'down' else 'c'} live spot-check: edge={args.edge} value={args.value} env={args.env} ({ENVIRONMENTS[args.env]['description']}) wan_profile={args.wan_profile} ===")
     print(
         "NOTE: this script does NOT verify the deployed cluster actually has this "
         "param value -- confirm ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD / "
@@ -189,8 +227,8 @@ def main():
             docker("start", CELESTIA_BRIDGE)
             sys.exit(1)
         print(f"[{now()}] >>> all nodes SUSPICIOUS, starting measurement window")
-        # Baseline for suspicious_exit is DOWN (sustains the warning condition that
-        # holds SUSPICIOUS); "noise" toggles celestia-bridge UP for a healthy blip --
+        # Baseline for suspicious_exit is DOWN (sustains the warning holding
+        # SUSPICIOUS); "noise" toggles celestia-bridge UP for a healthy blip --
         # the inverse of --edge down's baseline-UP/noise-DOWN cadence.
         baseline_state_is_down = True
     else:
@@ -219,7 +257,7 @@ def main():
             states = {s.node: s.fsm_state for s in round_samples}
             print(f"[{t:6.0f}s] {states}")
 
-            if time.time() >= next_toggle:
+            if args.env == "noisy_da" and time.time() >= next_toggle:
                 if baseline_state_is_down:
                     # suspicious_exit: baseline DOWN, blip UP.
                     if da_down:
@@ -260,10 +298,10 @@ def main():
 
     summary_path = os.path.join(RESULTS_DIR, f"live_spot_check_{label}_{ts_label}_summary.md")
     with open(summary_path, "w") as f:
-        f.write(f"# LIVE E5 absorb-edge spot-check: edge={args.edge}, value={args.value}\n\n")
+        f.write(f"# LIVE E5 absorb-edge spot-check: edge={args.edge}, value={args.value}, env={args.env}\n\n")
         f.write(
-            f"Duration: {args.duration_s:.0f}s, polling interval: {args.interval_s:.0f}s, "
-            f"WAN-realism baseline: {args.wan_profile}.\n\n"
+            f"{ENVIRONMENTS[args.env]['description']}. Duration: {args.duration_s:.0f}s, "
+            f"polling interval: {args.interval_s:.0f}s, WAN-realism baseline: {args.wan_profile}.\n\n"
         )
         f.write(
             "**Granularity caveat:** metrics below are computed from fixed-interval polling, not "
