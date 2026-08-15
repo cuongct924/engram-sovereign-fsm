@@ -434,16 +434,20 @@ Live (pairwise-link topology):
   environments identical (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`);
   `WithdrawalBlocked=0` throughout, confirmed by an explicit test assertion.
 
-  Live spot-check (5×1, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × `noisy_da`, 300s/run, all 4
-  validators identical at every sample):
+  Live spot-check (5×1, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × `noisy_da`, 300s/run):
 
   | DownHysteresisThreshold | Flapping (300s) | Transitions | Anchored uptime |
   |---:|---:|---:|---:|
-  | 1 | 5-6 | 14-15 | 13.48% |
-  | 2 | 4 | 7-8 | 4.23-5.63% |
+  | 1 | 6 | 14 | 13.48% |
+  | 2 | 4 | 7 | 4.23% |
   | 4 | 12 | 13 | 30.00% |
   | 6 | 12 | 13 | 36.46% |
   | 8 | 8 | 13 | 28.24% |
+
+  3 of 4 validators agree exactly at every threshold; node04 diverges by ±1 transition/flapping at
+  threshold=1 (15/5, not 14/6) and threshold=2 (8 transitions and 5.63% uptime, not 7 and 4.23%) --
+  a granularity-caveat artifact (see this table's source script's doc), not a consensus
+  divergence. Table shows the 3/4 majority value.
 
   Non-monotonic, unlike the in-process curve's clean 61%→100% rise — uptime jumps
   13%→4%→30%→36%→28% across threshold 1→8, and threshold=2 (the production default) measures the
@@ -472,17 +476,20 @@ Live (pairwise-link topology):
   regardless of SHW. Only SHW=1,2 stay under the cap and reach ANCHORED (`AnchoredUptime` 43%,
   17%) (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`).
 
-  Live spot-check (5×1, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, 300s/run, all 4 validators
-  identical at every sample, driven to SUSPICIOUS via a real `celestia-bridge` stop before each
-  window):
+  Live spot-check (5×1, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, 300s/run, driven to SUSPICIOUS
+  via a real `celestia-bridge` stop before each window):
 
   | SuspiciousHysteresisWait | Flapping (300s) | Transitions | Anchored uptime |
   |---:|---:|---:|---:|
   | 1 | 8 | 13 | 18.75% |
-  | 2 | 13 | 14 | 36.46-37.50% |
+  | 2 | 13 | 14 | 36.46% |
   | 4 | 6 | 16 | 12.50% |
   | 6 | 2 | 12 | 15.79% |
   | 8 | 0 | 12 | 17.11% |
+
+  All 4 validators agree exactly at every SHW value except SHW=2, an even 2/2 split on uptime
+  (36.46% vs. 37.50%, transitions/flapping identical across all 4) -- a granularity-caveat
+  artifact, not a consensus divergence. Table shows one side of that split.
 
   Flapping falls monotonically (8→13→6→2→0) as SHW grows — unlike uptime, this half matches
   mechanistic expectation directly: a longer consecutive-healthy-block requirement makes an
