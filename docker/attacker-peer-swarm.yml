@@ -479,6 +479,69 @@ services:
         sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
         exec engramd start --home /root/.engramd
 
+  # ===========================================================
+  # A3 leg -- Churn-based Rotation: real attacker peers on engram-net,
+  # kept separate from A1/A2's node01 target and A4's node04-as-VALIDATOR
+  # target. Churn is driven by directly `docker stop`/`docker start`-ing
+  # these attacker CONTAINERS (live_churn_attack.py) -- a real TCP teardown
+  # each cycle, not netem (an earlier design using packet loss never
+  # actually disconnected CometBFT's MConnection, see that script's doc).
+  #
+  # Two attackers, not one: a single-target run (attacker-a3-01 -> node02
+  # only) showed a real, well-explained negative result live -- node02's
+  # PeerChurnRate genuinely exceeded MaxChurnRate, but DownHysteresisThreshold
+  # (default 2) needs 2 CONSECUTIVE unhealthy proposals, and with only 1 of
+  # 4 round-robin proposers degraded, the other 3 honest proposals reset
+  # that streak every time. attacker-a3-02 targets engram-node04, the REAL
+  # observed NEXT proposer after node02 in this cluster's rotation order
+  # (confirmed live via /dump_consensus_state: node02 -> node04 -> node01 ->
+  # node03) -- degrading two ADJACENT proposers gives the hysteresis streak
+  # an actual chance to accumulate 2 in a row.
+  # ===========================================================
+  attacker-a3-01:
+    <<: *attacker-common
+    hostname: attacker-a3-01
+    container_name: attacker-a3-01
+    profiles: [attacker-swarm-a3]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.211
+    volumes:
+      - ../testnet-data/attacker-a3-01:/root/.engramd
+      - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
+    environment:
+      - TARGET_PEER=engram-node02:26656
+    command:
+      - |
+        engramd init attacker-a3-01 --home /root/.engramd || true
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
+        sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
+        exec engramd start --home /root/.engramd
+
+  attacker-a3-02:
+    <<: *attacker-common
+    hostname: attacker-a3-02
+    container_name: attacker-a3-02
+    profiles: [attacker-swarm-a3]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.212
+    volumes:
+      - ../testnet-data/attacker-a3-02:/root/.engramd
+      - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
+    environment:
+      - TARGET_PEER=engram-node04:26656
+    command:
+      - |
+        engramd init attacker-a3-02 --home /root/.engramd || true
+        TARGET_ID=$$(curl -s "http://$${TARGET_PEER%%:*}:26657/status" | jq -r .result.node_info.id)
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$${TARGET_ID}@$$TARGET_PEER\"#" /root/.engramd/config/config.toml
+        sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
+        sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
+        exec engramd start --home /root/.engramd
+
 # Networks (engram-net, attacker-subnet-a/b/c/d) are declared once in the
 # root compose.yml, which owns them -- services join by name; redeclaring
 # here would hit "conflicts with imported resource".

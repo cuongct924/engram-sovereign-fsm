@@ -19,6 +19,8 @@ PROFILE_TO_SERVICE = {
     "chaos-crash": "pumba-kill",
     "chaos-eclipse": "pumba-eclipse",
     "chaos-btc-delay": "pumba-btc-delay",
+    "chaos-p2p-churn": "pumba-p2p-churn",
+    "chaos-relay-latency": "pumba-relay-latency",
 }
 
 # Real CONTAINER names (compose.yml's `container_name:` override on each
@@ -34,6 +36,8 @@ PROFILE_TO_CONTAINER = {
     "chaos-crash": "pumba-crash-injector",
     "chaos-eclipse": "pumba-eclipse-injector",
     "chaos-btc-delay": "pumba-btc-delay-injector",
+    "chaos-p2p-churn": "pumba-p2p-churn-injector",
+    "chaos-relay-latency": "pumba-relay-latency-injector",
 }
 
 # Real, human-readable description of each profile's actual command (see
@@ -45,6 +49,8 @@ PROFILE_DESCRIPTIONS = {
     "chaos-crash": "SIGKILL engram-node04 (immediate, one-shot)",
     "chaos-eclipse": "netem 100% packet loss on engram-node01 for 3m",
     "chaos-btc-delay": "netem delay 500ms +-100ms jitter on bitcoin-node01 for 2m",
+    "chaos-p2p-churn": "netem 100% packet loss on attacker-a3-01 for 3m (toggled repeatedly)",
+    "chaos-relay-latency": "netem delay 350ms +-50ms jitter on engram-node04 for 10m",
 }
 
 
@@ -112,6 +118,58 @@ def cleanup_wan_profile(profile: str) -> None:
         ["docker", "compose", "--profile", profile, "rm", "-f", *services],
         capture_output=True,
         text=True,
+    )
+    for target in WAN_PROFILE_TO_NETEM_TARGETS.get(profile, []):
+        _clear_netem_qdisc(target)
+
+
+# Image used by _clear_netem_qdisc -- ships tc/iproute2 out of the box, so
+# no extra install step is needed inside the throwaway debug container.
+_NETEM_CLEANUP_IMAGE = "nicolaka/netshoot"
+
+# Profile -> real container name(s) that get a `tc qdisc` applied directly on
+# their own network namespace (not the pumba injector container). Needed
+# because Pumba does not catch SIGTERM to remove its own netem rule --
+# confirmed live: `docker stop` (graceful, well within the default grace
+# period) left the qdisc on the target in place. A profile stopped before its
+# own --duration elapses (every early-terminated live_*.py run, and every
+# toggle_profile_bursts cycle) leaves the target permanently degraded until
+# this runs explicitly. A leftover qdisc also makes the NEXT `tc qdisc add`
+# on the same target fail outright ("exit code 2", RTNETLINK "File exists"),
+# which Pumba treats as fatal and exits immediately without ever applying the
+# new rule -- silently turning a whole attack phase into a no-op.
+PROFILE_TO_NETEM_TARGETS = {
+    "chaos-delay": ["engram-node01", "engram-node02", "engram-node03", "engram-node04"],
+    "chaos-loss": ["engram-node01", "engram-node02"],
+    "chaos-eclipse": ["engram-node01"],
+    "chaos-btc-delay": ["bitcoin-node01"],
+    "chaos-p2p-churn": ["attacker-a3-01"],
+    "chaos-relay-latency": ["engram-node04"],
+}
+
+WAN_PROFILE_TO_NETEM_TARGETS = {
+    "chaos-wan-latency": ["engram-node01", "engram-node02", "engram-node03", "engram-node04"],
+    "chaos-wan-loss": ["engram-node01", "engram-node02", "engram-node03", "engram-node04"],
+}
+
+
+def _clear_netem_qdisc(container: str) -> None:
+    """Best-effort `tc qdisc del dev eth0 root` on container's own network
+    namespace, via a throwaway privileged debug container sharing its netns
+    (container itself typically has no `tc` binary). Safe to call whether or
+    not a qdisc is actually present -- `tc qdisc del` on a bare noqueue exits
+    non-zero, which is ignored here since there's nothing to clean up."""
+    subprocess.run(
+        [
+            "docker", "run", "--rm",
+            "--net", f"container:{container}",
+            "--cap-add", "NET_ADMIN",
+            _NETEM_CLEANUP_IMAGE,
+            "tc", "qdisc", "del", "dev", "eth0", "root",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
 
 
@@ -214,6 +272,8 @@ def wait_for_no_active_netem(timeout_s: float = 20.0) -> None:
         "pumba-loss-injector",
         "pumba-eclipse-injector",
         "pumba-btc-delay-injector",
+        "pumba-p2p-churn-injector",
+        "pumba-relay-latency-injector",
     ]
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -277,6 +337,8 @@ def cleanup_profile(profile: str) -> None:
         capture_output=True,
         text=True,
     )
+    for target in PROFILE_TO_NETEM_TARGETS.get(profile, []):
+        _clear_netem_qdisc(target)
 
 
 def container_status(name: str) -> str:

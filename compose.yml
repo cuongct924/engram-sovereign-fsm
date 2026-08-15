@@ -77,6 +77,49 @@ services:
       - "--percent=100"
       - "engram-node01"
 
+  pumba-p2p-churn:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-p2p-churn-injector
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-p2p-churn
+    # E4 A3 (churn-based rotation): 100% loss on the A3 attacker peer only
+    # (docker/attacker-peer-swarm.yml's attacker-a3-01) -- toggled repeatedly
+    # by injector.py's toggle_profile_bursts, not held for its own duration.
+    # Same single-target-loss form as pumba-eclipse, retargeted; --duration
+    # here is just a safety upper bound in case toggling is interrupted
+    # before its own cleanup runs.
+    command:
+      - "netem"
+      - "--duration=3m"
+      - "loss"
+      - "--percent=100"
+      - "attacker-a3-01"
+
+  pumba-relay-latency:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-relay-latency-injector
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-relay-latency
+    # NOT used by E4 A4 (scripts/e4_p2p_eclipse_detection/live_relay_latency_attack.py) --
+    # kept only as a generic chaos-relay-latency profile. Pumba's netem
+    # applies to whichever interface Docker assigns as node04's eth0, which
+    # is bitcoin-net, not this cluster's real P2P traffic (the pairwise
+    # validator-link-0X-04 networks below) -- confirmed live, a genuinely
+    # active delay here had zero effect on any validator's measured
+    # PeerLatency. A4 injects `tc netem` directly onto node04's real P2P
+    # interfaces instead (that script's module doc has the full story).
+    command:
+      - "netem"
+      - "--duration=10m"
+      - "delay"
+      - "--time=350"
+      - "--jitter=50"
+      - "engram-node04"
+
   pumba-btc-delay:
     image: gaiaadm/pumba:latest
     container_name: pumba-btc-delay-injector
