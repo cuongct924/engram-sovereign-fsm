@@ -149,178 +149,102 @@ specific known failure mode.
 
 ### E2 — Fault-Injection End-to-End Prototype
 
-**Objective:** demonstrate graceful degradation instead of halting — the FSM prototype keeps
-committing blocks and recovers cleanly across 7 designed failure/recovery scenarios, against a
-baseline that hard-depends on external preconditions. Answers RQ2/RQ3.
+**Objective:** demonstrate graceful degradation instead of halting across 7 failure/recovery
+scenarios. Answers RQ2/RQ3.
 
 **Metrics**
 
-| Metric | Definition | Status |
-|---|---|---|
-| Time-to-fallback | blocks until ANCHORED→SOVEREIGN | Measured |
-| Time-to-detection | blocks until first departure from ANCHORED | Measured |
-| Availability during outage | fraction of blocks still committed | Measured |
-| Throughput degradation, latency p50/p95/p99 | consensus performance under fault | N/A in-process (architectural); measured live (block-interval proxy) |
-| Recovery time | SOVEREIGN→RECOVERING→ANCHORED duration | Measured |
-| Withdrawals blocked | blocks with `WithdrawLocked` true | Measured |
-| Flapping / incorrect transitions | `ComputeMetrics`'s `FlappingCount` | Measured (0 across all scenarios, in-process and live) |
-
-`Throughput/latency` is N/A in-process for an architectural reason, not an effort gap:
-`Harness.Advance()` is one synchronous in-process call with no network or consensus round — there
-is no time dimension to measure. The live number is a block-interval proxy (seconds between
-consecutive height increments, from timestamped RPC samples) — a throughput proxy, not a true
-per-round consensus latency percentile.
+| Metric | Status |
+|---|---|
+| Time-to-detection | Measured |
+| Time-to-fallback | Measured |
+| Availability during outage | Measured |
+| Recovery time | Measured |
+| Withdrawals blocked | Measured |
+| Flapping / incorrect transitions | Measured (0 across all scenarios) |
+| Throughput/latency | N/A in-process (architectural); measured live as a block-interval proxy |
 
 **Method**
 
-| Scenario | Description | Mechanism | Expected outcome | Result |
-|---|---|---|---|---|
-| S1 | Normal baseline | healthy sensors throughout | Stays ANCHORED | Confirmed, in-process + live |
-| S2 | BTC congestion | `AnchorTracker.SetSubmissionPausedFile` | `ANCHORED→SUSPICIOUS→SOVEREIGN`, recovers | Confirmed, in-process + live |
-| S3 | DA outage | `docker stop celestia-bridge` | Same 3-state escalation, recovers | Confirmed, in-process + live |
-| S4 | P2P eclipse (partial) | 300ms±50ms `netem` delay on all 6 real validator-link interfaces to/from node01 | `ANCHORED→SUSPICIOUS→SOVEREIGN` via gray-failure timeout | Confirmed, in-process + live |
-| S5 | Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | `ANCHORED→SOVEREIGN` immediately (`ActiveAnchors=0`) | Confirmed in-process; live isolation is genuine but produces no FSM transition — see caveat |
-| S6 | Combined BTC+DA | S2 + S3 together (real `docker stop bitcoin-node01`+`celestia-bridge`) | Direct `ANCHORED→SOVEREIGN` | Confirmed, in-process + live |
-| S7 | Recovery | failures clear, proof submitted | `SOVEREIGN→RECOVERING→ANCHORED` | Confirmed, in-process + live |
+| Scenario | Mechanism | Result |
+|---|---|---|
+| S1 Normal baseline | healthy sensors throughout | Confirmed, in-process + live |
+| S2 BTC congestion | `AnchorTracker.SetSubmissionPausedFile` | Confirmed, in-process + live |
+| S3 DA outage | `docker stop celestia-bridge` | Confirmed, in-process + live |
+| S4 P2P eclipse (partial) | real `netem` delay, 6 validator-link interfaces to/from node01 | Confirmed, in-process + live |
+| S5 Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | Confirmed in-process; live isolation genuine, no FSM transition (see caveat) |
+| S6 Combined BTC+DA | real `docker stop bitcoin-node01`+`celestia-bridge` | Confirmed, in-process + live |
+| S7 Recovery | failures clear, ZK proof submitted | Confirmed, in-process + live |
 
-* In-process: `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors.
-* Live: `scripts/e2_fault_injection/live_scenario_matrix.py`, real 4-node cluster. S4's mechanism
-  is real `netem` delay on the actual pairwise validator-link interfaces, not Pumba's default
-  profile — the original `chaos-loss` profile defaults `netem` to `eth0`, which maps to
-  `bitcoin-net` on this cluster, never a P2P-carrying interface, so it produced zero FSM-visible
-  effect at any loss percentage (confirmed live before switching mechanisms).
-* Baselines: vanilla CometBFT (`engramd start --vanilla`, skips
-  `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` — BaseApp's default handlers, no
-  `ExtendedProposal`), static circuit breaker, FSM without hysteresis, FSM with a
-  peer-count-only P2P sensor. Vanilla's own comparison is structural, not just a proposal-size
-  diff — see **Vanilla comparison** below.
+In-process: `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors. Live:
+`scripts/e2_fault_injection/live_scenario_matrix.py`, real 4-node cluster. Baselines: vanilla
+CometBFT (`engramd start --vanilla`), static circuit breaker, FSM without hysteresis, FSM with a
+peer-count-only P2P sensor — see **Vanilla comparison** below.
 
-**Results:**
+**Results**
 
-* **In-process** (`tests/e2e/results/s*.csv` + `e2_summary.md`): all 7 scenarios pass through real
-  `BeginBlocker`, and S4/S5 both reach the exact expected end state:
+In-process (`E2Metrics`/`ComputeMetrics`, block heights, not seconds; `n/a` = never entered
+RECOVERING):
 
-  | Scenario | Time-to-detection | Time-to-fallback | Recovery time | Withdrawals blocked | Flapping | Total transitions |
-  |---|---:|---:|---:|---:|---:|---:|
-  | S1 Normal | n/a | n/a | n/a | 0 | 0 | 0 |
-  | S2 BTC congestion | 3 | 3 | 3 | 7 | 0 | 3 |
-  | S3 DA unavailable | 2 | 26 | 3 | 5 | 0 | 4 |
-  | S4 P2P eclipse partial | 2 | 26 | n/a | 3 | 0 | 2 |
-  | S5 Anchor isolation | 2 | 2 | n/a | 1 | 0 | 1 |
-  | S6 Combined BTC+DA | 1 | 1 | n/a | 10 | 0 | 1 |
-  | S7 Recovery | 1 | 1 | 3 | 4 | 0 | 3 |
+| Scenario | Detection | Fallback | Recovery | Withdrawals blocked | Flapping | Transitions |
+|---|---:|---:|---:|---:|---:|---:|
+| S1 Normal | n/a | n/a | n/a | 0 | 0 | 0 |
+| S2 BTC congestion | 3 | 3 | 3 | 7 | 0 | 3 |
+| S3 DA unavailable | 2 | 26 | 3 | 5 | 0 | 4 |
+| S4 P2P eclipse | 2 | 26 | n/a | 3 | 0 | 2 |
+| S5 Anchor isolation | 2 | 2 | n/a | 1 | 0 | 1 |
+| S6 Combined BTC+DA | 1 | 1 | n/a | 10 | 0 | 1 |
+| S7 Recovery | 1 | 1 | 3 | 4 | 0 | 3 |
 
-  (all from `E2Metrics`/`ComputeMetrics`, `tests/e2e/harness.go`; block heights, not seconds;
-  `n/a` = scenario never entered RECOVERING, so `RecoveryTime` isn't defined.) S2/S3/S6 detect the
-  fault one to two blocks before fully escalating to SOVEREIGN. S4's detection/fallback gap (2 vs.
-  26) is the widest, by design: the gray-failure timeout deliberately waits out
-  `MaxSuspiciousTime` before escalating, so a transient P2P blip doesn't force an unnecessary
-  fallback. S5 escalates in a single step (`ActiveAnchors=0`, `IsCriticalCondition` fires
-  immediately) — detection and fallback are the same block. `FlappingCount=0` on every scenario,
-  in-process and live.
+Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
+across all 4 validators):
 
-  Availability: `Harness.Advance()` never stopped or errored in any scenario — 100%, by
-  construction (cross-ref E3, not re-derived here).
+| Scenario | →SUSPICIOUS | →SOVEREIGN | →RECOVERING | →ANCHORED |
+|---|---:|---:|---:|---:|
+| S1 | — | — | — | — |
+| S2 | 111s | 142s | 248s | 252s |
+| S3 | 258s | 288s | 328s | 333s |
+| S4 | 376s | 443s | 486s | 493s |
+| S5 | — | — | — | — |
+| S6 | — | 699s (direct) | — | — |
+| S7 | — | — | 805s | 810s |
 
-* **Live** (pairwise-link topology, 810s continuous run, `results_live/s{1..7}_*.csv`): all 7
-  phases pass, 60 real transitions (across all 4 validators), zero divergence at every sample.
+Throughput/latency (block-interval proxy, seconds between height increments,
+`results_live/s2e_throughput_latency.md`):
 
-  | Scenario | Description | Observed shape |
-  |---|---|---|
-  | S1 | Normal baseline | `ANCHORED` throughout, no transition |
-  | S2 | BTC congestion | `ANCHORED→SUSPICIOUS` (t=111s) `→SOVEREIGN` (t=142s), recovered `→RECOVERING→ANCHORED` (t=248s, t=252s) |
-  | S3 | DA outage | `ANCHORED→SUSPICIOUS` (t=258s) `→SOVEREIGN` (t=288s), recovered (t=328s, t=333s) |
-  | S4 | P2P eclipse (partial) | `ANCHORED→SUSPICIOUS` (t=376s) `→SOVEREIGN` (t=443s) via the gray-failure timeout, recovered (t=486s, t=493s) |
-  | S5 | Total anchor isolation | `ANCHORED` throughout on all 4 validators, no FSM transition — node01 itself genuinely isolated (see caveat) |
-  | S6 | Combined BTC+DA | direct `ANCHORED→SOVEREIGN` (t=699s), no stall — see **Finding** below |
-  | S7 | Recovery | `SOVEREIGN→RECOVERING` (t=805s) `→ANCHORED` (t=810s), full ZK-pipeline recovery |
+| Scenario | Mean | p50 | p95 |
+|---|---:|---:|---:|
+| S1 | 1.39 | 1.52 | 1.53 |
+| S2 | 1.38 | 1.51 | 2.05 |
+| S3 | 1.36 | 1.51 | 2.07 |
+| S4 | 2.51 | 2.03 | 6.09 |
+| S5 | 1.29 | 1.30 | 2.07 |
+| S6 | 1.34 | 1.52 | 1.57 |
+| S7 | 1.50 | 1.78 | 2.05 |
 
-  Throughput/latency (block-interval proxy, mean/p50/p95 seconds between height increments,
-  `results_live/s2e_throughput_latency.md`):
-
-  | Scenario | Mean (s) | p50 (s) | p95 (s) |
-  |---|---:|---:|---:|
-  | S1 | 1.39 | 1.52 | 1.53 |
-  | S2 | 1.38 | 1.51 | 2.05 |
-  | S3 | 1.36 | 1.51 | 2.07 |
-  | S4 | 2.51 | 2.03 | 6.09 |
-  | S5 | 1.29 | 1.30 | 2.07 |
-  | S6 | 1.34 | 1.52 | 1.57 |
-  | S7 | 1.50 | 1.78 | 2.05 |
-
-  S4's p95 (6.09s) is the only scenario with a visibly elevated tail — the direct cost of the
-  300ms±50ms delay applied to all 6 real validator-link interfaces. Every other scenario,
-  including S6's combined outage, stays within the baseline's own range (S1: 1.39/1.53) once the
-  FSM has settled into SOVEREIGN — degrading state does not itself degrade block cadence.
-
-  **Finding: S6 previously hard-stalled consensus — fixed.** `IsValidProposal`'s BTC check
-  (`x/anchor/verify.go`'s `VerifyReceipt`) required a fresh, verifiable checkpoint unconditionally
-  — including for a proposal that was itself degrading to SOVEREIGN *because* BTC was down, a
-  precondition no leader can ever satisfy mid-outage. Every proposal was unanimously rejected
-  (prevote-nil), zero blocks committed, for the whole outage. Fixed by adding `IsBTCHealthy`
-  (`spec/core/EngramFSM.tla`), mirroring `IsDAHealthy`'s existing gate: the check is skipped
-  whenever the proposal isn't claiming ANCHORED/RECOVERING and BTC is unhealthy. Verified by TLC
-  (`MC_TendermintSafety`: 3,680,719 states, zero `CoreTendermintInvariant` violations) and by the
-  live run above (S6 now transitions directly at t=699s with zero stall).
-
-  **Caveat on S5.** Isolation is real — node01's own RPC timed out for ~164s straight
-  (`/net_info` cross-check, `results_live/s4_s5_net_info_check.md`) — but produces no FSM
-  transition, because `IsP2PQualityHealthy`'s thresholds are evaluated per-validator: losing one
-  peer out of four still leaves the surviving 3 well-connected to each other, so the majority's
-  own health signal never degrades. Untested: whether isolating 2 of 4 validators changes this.
+**Caveat on S5.** Isolation is real (node01's own RPC timed out for ~164s straight, `/net_info`
+cross-check) but produces no FSM transition — losing 1 of 4 peers doesn't degrade the surviving
+majority's own health signal.
 
 **Vanilla comparison:** structural fact confirmed by `app/app_test.go`'s
-`TestNewEngramApp_VanillaSkipsPreBlocker`: vanilla mode (`engramd start --vanilla`) never
-registers `PreBlocker` — `CommitFSMTransition`, the only code path that ever mutates `FSMState`
-post-genesis, lives inside `NewPreBlocker` (`x/sovereignty/preblock.go`) and is therefore
-unreachable in vanilla mode regardless of real BTC/DA/P2P health. `PrepareProposal`/
-`ProcessProposal` are not usable structural signals here (`baseapp.BaseApp`'s own `Init()`
-auto-fills SDK-default handlers for both whenever unset, in both modes). A live vanilla node
-against the same real fault scenarios (`docker/engram-validator-cluster.yml`'s
-`engram-node-vanilla` service exists for this) has not yet been run.
+`TestNewEngramApp_VanillaSkipsPreBlocker` — vanilla mode never wires `PreBlocker`, so `FSMState`
+can never leave genesis `ANCHORED` regardless of real BTC/DA/P2P health. Live confirmation
+pending.
 
 **Conclusion:**
 
-* The fallback design holds up in-process for all 7 scenarios and live for 6 of 7
-  (S1/S2/S3/S4/S6/S7) — identical behavior across all 4 validators at every transition. RQ2/RQ3's
-  graceful-degradation claim is supported live under BTC, DA, P2P, and combined BTC+DA failure; S5
-  is the one exception, for an understood topology-level reason (see caveat), not an open one.
-* S6 was the most consequential scenario, not the least: it caught the exact failure mode this
-  architecture exists to prevent — a live outage halting consensus instead of degrading it — as a
-  genuine gap in the abstract spec itself, closed with a TLC-verified fix rather than an
-  implementation-layer workaround.
+* RQ2/RQ3's graceful-degradation claim is confirmed live for 6 of 7 scenarios
+  (S1/S2/S3/S4/S6/S7); S5 is the one exception, for the understood reason above.
 
 **Insights:**
 
-* **A DA-shaped check needs a BTC-shaped escape hatch, and vice versa — an asymmetric conditional
-  gate between two structurally similar checks is a liveness trap.** The DA check's
-  `\/ IsDAHealthy` gate wasn't originally motivated by BTC's failure mode at all — it closes a
-  different gap (a decided block whose state is `SUSPICIOUS`/`SOVEREIGN` shouldn't be exempted
-  from an attestation requirement just because it's outside `{ANCHORED,RECOVERING}` when DA is
-  actually healthy). It happened to also be exactly the fix the BTC check needed, for an unrelated
-  reason, once a real combined outage was tested. Two checks that look structurally identical
-  should be reviewed for identical conditional structure even when the motivating bug for one
-  doesn't obviously apply to the other.
-* **In-process mocked-sensor testing cannot catch this class of bug by construction.** The
-  in-process S6 result (time-to-fallback=1, one clean transition) looks identical before and after
-  the fix — `Harness.Advance()`'s mocked `BTCSensor`/`DASensor` never produce the "leader's local
-  cache exceeds the frozen committed state" condition that triggered the real stall, because there
-  is no separate leader/follower role, no round-robin proposer rotation, and no persisted
-  `h_btc_current` that a mock ever fails to refresh. This project's fault-injection suite needs
-  both layers: in-process for cheap, fast, comprehensive coverage of the FSM's own transition
-  logic; live for the concrete infrastructure interactions (proposer rotation, RPC timeouts,
-  persisted state across real outages) that mocks structurally cannot represent.
-* **A gray-failure timeout (S4) and an instant hard-failure (S5) are genuinely different
-  mechanisms, and only one of them is sensitive to isolating a single validator out of four.**
-  S4's 300ms delay never drops peer count (`/net_info` cross-check: `n_peers=3` unchanged
-  throughout) yet still escalates, because `MaxSuspiciousTime`'s timeout doesn't require a
-  peer-count signal — any sustained degradation eventually crosses it. S5's instant, total
-  isolation of one node produces a real, confirmed RPC-level outage on that node, yet the
-  surviving 3-node majority never sees a degraded signal, because peer-count-based health checks
-  are evaluated per-validator against a mesh that stays healthy for everyone except the isolated
-  node itself. A future revision of `IsP2PQualityHealthy` that wants S5-style isolation to be
-  network-visible, not just validator-local, would need a majority-relative signal ("how many
-  OTHER validators can I still reach"), not just an absolute peer count.
+* The DA check has an escape hatch (`IsDAHealthy`); the BTC check didn't — an asymmetric
+  conditional gate between two structurally similar checks is a liveness trap.
+* In-process mocked-sensor testing cannot catch this class of bug by construction (no real leader
+  rotation, no persisted state a mock can fail to refresh) — both in-process and live layers are
+  needed.
+* S4 (timeout-based) and S5 (instant isolation) are different mechanisms: S4 escalates without
+  losing peer count; S5's single-node loss doesn't move the surviving majority's own signal.
 
 ---
 
