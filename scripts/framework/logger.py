@@ -227,6 +227,59 @@ def net_info(node: str, port: Optional[int] = None) -> dict:
     return _rpc_get(port, "/net_info")
 
 
+def dump_consensus_state(node: str, port: Optional[int] = None) -> dict:
+    """Real CometBFT /dump_consensus_state RPC, unmodified in the
+    engram-consensus-core fork (../engram-consensus-core/rpc/core/consensus.go's
+    GetRoundStateJSON) -- includes the current round's per-validator
+    prevotes/precommits (CometBFT's literal "nil-Vote" string for a nil vote,
+    else a "Vote{...}" string), used by E7's nil-prevote-under-sensor-mismatch
+    live test.
+    """
+    port = port or NODE_RPC_PORTS[node]
+    return _rpc_get(port, "/dump_consensus_state")
+
+
+def own_validator_address(node: str, port: Optional[int] = None) -> str:
+    """Real validator consensus address for node, from its own /status --
+    dump_consensus_state's prevotes/precommits arrays are ordered by index
+    into the shared validators array, not by name, so this is needed to find
+    which index is "this node's own vote."
+    """
+    port = port or NODE_RPC_PORTS[node]
+    status = _rpc_get(port, "/status")
+    return status["result"]["validator_info"]["address"]
+
+
+def own_precommit_status(dump_state: dict, target_address: str):
+    """(committed_height, precommit_str) for target_address's precommit in
+    the most recently COMMITTED block (round_state.last_commit), or None if
+    no commit has happened yet (e.g. fresh redeploy) or the address isn't
+    found. precommit_str is CometBFT's literal "nil-Vote" if that validator
+    didn't precommit for the winning block, else a "Vote{...}" string.
+
+    Deliberately NOT the in-progress round's live `votes[].prevotes` array:
+    at this cluster's ~1s block time, fixed-interval polling of that array
+    mostly catches "not yet received" (itself rendered as "nil-Vote", making
+    it indistinguishable from a real nil vote) rather than a settled
+    per-validator outcome -- confirmed live this session, baseline nil-ratio
+    was ~1.0 using that approach, an unusable signal. last_commit is the
+    SETTLED record for a height that has already committed, immune to this.
+    """
+    rs = dump_state["result"]["round_state"]
+    validators = rs["validators"]["validators"]
+    index = next((i for i, v in enumerate(validators) if v["address"] == target_address), None)
+    if index is None:
+        return None
+    last_commit = rs.get("last_commit")
+    if not last_commit or not last_commit.get("votes"):
+        return None
+    votes = last_commit["votes"]
+    if index >= len(votes):
+        return None
+    committed_height = int(rs["height"]) - 1
+    return committed_height, votes[index]
+
+
 def _subnet_of(ip: str) -> str:
     """Mirrors x/sovereignty/types.SubnetOf's masking (IPv4 /24, IPv6 /48) in
     Python -- must stay in lockstep with that Go function, or this script's
