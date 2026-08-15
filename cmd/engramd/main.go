@@ -187,6 +187,7 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 		{"ENGRAM_PARAM_K_DEEP_FINALITY", &p.KDeepFinality},
 		{"ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS", &p.MaxUnprovenTailBlocks},
 		{"ENGRAM_PARAM_MAX_PEERS_PER_SUBNET", &p.MaxPeersPerSubnet},
+		{"ENGRAM_PARAM_MAX_SUSPICIOUS_FORCED_TX_QUEUE", &p.MaxSuspiciousForcedTxQueue},
 	}
 	for _, f := range fields {
 		raw := os.Getenv(f.env)

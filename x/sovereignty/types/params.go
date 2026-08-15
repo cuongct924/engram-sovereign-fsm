@@ -43,6 +43,10 @@ type Params struct {
 	// MaxPeersPerSubnet bounds same-subnet peers before FilterPeerByAddr
 	// rejects -- the active counterpart to the passive SubnetDiversity.
 	MaxPeersPerSubnet uint64
+
+	// MaxSuspiciousForcedTxQueue caps ForcedTxQueue admission while
+	// SUSPICIOUS (app/ante.go). Concrete-only, no spec line.
+	MaxSuspiciousForcedTxQueue uint64
 }
 
 // DefaultParams returns this repo's tuned defaults for the real N=4 Docker
@@ -83,6 +87,9 @@ func DefaultParams() Params {
 		// Headroom only needed for engram-net-side traffic (attacker swarm,
 		// reanchoring prover), not co-located peers.
 		MaxPeersPerSubnet: 8,
+		// Reasoned default -- candidate for a future E8-style flood-vs-
+		// censorship-resistance sweep, not run by this change.
+		MaxSuspiciousForcedTxQueue: 8,
 	}
 }
 
@@ -142,6 +149,7 @@ func (p Params) ToGenesisParams() *GenesisParams {
 		DownHysteresisThreshold:    p.DownHysteresisThreshold,
 		MaxDownHysteresisThreshold: p.MaxDownHysteresisThreshold,
 		SuspiciousHysteresisWait:   p.SuspiciousHysteresisWait,
+		MaxSuspiciousForcedTxQueue: p.MaxSuspiciousForcedTxQueue,
 	}
 }
 
@@ -171,5 +179,6 @@ func (gp *GenesisParams) ToParams() Params {
 		DownHysteresisThreshold:    gp.DownHysteresisThreshold,
 		MaxDownHysteresisThreshold: gp.MaxDownHysteresisThreshold,
 		SuspiciousHysteresisWait:   gp.SuspiciousHysteresisWait,
+		MaxSuspiciousForcedTxQueue: gp.MaxSuspiciousForcedTxQueue,
 	}
 }

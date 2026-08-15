@@ -95,7 +95,7 @@ not read from each node's own `.env` at `start` time (a per-process env var coul
 diverge between validators; genesis is generated once and copied identically to all 4 nodes).
 
 Set `ENGRAM_PARAM_<FIELD>` in `.env` before `make testnet-up` (or before `engramd init`/
-`testnet init-files` run directly) — see `.env.example` for the full list of 18 fields and their
+`testnet init-files` run directly) — see `.env.example` for the full list of 19 fields and their
 `DefaultParams()` values. `engramd testnet init-files`/`init` read these, fall back to
 `DefaultParams()` per-field when unset, and reject the whole genesis with a clear error
 (`Params.Validate`) if the result violates a documented cross-field constraint (e.g.

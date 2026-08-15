@@ -155,6 +155,7 @@ type GenesisParams struct {
 	DownHysteresisThreshold    uint64                 `protobuf:"varint,16,opt,name=down_hysteresis_threshold,json=downHysteresisThreshold,proto3" json:"down_hysteresis_threshold,omitempty"`
 	MaxDownHysteresisThreshold uint64                 `protobuf:"varint,17,opt,name=max_down_hysteresis_threshold,json=maxDownHysteresisThreshold,proto3" json:"max_down_hysteresis_threshold,omitempty"`
 	SuspiciousHysteresisWait   uint64                 `protobuf:"varint,18,opt,name=suspicious_hysteresis_wait,json=suspiciousHysteresisWait,proto3" json:"suspicious_hysteresis_wait,omitempty"`
+	MaxSuspiciousForcedTxQueue uint64                 `protobuf:"varint,19,opt,name=max_suspicious_forced_tx_queue,json=maxSuspiciousForcedTxQueue,proto3" json:"max_suspicious_forced_tx_queue,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -315,6 +316,13 @@ func (x *GenesisParams) GetSuspiciousHysteresisWait() uint64 {
 	return 0
 }
 
+func (x *GenesisParams) GetMaxSuspiciousForcedTxQueue() uint64 {
+	if x != nil {
+		return x.MaxSuspiciousForcedTxQueue
+	}
+	return 0
+}
+
 var File_engram_sovereignty_v1_genesis_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
@@ -330,7 +338,7 @@ const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\x10unhealthy_streak\x18\b \x01(\x04R\x0funhealthyStreak\x128\n" +
 	"\x18failed_recovery_attempts\x18\t \x01(\x04R\x16failedRecoveryAttempts\x124\n" +
 	"\x16suspicious_safe_blocks\x18\n" +
-	" \x01(\x04R\x14suspiciousSafeBlocksJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\xd9\x06\n" +
+	" \x01(\x04R\x14suspiciousSafeBlocksJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\x9d\a\n" +
 	"\rGenesisParams\x121\n" +
 	"\x14suspicious_threshold\x18\x01 \x01(\x04R\x13suspiciousThreshold\x12/\n" +
 	"\x13sovereign_threshold\x18\x02 \x01(\x04R\x12sovereignThreshold\x12!\n" +
@@ -350,7 +358,8 @@ const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\x14max_peers_per_subnet\x18\x0f \x01(\x04R\x11maxPeersPerSubnet\x12:\n" +
 	"\x19down_hysteresis_threshold\x18\x10 \x01(\x04R\x17downHysteresisThreshold\x12A\n" +
 	"\x1dmax_down_hysteresis_threshold\x18\x11 \x01(\x04R\x1amaxDownHysteresisThreshold\x12<\n" +
-	"\x1asuspicious_hysteresis_wait\x18\x12 \x01(\x04R\x18suspiciousHysteresisWaitBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x1asuspicious_hysteresis_wait\x18\x12 \x01(\x04R\x18suspiciousHysteresisWait\x12B\n" +
+	"\x1emax_suspicious_forced_tx_queue\x18\x13 \x01(\x04R\x1amaxSuspiciousForcedTxQueueBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_genesis_proto_rawDescOnce sync.Once

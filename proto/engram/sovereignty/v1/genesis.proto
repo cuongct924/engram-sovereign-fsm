@@ -47,4 +47,5 @@ message GenesisParams {
   uint64 down_hysteresis_threshold = 16;
   uint64 max_down_hysteresis_threshold = 17;
   uint64 suspicious_hysteresis_wait = 18;
+  uint64 max_suspicious_forced_tx_queue = 19;
 }
