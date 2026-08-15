@@ -1,20 +1,15 @@
 // circuit/reanchoring_recursion_spike_aggregator/src/main.nr
 //
 // Step 2 of the recursion feasibility spike: aggregates M=2 leaf proofs of
-// the REAL header-chain circuit (circuit/reanchoring_recursion_spike/'s
-// verbatim copy of circuit/reanchoring/src/main.nr), each covering N=4
-// headers -- so this aggregate proof covers 8 real headers total, directly
-// comparable to Table 6B's N=8 row (95 ACIR opcodes, 0.113s prove, 22ms
-// verify). Exposes exactly 2 public Fields (rt_start, rt_end) -- the same
-// shape x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof already
-// hardcodes (64-byte rt_last||rt_new), by design (see the approved plan).
+// the REAL header-chain circuit (the _spike crate's verbatim copy of
+// circuit/reanchoring/src/main.nr), each covering N=4 headers -- so this
+// aggregate covers 8 real headers, comparable to Table 6B's N=8 row. Exposes
+// exactly 2 public Fields (rt_start, rt_end), the same shape msg_server.go's
+// SubmitRecoveryProof hardcodes (64-byte rt_last||rt_new).
 //
-// LEAF_VK is a compile-time GLOBAL constant (not a witness/Prover.toml
-// input) -- security-critical, see this file's Step-1 predecessor for the
-// full rationale. Dumped from
-// circuit/reanchoring_recursion_spike/target/leaf1/vk (== target/leaf2/vk,
-// confirmed byte-identical since both leaves are proofs of the SAME
-// compiled circuit).
+// LEAF_VK is a compile-time GLOBAL constant (not a witness input) --
+// security-critical; dumped from the _spike crate's target/leaf1/vk
+// (== leaf2/vk, byte-identical: both leaves prove the SAME circuit).
 use bb_proof_verification::{verify_honk_proof, UltraHonkVerificationKey, UltraHonkZKProof};
 
 global M: u32 = 4;

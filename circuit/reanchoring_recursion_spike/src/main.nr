@@ -1,18 +1,15 @@
 // circuit/reanchoring_recursion_spike/src/main.nr
 //
-// Step 2 of the recursion feasibility spike (see the approved plan): this is
-// the REAL leaf circuit, copied VERBATIM from circuit/reanchoring/src/main.nr
-// (same "kept in sync by hand" pattern circuit/reanchoring_witness/ already
-// uses in this repo) -- not modified in any way, so measurements taken here
-// are directly comparable to Table 6B's existing N=4 baseline. Proven with
-// `bb prove --verifier_target noir-recursive` (unlike the deployed circuit,
-// which uses bb's default target) so it can be verified recursively by
-// circuit/reanchoring_recursion_spike_aggregator/.
+// Step 2 of the recursion feasibility spike: the REAL leaf circuit, copied
+// VERBATIM from circuit/reanchoring/src/main.nr (same "kept in sync by hand"
+// pattern as circuit/reanchoring_witness/), unmodified so its measurements
+// are directly comparable to Table 6B's N=4 baseline. Proven with `bb prove
+// --verifier_target noir-recursive` (unlike the deployed circuit's default
+// target) so it can be verified recursively by the _aggregator circuit.
 //
-// Step 1's trivial `assert(x != 0)` smoke test (which lived in this same
-// file/package) already confirmed the recursion mechanism itself works with
-// this toolchain -- this replaces it with the real header-chain logic to get
-// real, comparable benchmark numbers.
+// Step 1's trivial `assert(x != 0)` smoke test already confirmed the
+// recursion mechanism works with this toolchain; this replaces it with the
+// real header-chain logic for real, comparable numbers.
 
 global N: u32 = 4;
 
