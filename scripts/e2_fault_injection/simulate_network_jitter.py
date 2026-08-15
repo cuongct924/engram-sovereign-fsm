@@ -126,7 +126,7 @@ def parse_summary_md(path):
             if not line.startswith("| S"):
                 continue
             cols = [c.strip() for c in line.strip().strip("|").split("|")]
-            scenario_name, ttf, rt, wb, fc, tt = cols
+            scenario_name, ttd, ttf, rt, wb, fc, tt = cols
             key = name_to_key.get(scenario_name)
             if key is None:
                 continue
@@ -135,6 +135,7 @@ def parse_summary_md(path):
                 return None if v == "n/a" else int(v)
 
             out[key] = {
+                "time_to_detection": parse(ttd),
                 "time_to_fallback": parse(ttf),
                 "recovery_time": parse(rt),
                 "withdrawal_blocked_blocks": parse(wb),
