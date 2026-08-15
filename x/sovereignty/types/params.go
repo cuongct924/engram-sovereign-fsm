@@ -47,6 +47,11 @@ type Params struct {
 	// MaxSuspiciousForcedTxQueue caps ForcedTxQueue admission while
 	// SUSPICIOUS (app/ante.go). Concrete-only, no spec line.
 	MaxSuspiciousForcedTxQueue uint64
+
+	// MaxCensorshipRounds bounds IsCensoring's reject-forever failure mode --
+	// past this many rounds, ProcessProposal (proposal.go) stops enforcing it
+	// for that height, trading forced-inclusion guarantees for liveness.
+	MaxCensorshipRounds uint64
 }
 
 // DefaultParams returns this repo's tuned defaults for the real N=4 Docker
@@ -90,6 +95,11 @@ func DefaultParams() Params {
 		// Reasoned default -- candidate for a future E8-style flood-vs-
 		// censorship-resistance sweep, not run by this change.
 		MaxSuspiciousForcedTxQueue: 8,
+		// Reasoned default, not measured -- generous enough that ordinary
+		// round failures (network jitter, an honest proposer's turn lost to
+		// a timeout) never trip it, while still bounding a genuine deadlock
+		// to a recoverable number of rounds rather than forever.
+		MaxCensorshipRounds: 100,
 	}
 }
 
@@ -124,6 +134,10 @@ func (p Params) Validate() error {
 		return fmt.Errorf("params: MaxDownHysteresisThreshold (%d) must be >= DownHysteresisThreshold (%d)",
 			p.MaxDownHysteresisThreshold, p.DownHysteresisThreshold)
 	}
+	if p.MaxCensorshipRounds <= p.MaxIgnoreRounds {
+		return fmt.Errorf("params: MaxCensorshipRounds (%d) must be > MaxIgnoreRounds (%d), or the escape hatch fires before enforcement ever engages",
+			p.MaxCensorshipRounds, p.MaxIgnoreRounds)
+	}
 	return nil
 }
 
@@ -150,6 +164,7 @@ func (p Params) ToGenesisParams() *GenesisParams {
 		MaxDownHysteresisThreshold: p.MaxDownHysteresisThreshold,
 		SuspiciousHysteresisWait:   p.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: p.MaxSuspiciousForcedTxQueue,
+		MaxCensorshipRounds:        p.MaxCensorshipRounds,
 	}
 }
 
@@ -180,5 +195,6 @@ func (gp *GenesisParams) ToParams() Params {
 		MaxDownHysteresisThreshold: gp.MaxDownHysteresisThreshold,
 		SuspiciousHysteresisWait:   gp.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: gp.MaxSuspiciousForcedTxQueue,
+		MaxCensorshipRounds:        gp.MaxCensorshipRounds,
 	}
 }

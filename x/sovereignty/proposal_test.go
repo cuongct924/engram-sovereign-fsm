@@ -167,6 +167,26 @@ func TestProcessProposal_RejectsCensoringProposal(t *testing.T) {
 	require.False(t, resp.IsAccepted(), "a proposal that keeps omitting a forced tx past MaxIgnoreRounds must be rejected")
 }
 
+func TestProcessProposal_AcceptsCensoringProposalPastMaxCensorshipRounds(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
+	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds))
+
+	ext := healthyExtendedProposal(k, ctx)
+	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	require.NoError(t, err)
+
+	// Same as TestProcessProposal_RejectsCensoringProposal (forced tx still
+	// omitted), but at MaxCensorshipRounds -- a forced tx that can never be
+	// included must not block the chain forever (types.Params' doc).
+	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
+		Txs:   [][]byte{tx},
+		Round: int32(k.Params.MaxCensorshipRounds),
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsAccepted(), "IsCensoring must stop being enforced past MaxCensorshipRounds")
+}
+
 func TestProcessProposal_AcceptsCensoredTxOnceIncluded(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))

@@ -54,6 +54,12 @@ func TestParamsValidate(t *testing.T) {
 		p.MaxDownHysteresisThreshold = p.DownHysteresisThreshold - 1
 		require.ErrorContains(t, p.Validate(), "MaxDownHysteresisThreshold")
 	})
+
+	t.Run("MaxCensorshipRounds not above MaxIgnoreRounds", func(t *testing.T) {
+		p := DefaultParams()
+		p.MaxCensorshipRounds = p.MaxIgnoreRounds
+		require.ErrorContains(t, p.Validate(), "MaxCensorshipRounds")
+	})
 }
 
 // TestParamsRoundTrip verifies Params -> GenesisParams -> Params preserves

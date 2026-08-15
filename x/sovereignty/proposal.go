@@ -273,18 +273,24 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 
 		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315/579-590).
 		// Note: ABCI 2.0 cannot force immediate round advance; REJECT yields a nil prevote.
-		forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
-		if err != nil {
-			return reject, nil
-		}
-		if len(forcedTxQueue) > 0 {
-			ignoredRounds := k.IgnoredRoundsMap(ctx, forcedTxQueue)
-			included := make(map[string]bool, len(req.Txs)-1)
-			for _, tx := range req.Txs[1:] {
-				included[string(tx)] = true
-			}
-			if types.IsCensoring(forcedTxQueue, ignoredRounds, included, k.Params.MaxIgnoreRounds) {
+		//
+		// MaxCensorshipRounds (types.Params doc): past that many rounds, skip
+		// the check -- an uncommittable forced tx would otherwise reject every
+		// proposal forever instead of just nil-prevoting one round.
+		if uint64(req.Round) < k.Params.MaxCensorshipRounds {
+			forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
+			if err != nil {
 				return reject, nil
+			}
+			if len(forcedTxQueue) > 0 {
+				ignoredRounds := k.IgnoredRoundsMap(ctx, forcedTxQueue)
+				included := make(map[string]bool, len(req.Txs)-1)
+				for _, tx := range req.Txs[1:] {
+					included[string(tx)] = true
+				}
+				if types.IsCensoring(forcedTxQueue, ignoredRounds, included, k.Params.MaxIgnoreRounds) {
+					return reject, nil
+				}
 			}
 		}
 
