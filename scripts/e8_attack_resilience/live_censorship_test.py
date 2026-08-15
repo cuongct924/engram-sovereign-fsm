@@ -66,13 +66,18 @@ def run_cli(*args: str) -> subprocess.CompletedProcess:
 
 
 def build_target_tx_hex() -> str:
-    """--dry-run: builds the deterministic raw bytes of a throwaway
-    MsgSubmitForcedTxRequest WITHOUT broadcasting it -- this is the "other
-    tx" that will be registered as forced AND separately broadcast for
-    real, per this module's doc.
+    """--dry-run: builds the raw bytes of a throwaway MsgSubmitForcedTxRequest
+    WITHOUT broadcasting it -- this is the "other tx" that will be registered
+    as forced AND separately broadcast for real, per this module's doc.
+
+    Payload includes a real wall-clock nonce -- a fixed literal payload
+    produces the SAME tx hash every run, and CometBFT's tx cache remembers
+    a previously-committed hash for a while after commit, rejecting a later
+    run's identical resubmission with "tx already exists in cache" (hit
+    live, confirmed the earlier tx really had committed successfully).
     """
     proc = run_cli(
-        "tx-submit-forced-tx", "--payload", "e8-a7-censorship-target", "--dry-run"
+        "tx-submit-forced-tx", "--payload", f"e8-a7-censorship-target-{time.time()}", "--dry-run"
     )
     if proc.returncode != 0:
         raise RuntimeError(f"--dry-run failed: {proc.stdout} {proc.stderr}")
@@ -189,11 +194,27 @@ class Tracker:
         self.start = time.time()
         self.samples = []
         self.divergence_events = []
+        # phase -> [(t, max_honest_height), ...] -- liveness signal (chain
+        # kept committing during the attack, not just stayed un-diverged),
+        # ported from live_timeout_flood_test.py's Tracker.phase_heights/
+        # height_rate; this script previously tracked height only to bucket
+        # AppHash comparisons, never as a rate.
+        self.phase_heights: dict = {}
 
     def elapsed(self):
         return time.time() - self.start
 
+    def height_rate(self, phase: str) -> float:
+        pts = self.phase_heights.get(phase, [])
+        if len(pts) < 2:
+            return 0.0
+        (t0, h0), (t1, h1) = pts[0], pts[-1]
+        if t1 <= t0:
+            return 0.0
+        return (h1 - h0) / (t1 - t0)
+
     def poll_for(self, seconds: float, interval: float, phase: str):
+        self.phase_heights.setdefault(phase, [])
         deadline = time.time() + seconds
         while time.time() < deadline:
             t = self.elapsed()
@@ -219,6 +240,8 @@ class Tracker:
                     print(
                         f"  *** [{phase}] SAFETY VIOLATION @ {t:6.0f}s height={h}: {hashes_at_h} ***"
                     )
+            if honest_heights:
+                self.phase_heights[phase].append((t, max(honest_heights.values())))
 
             states = {s.node: (s.height, s.fsm_state) for s in all_samples}
             print(f"[{t:6.0f}s][{phase}] {states}")
@@ -247,7 +270,12 @@ def main():
     print("=== Phase 2: node04 byzantine (censor_tx), before target tx exists ===")
     build_only_hex = build_target_tx_hex()
     enable_byzantine(build_only_hex)
-    tr.poll_for(10.0, 3.0, "byzantine_armed")
+    # 20s, not 10s: --force-recreate leaves node04 RPC-unreachable for several
+    # seconds (confirmed live: height=-1 at t=19s of the old 10s window) --
+    # too short a settle window let phase 3's tx submission land while node04
+    # was still catching up, tripping a slow/round-skipping block and the
+    # CLI's own 30s DeliverTx-wait timeout (confirmed live, twice).
+    tr.poll_for(20.0, 3.0, "byzantine_armed")
 
     print("=== Phase 3: register + broadcast the real target tx, poll 90s ===")
     attack_start_ts = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -269,6 +297,13 @@ def main():
 
     summary_path = os.path.join(RESULTS_DIR, f"censorship_a7_{ts_label}_summary.md")
     safety_held = len(tr.divergence_events) == 0
+    baseline_rate = tr.height_rate("baseline")
+    censoring_rate = tr.height_rate("censoring")
+    recovery_rate = tr.height_rate("recovery")
+    # Liveness claim: the chain kept committing DURING censorship, not just
+    # stayed un-diverged while frozen -- no fixed threshold, report the real
+    # rates; "held" means censoring didn't collapse toward 0 vs. baseline.
+    liveness_held = baseline_rate == 0 or censoring_rate >= 0.5 * baseline_rate
     with open(summary_path, "w") as f:
         f.write("# LIVE Censorship test (E8 A7 adversarial half)\n\n")
         f.write(
@@ -281,6 +316,11 @@ def main():
         )
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n")
         f.write(
+            f"- Liveness held (block rate during censoring vs. baseline, no collapse toward 0): "
+            f"**{liveness_held}** (baseline {baseline_rate:.3f} blocks/s, censoring "
+            f"{censoring_rate:.3f} blocks/s, recovery {recovery_rate:.3f} blocks/s)\n"
+        )
+        f.write(
             f"- Reject/round-skip log signals per honest node during the censoring window: {reject_signals}\n\n"
         )
         if tr.divergence_events:
@@ -291,7 +331,8 @@ def main():
     print(f"\nwrote {len(tr.samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")
     print(
-        f"\nVERDICT: safety_held={safety_held} divergence_events={len(tr.divergence_events)} reject_signals={reject_signals}"
+        f"\nVERDICT: safety_held={safety_held} divergence_events={len(tr.divergence_events)} "
+        f"liveness_held={liveness_held} reject_signals={reject_signals}"
     )
     if not safety_held:
         sys.exit(1)

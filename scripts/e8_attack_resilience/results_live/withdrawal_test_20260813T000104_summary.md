@@ -27,3 +27,8 @@ passed CheckTx (hash E8D69F22300482F0D01C79C5CC6AE52F085EF66C09A67428CC8D20437C1
 - Withdrawal correctly blocked while SOVEREIGN (tx never committed, CLI did not report success): **True**
 
 Note: CheckTx admits the tx to the mempool successfully -- the real rejection happens at ProcessProposal (the whole proposal containing it is rejected), so the tx is withheld/pending rather than returning an explicit error code. A CLI timeout here is the expected, correct signal, not a script failure.
+
+## Safety (backfilled from raw samples, no rerun)
+
+- Safety held (all 4 validators' AppHash never diverged at the same height): **True**
+- Divergence events: 0
