@@ -379,7 +379,7 @@ Live (pairwise-link topology):
 | `AnchoredUptime` | share of run spent in ANCHORED |
 | `FlappingCount` / `TotalTransitions` | `harness.go`'s `ComputeMetrics` |
 | `WithdrawalBlocked` | blocks with `WithdrawLocked` true |
-| `AbsorbedEvents` / `RealTransitions` / `AbsorptionRate` | noise absorbed vs. actually transitioned, at the edge under test |
+| `AbsorbedEvents` / `RealTransitions` / `AbsorptionRate` | noise absorbed vs. actually transitioned, at the edge under test. `RealTransitions` is edge-named in code: `DemotionCount` (5b, real ANCHORED→SUSPICIOUS) / `ExitCount` (5c, real SUSPICIOUS→ANCHORED) |
 | `TimeOutsideAnchored` / `DemotionCount` | for ANCHORED-starting scenarios only |
 
 **Live vs. in-process — one finding shared across all three edges below:** every parameter is
@@ -435,9 +435,16 @@ missing measurement of an existing option.
   warning-level environments, starting ANCHORED. Formally specified in `spec/core/EngramFSM.tla`
   (extends `HysteresisSafety`; `StrictFSMTransitionSafety` unaffected), re-verified under E1's TLC run.
 
-* *Results:* `AnchoredUptime` 61%→100%, `AbsorptionRate` 0%→100% as threshold 1→8, all 4
-  environments identical (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`);
-  `WithdrawalBlocked=0` throughout.
+* *Results:* all 4 environments (`warning_btc`, `noisy_da`, `noisy_p2p`, `combined_warning`)
+  collapse to identical numbers per threshold (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`):
+
+  | Threshold | Flapping | Transitions | WithdrawalBlocked | AnchoredUptime | TimeOutsideAnchored | DemotionCount | AbsorbedEvents | AbsorptionRate |
+  |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | 1 | 31 | 32 | 0 | 61.39% | 39 | 16 | 0 | 0.00% |
+  | 2 | 1 | 2 | 0 | 96.04% | 4 | 1 | 18 | 94.74% |
+  | 4 | 1 | 2 | 0 | 98.02% | 2 | 1 | 20 | 95.24% |
+  | 6 | 0 | 0 | 0 | 100.00% | 0 | 0 | 21 | 100.00% |
+  | 8 | 0 | 0 | 0 | 100.00% | 0 | 0 | 21 | 100.00% |
 
   Live spot-check (5×1, `DownHysteresisThreshold` ∈ {1,2,4,6,8} × `noisy_da`, 300s/run):
 
@@ -465,9 +472,20 @@ missing measurement of an existing option.
   (`SuspiciousHysteresisSafety`); full-spec TLC re-verification alongside down-hysteresis/backoff
   is still pending.
 
-* *Results:* `AbsorptionRate` rises 0%→100% as SHW 1→4, but `suspicious_duration` hits
-  `MaxSuspiciousTime`(24) mid-run at SHW≥4, forcing SOVEREIGN regardless. Only SHW=1,2 stay under
-  the cap and reach ANCHORED (`AnchoredUptime` 43%, 17%) (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`).
+* *Results:* (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`) `WithdrawalBlocked` is not tracked
+  by this test — a real gap, since SHW≥4 forces SOVEREIGN mid-run, exactly when withdrawals would
+  lock, and nothing measures it:
+
+  | SHW | FinalState | ReachedSovereign | Flapping | Transitions | AnchoredUptime | ExitCount | AbsorbedEvents | AbsorptionRate | MaxSuspiciousDuration |
+  |---:|---|---|---:|---:|---:|---:|---:|---:|---:|
+  | 1 | ANCHORED | false | 29 | 30 | 43.14% | 15 | 0 | 0.00% | 10 |
+  | 2 | ANCHORED | false | 9 | 10 | 16.67% | 5 | 16 | 76.19% | 22 |
+  | 4 | RECOVERING | true | 8 | 11 | 0.98% | 0 | 6 | 100.00% | 24 |
+  | 6 | RECOVERING | true | 8 | 11 | 0.98% | 0 | 6 | 100.00% | 24 |
+  | 8 | RECOVERING | true | 8 | 11 | 0.98% | 0 | 6 | 100.00% | 24 |
+
+  `AbsorptionRate` rises 0%→100% as SHW 1→4, but `suspicious_duration` hits `MaxSuspiciousTime`(24)
+  mid-run at SHW≥4, forcing SOVEREIGN regardless. Only SHW=1,2 stay under the cap and reach ANCHORED.
 
   Live spot-check (5×1, `SuspiciousHysteresisWait` ∈ {1,2,4,6,8}, 300s/run, driven to SUSPICIOUS
   via a real `celestia-bridge` stop before each window):
