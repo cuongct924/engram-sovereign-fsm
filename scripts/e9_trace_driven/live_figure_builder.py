@@ -3,16 +3,15 @@
 E9), built from live_combined_trace.py's real output against the real 4-node
 testnet (not tests/e2e's in-process mock).
 
-live_combined_trace.py's doc explains why this can't be a drop-in
-replacement for simulate_acceptance.py's 6-panel layout: BTC finality gap,
-DA availability, and P2P health score are never written into COMMITTED
-state (x/sovereignty/preblock.go's NewPreBlocker only ever commits the
-already-agreed fsm_state/receipts, never a fresh local sensor read -- see
-that function's doc for the real safety bug this restriction fixes), so a
-live RPC/ABCI-query poll structurally cannot observe them.
+live_combined_trace.py's doc explains why BTC finality gap, DA availability,
+and P2P health score aren't committed state (x/sovereignty/preblock.go's
+NewPreBlocker only ever commits the already-agreed fsm_state/receipts, never
+a fresh local sensor read -- see that function's doc for the real safety bug
+this restriction fixes), so a live RPC/ABCI-query poll structurally cannot
+observe them AS COMMITTED DATA.
 
-This script does NOT fabricate those 3 panels. It builds 6 DIFFERENT panels
-from what IS real and observable via CometBFT RPC + Query.State:
+This script builds 6 panels from what IS committed/agreed and observable via
+CometBFT RPC + Query.State:
     1. FSM State timeline (one representative node -- all 4 matched at
        every sampled height this run, cross-checked by panel 6)
     2. Block height progression (real commit pace/rate)
@@ -23,6 +22,15 @@ from what IS real and observable via CometBFT RPC + Query.State:
     5. ReanchoringProofValid (real boolean flag from Query.State)
     6. Cross-node AppHash agreement (0/1 per sampled tick) -- the real
        safety signal E8's tests use throughout
+
+If a sibling `<csv>_sensors.csv` exists (x/sovereignty/sensors_refresh.go's
+diagnostic-only `sensor_snapshot` log line, scraped by
+sensor_log_scraper.py), 3 MORE panels are added -- real per-validator LOCAL
+sensor reads (BTC gap, DA gap, P2P active-anchors), explicitly labeled
+DIAGNOSTIC/LOCAL since, unlike panels 1-6, these are NOT committed/agreed
+data and can legitimately differ between validators. Falls back to the
+6-panel layout unchanged if no sensors CSV exists (older runs, or an empty
+scrape).
 
 Usage:
     python3 scripts/e9_trace_driven/live_figure_builder.py [csv_path]
@@ -69,6 +77,26 @@ def load_rows(csv_path):
     t0 = min(r["timestamp"] for r in rows)
     for r in rows:
         r["t"] = r["timestamp"] - t0
+    return rows
+
+
+def load_sensor_rows(csv_path):
+    """Loads the sibling `<csv>_sensors.csv` if it exists -- diagnostic-only
+    per-validator BTC/DA/P2P sensor reads (sensor_log_scraper.py's output).
+    Returns [] (not an error) if the file doesn't exist, matching the
+    "gracefully fall back to 6 panels" behavior the module doc promises.
+    """
+    sensors_path = csv_path.replace(".csv", "_sensors.csv")
+    if not os.path.exists(sensors_path):
+        return []
+    with open(sensors_path, newline="") as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        r["height"] = int(r["height"])
+        r["btc_gap"] = int(r["btc_gap"])
+        r["da_gap"] = int(r["da_gap"])
+        r["active_anchors"] = int(r["active_anchors"])
+        r["approx_timestamp"] = float(r["approx_timestamp"]) if r["approx_timestamp"] not in ("", "None") else None
     return rows
 
 
@@ -124,7 +152,7 @@ def fault_windows(markers):
     return windows
 
 
-def plot_figure2_live(rows, markers, csv_path):
+def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     setup_academic_plot_style()
     nodes = sorted(set(r["node"] for r in rows))
     rep_node = nodes[0]
@@ -138,7 +166,16 @@ def plot_figure2_live(rows, markers, csv_path):
     # artifact, not a real event).
     rep_rows = [r for r in all_rep_rows if r["height"] >= 0]
 
-    fig, axes = plt.subplots(6, 1, figsize=figsize_multi_panel(6), sharex=True)
+    t0 = min(r["timestamp"] for r in rows)
+    rep_sensor_rows = []
+    if sensor_rows:
+        rep_sensor_rows = sorted(
+            (r for r in sensor_rows if r["node"] == rep_node and r["approx_timestamp"] is not None),
+            key=lambda r: r["approx_timestamp"],
+        )
+
+    n_panels = 9 if rep_sensor_rows else 6
+    fig, axes = plt.subplots(n_panels, 1, figsize=figsize_multi_panel(n_panels), sharex=True)
 
     # 1. FSM state (representative node)
     ts = [r["t"] for r in rep_rows if r["fsm_state"]]
@@ -204,7 +241,24 @@ def plot_figure2_live(rows, markers, csv_path):
     axes[5].set_yticks([0, 1])
     axes[5].set_yticklabels(["DIVERGED", "agree"], fontsize=8)
     axes[5].set_title("Cross-Node AppHash Agreement (real safety check)")
-    axes[5].set_xlabel("Elapsed time (s)")
+    if not rep_sensor_rows:
+        axes[5].set_xlabel("Elapsed time (s)")
+
+    if rep_sensor_rows:
+        sensor_ts = [r["approx_timestamp"] - t0 for r in rep_sensor_rows]
+
+        # 7. BTC gap (DIAGNOSTIC/LOCAL -- this validator's own sensor read, never committed)
+        axes[6].step(sensor_ts, [r["btc_gap"] for r in rep_sensor_rows], where="post", color="C1")
+        axes[6].set_title(f"BTC Gap ({rep_node}, DIAGNOSTIC/LOCAL -- not committed)", fontsize=9)
+
+        # 8. DA gap (DIAGNOSTIC/LOCAL)
+        axes[7].step(sensor_ts, [r["da_gap"] for r in rep_sensor_rows], where="post", color="C2")
+        axes[7].set_title(f"DA Gap ({rep_node}, DIAGNOSTIC/LOCAL -- not committed)", fontsize=9)
+
+        # 9. P2P active anchors (DIAGNOSTIC/LOCAL)
+        axes[8].step(sensor_ts, [r["active_anchors"] for r in rep_sensor_rows], where="post", color="C3")
+        axes[8].set_title(f"P2P Active Anchors ({rep_node}, DIAGNOSTIC/LOCAL -- not committed)", fontsize=9)
+        axes[8].set_xlabel("Elapsed time (s)")
 
     fig.suptitle(
         f"Figure 2 -- FSM Timeline Under a Real Combined-Failure Trace\n"
@@ -228,9 +282,14 @@ def main():
 
     rows = load_rows(csv_path)
     markers = load_markers(summary_path)
-    plot_figure2_live(rows, markers, csv_path)
+    sensor_rows = load_sensor_rows(csv_path)
+    plot_figure2_live(rows, markers, csv_path, sensor_rows=sensor_rows)
 
     print(f"Loaded {len(rows)} real live samples from {csv_path}")
+    if sensor_rows:
+        print(f"Loaded {len(sensor_rows)} diagnostic sensor_snapshot rows -- 9-panel figure")
+    else:
+        print("No sensor_snapshot data found -- 6-panel figure (BTC/DA/P2P panels unavailable)")
     print(f"Figure written to {OUT_DIR}/figure2_trace_timeline_live.{{png,pdf}}")
 
 

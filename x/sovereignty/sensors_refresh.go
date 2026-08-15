@@ -1,6 +1,8 @@
 package sovereignty
 
 import (
+	"fmt"
+
 	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
@@ -76,6 +78,23 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		AvgPeerTenure:       p2pSnap.AvgTenure,
 		PeerLatency:         p2pSnap.Latency,
 	}
+
+	// Diagnostic-only, never committed -- this node's own local sensor
+	// reads, printed for E9's live figure to scrape via `docker logs`
+	// (docs/EXPERIMENT.md's E9), and for E4 A3/A4 live-test debugging
+	// (churn_rate/avg_tenure/peer_latency added after a first A3 run showed
+	// a real SUSPICIOUS transition with BTC/DA/anchor-count all healthy,
+	// leaving the P2P-quality fields as the only unlogged, unconfirmed
+	// candidate cause). Deliberately height-keyed, not timestamped, matching
+	// this package's existing engramd: diagnostic convention (preblock.go's
+	// recordDetectedEvidence, reanchor.go, x/anchor/anchor.go) -- stdout
+	// only, no k.*.Set call, so it cannot affect AppHash or determinism
+	// regardless of per-validator disagreement.
+	fmt.Printf(
+		"engramd: sensor_snapshot height=%d btc_gap=%d btc_spv_failed=%t da_gap=%d da_failed=%t attestation_failed=%t active_anchors=%d clean_peers=%d churn_rate=%d avg_tenure=%d peer_latency=%d\n",
+		ctx.BlockHeight(), metrics.BtcGap, metrics.IsBtcSpvFailed, metrics.DaGap, metrics.IsDasFailed, metrics.IsAttestationFailed, metrics.ActiveAnchors, metrics.CleanPeers, metrics.PeerChurnRate, metrics.AvgPeerTenure, metrics.PeerLatency,
+	)
+
 	return k.Metrics.Set(ctx, metrics)
 }
 

@@ -39,7 +39,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv  # noqa: E402
+from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS  # noqa: E402
 from injector import (
     start_pumba_profile,
     cleanup_profile,
@@ -47,10 +47,12 @@ from injector import (
     start_pumba_wan_profile,
     cleanup_wan_profile,
 )  # noqa: E402
+from sensor_log_scraper import scrape_sensor_snapshots, nearest_timestamp  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
+ALL_NODES = list(NODE_RPC_PORTS.keys())
 
 
 def now() -> str:
@@ -237,14 +239,52 @@ def main():
 
     print(f"\nwrote {len(tr.samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")
+
+    # Diagnostic-only per-validator BTC/DA/P2P sensor reads, scraped from
+    # x/sovereignty/sensors_refresh.go's sensor_snapshot log line (never
+    # committed state -- see the note below). Best-effort: a scrape failure
+    # or empty result just means these 3 extra panels won't be available,
+    # not a run failure.
+    sensor_rows = []
+    for node in ALL_NODES:
+        node_samples = [s for s in tr.samples if s.node == node]
+        # scrape_sensor_snapshots reads the container's ENTIRE log history
+        # (its own doc), not just this run -- a long-lived container carries
+        # sensor_snapshot lines from every prior run/session. Dropping rows
+        # outside this run's real sampled height range keeps stale heights
+        # (e.g. genesis-era startup noise) out of nearest_timestamp, which
+        # would otherwise snap them to a misleadingly plausible in-run time.
+        heights_this_run = {s.height for s in node_samples}
+        lo, hi = min(heights_this_run), max(heights_this_run)
+        for row in scrape_sensor_snapshots(node):
+            if not (lo <= row["height"] <= hi):
+                continue
+            row["approx_timestamp"] = nearest_timestamp(row["height"], node_samples)
+            sensor_rows.append(row)
+
+    sensors_csv_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}_sensors.csv")
+    if sensor_rows:
+        import csv as csv_mod
+
+        with open(sensors_csv_path, "w", newline="") as f:
+            writer = csv_mod.DictWriter(f, fieldnames=list(sensor_rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(sensor_rows)
+        print(f"wrote {len(sensor_rows)} diagnostic sensor_snapshot rows to {sensors_csv_path}")
+    else:
+        print(
+            "no sensor_snapshot log lines scraped (empty docker logs, or the deployed engramd "
+            "predates this diagnostic line) -- BTC/DA/P2P panels will be unavailable this run."
+        )
+
     print(
-        f"\nNote: a 6-panel timeline figure (BTC gap / DA gap / P2P health / block commit rate / "
-        f"withdrawal-lock status / proof-generation status, matching figure2_trace_timeline's "
-        f"layout) is NOT auto-generated here -- BTC/DA/P2P gap values are not available from "
-        f"committed state (same limitation as measure_latency_live.py's table; see "
-        f"x/sovereignty/preblock.go's NewPreBlocker doc) -- only fsm_state/height/markers are "
-        f"real live data. live_figure_builder.py builds a substitute figure from what IS "
-        f"observable."
+        f"\nNote: BTC gap/DA gap/P2P health are each validator's own LOCAL sensor reads, never "
+        f"committed state (x/sovereignty/preblock.go's NewPreBlocker doc) -- they can legitimately "
+        f"differ between validators, unlike every other metric here. {sensors_csv_path if sensor_rows else '(not written this run)'} "
+        f"holds them as diagnostic-only data, scraped from `docker logs`, height-keyed rather than "
+        f"timestamped (approx_timestamp is derived from the nearest real RPC sample at that "
+        f"height). live_figure_builder.py plots them as 3 additional panels, clearly labeled as "
+        f"local/diagnostic, not committed/agreed data like the other 6."
     )
 
 
