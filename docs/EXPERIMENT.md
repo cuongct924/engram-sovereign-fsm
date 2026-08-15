@@ -504,6 +504,12 @@ ANCHORED↔SUSPICIOUS too (5b/5c's thresholds don't grow with repetition).
 `CircuitBreakerSafety` locking withdrawals only in SOVEREIGN/RECOVERING argues for lower priority
 on this edge, not for no defense at all — unresolved.
 
+A bounded admission cap on `MsgSubmitForcedTxRequest` while SUSPICIOUS now exists as a partial,
+concrete mitigation (`app/ante.go`'s `CircuitBreakerDecorator`, `MaxSuspiciousForcedTxQueue` —
+concrete-only, no spec line). It bounds one repeatable-attack surface (unbounded `ForcedTxQueue`
+growth) but doesn't touch the broader question above: whether SOVEREIGN/RECOVERING-style backoff
+hardening belongs on this edge at all remains unresolved.
+
 ---
 
 ### E6 — Reanchoring Feasibility Evaluation

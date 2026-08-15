@@ -108,7 +108,9 @@ Critically, the consensus object is extended: a valid proposal is no longer mere
 The FSM governs four states:
  
 - **ANCHORED**: Normal operation. Bitcoin-secured via Babylon checkpointing; DA confirmed via Celestia (see SS4.2 for the gap between this target design and the current prototype's implementation).
-- **SUSPICIOUS**: Early warning. Warning conditions detected — restricts high-risk transactions and prioritizes critical operations.
+- **SUSPICIOUS**: Early warning. Warning conditions detected — the reference implementation
+  throttles a subset of transaction admission here as a prototype-level policy, not modeled in
+  this specification.
 - **SOVEREIGN**: Active partition. Local PoS activated; Circuit Breaker halts all cross-chain withdrawals.
 - **RECOVERING**: Resolution. Connectivity restored; aggregates all Sovereign transitions into a single recursive ZK-Proof to re-anchor to Bitcoin.
 
