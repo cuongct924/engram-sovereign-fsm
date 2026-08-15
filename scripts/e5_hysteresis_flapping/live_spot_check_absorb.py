@@ -4,7 +4,6 @@ down-hysteresis (ANCHORED -> SUSPICIOUS, DownHysteresisThreshold) and
 SUSPICIOUS-exit hysteresis (SUSPICIOUS -> ANCHORED, SuspiciousHysteresisWait)
 against the real 4-node testnet. Sibling to live_spot_check.py (5a), kept
 separate so a bug here can't regress the already-proven 5a workflow.
-
 Both params are genesis params, not compile-time-fixed: set
 ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD / ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT
 in .env, wipe testnet-data/, regenerate genesis, redeploy, then run with
@@ -52,7 +51,9 @@ starts and fully reverses within one polling interval can be missed.
 """
 
 import argparse
+import csv
 import os
+import re
 import sys
 import time
 
@@ -87,25 +88,41 @@ def docker(*args):
     subprocess.run(["docker", *args], capture_output=True, text=True, timeout=30)
 
 
-def compute_metrics(states_by_node: dict) -> dict:
-    """Mirrors live_spot_check.py's compute_metrics -- see that module's doc for the
-    granularity caveat versus the in-process per-block version.
+def compute_metrics(edge: str, states_by_node: dict, susp_duration_by_node: dict) -> dict:
+    """Mirrors live_spot_check.py's compute_metrics for the shared flapping/
+    total_transitions/anchored_uptime fields, plus edge-specific Tier 1 additions
+    (docs/EXPERIMENT.md's E5 Metrics table): --edge down adds
+    time_outside_anchored/demotion_count, --edge suspicious_exit adds
+    exit_count/max_suspicious_duration. Both are direction-specific transition
+    counts or a max() over already-polled suspicious_duration samples -- no
+    noise-window correlation (that's AbsorbedEvents/AbsorptionRate, still
+    in-process-only). See module doc for the granularity caveat versus the
+    in-process per-block version.
     """
     out = {}
     for node, states in states_by_node.items():
         states = [s for s in states if s]
         if not states:
-            out[node] = {
+            m = {
                 "flapping_count": 0,
                 "total_transitions": 0,
                 "anchored_uptime": 0.0,
                 "samples": 0,
             }
+            if edge == "down":
+                m["time_outside_anchored"] = 0
+                m["demotion_count"] = 0
+            else:
+                m["exit_count"] = 0
+                m["max_suspicious_duration"] = 0
+            out[node] = m
             continue
         prev = states[0]
         last_transition = None
         flapping = 0
         total_transitions = 0
+        demotion_count = 0
+        exit_count = 0
         for s in states[1:]:
             if s != prev:
                 total_transitions += 1
@@ -114,15 +131,103 @@ def compute_metrics(states_by_node: dict) -> dict:
                 if last_transition == reverse:
                     flapping += 1
                 last_transition = transition
+                if edge == "down" and prev == "ANCHORED" and s == "SUSPICIOUS":
+                    demotion_count += 1
+                elif edge == "suspicious_exit" and prev == "SUSPICIOUS" and s == "ANCHORED":
+                    exit_count += 1
             prev = s
         anchored_uptime = sum(1 for s in states if s == "ANCHORED") / len(states)
-        out[node] = {
+        m = {
             "flapping_count": flapping,
             "total_transitions": total_transitions,
             "anchored_uptime": round(anchored_uptime, 4),
             "samples": len(states),
         }
+        if edge == "down":
+            m["time_outside_anchored"] = sum(1 for s in states if s != "ANCHORED")
+            m["demotion_count"] = demotion_count
+        else:
+            m["exit_count"] = exit_count
+            durations = susp_duration_by_node.get(node, [])
+            m["max_suspicious_duration"] = max(durations) if durations else 0
+        out[node] = m
     return out
+
+
+def write_summary(
+    summary_path: str,
+    edge: str,
+    value: int,
+    env: str,
+    metrics: dict,
+    duration_s: float = 0.0,
+    interval_s: float = 0.0,
+    wan_profile: str = "",
+    backfilled_from: str = None,
+) -> None:
+    with open(summary_path, "w") as f:
+        f.write(f"# LIVE E5 absorb-edge spot-check: edge={edge}, value={value}, env={env}\n\n")
+        if backfilled_from:
+            f.write(
+                f"Tier 1 fields (time_outside_anchored/demotion_count or exit_count/"
+                f"max_suspicious_duration) backfilled from already-collected samples in "
+                f"`{backfilled_from}` -- no new Docker run.\n\n"
+            )
+        else:
+            f.write(
+                f"{ENVIRONMENTS[env]['description']}. Duration: {duration_s:.0f}s, "
+                f"polling interval: {interval_s:.0f}s, WAN-realism baseline: {wan_profile}.\n\n"
+            )
+        f.write(
+            "**Granularity caveat:** metrics below are computed from fixed-interval polling, not "
+            "per-block state -- see this script's module doc.\n\n"
+        )
+        if edge == "down":
+            f.write("| Node | Samples | Total Transitions | Flapping Count | Anchored Uptime | Time Outside Anchored | Demotion Count |\n")
+            f.write("|---|---:|---:|---:|---:|---:|---:|\n")
+            for node, m in metrics.items():
+                f.write(
+                    f"| {node} | {m['samples']} | {m['total_transitions']} | {m['flapping_count']} | "
+                    f"{m['anchored_uptime']:.2%} | {m['time_outside_anchored']} | {m['demotion_count']} |\n"
+                )
+        else:
+            f.write("| Node | Samples | Total Transitions | Flapping Count | Anchored Uptime | Exit Count | Max Suspicious Duration |\n")
+            f.write("|---|---:|---:|---:|---:|---:|---:|\n")
+            for node, m in metrics.items():
+                f.write(
+                    f"| {node} | {m['samples']} | {m['total_transitions']} | {m['flapping_count']} | "
+                    f"{m['anchored_uptime']:.2%} | {m['exit_count']} | {m['max_suspicious_duration']} |\n"
+                )
+
+
+def backfill_from_csv(args) -> None:
+    """Recomputes compute_metrics() (including the Tier 1 fields it didn't have
+    when the run was originally collected) from an existing raw samples CSV,
+    and rewrites that run's summary .md in place -- no new Docker deployment,
+    since fsm_state/suspicious_duration per sample are already in the file.
+    """
+    states_by_node: dict = {}
+    susp_duration_by_node: dict = {}
+    with open(args.from_csv, newline="") as f:
+        for row in csv.DictReader(f):
+            node = row["node"]
+            states_by_node.setdefault(node, []).append(row["fsm_state"])
+            try:
+                duration = int(row["suspicious_duration"])
+            except (KeyError, ValueError):
+                duration = 0
+            susp_duration_by_node.setdefault(node, []).append(duration)
+
+    metrics = compute_metrics(args.edge, states_by_node, susp_duration_by_node)
+
+    # True in-place rewrite: whatever this run's summary was originally named
+    # (older CSVs predate the --env flag and have no env in their filename),
+    # its summary sits right next to it as the same basename + _summary.md.
+    summary_path = re.sub(r"\.csv$", "_summary.md", args.from_csv)
+    write_summary(summary_path, args.edge, args.value, args.env, metrics, backfilled_from=args.from_csv)
+
+    print(f"backfilled Tier 1 metrics from {args.from_csv} -> {summary_path}")
+    print(f"\nMetrics: {metrics}")
 
 
 def drive_to_suspicious(interval_s: float, timeout_s: float) -> bool:
@@ -187,7 +292,18 @@ def main():
         help="see live_spot_check.py's identical flag -- per-validator WAN-realism "
         "baseline held for the whole run.",
     )
+    parser.add_argument(
+        "--from-csv",
+        default=None,
+        help="skip live polling entirely and recompute metrics from an existing "
+        "results_live/live_spot_check_*.csv (already has fsm_state/suspicious_duration per "
+        "sample) -- backfills Tier 1 fields into an already-collected run's summary without "
+        "a new Docker deployment. Still requires --edge/--value/--env matching that run.",
+    )
     args = parser.parse_args()
+    if args.from_csv:
+        backfill_from_csv(args)
+        return
     if args.noise_on_s is None:
         args.noise_on_s = 20.0
     if args.noise_off_s is None:
@@ -239,6 +355,7 @@ def main():
         start_pumba_wan_profile(args.wan_profile)
 
     states_by_node: dict = {}
+    susp_duration_by_node: dict = {}
     all_samples = []
     start = time.time()
     deadline = start + args.duration_s
@@ -254,6 +371,7 @@ def main():
             all_samples.extend(round_samples)
             for s in round_samples:
                 states_by_node.setdefault(s.node, []).append(s.fsm_state)
+                susp_duration_by_node.setdefault(s.node, []).append(s.suspicious_duration)
             states = {s.node: s.fsm_state for s in round_samples}
             print(f"[{t:6.0f}s] {states}")
 
@@ -290,30 +408,17 @@ def main():
             print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")
             cleanup_wan_profile(args.wan_profile)
 
-    metrics = compute_metrics(states_by_node)
+    metrics = compute_metrics(args.edge, states_by_node, susp_duration_by_node)
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     csv_path = os.path.join(RESULTS_DIR, f"live_spot_check_{label}_{ts_label}.csv")
     write_csv(all_samples, csv_path)
 
     summary_path = os.path.join(RESULTS_DIR, f"live_spot_check_{label}_{ts_label}_summary.md")
-    with open(summary_path, "w") as f:
-        f.write(f"# LIVE E5 absorb-edge spot-check: edge={args.edge}, value={args.value}, env={args.env}\n\n")
-        f.write(
-            f"{ENVIRONMENTS[args.env]['description']}. Duration: {args.duration_s:.0f}s, "
-            f"polling interval: {args.interval_s:.0f}s, WAN-realism baseline: {args.wan_profile}.\n\n"
-        )
-        f.write(
-            "**Granularity caveat:** metrics below are computed from fixed-interval polling, not "
-            "per-block state -- see this script's module doc.\n\n"
-        )
-        f.write("| Node | Samples | Total Transitions | Flapping Count | Anchored Uptime |\n")
-        f.write("|---|---:|---:|---:|---:|\n")
-        for node, m in metrics.items():
-            f.write(
-                f"| {node} | {m['samples']} | {m['total_transitions']} | {m['flapping_count']} | "
-                f"{m['anchored_uptime']:.2%} |\n"
-            )
+    write_summary(
+        summary_path, args.edge, args.value, args.env, metrics,
+        duration_s=args.duration_s, interval_s=args.interval_s, wan_profile=args.wan_profile,
+    )
 
     print(f"\nwrote {len(all_samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")

@@ -1,6 +1,6 @@
-suspicious_hysteresis_wait,final_state,reached_sovereign,flapping_count,total_transitions,anchored_uptime,exit_count,absorbed_events,absorption_rate,max_suspicious_duration
-1,ANCHORED,false,29,30,0.4314,15,0,0.0000,10
-2,ANCHORED,false,9,10,0.1667,5,16,0.7619,22
-4,RECOVERING,true,8,11,0.0098,0,6,1.0000,24
-6,RECOVERING,true,8,11,0.0098,0,6,1.0000,24
-8,RECOVERING,true,8,11,0.0098,0,6,1.0000,24
+suspicious_hysteresis_wait,final_state,reached_sovereign,flapping_count,total_transitions,anchored_uptime,exit_count,absorbed_events,absorption_rate,max_suspicious_duration,withdrawal_blocked
+1,ANCHORED,false,29,30,0.4314,15,0,0.0000,10,0
+2,ANCHORED,false,9,10,0.1667,5,16,0.7619,22,0
+4,RECOVERING,true,8,11,0.0098,0,6,1.0000,24,77
+6,RECOVERING,true,8,11,0.0098,0,6,1.0000,24,77
+8,RECOVERING,true,8,11,0.0098,0,6,1.0000,24,77

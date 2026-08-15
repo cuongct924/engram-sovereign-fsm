@@ -121,11 +121,9 @@ def main():
     }
 
     setup_academic_plot_style()
-    # Extra height beyond figsize_row's default (tuned for 3 narrow
-    # subplots) -- 2 wider subplots with a 2-line suptitle and rotated
-    # y-axis labels need more vertical room, and a shorter label text below
-    # avoids the left-edge clipping: a longer, full-sentence y-label
-    # overlaps both the suptitle above and the canvas's own left edge.
+    # Two wider subplots with a 2-line suptitle and rotated y-axis labels
+    # need more vertical room than figsize_row's default (tuned for 3 narrow
+    # subplots); a shorter y-label avoids left-edge clipping.
     width, height = figsize_row(2)
     fig, axes = plt.subplots(1, 2, figsize=(width, height * 1.4))
 

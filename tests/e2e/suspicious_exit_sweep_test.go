@@ -45,6 +45,7 @@ type suspiciousExitRun struct {
 	AbsorbedEvents           int // healthy blips that stayed SUSPICIOUS instead of exiting
 	AbsorptionRate           float64
 	MaxSuspiciousDuration    uint64 // peak suspicious_duration observed -- this mechanism's actual defended quantity
+	WithdrawalBlocked        int    // blocks with WithdrawLocked true -- nonzero only once MaxSuspiciousTime forces SOVEREIGN
 }
 
 func runNoisySuspicious(t *testing.T, suspiciousHysteresisWait uint64) suspiciousExitRun {
@@ -109,6 +110,7 @@ func runNoisySuspicious(t *testing.T, suspiciousHysteresisWait uint64) suspiciou
 		AbsorbedEvents:           absorbed,
 		AbsorptionRate:           absorptionRate,
 		MaxSuspiciousDuration:    maxDuration,
+		WithdrawalBlocked:        m.WithdrawalBlocked,
 	}
 }
 
@@ -126,7 +128,7 @@ func TestE5c_SuspiciousExitHysteresisSweep(t *testing.T) {
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	_ = w.Write([]string{"suspicious_hysteresis_wait", "final_state", "reached_sovereign", "flapping_count", "total_transitions", "anchored_uptime", "exit_count", "absorbed_events", "absorption_rate", "max_suspicious_duration"})
+	_ = w.Write([]string{"suspicious_hysteresis_wait", "final_state", "reached_sovereign", "flapping_count", "total_transitions", "anchored_uptime", "exit_count", "absorbed_events", "absorption_rate", "max_suspicious_duration", "withdrawal_blocked"})
 	for _, r := range runs {
 		_ = w.Write([]string{
 			strconv.FormatUint(r.SuspiciousHysteresisWait, 10),
@@ -139,8 +141,21 @@ func TestE5c_SuspiciousExitHysteresisSweep(t *testing.T) {
 			strconv.Itoa(r.AbsorbedEvents),
 			strconv.FormatFloat(r.AbsorptionRate, 'f', 4, 64),
 			strconv.FormatUint(r.MaxSuspiciousDuration, 10),
+			strconv.Itoa(r.WithdrawalBlocked),
 		})
-		t.Logf("SuspiciousHysteresisWait=%d final_state=%s reached_sovereign=%v flapping=%d total_transitions=%d anchored_uptime=%.2f exits=%d absorbed=%d absorption_rate=%.2f max_suspicious_duration=%d",
-			r.SuspiciousHysteresisWait, r.FinalState, r.ReachedSovereign, r.FlappingCount, r.TotalTransitions, r.AnchoredUptime, r.ExitCount, r.AbsorbedEvents, r.AbsorptionRate, r.MaxSuspiciousDuration)
+		t.Logf("SuspiciousHysteresisWait=%d final_state=%s reached_sovereign=%v flapping=%d total_transitions=%d anchored_uptime=%.2f exits=%d absorbed=%d absorption_rate=%.2f max_suspicious_duration=%d withdrawal_blocked=%d",
+			r.SuspiciousHysteresisWait, r.FinalState, r.ReachedSovereign, r.FlappingCount, r.TotalTransitions, r.AnchoredUptime, r.ExitCount, r.AbsorbedEvents, r.AbsorptionRate, r.MaxSuspiciousDuration, r.WithdrawalBlocked)
+	}
+
+	// WithdrawalBlocked must track ReachedSovereign exactly: SUSPICIOUS alone
+	// never locks withdrawals (WithdrawLocked == {SOVEREIGN, RECOVERING}), so
+	// this is only nonzero once MaxSuspiciousTime forces a real SOVEREIGN
+	// escalation mid-run.
+	for _, r := range runs {
+		if r.ReachedSovereign {
+			require.Greater(t, r.WithdrawalBlocked, 0, "SuspiciousHysteresisWait=%d: reached SOVEREIGN but WithdrawalBlocked recorded 0", r.SuspiciousHysteresisWait)
+		} else {
+			require.Equal(t, 0, r.WithdrawalBlocked, "SuspiciousHysteresisWait=%d: never reached SOVEREIGN/RECOVERING but WithdrawalBlocked > 0", r.SuspiciousHysteresisWait)
+		}
 	}
 }

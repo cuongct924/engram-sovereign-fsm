@@ -22,10 +22,10 @@ live BTC tip minus 0) until the first checkpoint reaches k_deep_finality+1
 confirmations (~60-90s of real BTC blocks) -- IsCriticalCondition has no
 hysteresis (5a's own finding), so this reliably forces SOVEREIGN immediately
 after every redeploy, self-resolving through RECOVERING back to ANCHORED only
-once the anchor/ZK pipeline catches up. Measured once at ~17 minutes
-wall-clock on this machine. --health-timeout-s must cover this, not just
-RPC-reachability, or the measurement window starts mid-recovery and
-contaminates the very absorb-rate/uptime numbers being measured.
+once the anchor/ZK pipeline catches up. --health-timeout-s must cover this
+(baseline can take minutes, not just RPC-reachability), or the measurement
+window starts mid-recovery and contaminates the very absorb-rate/uptime
+numbers being measured.
 
 Usage (from repo root, needs `make testnet-up` prerequisites already met --
 .env with BITCOIN_RPC_USER/PASSWORD filled in, docker daemon running):
