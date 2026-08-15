@@ -198,17 +198,18 @@ RECOVERING):
 
 Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
 across all 4 validators). Times are elapsed seconds since the run started, not per-scenario —
-each phase begins where the previous one's recovery left off:
+each phase begins where the previous one's recovery left off. FSM state defaults to `ANCHORED`,
+so "—" means no transition out of it during that scenario:
 
 | Scenario | →SUSPICIOUS | →SOVEREIGN | →RECOVERING | →ANCHORED |
 |---|---:|---:|---:|---:|
-| S1 | — | — | — | — |
-| S2 | 111s | 142s | 248s | 252s |
-| S3 | 258s | 288s | 328s | 333s |
-| S4 | 376s | 443s | 486s | 493s |
-| S5 | — | — | — | — |
-| S6 | — | 699s (direct) | — | — |
-| S7 | — | — | 805s | 810s |
+| S1 Normal | — | — | — | — |
+| S2 BTC congestion | 111s | 142s | 248s | 252s |
+| S3 DA unavailable | 258s | 288s | 328s | 333s |
+| S4 P2P eclipse | 376s | 443s | 486s | 493s |
+| S5 Anchor isolation | — | — | — | — |
+| S6 Combined BTC+DA | — | 699s (direct) | — | — |
+| S7 Recovery | — | — | 805s | 810s |
 
 Throughput/latency (block-interval proxy, seconds between height increments,
 `results_live/s2e_throughput_latency.md`):
