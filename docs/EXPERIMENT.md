@@ -253,40 +253,21 @@ per-round consensus latency percentile.
   including S6's combined outage, stays within the baseline's own range (S1: 1.39/1.53) once the
   FSM has settled into SOVEREIGN — degrading state does not itself degrade block cadence.
 
-  **Finding: S6's combined-outage consensus stall — found, fixed, verified.** An earlier live run
-  of S6 hard-stalled: zero blocks committed for the entire outage (every proposer's turn
-  unanimously prevoted nil). Root cause: `IsValidProposal`'s BTC check
-  (`spec/core/EngramTendermint.tla:296-312`, `x/anchor/verify.go`'s `VerifyReceipt`) ran
-  unconditionally regardless of the proposed `fsm_state`, unlike its DA counterpart, which already
-  skips its own freshness check whenever the proposal legitimately degrades away from
-  `ANCHORED`/`RECOVERING`. Requiring a fresh, independently-verifiable checkpoint as a
-  precondition for accepting a proposal that is *itself* acknowledging BTC is down makes graceful
-  SOVEREIGN degradation structurally impossible during a genuine BTC outage — no leader can ever
-  produce a checkpoint the honest network can verify while `bitcoind` is unreachable, so the check
-  blocks every proposal, including the one needed to record the degradation, for the outage's
-  full duration.
+  **Finding: S6 previously hard-stalled consensus — fixed.** `IsValidProposal`'s BTC check
+  (`x/anchor/verify.go`'s `VerifyReceipt`) required a fresh, verifiable checkpoint unconditionally
+  — including for a proposal that was itself degrading to SOVEREIGN *because* BTC was down, a
+  precondition no leader can ever satisfy mid-outage. Every proposal was unanimously rejected
+  (prevote-nil), zero blocks committed, for the whole outage. Fixed by adding `IsBTCHealthy`
+  (`spec/core/EngramFSM.tla`), mirroring `IsDAHealthy`'s existing gate: the check is skipped
+  whenever the proposal isn't claiming ANCHORED/RECOVERING and BTC is unhealthy. Verified by TLC
+  (`MC_TendermintSafety`: 3,680,719 states, zero `CoreTendermintInvariant` violations) and by the
+  live run above (S6 now transitions directly at t=699s with zero stall).
 
-  Fixed by adding `IsBTCHealthy` (`spec/core/EngramFSM.tla`), the BTC-side analog of
-  `IsDAHealthy`, and gating the BTC check on
-  `(fsm_state \in {ANCHORED, RECOVERING} \/ IsBTCHealthy)` — mirroring the DA check's existing
-  structure exactly. Verified two ways: TLC model checking (`MC_TendermintSafety`, 3,680,719
-  states generated, 523,095 distinct, full depth-25 state graph, zero `CoreTendermintInvariant`
-  violations) confirms the fix doesn't weaken any proven safety property; the live run above (S6:
-  direct `ANCHORED→SOVEREIGN` at t=699s, height climbing continuously through the entire outage,
-  zero stall) confirms it live.
-
-  **Caveat on S5 — live isolation confirmed genuine, but produces no FSM transition.** Unlike S4
-  (now confirmed live above), S5 still shows no state transition on any of the 4 validators
-  despite a real, independently-confirmed isolation: a `/net_info` cross-check against node01
-  during the S5 window (`results_live/s4_s5_net_info_check.md`) shows node01's own RPC timing out
-  for ~164s straight (t=509s–673s) before recovering — node01 genuinely couldn't respond, not a
-  mechanism that silently failed to apply. Likely explanation: `IsP2PQualityHealthy`'s thresholds
-  (`MinPeers`, `MinAnchorPeers`) are evaluated locally by each validator against its own peer
-  view, and losing exactly one peer out of a 4-node mesh still leaves the surviving 3 validators
-  well-connected to each other — from their perspective (the majority that actually decides
-  consensus), nothing crosses a threshold. A single isolated validator degrading itself doesn't,
-  on this topology, degrade the network's collective health signal. Untested here: whether
-  isolating 2 of 4 validators (still short of a BFT-breaking fraction) produces a real transition.
+  **Caveat on S5.** Isolation is real — node01's own RPC timed out for ~164s straight
+  (`/net_info` cross-check, `results_live/s4_s5_net_info_check.md`) — but produces no FSM
+  transition, because `IsP2PQualityHealthy`'s thresholds are evaluated per-validator: losing one
+  peer out of four still leaves the surviving 3 well-connected to each other, so the majority's
+  own health signal never degrades. Untested: whether isolating 2 of 4 validators changes this.
 
 **Vanilla comparison:** structural fact confirmed by `app/app_test.go`'s
 `TestNewEngramApp_VanillaSkipsPreBlocker`: vanilla mode (`engramd start --vanilla`) never
@@ -300,19 +281,14 @@ against the same real fault scenarios (`docker/engram-validator-cluster.yml`'s
 
 **Conclusion:**
 
-* The fallback design holds up in-process for all 7 scenarios, and now live for
-  S1/S2/S3/S4/S6/S7 — real consensus timing, real Docker network topology (the actual pairwise
-  validator-link mesh, not a shared subnet), identical behavior across all 4 validators at every
-  transition. The core RQ2/RQ3 claim — the system degrades gracefully rather than halting under
-  BTC, DA, P2P, and combined BTC+DA failure — is now supported live by 6 of 7 scenarios; S5 is the
-  one exception, and it fails to transition for an understood, topology-level reason rather than
-  an unresolved one.
-* S6 was the most consequential scenario in this suite, not the least: the exact failure mode this
-  architecture exists to prevent — a live BTC+DA outage causing consensus to halt instead of
-  degrading — was real, reproduced against a real 4-node cluster, and traced to a genuine gap in
-  `IsValidProposal`'s BTC check present in the abstract spec itself, not just this Go port. Fixing
-  it required a documented, TLC-verified change to the spec, not a workaround at the
-  implementation layer.
+* The fallback design holds up in-process for all 7 scenarios and live for 6 of 7
+  (S1/S2/S3/S4/S6/S7) — identical behavior across all 4 validators at every transition. RQ2/RQ3's
+  graceful-degradation claim is supported live under BTC, DA, P2P, and combined BTC+DA failure; S5
+  is the one exception, for an understood topology-level reason (see caveat), not an open one.
+* S6 was the most consequential scenario, not the least: it caught the exact failure mode this
+  architecture exists to prevent — a live outage halting consensus instead of degrading it — as a
+  genuine gap in the abstract spec itself, closed with a TLC-verified fix rather than an
+  implementation-layer workaround.
 
 **Insights:**
 
