@@ -216,10 +216,10 @@ so "—" means no transition out of it during that scenario:
 
 **Figure 3 (live):**
 
-![E2 live state timelines](../scripts/e2_fault_injection/results/figure3_state_timelines_live.png)
+![E2 live state timelines](../scripts/e2_fault_injection/results/figure3_single_timeline_live.png)
 ![E2 live summary bars](../scripts/e2_fault_injection/results/figure3_summary_bars_live.png)
 
-(PDF: `scripts/e2_fault_injection/results/figure3_state_timelines_live.pdf`, `figure3_summary_bars_live.pdf`.)
+(PDF: `scripts/e2_fault_injection/results/figure3_single_timeline_live.pdf`, `figure3_summary_bars_live.pdf`.)
 
 Throughput/latency (block-interval proxy, seconds between height increments,
 `results_live/s2e_throughput_latency.md`):
