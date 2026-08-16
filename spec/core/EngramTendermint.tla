@@ -153,7 +153,8 @@ Proposals == [
     fsm_state: FSMStatesOrNil,
     da_receipt: DAReceiptsOrNil,
     btc_receipt: BTCReceiptsOrNil,
-    zk_proof_ref: BOOLEAN
+    zk_proof_ref: BOOLEAN,
+    healthy: BOOLEAN
 ]
 \* @type: { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool };
 NilProposal == [
@@ -163,7 +164,8 @@ NilProposal == [
     fsm_state       |-> NilFSMState,
     da_receipt      |-> NilDAReceipt,
     btc_receipt     |-> NilBTCReceipt,
-    zk_proof_ref    |-> FALSE
+    zk_proof_ref    |-> FALSE,
+    healthy         |-> FALSE
 ]
 \* @type: Set({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool });
 ProposalsOrNil == Proposals \union {NilProposal}

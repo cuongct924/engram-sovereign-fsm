@@ -28,20 +28,8 @@ docs/                  Architecture, development, and experiment documentation
 
 ## Documentation
 
-- [`spec/README.md`](spec/README.md) — the formal specification write-up: protocol design, FSM
-  transition logic, the four-layer refinement hierarchy, and the safety/liveness proofs TLC and
-  Apalache check against `spec/core/*.tla`.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Docker Compose infrastructure: real network
-  topology and port allocation, diagrams.
-- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — build/test/lint workflow, the Cosmos SDK/ABCI++
-  consensus-layer mechanics (sensor wiring, the `PrepareProposal` / `ProcessProposal` /
-  `PreBlocker` flow), the real multi-node Docker deploy sequence (including the operational
-  ordering that actually matters), the ZK re-anchoring pipeline — written so anyone can run and
-  review this from a clean checkout.
-- [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md) — full experiment methodology, raw results, and
-  figures (E1-E10): real measurements from the live 4-node Docker testnet, the in-process
-  fault-injection harness, and the real Noir/Barretenberg proving pipeline, with which numbers are
-  real vs. synthetic always labeled.
-- [`circuit/README.md`](circuit/README.md) — the re-anchoring ZK proof system: the
-  Noir/UltraHonk circuit's formal `Proof of Recovery` definition, the dynamic-padding (N_MAX=256)
-  production design, and the recursive-aggregation research spike's real measured numbers.
+- [`spec/README.md`](spec/README.md) — formal spec: protocol design, FSM logic, refinement hierarchy, TLC/Apalache proofs.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Docker Compose network topology, port allocation, diagrams.
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — build/test/lint, ABCI++ consensus mechanics, multi-node deploy sequence, ZK pipeline.
+- [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md) — experiment methodology and results (E1-E10), real vs. synthetic always labeled.
+- [`circuit/README.md`](circuit/README.md) — ZK re-anchoring circuit: `Proof of Recovery` definition, dynamic-padding design, aggregation spike results.

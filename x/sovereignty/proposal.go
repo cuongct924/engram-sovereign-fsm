@@ -15,7 +15,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// ExtendedProposal mirrors proposal fields in EngramTendermint.tla:143-150
+// ExtendedProposal mirrors proposal fields in EngramTendermint.tla:149-158
 // (fsm_state, da_receipt, btc_receipt, zk_proof_ref). Encoded as JSON and
 // prepended as the first pseudo-transaction (Txs[0]) to bypass ABCI++
 // Vote Extension wiring complexity.
@@ -30,7 +30,7 @@ type ExtendedProposal struct {
 	BTCReceipt anchor.Receipt `json:"btc_receipt"`
 	// ZKProofRef carries rt_new (keeper.LastAnchoredRoot) when a recovery proof
 	// is present, nil otherwise -- refines the abstract BOOLEAN zk_proof_ref
-	// (EngramTendermint.tla:150) to trace which proof backed a transition.
+	// (EngramTendermint.tla:156) to trace which proof backed a transition.
 	ZKProofRef []byte `json:"zk_proof_ref"`
 }
 
@@ -60,7 +60,7 @@ func DecodeExtendedProposal(tx []byte) (p ExtendedProposal, ok bool, err error) 
 
 // currentFSMInput reads the keeper's current sensor/counter state into a
 // keeper.FSMInput, defaulting to FSMInit's values
-// (spec/core/EngramFSM.tla:143-165) when nothing has been persisted yet.
+// (spec/core/EngramFSM.tla:195-220) when nothing has been persisted yet.
 func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in keeper.FSMInput) {
 	metrics, err := k.Metrics.Get(ctx)
 	if err != nil {
@@ -162,8 +162,9 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		// Advance h_btc_anchored via ConfirmedAnchorHeight, capped at
 		// hBtcCurrent to enforce checkpoint_block_height <= h_btc_current
-		// (EngramTendermint.tla:271-275) -- prevents proposer deadlocks when a
-		// local confirmed cache exceeds the committed, frozen hBtcCurrent.
+		// (VerifySPVProof, EngramTendermint.tla:279-283) -- prevents proposer
+		// deadlocks when a local confirmed cache exceeds the committed, frozen
+		// hBtcCurrent.
 		if s != nil && s.Anchor != nil {
 			hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored && confirmed <= hBtcCurrent {
@@ -183,7 +184,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			PublishedBlockHeight: hEngramVerified,
 			// Attestation represents historical retrievability (PublishedBlockHeight > 0).
 			// We do not use the transient in.Metrics.IsAttestationFailed probe here
-			// to preserve DATolerance's freshness window (EngramTendermint.tla:290-294).
+			// to preserve DATolerance's freshness window (EngramTendermint.tla:308-311).
 			Attestation: hEngramVerified > 0,
 		}
 		btcReceipt := anchor.Receipt{
@@ -210,7 +211,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 		}
 		innerTxs := req.Txs
 		// Filter withdrawal transactions early to avoid proposing rejected TXs
-		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:300-301).
+		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:332).
 		if types.WithdrawLocked(targetState) {
 			filtered := innerTxs[:0:0]
 			for _, tx := range innerTxs {
@@ -237,7 +238,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 	}
 }
 
-// verifyZkProofFlag ports VerifyZkProof (spec/core/EngramTendermint.tla:257-260).
+// verifyZkProofFlag ports VerifyZkProof (spec/core/EngramTendermint.tla:265-268).
 // zkProofRef's presence (non-nil), not its value, is safety-relevant here,
 // matching the abstract spec's BOOLEAN check.
 func verifyZkProofFlag(zkProofRef []byte, receipt da.Receipt, hEngramVerified uint64) bool {
@@ -245,7 +246,7 @@ func verifyZkProofFlag(zkProofRef []byte, receipt da.Receipt, hEngramVerified ui
 }
 
 // containsWithdrawal is a placeholder for ContainsWithdrawal
-// (spec/core/EngramTendermint.tla:253), which treats tx values as an opaque
+// (spec/core/EngramTendermint.tla:261), which treats tx values as an opaque
 // enum with a distinguished TX_WITHDRAWAL member. Real Msg-based
 // classification belongs to app/ante.go once a TxDecoder is wired here.
 func containsWithdrawal(tx []byte) bool {
@@ -253,7 +254,7 @@ func containsWithdrawal(tx []byte) bool {
 }
 
 // NewProcessProposalHandler builds ProcessProposalHandler, porting IsValidProposal
-// (EngramTendermint.tla:281-307). Refreshes metrics locally to enforce
+// (EngramTendermint.tla:289-338). Refreshes metrics locally to enforce
 // "sensors propose, consensus decides."
 func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
@@ -271,7 +272,8 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return nil, err
 		}
 
-		// 0. Censorship check (IsCensoring, EngramTendermint.tla:310-315/579-590).
+		// 0. Censorship check (IsCensoring, EngramTendermint.tla:343-347; call
+		// site UponProposalInPropose, EngramTendermint.tla:609).
 		// Note: ABCI 2.0 cannot force immediate round advance; REJECT yields a nil prevote.
 		//
 		// MaxCensorshipRounds (types.Params doc): past that many rounds, skip
@@ -296,7 +298,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 
 		currState, in := currentFSMInput(ctx, k)
 
-		// 1. fsm_state cross-check (IsValidProposal:288).
+		// 1. fsm_state cross-check (IsValidProposal:296).
 		expectedState := keeper.CalculateNextState(currState, in, k.Params)
 		if ext.FSMState != expectedState {
 			return reject, nil
@@ -308,7 +310,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 2. DA pipeline check (IsValidProposal:290-294), utilizing req.Round
+		// 2. DA pipeline check (IsValidProposal:308-311), utilizing req.Round
 		// for round-based tolerance widening.
 		round := uint64(req.Round)
 		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
@@ -317,7 +319,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			return reject, nil
 		}
 
-		// 3. Settlement monotonicity & BTC check (IsValidProposal:296-312).
+		// 3. Settlement monotonicity & BTC check (IsValidProposal:327-329).
 		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
@@ -334,7 +336,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			}
 		}
 
-		// 4. Circuit breaker: no withdrawal while SOVEREIGN/RECOVERING (IsValidProposal:300-301).
+		// 4. Circuit breaker: no withdrawal while SOVEREIGN/RECOVERING (IsValidProposal:332).
 		if types.WithdrawLocked(ext.FSMState) {
 			for _, tx := range req.Txs[1:] {
 				if containsWithdrawal(tx) {
@@ -343,7 +345,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 			}
 		}
 
-		// 5. Re-anchoring ZK-proof gating (IsValidProposal:304-307).
+		// 5. Re-anchoring ZK-proof gating (IsValidProposal:336-338).
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		if ext.FSMState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait {
 			if !verifyZkProofFlag(ext.ZKProofRef, ext.DAReceipt, hEngramVerified) {

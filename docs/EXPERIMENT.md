@@ -161,8 +161,7 @@ specific known failure mode.
 
 **Results:** 
 
-**Conclusion:**
-
+See [§9 Formal Verification stress & ablation](../spec/README.md#9-formal-verification-stress--ablation)
 
 ---
 
@@ -223,10 +222,10 @@ so "—" means no transition out of it during that scenario:
 ![E2 live state timelines](../scripts/e2_fault_injection/results/figure3_single_timeline_live.png)
 ![E2 live summary bars](../scripts/e2_fault_injection/results/figure3_summary_bars_live.png)
 
-(PDF: `scripts/e2_fault_injection/results/figure3_single_timeline_live.pdf`, `figure3_summary_bars_live.pdf`.)
+(PDF: [`scripts/e2_fault_injection/results/figure3_single_timeline_live.pdf`](../scripts/e2_fault_injection/results/figure3_single_timeline_live.pdf), [`figure3_summary_bars_live.pdf`](../scripts/e2_fault_injection/results/figure3_summary_bars_live.pdf).)
 
 Throughput/latency (block-interval proxy, seconds between height increments,
-`results_live/s2e_throughput_latency.md`):
+[`results_live/s2e_throughput_latency.md`](../scripts/e2_fault_injection/results_live/s2e_throughput_latency.md)):
 
 | Scenario | Mean | p50 | p95 |
 |---|---:|---:|---:|
@@ -242,7 +241,7 @@ Throughput/latency (block-interval proxy, seconds between height increments,
 
 ![E2 live latency whiskers](../scripts/e2_fault_injection/results/figure3_latency_whiskers_live.png)
 
-(PDF: `scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf`.)
+(PDF: [`scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf`](../scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf).)
 
 **Caveat on S5.** Isolation is real (node01's own RPC timed out for ~164s straight, `/net_info`
 cross-check) but produces no FSM transition — losing 1 of 4 peers doesn't degrade the surviving
@@ -310,7 +309,7 @@ all) only ever reaches SUSPICIOUS.
 
 * In-process: `Harness.Advance()` never stopped or errored in any scenario — "full/local" block
   production is a measured result, not an assumption
-  (`scripts/e3_failure_matrix/results/table2_failure_matrix.md`).
+  ([`scripts/e3_failure_matrix/results/table2_failure_matrix.md`](../scripts/e3_failure_matrix/results/table2_failure_matrix.md)).
 * Live (344s, full lifecycle, all 4 validators in lockstep at every edge):
 
   | Edge | Time |
@@ -322,7 +321,7 @@ all) only ever reaches SUSPICIOUS.
   | RECOVERING → SOVEREIGN (regression, brief re-outage) | 80s |
   | → ANCHORED (real recovery via `watch_and_prove.sh`) | 344s |
 
-  Data: `scripts/e3_failure_matrix/results_live/lifecycle_test_20260812T153523.csv` + `_summary.md`.
+  Data: [`scripts/e3_failure_matrix/results_live/lifecycle_test_20260812T153523.csv`](../scripts/e3_failure_matrix/results_live/lifecycle_test_20260812T153523.csv) + [`_summary.md`](../scripts/e3_failure_matrix/results_live/lifecycle_test_20260812T153523_summary.md).
 
   This run only touches `celestia-bridge` (DA), so it directly confirms rows 1, 4, 7. Rows 2/3/5/6
   (BTC, P2P) are live-confirmed instead by E2's S2/S4/S5, which exercise those same mechanisms —
@@ -385,7 +384,7 @@ never detects. Tri-interface: 0% FPR, 0% FNR on every attack; detection delay va
 | A3 Churn-based rotation | 1.70 |
 | A4 Relay-node attack | 2.71 |
 
-(`scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`)
+([`scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`](../scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md))
 
 Live (pairwise-link topology):
 
@@ -395,7 +394,11 @@ Live (pairwise-link topology):
 * **A2** (12 attackers, 4 simulated subnets): filter still holds 8/8; attacker admission and
   honest connectivity are structurally independent once gossip moved off the shared subnet.
 
-(`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a{1,2}_*_summary.md`)
+(`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a{1,2}_*_summary.md`:
+[`sybil_attack_a1_20260812T154911_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260812T154911_summary.md),
+[`sybil_attack_a1_20260815T220004_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260815T220004_summary.md),
+[`sybil_attack_a2_20260812T155359_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260812T155359_summary.md), and
+[`sybil_attack_a2_20260815T220400_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260815T220400_summary.md))
 
 * A1/A2 are absorbed at the ingress filter (`FilterPeerByAddr`) before ever reaching the FSM —
   their live success signal is the FSM staying untouched.
@@ -434,9 +437,9 @@ silently hit the container's `bitcoin-net` `eth0` instead, with zero observable 
 `/dump_consensus_state` (node02 → node04 → node01 → node03); `PeerChurnRate` was confirmed via the
 `sensor_snapshot` diagnostic line (`x/sovereignty/sensors_refresh.go`).
 
-(`scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md` —
-single-attacker baseline, kept for comparison; `..._20260815T195821_summary.md` — two-attacker;
-`..._relay_latency_attack_a4_20260815T214521_summary.md`)
+([`scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md) —
+single-attacker baseline, kept for comparison; [`..._20260815T195821_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T195821_summary.md) — two-attacker;
+[`..._relay_latency_attack_a4_20260815T214521_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/relay_latency_attack_a4_20260815T214521_summary.md))
 
 **Conclusion:**
 
@@ -487,7 +490,7 @@ apply, on another:
 
 ![Figure 4 — FSM hysteresis parameter sweeps and system trade-offs across fault environments](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.png)
 
-(PDF: `scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf`.)
+(PDF: [`scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf`](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf).)
 
 * One panel per edge — (a) Up-Hysteresis, (b) Down-Hysteresis, (c) Suspicious-Exit.
 * Line = in-process sweep; diamond = live spot-check (same data as the tables below); dashed line
@@ -503,7 +506,7 @@ apply, on another:
   fixed-seed 20%-per-block noise. Live: each value gets its own genesis
   (`ENGRAM_PARAM_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md` §3), real 300s window.
 
-* *Results:* (`tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4a) `noisy_da`/`noisy_p2p` and
+* *Results:* ([`tests/e2e/results/e5_hysteresis_sweep.csv`](../tests/e2e/results/e5_hysteresis_sweep.csv), Figure 4a) `noisy_da`/`noisy_p2p` and
   `noisy_btc`/`combined_adversarial` give identical numbers at every HW — real data, only 3
   distinct behaviors exist among the 5 environments:
 
@@ -533,7 +536,7 @@ apply, on another:
   Headline number: `noisy_btc` uptime falls 59.8%→0.0% as HW goes 0→20.
 
   Live spot-check (5×2: HW ∈ {0,2,5,10,20} × {stable, noisy_da}, 300s/run, all 4 validators agreed
-  every sample; `scripts/e5_hysteresis_flapping/results_live/`):
+  every sample; [`scripts/e5_hysteresis_flapping/results_live/`](../scripts/e5_hysteresis_flapping/results_live/)):
 
   | HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
   |---:|---|---:|---:|---:|
@@ -561,7 +564,7 @@ apply, on another:
   warning-level environments + a `stable` control, starting from ANCHORED. Formally specified in
   `spec/core/EngramFSM.tla` (extends `HysteresisSafety`), re-verified by E1's TLC run.
 
-* *Results:* (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`, Figure 4b) all 4 noisy
+* *Results:* ([`tests/e2e/results/e5b_down_hysteresis_sweep.csv`](../tests/e2e/results/e5b_down_hysteresis_sweep.csv), Figure 4b) all 4 noisy
   environments (`warning_btc`, `noisy_da`, `noisy_p2p`, `combined_warning`) give the same numbers
   at each threshold; `stable` holds 100.00% uptime / 0 flapping at every threshold, as expected:
 
@@ -611,7 +614,7 @@ apply, on another:
   against. Formally specified (`SuspiciousHysteresisSafety`); a full-spec TLC re-check (with
   down-hysteresis and backoff) is still pending.
 
-* *Results:* (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`, Figure 4c) a real gap: this test
+* *Results:* ([`tests/e2e/results/e5c_suspicious_exit_sweep.csv`](../tests/e2e/results/e5c_suspicious_exit_sweep.csv), Figure 4c) a real gap: this test
   never tracks `WithdrawalBlocked`, even though SHW≥4 forces SOVEREIGN partway through the run —
   exactly when withdrawals should lock:
 
@@ -715,7 +718,7 @@ invariant) is practical and scales linearly, not just correct. Answers RQ4.
 |---|---|---:|---:|---:|
 | 4 → 256 | 12.00 ACIR opcodes/header, linear, R²=1.0000 | 0.130s → 0.684s | flat, 22–33ms | constant, 14,656 B |
 
-(`scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`, `figure6_scaling.{png,pdf}`)
+([`scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`](../scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv), [`figure6_scaling.png`](../scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png)/[`.pdf`](../scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.pdf))
 
 ![Figure 6 — Recovery proof scaling: constraint count, prove time, verify time, proof size vs. N](../scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png)
 
@@ -724,14 +727,14 @@ invariant) is practical and scales linearly, not just correct. Answers RQ4.
 | Noir + Honk | 14,656 B | 22.0 ms | 0.684 s | KZG (trusted) | No |
 | Plonky3 | 1,278,939 B (~87x larger) | 32.2 ms | 0.044 s (~15.5x faster) | Transparent/FRI | Yes |
 
-(`results/table6c_backend_comparison.md`, `figure7_backend_tradeoff.{png,pdf}`)
+([`results/table6c_backend_comparison.md`](../scripts/e6_zk_reanchoring_benchmark/results/table6c_backend_comparison.md), [`figure7_backend_tradeoff.png`](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.png)/[`.pdf`](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.pdf))
 
 ![Figure 7 — Backend trade-off at N=256: proof size, verify time, prove time, Noir+Honk vs. Plonky3](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.png)
 
 **Deployed circuit** compiles once at `N_MAX=256` with a padding/`count` witness (1..256) instead
 of per-interval recompilation.
 
-* Real cost (`circuit/reanchoring/RESULTS_MAXN_PADDING.md`, `count` ∈ {1,4,130,256}): constant
+* Real cost ([`circuit/README.md` §1](../circuit/README.md#1-production-design-dynamic-padding-n_max256), `count` ∈ {1,4,130,256}): constant
   6,143 ACIR opcodes, 47,613 circuit size, ~1.06s prove, ~22ms verify, 14,656 B proof — regardless
   of `count` (1.054s vs. 1.059s prove time, statistically indistinguishable).
 * 2.0x/1.55x cheaper (opcodes/prove time) than a fixed-N=256 compile with no padding logic.
@@ -793,12 +796,12 @@ regimes would hide both the near-zero healthy-path cost and the real bounded rec
 | Recovery-event cost | ~18.77 ms/verify (`BenchmarkVerifyZKProof-8`, 3 iterations), real `bb verify` inside `DeliverTx`, paid once per proof, not persistent |
 | Live (376 blocks, fresh genesis) | 100% marker coverage; SOVEREIGN avg 248.2 B, RECOVERING avg 270.0 B, ANCHORED avg 247.0 B; 1 block matched the recovery-proof heuristic at 14,881 B, consistent with E6's ~14,656 B proof + envelope |
 
-(`scripts/e7_consensus_overhead/results_live/table4_live_overhead.{csv,md}`)
+([`scripts/e7_consensus_overhead/results_live/table4_live_overhead.csv`](../scripts/e7_consensus_overhead/results_live/table4_live_overhead.csv)/[`.md`](../scripts/e7_consensus_overhead/results_live/table4_live_overhead.md))
 
 **Validation CPU cost**
 
 Per real function (`go test ./tests/benchmark/... -bench=. -benchmem`,
-`scripts/e7_consensus_overhead/results/table4_overhead.md`):
+[`scripts/e7_consensus_overhead/results/table4_overhead.md`](../scripts/e7_consensus_overhead/results/table4_overhead.md)):
 
 | Function | Cost |
 |---|---:|
@@ -821,7 +824,7 @@ comparison, which couldn't separate a real effect from `timeout_commit` noise):
 | Extended | 0.756 | 5.00 | 1.001 | 1.001 | 1.022 |
 | Vanilla | 0.955 | 5.00 | 1.000 | 1.003 | 1.015 |
 
-(`scripts/e7_consensus_overhead/results_live/throughput_latency_20260815T170924_summary.md`)
+([`scripts/e7_consensus_overhead/results_live/throughput_latency_20260815T170924_summary.md`](../scripts/e7_consensus_overhead/results_live/throughput_latency_20260815T170924_summary.md))
 
 **Nil-prevote ratio under sensor mismatch**
 
@@ -840,7 +843,7 @@ result:
 * Confirming a nonzero nil ratio would need isolating 2+ validators at once (>1/3 of voting
   power) — not yet run.
 
-(`scripts/e7_consensus_overhead/results_live/sensor_mismatch_20260815T215138_summary.md`)
+([`scripts/e7_consensus_overhead/results_live/sensor_mismatch_20260815T215138_summary.md`](../scripts/e7_consensus_overhead/results_live/sensor_mismatch_20260815T215138_summary.md))
 
 **Conclusion:**
 
@@ -909,9 +912,11 @@ explicitly, not just when a violation would be newsworthy
 * A1/A2/A9 previously reported only their attack-specific signal (A1/A2 sampled one node only; A9
   had no RPC polling, log-grep only) — all 3 now use the same by-height AppHash-divergence check
   as the passing rows. A5's numbers are a backfill from existing raw samples, no rerun needed.
-* (`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a{1,2}_20260815T22*_summary.md`,
-  `scripts/e8_attack_resilience/results_live/double_signing_20260815T220940_summary.md`,
-  `.../censorship_a7_20260815T225734_summary.md`)
+* (`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a{1,2}_20260815T22*_summary.md`:
+  [`sybil_attack_a1_20260815T220004_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260815T220004_summary.md),
+  [`sybil_attack_a2_20260815T220400_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260815T220400_summary.md);
+  [`scripts/e8_attack_resilience/results_live/double_signing_20260815T220940_summary.md`](../scripts/e8_attack_resilience/results_live/double_signing_20260815T220940_summary.md),
+  [`.../censorship_a7_20260815T225734_summary.md`](../scripts/e8_attack_resilience/results_live/censorship_a7_20260815T225734_summary.md))
 
 **Liveness** — block rate held during the attack, not just un-diverged. A10 has its own detail
 table below; A1/A7 now compute this too (`phase_heights`/`height_rate`, ported from A10):
@@ -946,7 +951,12 @@ hold/rise) would be the signal that flooding forced extra round-skips:
 | Extreme (500 msg/s, 25x the 20/s cap) | 0.825 | 0.789 | 28,071 / 29,238 / 30,376 (of ~30,000 attempted) | 2.4–3.3% → 7.85–9.51% (max 22.40%; node04 itself 28.47%) | 78.7–92.2 → 82.7–92.2 MiB |
 | Pairwise-link re-run, extreme | 0.586 | 0.813 | 26,563–28,777 | 2.7–3.1% → 6.4–6.9% (max 9.41%; node04 itself 25.60%) | 84.7–89.0 → 86.2–89.0 MiB |
 
-(`scripts/e8_attack_resilience/results_live/timeout_flood_2026081{2T073739,3T004538,6T150010,6T154324,6T154554}_summary.md`.
+(`scripts/e8_attack_resilience/results_live/timeout_flood_2026081{2T073739,3T004538,6T150010,6T154324,6T154554}_summary.md`:
+[`timeout_flood_20260812T073739_summary.md`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260812T073739_summary.md),
+[`timeout_flood_20260813T004538_summary.md`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260813T004538_summary.md),
+[`timeout_flood_20260816T150010_summary.md`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260816T150010_summary.md),
+[`timeout_flood_20260816T154324_summary.md`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260816T154324_summary.md),
+[`timeout_flood_20260816T154554_summary.md`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260816T154554_summary.md).
 Moderate runs 1-3: 0 drops/node at every run — real evidence the per-peer limiter never needs to
 engage right at its own 20/s cap, not just an inference from cadence holding.)
 
@@ -1017,8 +1027,8 @@ structurally can't see BTC/DA gap or P2P health.
     peer set wasn't disrupted by the 5% packet-loss injection used here.
   * Peer latency: the real signal on this sensor — flat near 0 until the DA-outage/P2P-churn
     overlap (t≈160-220s), where it spikes to ~537ms before dropping back once P2P churn ends.
-* (`scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv`, 404 samples;
-  `..._sensors.csv`, 811 diagnostic rows)
+* ([`scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv`](../scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv), 404 samples;
+  [`..._sensors.csv`](../scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158_sensors.csv), 811 diagnostic rows)
 
 **Figure 2 (live, 4 panels by signal kind; drops to 2 without the `sensor_snapshot` scrape):**
 
@@ -1067,11 +1077,11 @@ depth.
 
 | Depth | Result |
 |---|---|
-| Shallow (depth=1, < `KDeepFinality`=2) | all 4 validators stay ANCHORED (`results_live/reorg_shallow_20260812T140516.csv`) |
-| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 4 validators stay ANCHORED throughout (`results_live/reorg_deep_20260815T171706.csv`) |
-| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 4 validators stay ANCHORED throughout (`results_live/reorg_deep_20260815T172002.csv`) |
-| Deep (depth=15, past the anchored checkpoint), trial 1 | all 4 validators transition to SOVEREIGN in lockstep (`results_live/reorg_deep_20260812T143632.csv`) |
-| Deep (depth=15), trial 2 (repeat) | same outcome reproduced — all 4 validators transition to SOVEREIGN in lockstep (`results_live/reorg_deep_20260815T173058.csv`) |
+| Shallow (depth=1, < `KDeepFinality`=2) | all 4 validators stay ANCHORED ([`results_live/reorg_shallow_20260812T140516.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260812T140516.csv)) |
+| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 4 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260815T171706.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T171706.csv)) |
+| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 4 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260815T172002.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T172002.csv)) |
+| Deep (depth=15, past the anchored checkpoint), trial 1 | all 4 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260812T143632.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260812T143632.csv)) |
+| Deep (depth=15), trial 2 (repeat) | same outcome reproduced — all 4 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260815T173058.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T173058.csv)) |
 
 `AnchorTracker.VerifyAnchor` re-derives `BlockContainsTag` fresh via `getblockhash` on every call,
 so the deep reorg is caught on the next check, `is_btc_spv_failed` goes true,
@@ -1118,8 +1128,9 @@ the chain reached ANCHORED at t≈676s after reconnect (11m16s total). Two thing
   `SuspiciousThreshold`, so no state transition follows. Defense-in-depth (sensor-level detection)
   and FSM reaction (state transition) are two different layers with two different tolerances, and
   that gap is now measured, not assumed.
-* Not yet measured: formal verification of `VerifyAnchor` itself (no spec line, no TLC/Apalache
-  coverage) — the only original gap still open.
+* `is_btc_spv_failed -> SOVEREIGN` is already TLC-covered (free/nondeterministic variable). Still open (not pursued further this pass):
+  * Whether `VerifyAnchor`'s Go code always sets this flag correctly can't be checked by TLA+ -- that's about the real code talking to bitcoind, not the model.
+  * We haven't proven a reorg *always eventually* triggers SOVEREIGN, only that it *can* -- a small missing piece, not a real weakness, since E10's live test already showed it happening.
 
 ---
 
