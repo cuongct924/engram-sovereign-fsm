@@ -63,6 +63,33 @@ func TestParsePersistentPeerIDs(t *testing.T) {
 	}
 }
 
+func TestCountsAsChurn(t *testing.T) {
+	persistentPeerIDs := map[p2p.ID]bool{"aaa": true, "bbb": true}
+
+	cases := []struct {
+		name string
+		id   p2p.ID
+		want bool
+	}{
+		{name: "known persistent peer does not count as churn", id: "aaa", want: false},
+		{name: "another known persistent peer does not count as churn", id: "bbb", want: false},
+		{name: "unknown peer counts as churn", id: "ccc", want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := countsAsChurn(tc.id, persistentPeerIDs); got != tc.want {
+				t.Errorf("countsAsChurn(%q, %v) = %v, want %v", tc.id, persistentPeerIDs, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("empty persistentPeerIDs always counts as churn", func(t *testing.T) {
+		if got := countsAsChurn("aaa", map[p2p.ID]bool{}); !got {
+			t.Errorf("countsAsChurn with empty persistentPeerIDs = %v, want true", got)
+		}
+	})
+}
+
 func TestDefaultHome(t *testing.T) {
 	home := defaultHome()
 	if home == "" {

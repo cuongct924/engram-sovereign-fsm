@@ -528,6 +528,20 @@ func parsePersistentPeerIDs(raw string) map[p2p.ID]bool {
 
 const p2pChurnWindow = time.Hour
 
+// countsAsChurn reports whether a peer-set change for id should count toward
+// ChurnRate. A reconnect of an already-known genesis validator (tracked via
+// persistentPeerIDs, the same set ActiveAnchors uses) is routine -- a
+// restart, config toggle, or upgrade -- categorically different from churn
+// by an unknown/untrusted peer, which is what MaxChurnRate exists to catch
+// (E4's real Sybil/eclipse churn attack always uses a fresh, non-validator
+// node key -- never appears in persistentPeerIDs, so this exemption cannot
+// blind that detection). Divergence from spec/core/EngramFSM.tla's
+// peer_churn_rate (a bare Nat with no peer-identity concept) -- concrete-only,
+// no spec line, same pattern as MaxSuspiciousForcedTxQueue.
+func countsAsChurn(id p2p.ID, persistentPeerIDs map[p2p.ID]bool) bool {
+	return !persistentPeerIDs[id]
+}
+
 func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 	peers := a.sw.Peers().Copy()
 
@@ -546,7 +560,9 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 		seen[id] = true
 		if _, ok := a.firstSeen[id]; !ok {
 			a.firstSeen[id] = now
-			a.churnEvents = append(a.churnEvents, now)
+			if countsAsChurn(id, a.persistentPeerIDs) {
+				a.churnEvents = append(a.churnEvents, now)
+			}
 		}
 
 		if ip := p.RemoteIP(); ip != nil {
@@ -570,7 +586,9 @@ func (a *vanillaP2PHealthAdapter) PeerHealthSnapshot() sensors.P2PSnapshot {
 	for id := range a.firstSeen {
 		if !seen[id] {
 			delete(a.firstSeen, id)
-			a.churnEvents = append(a.churnEvents, now)
+			if countsAsChurn(id, a.persistentPeerIDs) {
+				a.churnEvents = append(a.churnEvents, now)
+			}
 		}
 	}
 
