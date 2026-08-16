@@ -26,6 +26,9 @@ var downHysteresisSweepValues = []uint64{1, 2, 4, 6, 8}
 // are warning-level by construction (DA has no critical path; the P2P blip
 // keeps ActiveAnchors at MinAnchorPeers, never 0).
 var warningDisturbances = map[string]disturbance{
+	// No-noise control: healSensors on every block, disturbed slot or not --
+	// the real baseline for Figure 4's panel (b), not a derived/assumed line.
+	"stable":      healSensors,
 	"warning_btc": func(h *Harness) { h.BTC.SetGap(h.keeper.Params.SuspiciousThreshold) },
 	"noisy_da":    envDisturbances["noisy_da"],
 	"noisy_p2p":   envDisturbances["noisy_p2p"],
@@ -119,7 +122,7 @@ func runNoisyAnchored(t *testing.T, downHysteresisThreshold uint64, env string) 
 func TestE5b_DownHysteresisSweep(t *testing.T) {
 	var runs []downHysteresisRun
 	for _, dht := range downHysteresisSweepValues {
-		for _, env := range []string{"warning_btc", "noisy_da", "noisy_p2p", "combined_warning"} {
+		for _, env := range []string{"stable", "warning_btc", "noisy_da", "noisy_p2p", "combined_warning"} {
 			runs = append(runs, runNoisyAnchored(t, dht, env))
 		}
 	}

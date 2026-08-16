@@ -469,14 +469,19 @@ apply, on another:
 * 5b/5c's live checks use one noise source only (`celestia-bridge` stop/start), same as 5a. Both
   now have a `stable`/no-noise control column, matching 5a's.
 
-![Figure 4b — FSM hysteresis parameter sweeps under natural noise, all 3 edges](../scripts/e5_hysteresis_flapping/results/figure4b_hysteresis_tradeoffs.png)
+![Figure 4 — FSM hysteresis parameter sweeps and system trade-offs across fault environments](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.png)
 
-(PDF: `scripts/e5_hysteresis_flapping/results/figure4b_hysteresis_tradeoffs.pdf`.) One figure, one
-panel per hysteresis-gated edge, all real in-process (fixed-seed) data — deliberately not live,
-since the live curves are the noisy/non-monotonic ones per the finding above. (a)/(b) plot
-`AnchoredUptime` alone; (c) plots `AnchoredUptime` against `AbsorptionRate` on twin axes — the real
-crossing is 5c's core trade-off: absorbing more noise on this edge (`AbsorptionRate` → 100%) speeds
-up the very escalation to `SOVEREIGN` that absorption is meant to delay (`AnchoredUptime` → ~1%).
+(PDF: `scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf`.) One figure, one
+panel per hysteresis-gated edge: (a) Up-Hysteresis — Mitigating Flapping, (b) Down-Hysteresis —
+Noise Absorption, (c) Suspicious-Exit — The Tuning Trade-off. Solid lines are the dense in-process
+sweep; diamonds overlay the real live spot-check points from the tables below — on (b)/(c) the
+dots visibly diverge from the line, which is the live-vs-in-process finding above rendered
+directly, not a plotting artifact. (a)/(b) plot `AnchoredUptime` alone; (c) plots `AnchoredUptime`
+against `AbsorptionRate` on twin axes (no live `AbsorptionRate`-equivalent metric exists, so that
+side stays in-process only) — the real crossing is 5c's core trade-off: absorbing more noise on
+this edge (`AbsorptionRate` → 100%) speeds up the very escalation to `SOVEREIGN` that absorption is
+meant to delay (`AnchoredUptime` → ~1%). The dashed line marks `SuspiciousHysteresisWait=2`, the
+real `DefaultParams()` value every live deployment outside this sweep runs with.
 
 **5a — Up-hysteresis (RECOVERING → ANCHORED)**
 
@@ -517,8 +522,6 @@ up the very escalation to `SOVEREIGN` that absorption is meant to delay (`Anchor
     leaving less time to count as "uptime."
   * Headline number: `noisy_btc` uptime falls 59.8%→0.0% as HW goes 0→20.
 
-  ![E5 in-process Figure 4 — recovery stability vs HYSTERESIS_WAIT](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis.png)
-
   Live spot-check (5×2: `HYSTERESIS_WAIT` ∈ {0,2,5,10,20}, × {stable, noisy_da}, 300s each run.
   All 4 validators agreed on every sample):
 
@@ -538,8 +541,6 @@ up the very escalation to `SOVEREIGN` that absorption is meant to delay (`Anchor
   * `stable` stays clean (0 flapping, 100% uptime) at every HW.
   * `noisy_da` uptime rises HW 0→5 (11.70%→18.75%), then drops to ~1% once HW≥10
     (`scripts/e5_hysteresis_flapping/results_live/`).
-
-  ![E5 live Figure 4 — recovery stability vs HYSTERESIS_WAIT](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_live.png)
 
 * *Conclusion:* a negative result, by design — `IsCriticalCondition` is checked before any
   absorption happens, so critical-level noise skips hysteresis entirely: a longer required streak
@@ -567,6 +568,10 @@ up the very escalation to `SOVEREIGN` that absorption is meant to delay (`Anchor
   | DemotionCount | 16 | 1 | 1 | 0 | 0 |
   | AbsorbedEvents | 0 | 18 | 20 | 21 | 21 |
   | AbsorptionRate | 0.00% | 94.74% | 95.24% | 100.00% | 100.00% |
+
+  A `stable` (no-noise) control was also run — 100.00% uptime, 0 flapping at every threshold, as
+  expected — the real measured baseline Figure 4's panel (b) now plots alongside the noisy curve
+  above (`TestE5b_DownHysteresisSweep`'s `stable` case, same CSV).
 
   Live spot-check (5×2: `DownHysteresisThreshold` ∈ {1,2,4,6,8}, × {stable, noisy_da}, 300s each
   run):
@@ -1129,8 +1134,7 @@ the chain reached ANCHORED at t≈676s after reconnect (11m16s total). Two thing
 | **Fig. 1** | Architecture: Engram execution + BTC settlement + Celestia DA + FSM sensors |
 | **Fig. 2** | FSM timeline under combined failure *(E9)* |
 | **Fig. 3** | Availability/throughput during outage: Engram FSM vs. vanilla CometBFT *(E2)* |
-| **Fig. 4** | Recovery stability vs. `HYSTERESIS_WAIT` *(E5)* |
-| **Fig. 4b** | Hysteresis parameter sweeps, all 3 edges: uptime vs. absorption trade-off *(E5)* |
+| **Fig. 4** | Hysteresis parameter sweeps, all 3 edges: uptime vs. absorption trade-off *(E5)* |
 | **Fig. 6** | Recovery Proof Scaling: 4 panels (Constraint Count, Proving Time, Verification Time, Proof Size) *(E6)* |
 | **Fig. 7** | Backend trade-off, 3 panels (proof size, verify time, prove time): Noir+Honk vs. Plonky3 *(E6, optional)* |
 | **Fig. 8** | FSM reaction to real Bitcoin reorgs by depth, 5 trials *(E10)* |
