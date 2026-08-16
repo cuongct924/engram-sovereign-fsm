@@ -68,11 +68,6 @@ ASSUME
 \* @type: (Int, Int) => Int;
 MinVal(a, b) == IF a < b THEN a ELSE b
 
-\* Helper: 2^n, for EffectiveDownHysteresisThreshold's exponential backoff below.
-RECURSIVE Pow2(_)
-\* @type: (Int) => Int;
-Pow2(n) == IF n = 0 THEN 1 ELSE 2 * Pow2(n - 1)
-
 \* Exponential backoff (docs/EXPERIMENT.md's flapping-attack hardening):
 \* RECOVERING's down-hysteresis grace period doubles per consecutive
 \* RECOVERING -> SOVEREIGN regression since the last successful recovery,
@@ -80,10 +75,14 @@ Pow2(n) == IF n = 0 THEN 1 ELSE 2 * Pow2(n - 1)
 \* attacker faces a progressively harder bar each cycle, instead of paying
 \* the same fixed DOWN_HYSTERESIS_THRESHOLD cost every time. A single
 \* genuine network fault (failed_recovery_attempts = 0) still only pays the
-\* plain DOWN_HYSTERESIS_THRESHOLD, unaffected.
+\* plain DOWN_HYSTERESIS_THRESHOLD, unaffected. Uses `^` (Naturals, via
+\* EXTENDS Integers) rather than a user RECURSIVE operator -- Apalache
+\* does not support RECURSIVE at all (fails every check transitively
+\* EXTENDS-ing this module, not just this one), while `^` is a native
+\* built-in both TLC and Apalache handle directly.
 \* @type: Int;
 EffectiveDownHysteresisThreshold ==
-    MinVal(DOWN_HYSTERESIS_THRESHOLD * Pow2(failed_recovery_attempts), MAX_DOWN_HYSTERESIS_THRESHOLD)
+    MinVal(DOWN_HYSTERESIS_THRESHOLD * (2 ^ failed_recovery_attempts), MAX_DOWN_HYSTERESIS_THRESHOLD)
 
 
 (* ======================== P2P HEALTH SENSOR (Tri-interface Profiler) =============================== *)
@@ -456,7 +455,7 @@ ExecuteFSMTransition(target_state) ==
     \* or simply staying in RECOVERING).
     /\ failed_recovery_attempts' =
            IF state = "RECOVERING" /\ target_state = "SOVEREIGN"
-           THEN IF DOWN_HYSTERESIS_THRESHOLD * Pow2(failed_recovery_attempts) >= MAX_DOWN_HYSTERESIS_THRESHOLD
+           THEN IF DOWN_HYSTERESIS_THRESHOLD * (2 ^ failed_recovery_attempts) >= MAX_DOWN_HYSTERESIS_THRESHOLD
                 THEN failed_recovery_attempts
                 ELSE failed_recovery_attempts + 1
            ELSE IF state = "RECOVERING" /\ target_state = "ANCHORED"

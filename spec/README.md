@@ -970,7 +970,7 @@ sequenceDiagram
     V-->>V: EventualDecisionUnderGSTLiveness violated
 ```
 
-* **Caveat (2026-08-10, still open):** this ablation file was stale, missing an unrelated bootstrap-deadlock fix (`ServerHonestTimeout`/`ServerHonestRoundSkip`) -- that bug alone reproduces the same stutter counterexample, so the 66s/depth-4 result above can't be trusted to isolate f+1's effect. Fixed the file, added a control-run driver, and re-ran: 80M+ states, depth 8, zero violations, but cut off by the environment before finishing -- still inconclusive, needs a longer uninterrupted run.
+* **Caveat (2026-08-17, still open):** the 66s/depth-4 result is unreliable (stale bootstrap-deadlock fix + an unsound `SYMMETRY` declaration on a `~>` liveness property, both now fixed). `UponfPlusOneTimeoutsAny` and `ServerHonestTimeout`/`ServerHonestRoundSkip` cover disjoint scenarios (the latter only fires for `Proposer[r] \in ByzantineNodes`), so the ablation should still be able to violate `EventualDecisionUnderGSTLiveness`. Best re-run reached **69,408,583 states, 828,673 distinct, depth 12**, zero violations, not completed -- needs dedicated compute (§9.2's Note). Not pursued further.
 
 ##### E. Remove DA Consistency
 
@@ -1000,7 +1000,7 @@ sequenceDiagram
 Two checks, same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
 
 * **Check 1 — `Sanity_ForgedProposalReachable`** (sanity: attack is reachable): violated at depth **2** in **30.792s**. Trace: `spec/traces/eclipse_forged_proposal.{itf.json,trace.tla}`.
-* **Check 2 — `Sanity_ForgedFSMStateRejectedUnderEclipse`** (the real property — thin alias for `FSMStateConsistency`): no violation through depth **7** plus 6/39 transitions at depth 8, interrupted after ~123 min (per-step cost grew ~3–4x/step: 5s → 3,990s), the same full-stack cost class flagged for `MC_ServerRefinementSafety` in §9.2 — **not completed to `length=12`**. **Status: partial, not exhaustive** — every state reached was clean, but the bound wasn't.
+* **Check 2 — `Sanity_ForgedFSMStateRejectedUnderEclipse`** (the real property — thin alias for `FSMStateConsistency`): fixed a `RECURSIVE Pow2(_)` in `EngramFSM.tla` (Apalache-incompatible; replaced with standard `2 ^ n`, no behavior change). Re-run at a reduced `--length=9`: reached Step 5, zero violations, not completed after ~31 min. **Status: partial, not exhaustive** -- same "needs dedicated compute" conclusion as ablation D above.
 
 ```mermaid
 sequenceDiagram
