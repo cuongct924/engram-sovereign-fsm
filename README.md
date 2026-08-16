@@ -31,11 +31,13 @@ docs/                  Architecture, development, and experiment documentation
 - [`spec/README.md`](spec/README.md) — the formal specification write-up: protocol design, FSM
   transition logic, the four-layer refinement hierarchy, and the safety/liveness proofs TLC and
   Apalache check against `spec/core/*.tla`.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture: real network topology,
-  sensor wiring, the `PrepareProposal` / `ProcessProposal` / `PreBlocker` consensus flow, diagrams.
-- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — build/test/lint workflow, the real multi-node
-  Docker deploy sequence (including the operational ordering that actually matters), the ZK
-  re-anchoring pipeline — written so anyone can run and review this from a clean checkout.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Docker Compose infrastructure: real network
+  topology and port allocation, diagrams.
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — build/test/lint workflow, the Cosmos SDK/ABCI++
+  consensus-layer mechanics (sensor wiring, the `PrepareProposal` / `ProcessProposal` /
+  `PreBlocker` flow), the real multi-node Docker deploy sequence (including the operational
+  ordering that actually matters), the ZK re-anchoring pipeline — written so anyone can run and
+  review this from a clean checkout.
 - [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md) — full experiment methodology, raw results, and
   figures (E1-E10): real measurements from the live 4-node Docker testnet, the in-process
   fault-injection harness, and the real Noir/Barretenberg proving pipeline, with which numbers are

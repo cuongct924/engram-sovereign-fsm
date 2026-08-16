@@ -939,11 +939,15 @@ hold/rise) would be the signal that flooding forced extra round-skips:
 
 | Run | Baseline (blocks/s) | Flood (blocks/s) | Rate-limiter drops/node | CPU (baseline → flood) | Memory |
 |---|---:|---:|---|---|---|
-| Moderate (20 msg/s), run 1 | 0.800 | 0.771 | — | — | — |
-| Moderate (20 msg/s), run 2 | 0.816 | 0.661 | — | — | — |
+| Moderate (20 msg/s), run 1 | 0.771 | 0.800 | not instrumented in this run | not instrumented in this run | not instrumented in this run |
+| Moderate (20 msg/s), run 2 | 0.661 | 0.816 | not instrumented in this run | not instrumented in this run | not instrumented in this run |
 | Extreme (500 msg/s, 25x the 20/s cap) | 0.825 | 0.789 | 28,071 / 29,238 / 30,376 (of ~30,000 attempted) | 2.4–3.3% → 7.85–9.51% (max 22.40%; node04 itself 28.47%) | 78.7–92.2 → 82.7–92.2 MiB |
-| Pairwise-link re-run, moderate | 0.808 | 0.608 | — | — | — |
-| Pairwise-link re-run, extreme | 0.586 | 0.813 | 26,563–28,777 | — | — |
+| Pairwise-link re-run, moderate | 0.808 | 0.608 | 37–38 | not instrumented in this run | not instrumented in this run |
+| Pairwise-link re-run, extreme | 0.586 | 0.813 | 26,563–28,777 | 2.7–3.1% → 6.4–6.9% (max 9.41%; node04 itself 25.60%) | 84.7–89.0 → 86.2–89.0 MiB |
+
+(`scripts/e8_attack_resilience/results_live/timeout_flood_2026081{2T072615,2T073456,2T073739,3T004311,3T004538}_summary.md`
+— the drop-count/resource-usage instrumentation was added starting with the Extreme run; the two
+original Moderate runs predate it and have no such data to report.)
 
 **Conclusion:**
 
@@ -1015,12 +1019,15 @@ structurally can't see BTC/DA gap or P2P health.
 * (`scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv`, 404 samples;
   `..._sensors.csv`, 811 diagnostic rows)
 
-**Figure 2 (live, 4 panels grouped by signal kind — System State & Actions [FSM state,
-withdrawal-lock shading, SafeBlocks, AppHash agreement], Sensor Health [BTC/DA gap], P2P Network
-[active anchors, peer latency], Consensus Liveness [block height]; drops to 2 panels without the
-`sensor_snapshot` scrape). Fault-injection windows are shaded across every panel so a reader can
-follow one moment down through all of them. The Sensor Health/P2P panels are explicitly labeled
-DIAGNOSTIC/LOCAL — per-validator local reads, never committed state:**
+**Figure 2 (live, 4 panels by signal kind; drops to 2 without the `sensor_snapshot` scrape):**
+
+* System State & Actions — FSM state, withdrawal-lock shading, SafeBlocks, AppHash agreement
+* Sensor Health — BTC/DA gap (labeled DIAGNOSTIC/LOCAL: per-validator reads, never committed state)
+* P2P Network — active anchors, peer latency (same DIAGNOSTIC/LOCAL caveat)
+* Consensus Liveness — block height
+
+Fault-injection windows are shaded across all 4 panels, so a reader can trace one moment through
+every signal at once.
 
 ![E9 live 4-panel trace timeline](../scripts/e9_trace_driven/results/figure2_trace_timeline_live.png)
 
