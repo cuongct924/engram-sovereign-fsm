@@ -1,0 +1,38 @@
+# Example witness for circuit/reanchoring_recursion_spike/src/main.nr (N=4,
+# unmodified copy of circuit/reanchoring/src/main.nr's pre-padding design).
+#
+# This is the SAME fixture as this circuit's own valid_chain_satisfies_circuit
+# test (src/main.nr) and matches the first 4 (real) headers of
+# circuit/reanchoring/Prover.toml.example one-for-one -- same rt_last=111
+# hash chain, same real Poseidon2 sponge (std::hash::poseidon2_permutation).
+#
+# To use: cp Prover.toml.example Prover.toml, then
+# `bb prove --verifier_target noir-recursive` (this leaf is proven with the
+# recursive target, not the default one -- see circuit/README.md §2).
+
+rt_last = "111"
+rt_new = "1003"
+
+[[headers]]
+prev_hash = "111"
+fsm_state = "2"
+withdrawal_locked = "1"
+state_root = "1000"
+
+[[headers]]
+prev_hash = "0x168c1f5895ad57e0d8257da085aab977ec14ed66699553157cd0bcffcd02bb3c"
+fsm_state = "2"
+withdrawal_locked = "1"
+state_root = "1001"
+
+[[headers]]
+prev_hash = "0x1374589c7378e0464473f7555a1be23550b356e5f6fcc2236360794359e40b86"
+fsm_state = "3"
+withdrawal_locked = "1"
+state_root = "1002"
+
+[[headers]]
+prev_hash = "0x264dd191a1edb43cb60a045b1f3b7e5db97372cf99c261fe5344237c922f71e1"
+fsm_state = "3"
+withdrawal_locked = "1"
+state_root = "1003"
