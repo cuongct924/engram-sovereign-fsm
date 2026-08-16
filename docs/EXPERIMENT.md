@@ -5,6 +5,25 @@
 The evaluation combines three layers of evidence: formal specification (TLA+), a fault-injection
 prototype, and cryptographic/consensus microbenchmarks.
 
+**Contents**
+
+* [1. Research Questions](#1-research-questions)
+* [2. Experiment Suite Overview](#2-experiment-suite-overview)
+* [3. Experimental Environment](#3-experimental-environment)
+* [4. Per-Experiment Design](#4-per-experiment-design)
+  * [E1 — Formal Verification Stress & Ablation](#e1--formal-verification-stress--ablation)
+  * [E2 — Fault-Injection End-to-End Prototype](#e2--fault-injection-end-to-end-prototype)
+  * [E3 — Failure Matrix](#e3--failure-matrix)
+  * [E4 — P2P Eclipse/Sybil Detection](#e4--p2p-eclipsesybil-detection)
+  * [E5 — FSM Transition Stability](#e5--fsm-transition-stability-hysteresis-across-all-absorb-edges)
+  * [E6 — Reanchoring Feasibility Evaluation](#e6--reanchoring-feasibility-evaluation)
+  * [E7 — Extended Proposal Consensus Overhead](#e7--extended-proposal-consensus-overhead)
+  * [E8 — Attack-Resilience Test Suite](#e8--attack-resilience-test-suite)
+  * [E9 — Trace-Driven Stress Test](#e9--trace-driven-stress-test)
+  * [E10 — Bitcoin Reorg Fork-Choice Reaction](#e10--bitcoin-reorg-fork-choice-reaction)
+* [5. Figures & Tables Needed in the Paper](#5-figures--tables-needed-in-the-paper)
+* [Conclusion](#conclusion)
+
 ---
 
 ## 1. Research Questions
@@ -457,44 +476,36 @@ apply, on another:
 | `AbsorbedEvents` / `AbsorptionRate` (`DemotionCount` in 5b, `ExitCount` in 5c) | noise absorbed vs. actually transitioned | N/A — counter reset, not per-event | core | core |
 | `TimeOutsideAnchored` / `DemotionCount` | ANCHORED-starting scenarios only | N/A — doesn't start ANCHORED | core | N/A — doesn't start ANCHORED |
 
-**Live vs. in-process — the same finding on all three edges:**
+**Live vs. in-process — the main finding, all three edges:**
 
-* Each parameter is tested twice: in-process (fixed random seed) and live (real 4-node Docker
-  cluster).
-* All three edges show the same pattern — the in-process curve is clean and monotonic, the live
-  curve isn't. Each live run gets a fresh genesis and a fresh dose of real network noise, so it
-  can't cancel out randomness the way a fixed seed does in-process.
-* This live-vs-in-process gap is the main finding of this whole section; the subsections below
-  only add what's edge-specific.
-* 5b/5c's live checks use one noise source only (`celestia-bridge` stop/start), same as 5a. Both
-  now have a `stable`/no-noise control column, matching 5a's.
+* Each parameter is swept twice: in-process (fixed seed) vs. live (real 4-node cluster).
+* The in-process curve is always clean and monotonic; the live one never is — a fresh genesis +
+  real network noise per live run can't cancel out the way a fixed seed does.
+* Figure 4 below renders this directly (solid line vs. diamond).
+* 5b/5c's live checks reuse 5a's single noise source (`celestia-bridge` stop/start) and now share
+  its `stable`/no-noise control column.
 
 ![Figure 4 — FSM hysteresis parameter sweeps and system trade-offs across fault environments](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.png)
 
-(PDF: `scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf`.) One figure, one
-panel per hysteresis-gated edge: (a) Up-Hysteresis — Mitigating Flapping, (b) Down-Hysteresis —
-Noise Absorption, (c) Suspicious-Exit — The Tuning Trade-off. Solid lines are the dense in-process
-sweep; diamonds overlay the real live spot-check points from the tables below — on (b)/(c) the
-dots visibly diverge from the line, which is the live-vs-in-process finding above rendered
-directly, not a plotting artifact. (a)/(b) plot `AnchoredUptime` alone; (c) plots `AnchoredUptime`
-against `AbsorptionRate` on twin axes (no live `AbsorptionRate`-equivalent metric exists, so that
-side stays in-process only) — the real crossing is 5c's core trade-off: absorbing more noise on
-this edge (`AbsorptionRate` → 100%) speeds up the very escalation to `SOVEREIGN` that absorption is
-meant to delay (`AnchoredUptime` → ~1%). The dashed line marks `SuspiciousHysteresisWait=2`, the
-real `DefaultParams()` value every live deployment outside this sweep runs with.
+(PDF: `scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.pdf`.)
 
-**5a — Up-hysteresis (RECOVERING → ANCHORED)**
+* One panel per edge — (a) Up-Hysteresis, (b) Down-Hysteresis, (c) Suspicious-Exit.
+* Line = in-process sweep; diamond = live spot-check (same data as the tables below); dashed line
+  = `DefaultParams()`'s real value (=2 on all three).
+* (c)'s twin axes are 5c's core trade-off: absorbing more noise (`AbsorptionRate` → 100%) speeds
+  up the very `SOVEREIGN` escalation absorption is meant to delay (`AnchoredUptime` → ~1%) — no
+  live `AbsorptionRate` equivalent exists, so that side stays in-process only.
 
-* *Method:*
-  * `TestE5_HysteresisSweep` sweeps `HYSTERESIS_WAIT` over {0,1,3,5,10,20}, across 5 environments
-    (critical: `noisy_btc`/`combined_adversarial`; warning: `noisy_da`/`noisy_p2p`; and `stable`),
-    fixed-seed 20%-per-block noise.
-  * Live: each value gets its own genesis (`ENGRAM_PARAM_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md`
-    §3) and a real 300s window.
+#### 5a. Up-hysteresis (RECOVERING to ANCHORED)
 
-* *Results:* (`tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4) `noisy_da`/`noisy_p2p` and
-  `noisy_btc`/`combined_adversarial` each give identical numbers at every HW value — real data, not
-  a table simplification, only 3 distinct behaviors exist among the 5 environments:
+* *Method:* `TestE5_HysteresisSweep` sweeps `HYSTERESIS_WAIT` over {0,1,3,5,10,20} × 5 environments
+  (critical: `noisy_btc`/`combined_adversarial`; warning: `noisy_da`/`noisy_p2p`; `stable`),
+  fixed-seed 20%-per-block noise. Live: each value gets its own genesis
+  (`ENGRAM_PARAM_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md` §3), real 300s window.
+
+* *Results:* (`tests/e2e/results/e5_hysteresis_sweep.csv`, Figure 4a) `noisy_da`/`noisy_p2p` and
+  `noisy_btc`/`combined_adversarial` give identical numbers at every HW — real data, only 3
+  distinct behaviors exist among the 5 environments:
 
   | HYSTERESIS_WAIT | Environment | ReachedAnchored | FirstAnchoredAt | FinalState | Flapping | Transitions | AnchoredUptime |
   |---:|---|---|---:|---|---:|---:|---:|
@@ -517,13 +528,12 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
   | 20 | noisy_da / noisy_p2p | true | 46 | ANCHORED | 3 | 7 | 53.92% |
   | 20 | noisy_btc / combined_adversarial | false | -1 | SOVEREIGN | 37 | 39 | 0.00% |
 
-  * `stable`'s uptime drop (33%→4%) isn't noise-driven — the test window has a fixed length, so a
-    bigger HW just eats more of it before the first ANCHORED transition (`FirstAnchoredAt` 3→23),
-    leaving less time to count as "uptime."
-  * Headline number: `noisy_btc` uptime falls 59.8%→0.0% as HW goes 0→20.
+  `stable`'s uptime drop (33%→4%) is a fixed-window artifact, not noise: bigger HW just delays the
+  first ANCHORED transition (`FirstAnchoredAt` 3→23), leaving less window left to count as uptime.
+  Headline number: `noisy_btc` uptime falls 59.8%→0.0% as HW goes 0→20.
 
-  Live spot-check (5×2: `HYSTERESIS_WAIT` ∈ {0,2,5,10,20}, × {stable, noisy_da}, 300s each run.
-  All 4 validators agreed on every sample):
+  Live spot-check (5×2: HW ∈ {0,2,5,10,20} × {stable, noisy_da}, 300s/run, all 4 validators agreed
+  every sample; `scripts/e5_hysteresis_flapping/results_live/`):
 
   | HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
   |---:|---|---:|---:|---:|
@@ -538,25 +548,22 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
   | 20 | stable | 0 | 0 | 100.00% |
   | 20 | noisy_da | 11 | 14 | 1.04% |
 
-  * `stable` stays clean (0 flapping, 100% uptime) at every HW.
-  * `noisy_da` uptime rises HW 0→5 (11.70%→18.75%), then drops to ~1% once HW≥10
-    (`scripts/e5_hysteresis_flapping/results_live/`).
+  `noisy_da` uptime rises HW 0→5 (11.70%→18.75%), then drops to ~1% once HW≥10 — non-monotonic,
+  unlike the in-process curve.
 
 * *Conclusion:* a negative result, by design — `IsCriticalCondition` is checked before any
-  absorption happens, so critical-level noise skips hysteresis entirely: a longer required streak
-  just gives it more chances to interrupt recovery. A bigger `HYSTERESIS_WAIT` is strictly worse
-  against this noise class; not a bug, this is how the mechanism is meant to work.
+  absorption happens, so critical-level noise skips hysteresis entirely. A bigger `HYSTERESIS_WAIT`
+  is strictly worse against this noise class; not a bug, this is how the mechanism is meant to work.
 
-**5b — Down-hysteresis (ANCHORED → SUSPICIOUS)**
+#### 5b. Down-hysteresis (ANCHORED to SUSPICIOUS)
 
-* *Method:*
-  * `TestE5b_DownHysteresisSweep` sweeps `DownHysteresisThreshold` over {1,2,4,6,8}, 4
-    warning-level environments, starting from ANCHORED.
-  * Formally specified in `spec/core/EngramFSM.tla` (extends `HysteresisSafety`; doesn't affect
-    `StrictFSMTransitionSafety`), re-verified by E1's TLC run.
+* *Method:* `TestE5b_DownHysteresisSweep` sweeps `DownHysteresisThreshold` over {1,2,4,6,8}, 4
+  warning-level environments + a `stable` control, starting from ANCHORED. Formally specified in
+  `spec/core/EngramFSM.tla` (extends `HysteresisSafety`), re-verified by E1's TLC run.
 
-* *Results:* (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`) all 4 environments (`warning_btc`,
-  `noisy_da`, `noisy_p2p`, `combined_warning`) give the same numbers at each threshold:
+* *Results:* (`tests/e2e/results/e5b_down_hysteresis_sweep.csv`, Figure 4b) all 4 noisy
+  environments (`warning_btc`, `noisy_da`, `noisy_p2p`, `combined_warning`) give the same numbers
+  at each threshold; `stable` holds 100.00% uptime / 0 flapping at every threshold, as expected:
 
   | Metric | Threshold=1 | Threshold=2 | Threshold=4 | Threshold=6 | Threshold=8 |
   |---|---:|---:|---:|---:|---:|
@@ -569,12 +576,7 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
   | AbsorbedEvents | 0 | 18 | 20 | 21 | 21 |
   | AbsorptionRate | 0.00% | 94.74% | 95.24% | 100.00% | 100.00% |
 
-  A `stable` (no-noise) control was also run — 100.00% uptime, 0 flapping at every threshold, as
-  expected — the real measured baseline Figure 4's panel (b) now plots alongside the noisy curve
-  above (`TestE5b_DownHysteresisSweep`'s `stable` case, same CSV).
-
-  Live spot-check (5×2: `DownHysteresisThreshold` ∈ {1,2,4,6,8}, × {stable, noisy_da}, 300s each
-  run):
+  Live spot-check (5×2: DHT ∈ {1,2,4,6,8} × {stable, noisy_da}, 300s/run):
 
   | DownHysteresisThreshold | Environment | Flapping (300s) | Transitions | Anchored uptime | Time Outside Anchored | Demotion Count |
   |---:|---|---:|---:|---:|---:|---:|
@@ -589,34 +591,29 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
   | 8 | stable | 0 | 0 | 100.00% | 0 | 0 |
   | 8 | noisy_da | 8 | 13 | 28.24% | 61 | 5 |
 
-  * 3 of 4 validators agree exactly at every threshold/environment; node04 differs by ±1 at
-    threshold=1/2 (noisy_da only) — a polling artifact (fixed-interval polling can catch a
-    transition on the wrong side, on just one node). The table shows the 3-of-4 value.
-  * `stable` at threshold≥2 is perfectly clean (0 flapping, 100% uptime), as expected — but
-    threshold=1 flaps even under `stable` (no injected noise at all): real WAN jitter alone (the
-    `chaos-wan-latency` baseline every live run holds) is enough to trip a 1-consecutive-reading
-    threshold.
+  * 3-of-4 validators agree exactly everywhere; node04 differs by ±1 at threshold=1/2 (noisy_da
+    only) — a fixed-interval polling artifact, not a real disagreement. Table shows the 3-of-4 value.
+  * `stable` is clean at threshold≥2, but threshold=1 flaps even with zero injected noise: real WAN
+    jitter alone (the `chaos-wan-latency` baseline every live run holds) trips a 1-reading threshold.
 
 * *Conclusion:*
-  * Clean, positive result in-process — this parameter is tested against exactly the noise level
-    it's meant to absorb.
-  * Live mostly confirms it: `stable` holds perfectly at threshold≥2; `noisy_da` uptime is lowest
-    at the production default (threshold=2, 4.23%) and highest at threshold=6 (36.46%) — not a
-    clean monotonic climb, but no longer contradicts the in-process trend.
-  * Live-only finding: threshold=1 flaps under real WAN jitter alone, no synthetic noise — a real
-    argument against ever using the floor value in production.
+  * Clean, positive result in-process — tested against exactly the noise level it's meant to absorb.
+  * Live mostly confirms it: `stable` perfect at threshold≥2; `noisy_da` uptime lowest at the
+    production default (threshold=2, 4.23%), highest at threshold=6 (36.46%) — not monotonic, but
+    doesn't contradict the in-process trend.
+  * Live-only finding: threshold=1 flaps under real WAN jitter alone — a real argument against ever
+    using the floor value in production.
 
-**5c — SUSPICIOUS-exit hysteresis (SUSPICIOUS → ANCHORED)**
+#### 5c. Suspicious-exit hysteresis (SUSPICIOUS to ANCHORED)
 
-* *Method:*
-  * `TestE5c_SuspiciousExitHysteresisSweep` sweeps `SuspiciousHysteresisWait` over {1,2,4,6,8},
-    starting from SUSPICIOUS — the "Gray Failure Arbitrage" attack shape this defends against.
-  * Formally specified (`SuspiciousHysteresisSafety`); a full-spec TLC re-check (with
-    down-hysteresis and backoff) is still pending.
+* *Method:* `TestE5c_SuspiciousExitHysteresisSweep` sweeps `SuspiciousHysteresisWait` over
+  {1,2,4,6,8}, starting from SUSPICIOUS — the "Gray Failure Arbitrage" attack shape this defends
+  against. Formally specified (`SuspiciousHysteresisSafety`); a full-spec TLC re-check (with
+  down-hysteresis and backoff) is still pending.
 
-* *Results:* (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`) this test never tracks
-  `WithdrawalBlocked` — a real gap: SHW≥4 forces SOVEREIGN partway through the run, exactly when
-  withdrawals should lock, and nothing measures whether they do:
+* *Results:* (`tests/e2e/results/e5c_suspicious_exit_sweep.csv`, Figure 4c) a real gap: this test
+  never tracks `WithdrawalBlocked`, even though SHW≥4 forces SOVEREIGN partway through the run —
+  exactly when withdrawals should lock:
 
   | Metric | SHW=1 | SHW=2 | SHW=4 | SHW=6 | SHW=8 |
   |---|---|---|---|---|---|
@@ -636,10 +633,9 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
     SHW.
   * Only SHW=1 and SHW=2 stay under that cap and actually reach ANCHORED.
 
-  Live spot-check (5×2: `SuspiciousHysteresisWait` ∈ {1,2,4,6,8} × {Sustained Warning, 20% Healthy
-  Blips}, 300s/run; each run first stops `celestia-bridge` to drive SUSPICIOUS. Environment names
-  are 5c-specific, not `stable`/`noisy_da`, since 5c's baseline is the opposite of 5a/5b's — see
-  the shared note above):
+  Live spot-check (5×2: SHW ∈ {1,2,4,6,8} × {Sustained Warning, 20% Healthy Blips}, 300s/run; each
+  run first stops `celestia-bridge` to drive SUSPICIOUS. Environment names are 5c-specific, not
+  `stable`/`noisy_da`, since 5c's baseline is the opposite of 5a/5b's):
 
   | SHW | Environment | Flapping (300s) | Transitions | Anchored uptime | Exit Count | Max Suspicious Duration |
   |---:|---|---:|---:|---:|---:|---:|
@@ -669,7 +665,7 @@ real `DefaultParams()` value every live deployment outside this sweep runs with.
     grows. But uptime doesn't follow the in-process curve at all — it even reverses direction at
     the 1→2 step.
 
-**Open question — asymmetric hardening:**
+#### Open question: asymmetric hardening
 
 * Exponential backoff only exists on the RECOVERING→SOVEREIGN edge, but the same cheap, repeatable
   attack shape it defends against also exists on ANCHORED↔SUSPICIOUS (5b/5c's thresholds don't
