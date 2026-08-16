@@ -12,8 +12,8 @@
  * support, so this one is TLC-only, unlike the other ablations).
  *
  * MC_ServerFairness and EngramServer_Ablation_NoFastForward.tla itself
- * (2026-08-09): both re-synced against EngramServer.tla's Hướng A+B
- * bootstrap-deadlock fix (see LIVENESS_DEADLOCK_FINDING.md) -- the ablated
+ * (2026-08-09): both re-synced against EngramServer.tla's bootstrap-deadlock
+ * fix (ServerHonestTimeout/ServerHonestRoundSkip) -- the ablated
  * copy had silently drifted stale (missing ServerHonestTimeout/
  * ServerHonestRoundSkip entirely, along with the ServerByzantinePull/
  * ServerByzantineDataWithholding already-closed-round guards), and this

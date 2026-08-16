@@ -368,8 +368,8 @@ ServerHonestTimeout ==
 \* tx_ignored_rounds off of a synthetic, not a real, round, which was
 \* observed to spuriously trip IsCensoring's MAX_IGNORE_ROUNDS threshold
 \* after a single skip and self-trigger a second, unmapped round advance
-\* inside UponProposalInPropose (see LIVENESS_DEADLOCK_FINDING.md §10).
-\* Every other StartRound effect is still replicated exactly.
+\* inside UponProposalInPropose. Every other StartRound effect is still
+\* replicated exactly.
 \* @type: (Str) => Bool;
 ServerHonestRoundSkip(p) ==
     /\ p \in HonestNodes
@@ -400,9 +400,9 @@ ServerByzantineDataWithholding ==
        IN 
        \* LiDO's math requires an E_QC from step 1 before this can proceed.
        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
-       \* Same class of guard as ServerByzantinePull (see its comment and
-       \* LIVENESS_DEADLOCK_FINDING.md §7): a round can close via an
-       \* all-NIL timeout-driven precommit quorum without msgs_propose[r]
+       \* Same class of guard as ServerByzantinePull (see its comment): a
+       \* round can close via an all-NIL timeout-driven precommit quorum
+       \* without msgs_propose[r]
        \* ever having received anything, so without this, a late Byzantine
        \* proposal (and the M_QC synthesized from it) could target a round
        \* honest nodes have already exited -- an abstract Invoke(M) with

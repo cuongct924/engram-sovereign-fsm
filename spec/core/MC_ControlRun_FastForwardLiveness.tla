@@ -24,8 +24,7 @@
  *
  * MC_ServerFairness (2026-08-09): includes WF_serverVars(ServerHonestTimeout)
  * and WF_serverVars(ServerHonestRoundSkip(p)) for each honest p, matching
- * MC_ServerRefinementLiveness.tla's post-Hướng-A+B fairness formula (see
- * LIVENESS_DEADLOCK_FINDING.md) -- an earlier version of this driver
+ * MC_ServerRefinementLiveness.tla's fairness formula -- an earlier version of this driver
  * (copied verbatim from the ablated driver before ITS OWN fairness
  * formula was corrected) omitted these, which meant this control run
  * stuttered on the exact same already-known, already-fixed

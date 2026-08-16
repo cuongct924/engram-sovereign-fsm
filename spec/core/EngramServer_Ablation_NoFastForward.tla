@@ -297,7 +297,7 @@ ServerInit ==
 \* for the Byzantine-silent-leader deadlock is ServerHonestTimeout +
 \* ServerHonestRoundSkip below, which advance round directly (mapping to
 \* Timeout(n) then TimeoutSkipNext) without ever needing this guard to
-\* loosen -- see LIVENESS_DEADLOCK_FINDING.md.
+\* loosen.
 \* @type: Bool;
 ServerAdvanceRealTime ==
     /\ AdvanceRealTime
@@ -339,8 +339,7 @@ ServerByzantinePull ==
         \* any honest node has already moved past round r, an abstract
         \* Pull(E) for r is no longer justified by any Next disjunct once
         \* the concrete round advance is mapped through -- found via
-        \* RefinementSafety (see LIVENESS_DEADLOCK_FINDING.md's Hướng A+B
-        \* re-verification).
+        \* RefinementSafety re-verification.
         /\ \A p \in HonestNodes : round[p] <= r
         /\ LET new_EQC == [
                 type |-> "E_QC",
@@ -356,8 +355,7 @@ ServerByzantinePull ==
 
 \* Bootstrap-deadlock fix, split into two steps mirroring the abstract
 \* model's own two-step structure exactly (Timeout(n), then a separate
-\* later TimeoutSkipNext that CONSUMES the T-cache Timeout(n) created --
-\* see LIVENESS_DEADLOCK_FINDING.md).
+\* later TimeoutSkipNext that CONSUMES the T-cache Timeout(n) created).
 \*
 \* Step 1/2 -- ServerHonestTimeout: the abstract Timeout(n) can fire at
 \* any time (no rem_time gate), but the concrete ServerUponTimeoutCert(p)
@@ -409,8 +407,8 @@ ServerHonestTimeout ==
 \* tx_ignored_rounds off of a synthetic, not a real, round, which was
 \* observed to spuriously trip IsCensoring's MAX_IGNORE_ROUNDS threshold
 \* after a single skip and self-trigger a second, unmapped round advance
-\* inside UponProposalInPropose (see LIVENESS_DEADLOCK_FINDING.md §10).
-\* Every other StartRound effect is still replicated exactly.
+\* inside UponProposalInPropose. Every other StartRound effect is still
+\* replicated exactly.
 \* @type: (Str) => Bool;
 ServerHonestRoundSkip(p) ==
     /\ p \in HonestNodes
@@ -441,9 +439,9 @@ ServerByzantineDataWithholding ==
        IN 
        \* Toán học LiDO ép buộc: Phải có E_QC từ bước 1 rồi mới được chạy tiếp
        /\ \E eqc \in quorum_certs : eqc.type = "E_QC" /\ eqc.round = r /\ eqc.caller = Proposer[r]
-       \* Same class of guard as ServerByzantinePull (see its comment and
-       \* LIVENESS_DEADLOCK_FINDING.md §7): a round can close via an
-       \* all-NIL timeout-driven precommit quorum without msgs_propose[r]
+       \* Same class of guard as ServerByzantinePull (see its comment): a
+       \* round can close via an all-NIL timeout-driven precommit quorum
+       \* without msgs_propose[r]
        \* ever having received anything, so without this, a late Byzantine
        \* proposal (and the M_QC synthesized from it) could target a round
        \* honest nodes have already exited -- an abstract Invoke(M) with
