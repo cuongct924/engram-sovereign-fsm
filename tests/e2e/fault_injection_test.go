@@ -148,7 +148,7 @@ func TestE2_S3_DAUnavailable(t *testing.T) {
 	for i := uint64(0); i < p.MaxSuspiciousTime+3; i++ {
 		h.Advance()
 	}
-	// DefaultParams has MaxSuspiciousTime=1 -- a persistent DA outage must
+	// DefaultParams has MaxSuspiciousTime=24 -- a persistent DA outage must
 	// escalate via gray-failure timeout, not hang in SUSPICIOUS.
 	require.Equal(t, types.StateSovereign, h.State(), "persistent DA outage must eventually escalate via gray-failure timeout")
 

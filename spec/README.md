@@ -413,20 +413,7 @@ Read state-by-state:
 
 #### Re-anchoring via ZK-Proof of Recovery
 
-`SOVEREIGN`-mode blocks carry only local-PoS security, not Bitcoin-anchored finality. Returning to `ANCHORED` requires a **Proof of Recovery**, not a Proof of Execution: it proves the sovereign interval preserved continuity and FSM recovery policy, without re-verifying any transaction — keeping constraint count low for $O(1)$ verification and constant proof size.
-
-Built with Noir/UltraHonk (`circuit/reanchoring/src/main.nr`), Poseidon2 as a random oracle, standard knowledge soundness. Public input $x = (rt_{last}, rt_{new}, n)$; witness $w = (H_{k+1}, \dots, H_{k+n})$, lightweight headers rather than transaction bodies. $\Phi_{Recovery}(x, w) = 1$ iff, for every header $i \in [n]$:
-
-| Condition | Constraint | Guarantee |
-|---|---|---|
-| (a) Continuity | $H_{k+i+1}.\mathrm{prev\_hash} = \mathrm{Poseidon2}(H_{k+i})$ | No injected or reordered blocks |
-| (b) Policy | $H_{k+i}.\mathrm{fsm\_state} \in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | No illegal jump to `ANCHORED` |
-| (c) Circuit breaker | $H_{k+i}.\mathrm{withdrawal\_locked} = \mathrm{true}$ | No withdrawal during reduced security |
-| (d) Root binding | $H_{k+1}.\mathrm{old\_state\_root}=rt_{last}, H_{k+n}.\mathrm{new\_state\_root}=rt_{new}$ | New root bound to the validated chain |
-
-`state_root` is CometBFT's own per-block `AppHash`; $\Phi_{Recovery}$ only needs some Merkle-rooted commitment to bind against.
-
-$n$ (`count` in the circuit) is a real public input, bounded by a compile-time ceiling $N_{max} = 256$; header slots beyond $n$ are unconstrained padding. Every proof pays $N_{max}$'s fixed prove/verify cost regardless of actual $n$ — chosen over a fixed $n = N_{max}$ design, which could never prove a trailing remainder shorter than $N_{max}$ once an interval stopped growing (a liveness gap, not just a cost one). Intervals longer than $N_{max}$ chain a rolling sequence of proofs, each advancing $rt_{last}$ to the prior proof's $rt_{new}$ (`SubmitRecoveryProof`, `x/sovereignty/keeper/msg_server.go`).
+See `circuit/README.md`'s "Formal Definition: Proof of Recovery".
 
 #### Hysteresis Mechanism
 

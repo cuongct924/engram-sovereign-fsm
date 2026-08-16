@@ -9,8 +9,7 @@ only fsm_state/height/safe_blocks/reanchoring_proof_valid/app_hash are ever
 committed state a live RPC/ABCI-query poll can observe (see
 x/sovereignty/preblock.go's NewPreBlocker doc) -- no withdraw_locked marker
 exists in this live schema the way tests/e2e's mock CSV has one, so the
-state-timeline panels here don't shade withdrawal-locked blocks the way
-simulate_network_jitter.py's in-process version does.
+state-timeline panels here don't shade withdrawal-locked blocks.
 
 Usage:
     python3 scripts/e2_fault_injection/live_figure_builder.py

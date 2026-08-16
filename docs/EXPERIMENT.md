@@ -183,8 +183,11 @@ peer-count-only P2P sensor — see **Vanilla comparison** below.
 
 **Results**
 
-In-process (`E2Metrics`/`ComputeMetrics`, block heights, not seconds; `n/a` = never entered
-RECOVERING):
+In-process (`E2Metrics`/`ComputeMetrics`; units are blocks, not seconds, throughout). Detection
+and Fallback are absolute block heights counted from height 1 (`n/a` = never left ANCHORED).
+Recovery is a block-count duration from entering RECOVERING to reaching ANCHORED (`n/a` = never
+entered RECOVERING) — not comparable to the Detection/Fallback heights on the same row. Withdrawals
+blocked and Transitions are plain counts:
 
 | Scenario | Detection | Fallback | Recovery | Withdrawals blocked | Flapping | Transitions |
 |---|---:|---:|---:|---:|---:|---:|
@@ -195,13 +198,6 @@ RECOVERING):
 | S5 Anchor isolation | 2 | 2 | n/a | 1 | 0 | 1 |
 | S6 Combined BTC+DA | 1 | 1 | n/a | 10 | 0 | 1 |
 | S7 Recovery | 1 | 1 | 3 | 4 | 0 | 3 |
-
-**Figure 3 (in-process):**
-
-![E2 in-process state timelines](../scripts/e2_fault_injection/results/figure3_state_timelines.png)
-![E2 in-process summary bars](../scripts/e2_fault_injection/results/figure3_summary_bars.png)
-
-(PDF: `scripts/e2_fault_injection/results/figure3_state_timelines.pdf`, `figure3_summary_bars.pdf`.)
 
 Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
 across all 4 validators). Times are elapsed seconds since the run started, not per-scenario —
