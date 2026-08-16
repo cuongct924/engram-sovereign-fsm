@@ -162,42 +162,27 @@ scenarios. Answers RQ2/RQ3.
 | Recovery time | Measured |
 | Withdrawals blocked | Measured |
 | Flapping / incorrect transitions | Measured (0 across all scenarios) |
-| Throughput/latency | N/A in-process (architectural); measured live as a block-interval proxy |
+| Throughput/latency | Measured live, as a block-interval proxy |
 
 **Method**
 
 | Scenario | Mechanism | Result |
 |---|---|---|
-| S1 Normal baseline | healthy sensors throughout | Confirmed, in-process + live |
-| S2 BTC congestion | `AnchorTracker.SetSubmissionPausedFile` | Confirmed, in-process + live |
-| S3 DA outage | `docker stop celestia-bridge` | Confirmed, in-process + live |
-| S4 P2P eclipse (partial) | real `netem` delay, 6 validator-link interfaces to/from node01 | Confirmed, in-process + live |
-| S5 Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | Confirmed in-process; live isolation genuine, no FSM transition (see caveat) |
-| S6 Combined BTC+DA | real `docker stop bitcoin-node01`+`celestia-bridge` | Confirmed, in-process + live |
-| S7 Recovery | failures clear, ZK proof submitted | Confirmed, in-process + live |
+| S1 Normal baseline | healthy sensors throughout | Confirmed, live |
+| S2 BTC congestion | `AnchorTracker.SetSubmissionPausedFile` | Confirmed, live |
+| S3 DA outage | `docker stop celestia-bridge` | Confirmed, live |
+| S4 P2P eclipse (partial) | real `netem` delay, 6 validator-link interfaces to/from node01 | Confirmed, live |
+| S5 Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | Confirmed live: isolation genuine, no FSM transition (see caveat) |
+| S6 Combined BTC+DA | real `docker stop bitcoin-node01`+`celestia-bridge` | Confirmed, live |
+| S7 Recovery | failures clear, ZK proof submitted | Confirmed, live |
 
-In-process: `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors. Live:
-`scripts/e2_fault_injection/live_scenario_matrix.py`, real 4-node cluster. Baselines: vanilla
+Live: `scripts/e2_fault_injection/live_scenario_matrix.py`, real 4-node cluster. Baselines: vanilla
 CometBFT (`engramd start --vanilla`), static circuit breaker, FSM without hysteresis, FSM with a
-peer-count-only P2P sensor — see **Vanilla comparison** below.
+peer-count-only P2P sensor — see **Vanilla comparison** below. (Logic validated in-process first
+via `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors; only live results are reported
+here.)
 
 **Results**
-
-In-process (`E2Metrics`/`ComputeMetrics`; units are blocks, not seconds, throughout). Detection
-and Fallback are absolute block heights counted from height 1 (`n/a` = never left ANCHORED).
-Recovery is a block-count duration from entering RECOVERING to reaching ANCHORED (`n/a` = never
-entered RECOVERING) — not comparable to the Detection/Fallback heights on the same row. Withdrawals
-blocked and Transitions are plain counts:
-
-| Scenario | Detection | Fallback | Recovery | Withdrawals blocked | Flapping | Transitions |
-|---|---:|---:|---:|---:|---:|---:|
-| S1 Normal | n/a | n/a | n/a | 0 | 0 | 0 |
-| S2 BTC congestion | 3 | 3 | 3 | 7 | 0 | 3 |
-| S3 DA unavailable | 2 | 26 | 3 | 5 | 0 | 4 |
-| S4 P2P eclipse | 2 | 26 | n/a | 3 | 0 | 2 |
-| S5 Anchor isolation | 2 | 2 | n/a | 1 | 0 | 1 |
-| S6 Combined BTC+DA | 1 | 1 | n/a | 10 | 0 | 1 |
-| S7 Recovery | 1 | 1 | 3 | 4 | 0 | 3 |
 
 Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
 across all 4 validators). Times are elapsed seconds since the run started, not per-scenario —
@@ -963,9 +948,7 @@ hold/rise) would be the signal that flooding forced extra round-skips:
 **Conclusion:**
 
 * Full live-Docker coverage on all 10 rows (both `safety_held`/`divergence_events` and the
-  attack-specific signal) — safety is empirically demonstrated, not just argued from the spec. The
-  earlier in-process-only pass (`results/table3_attack_resilience.md`) is now a secondary
-  reference; live is primary.
+  attack-specific signal) — safety is empirically demonstrated, not just argued from the spec.
 * Timeout-flood hardening holds cadence and bounds resource cost even at 25x its design threshold:
   CPU roughly triples but stays well short of saturation, memory stays flat, the rate limiter
   rejects nearly all traffic past its 20/s allowance.
@@ -984,38 +967,29 @@ sequential recovery) and confirm the chain keeps committing throughout.
 
 **Metrics**
 
-| Metric | In-process | Live |
-|---|---|---|
-| FSM state timeline | yes | yes |
-| BTC gap | yes | no — raw sensor read, never committed state |
-| DA gap | yes | no — raw sensor read, never committed state |
-| P2P health | yes | no — raw sensor read, never committed state |
-| Block commit rate | yes | yes |
-| Withdrawal-lock status | yes | yes — direct function of `fsm_state` |
-| Proof-generation status | yes | yes — real `ReanchoringProofValid`/`SafeBlocks` |
+| Metric | Available live? |
+|---|---|
+| FSM state timeline | yes |
+| BTC gap | no — raw sensor read, never committed state |
+| DA gap | no — raw sensor read, never committed state |
+| P2P health | no — raw sensor read, never committed state |
+| Block commit rate | yes |
+| Withdrawal-lock status | yes — direct function of `fsm_state` |
+| Proof-generation status | yes — real `ReanchoringProofValid`/`SafeBlocks` |
 
 Raw sensor reads are never committed state (`preblock.go`'s `NewPreBlocker`), so a live RPC poll
 structurally can't see BTC/DA gap or P2P health.
 
 **Method:**
 
-* In-process — `go test ./tests/e2e/... -run TestE9_TraceDrivenCombinedFailure`, one continuous
-  trace through real `BeginBlocker`.
 * Live — `scripts/e9_trace_driven/live_combined_trace.py`: one continuous real trace on the 4-node
   cluster — `chaos-btc-delay` → layer `docker stop celestia-bridge` → layer 3 cycles of
   `chaos-loss` → heal in reverse — under a `chaos-wan-latency` baseline and the pairwise-link
-  topology.
+  topology. (Logic validated in-process first via
+  `go test ./tests/e2e/... -run TestE9_TraceDrivenCombinedFailure`; only live results are reported
+  here.)
 
 **Results:**
-
-**In-process**
-
-* 48 blocks; the chain commits throughout all 3 layered failures.
-* Withdrawals locked for 28 of 49 sampled blocks (heights 21→48, spanning SOVEREIGN through
-  RECOVERING).
-* Recovery proof submitted exactly once, at height 49 — the same block the chain returns to
-  ANCHORED.
-* (`tests/e2e/results/e9_trace_driven.csv`, 6-panel Figure 2 below)
 
 **Live**
 
@@ -1041,11 +1015,6 @@ structurally can't see BTC/DA gap or P2P health.
 * (`scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv`, 404 samples;
   `..._sensors.csv`, 811 diagnostic rows)
 
-**Figure 2 (in-process, 6 panels — FSM state, BTC gap, DA gap, P2P health, withdrawal-lock,
-proof-submission):**
-
-![E9 in-process 6-panel trace timeline](../scripts/e9_trace_driven/results/figure2_trace_timeline.png)
-
 **Figure 2 (live, 4 panels grouped by signal kind — System State & Actions [FSM state,
 withdrawal-lock shading, SafeBlocks, AppHash agreement], Sensor Health [BTC/DA gap], P2P Network
 [active anchors, peer latency], Consensus Liveness [block height]; drops to 2 panels without the
@@ -1057,15 +1026,15 @@ DIAGNOSTIC/LOCAL — per-validator local reads, never committed state:**
 
 **Conclusion:**
 
-* The chain survives a realistic layered multi-failure trace both in-process and live, with all
-  validators staying in lockstep through the layered fault peak and full recovery — a stronger
-  claim than any single-fault scenario alone.
-* Withdrawal-lock and proof-generation status are real, measured claims on both layers: locked for
-  the whole SOVEREIGN/RECOVERING window, and the recovery proof lands before the chain returns to
-  ANCHORED, in-process and live alike.
-* The live figure's first 6 panels omit BTC/DA/P2P gap by necessity (raw sensor reads, never
-  committed state). The 3 diagnostic panels close that gap without violating it — each validator's
-  own local sensor view, explicitly marked non-committed/non-agreed, unlike the other 6.
+* The chain survives a realistic layered multi-failure trace live, with all validators staying in
+  lockstep through the layered fault peak and full recovery — a stronger claim than any
+  single-fault scenario alone.
+* Withdrawal-lock and proof-generation status are real, measured claims: locked for the whole
+  SOVEREIGN/RECOVERING window, and the recovery proof lands before the chain returns to ANCHORED.
+* The live figure's System State & Actions and Consensus Liveness panels omit BTC/DA/P2P gap by
+  necessity (raw sensor reads, never committed state). The Sensor Health and P2P Network panels
+  close that gap without violating it — each validator's own local sensor view, explicitly marked
+  non-committed/non-agreed.
 
 ---
 

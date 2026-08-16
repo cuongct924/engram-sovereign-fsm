@@ -20,7 +20,7 @@ cmd/engramd/           Node binary -- init/start, testnet bootstrap, CLI tooling
 circuit/               Noir ZK circuit for the re-anchoring recovery proof
 proto/                 Protobuf sources
 docker/, compose.yml   Multi-node local testnet + Pumba chaos-engineering profiles
-scripts/               Python live-experiment framework (E2-E9)
+scripts/               Python live-experiment framework (E2-E10)
 tests/e2e/             In-process fault-injection harness
 spec/                  TLA+ formal specification + model-checking proofs
 docs/                  Architecture, development, and experiment documentation
@@ -37,7 +37,7 @@ docs/                  Architecture, development, and experiment documentation
   Docker deploy sequence (including the operational ordering that actually matters), the ZK
   re-anchoring pipeline — written so anyone can run and review this from a clean checkout.
 - [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md) — full experiment methodology, raw results, and
-  figures (E1-E9): real measurements from the live 4-node Docker testnet, the in-process
+  figures (E1-E10): real measurements from the live 4-node Docker testnet, the in-process
   fault-injection harness, and the real Noir/Barretenberg proving pipeline, with which numbers are
   real vs. synthetic always labeled.
 - [`circuit/README.md`](circuit/README.md) — the re-anchoring ZK proof system: the
