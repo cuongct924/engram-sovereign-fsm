@@ -29,6 +29,7 @@ from utils import (  # noqa: E402
 )
 
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.ticker import PercentFormatter  # noqa: E402
 
 RESULTS_LIVE_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
@@ -147,11 +148,8 @@ def plot_summary_bars(scenarios):
     short_codes = [n.split("_")[0].upper() for n in names]
     metrics = {n: scenario_metrics(rows) for n, rows in scenarios.items()}
 
-    # Extra height beyond figsize_row's default: the 2-line suptitle plus
-    # 2-line subplot titles need more vertical room than a 1-line-title row.
-    width, height = figsize_row(3)
-    fig, axes = plt.subplots(1, 3, figsize=(width, height * 1.55), sharey=True)
-    for i, (ax, key, title) in enumerate(
+    fig, axes = plt.subplots(1, 3, figsize=figsize_row(3), sharey=True)
+    for i, (ax, key, title, fmt) in enumerate(
         zip(
             axes,
             ("height_delta", "transitions", "degraded_frac"),
@@ -160,22 +158,22 @@ def plot_summary_bars(scenarios):
                 "Real FSM\nTransitions Observed",
                 "Fraction of Time\nOutside ANCHORED",
             ),
+            ("%d", "%d", None),
         )
     ):
         vals = [metrics[n][key] for n in names]
-        ax.barh(short_codes, vals, color="#1f77b4")
+        bars = ax.barh(short_codes, vals, color="#2a78d6")
         ax.set_title(title, fontsize=10)
+        if key == "degraded_frac":
+            ax.xaxis.set_major_formatter(PercentFormatter(xmax=1))
+            ax.bar_label(bars, labels=[f"{v:.0%}" for v in vals], padding=4, fontsize=8)
+        else:
+            ax.bar_label(bars, fmt=fmt, padding=4, fontsize=8)
         if i == 0:
             ax.invert_yaxis()
 
-    fig.suptitle(
-        "E2 Summary Metrics (live 4-node Docker testnet, real data)\n"
-        "S1=Normal S2=BTC-congestion S3=DA-unavailable S4=P2P-eclipse\n"
-        "S5=Anchor-isolation S6=Combined-BTC+DA S7=Recovery",
-        fontsize=10,
-        y=0.97,
-    )
-    fig.tight_layout(rect=(0, 0, 1, 0.82))
+    fig.suptitle("E2 Summary Metrics (live 4-node Docker testnet, real data)", fontsize=10)
+    fig.tight_layout()
     savefig_academic(fig, OUT_DIR, "figure3_summary_bars_live")
 
 

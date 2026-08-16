@@ -234,6 +234,12 @@ Throughput/latency (block-interval proxy, seconds between height increments,
 | S6 Combined BTC+DA | 1.34 | 1.52 | 1.57 |
 | S7 Recovery | 1.50 | 1.78 | 2.05 |
 
+**Figure 3 (latency, live):**
+
+![E2 live latency whiskers](../scripts/e2_fault_injection/results/figure3_latency_whiskers_live.png)
+
+(PDF: `scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf`.)
+
 **Caveat on S5.** Isolation is real (node01's own RPC timed out for ~164s straight, `/net_info`
 cross-check) but produces no FSM transition — losing 1 of 4 peers doesn't degrade the surviving
 majority's own health signal.
@@ -364,10 +370,16 @@ input (via `FilterPeerByAddr`), not just a monitoring signal. Answers RQ1.
 
 **Results:**
 
-| Detector | FPR | FNR | Detection delay |
-|---|---:|---:|---:|
-| Peer-count-only | 0% | 100% (by attack design — all 4 preserve clean-peer count) | — |
-| Tri-interface | 0% | 0% | 1.0–2.7 snapshots |
+Peer-count-only: 0% FPR, 100% FNR on every attack (by design — all 4 preserve clean-peer count),
+never detects. Tri-interface: 0% FPR, 0% FNR on every attack; detection delay varies by attack
+(`DefaultParams()`, 2000 trials/cell — `production_scale` reproduces identical numbers):
+
+| Attack | Avg. detection delay (snapshots) |
+|---|---:|
+| A1 Peer slot exhaustion | 2.23 |
+| A2 Simulated multi-subnet Sybil | 1.00 |
+| A3 Churn-based rotation | 1.70 |
+| A4 Relay-node attack | 2.71 |
 
 (`scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`)
 
@@ -381,41 +393,42 @@ Live (pairwise-link topology):
 
 (`scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a{1,2}_*_summary.md`)
 
-A1/A2 are absorbed at the ingress filter (`FilterPeerByAddr`) before ever reaching the FSM — their
-live success signal is the FSM staying untouched. A3/A4 target `PeerChurnRate`/`PeerLatency`
-instead, fields the ingress filter never reads, so they reach `IsP2PQualityHealthy`
-(`x/sovereignty/types/predicates.go`) and can drive a real FSM transition instead.
+* A1/A2 are absorbed at the ingress filter (`FilterPeerByAddr`) before ever reaching the FSM —
+  their live success signal is the FSM staying untouched.
+* A3/A4 target `PeerChurnRate`/`PeerLatency` instead, fields the ingress filter never reads, so
+  they reach `IsP2PQualityHealthy` (`x/sovereignty/types/predicates.go`) and can drive a real FSM
+  transition.
+* Every validator independently recomputes `fsm_state` from its own local sensors;
+  `ProcessProposal` (`x/sovereignty/proposal.go:293-303`) rejects any proposal that disagrees, and
+  CometBFT needs >2/3 voting power to commit — so a transition only commits if a supermajority
+  (≥3 of 4) independently sees the degradation. A minority-visible degradation, however severe,
+  cannot force one: this is the quorum gate at work, not a detection failure.
 
-Every validator independently recomputes `fsm_state`/`Healthy` from its OWN local
-`PeripheralMetrics` and `ProcessProposal` (`x/sovereignty/proposal.go:293-303`) rejects any
-proposal that disagrees; CometBFT needs >2/3 voting power to commit. This means a real,
-confirmed-degraded P2P reading commits a transition only if a supermajority (≥3 of 4) validators
-independently see it — a minority-visible degradation, however severe, cannot force one. This is
-"sensors propose, consensus decides" acting as a quorum gate, not a detection failure when it
-blocks a minority attack.
+| | A3 — Churn-based rotation | A4 — Relay-node latency inflation |
+|---|---|---|
+| Attack | 2 containers, real `docker stop`/`start` cycles (8×, 15s down / 20s up) on node02 + node04 — the two proposers adjacent in rotation order | 350ms±50ms netem delay on all 3 of node04's real P2P interfaces (`validator-link-0X-04`, not its `bitcoin-net` `eth0`) |
+| Sensor reading | `PeerChurnRate`: node02 30–45, node04 9–21 (> `MaxChurnRate=5`) — correctly detected | Degrades every validator's own RTT measurement to node04 |
+| Validators affected | 2 of 4 (50% voting power) | 4 of 4 (100%) |
+| Quorum (>2/3) met? | No | Yes |
+| FSM outcome | No transition — stays ANCHORED (`fsm_deviated_during_attack=False`), correct for a minority-visible attack | Full cascade (timeline below) |
 
-* **A3** (churn-based rotation): two real attacker containers (`docker/attacker-peer-swarm.yml`),
-  one dialing engram-node02, one dialing engram-node04 — the two ADJACENT proposers in this
-  cluster's real rotation order (node02 → node04 → node01 → node03, confirmed via
-  `/dump_consensus_state`) — each churned via real `docker stop`/`docker start` cycles (8 cycles,
-  15s down/20s up; netem packet loss was tried first and confirmed NOT to force a real disconnect,
-  see `live_churn_attack.py`'s module doc). Both attacked nodes' own `PeerChurnRate` genuinely and
-  substantially exceeded `MaxChurnRate=5` (node02: 30–45, node04: 9–21, confirmed via the
-  `sensor_snapshot` diagnostic line, `x/sovereignty/sensors_refresh.go`) — the sensor correctly
-  detects the degradation. The FSM never transitioned (`fsm_deviated_during_attack=False`),
-  correctly: only 2 of 4 validators (50% voting power) see the degradation, short of the >2/3
-  quorum a transition needs. This is the expected, correct outcome for a minority-visible attack.
-* **A4** (relay-node latency inflation): 350ms±50ms netem delay applied directly to all 3 of
-  engram-node04's real P2P interfaces (the dedicated `validator-link-0X-04` pairwise networks,
-  `docker/engram-validator-cluster.yml` — not the container's Docker-assigned `eth0`, which is
-  `bitcoin-net` and carries no consensus traffic; an earlier attempt using Pumba's generic `netem
-  delay <container>` command silently delayed the wrong interface with zero observable effect, see
-  `live_relay_latency_attack.py`'s module doc). Because degrading node04's real links degrades
-  every OTHER validator's own RTT measurement of its connection to node04 too, all 4 validators
-  (not a minority) independently computed `Healthy=false`, clearing the >2/3 quorum bar. Result: a
-  real, complete cascade — ANCHORED → SUSPICIOUS (t=68s) → SOVEREIGN (t=104s), held for the rest of
-  the 240s attack window, then real recovery once the delay was cleared: SOVEREIGN → RECOVERING →
-  ANCHORED within 5s (t=294s→299s), stable through the rest of the run.
+A4 cascade timeline:
+
+| Event | Time |
+|---|---:|
+| Attack starts | t=0s |
+| → SUSPICIOUS | t=68s |
+| → SOVEREIGN | t=104s |
+| Held through attack window | t=240s |
+| Delay cleared → RECOVERING → ANCHORED | t=294s→299s |
+
+Methodology notes: A3 used real container stop/start cycles because netem packet loss was tried
+first and confirmed not to force a real disconnect (`live_churn_attack.py`'s module doc). A4
+delays the 3 dedicated P2P interfaces directly because Pumba's generic `netem delay <container>`
+silently hit the container's `bitcoin-net` `eth0` instead, with zero observable effect
+(`live_relay_latency_attack.py`'s module doc). Node02/node04's rotation adjacency was confirmed via
+`/dump_consensus_state` (node02 → node04 → node01 → node03); `PeerChurnRate` was confirmed via the
+`sensor_snapshot` diagnostic line (`x/sovereignty/sensors_refresh.go`).
 
 (`scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md` —
 single-attacker baseline, kept for comparison; `..._20260815T195821_summary.md` — two-attacker;
@@ -425,12 +438,10 @@ single-attacker baseline, kept for comparison; `..._20260815T195821_summary.md` 
 
 * The tri-interface profiler is real evidence against synthetic input, and the ingress filter it
   feeds is confirmed live against real attacker containers.
-* A3/A4 are both now confirmed live. Together they show the same underlying mechanism from both
-  sides: a real, sensor-confirmed P2P degradation visible to only a minority of validators (A3,
-  2 of 4) cannot force a transition, while the identical class of degradation visible to a
-  supermajority (A4, 4 of 4) produces a real, complete, correctly-bounded ANCHORED→SOVEREIGN→
-  ANCHORED cascade. The negative and positive results are two halves of one finding about the
-  quorum gate `ProcessProposal`'s cross-check implements, not separate detector failures.
+* A3/A4, now both confirmed live, are two halves of one finding about the quorum gate
+  `ProcessProposal`'s cross-check implements: the identical class of real, sensor-confirmed P2P
+  degradation is blocked when only a minority sees it (A3) and produces a full, correctly-bounded
+  cascade when a supermajority does (A4) — not separate detector failures.
 
 ---
 
@@ -472,6 +483,15 @@ apply, on another:
   only add what's edge-specific.
 * 5b/5c's live checks use one noise source only (`celestia-bridge` stop/start), same as 5a. Both
   now have a `stable`/no-noise control column, matching 5a's.
+
+![Figure 4b — FSM hysteresis parameter sweeps under natural noise, all 3 edges](../scripts/e5_hysteresis_flapping/results/figure4b_hysteresis_tradeoffs.png)
+
+(PDF: `scripts/e5_hysteresis_flapping/results/figure4b_hysteresis_tradeoffs.pdf`.) One figure, one
+panel per hysteresis-gated edge, all real in-process (fixed-seed) data — deliberately not live,
+since the live curves are the noisy/non-monotonic ones per the finding above. (a)/(b) plot
+`AnchoredUptime` alone; (c) plots `AnchoredUptime` against `AbsorptionRate` on twin axes — the real
+crossing is 5c's core trade-off: absorbing more noise on this edge (`AbsorptionRate` → 100%) speeds
+up the very escalation to `SOVEREIGN` that absorption is meant to delay (`AnchoredUptime` → ~1%).
 
 **5a — Up-hysteresis (RECOVERING → ANCHORED)**
 
@@ -711,12 +731,16 @@ invariant) is practical and scales linearly, not just correct. Answers RQ4.
 
 (`scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`, `figure6_scaling.{png,pdf}`)
 
+![Figure 6 — Recovery proof scaling: constraint count, prove time, verify time, proof size vs. N](../scripts/e6_zk_reanchoring_benchmark/results/figure6_scaling.png)
+
 | Backend (N=256) | Proof size | Verify | Prove | Setup | PQ-secure |
 |---|---:|---:|---:|---|---|
 | Noir + Honk | 14,656 B | 22.0 ms | 0.684 s | KZG (trusted) | No |
 | Plonky3 | 1,278,939 B (~87x larger) | 32.2 ms | 0.044 s (~15.5x faster) | Transparent/FRI | Yes |
 
 (`results/table6c_backend_comparison.md`, `figure7_backend_tradeoff.{png,pdf}`)
+
+![Figure 7 — Backend trade-off at N=256: proof size, verify time, prove time, Noir+Honk vs. Plonky3](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.png)
 
 **Deployed circuit** compiles once at `N_MAX=256` with a padding/`count` witness (1..256) instead
 of per-interval recompilation.
@@ -1012,6 +1036,8 @@ structurally can't see BTC/DA gap or P2P health.
   * DA gap: ramps smoothly ~5→125 across the whole DA-outage window, drops back after healing.
   * Active-anchors: flat at 3 throughout, including through P2P churn — this validator's anchor
     peer set wasn't disrupted by the 5% packet-loss injection used here.
+  * Peer latency: the real signal on this sensor — flat near 0 until the DA-outage/P2P-churn
+    overlap (t≈160-220s), where it spikes to ~537ms before dropping back once P2P churn ends.
 * (`scripts/e9_trace_driven/results_live/e9_combined_trace_20260816T001158.csv`, 404 samples;
   `..._sensors.csv`, 811 diagnostic rows)
 
@@ -1020,11 +1046,14 @@ proof-submission):**
 
 ![E9 in-process 6-panel trace timeline](../scripts/e9_trace_driven/results/figure2_trace_timeline.png)
 
-**Figure 2 (live, 9 panels — the same 6 committed/agreed panels as above, plus 3 diagnostic
-panels: per-validator local BTC gap, DA gap, P2P active-anchors, scraped from `sensor_snapshot`
-log lines and explicitly labeled DIAGNOSTIC/LOCAL):**
+**Figure 2 (live, 4 panels grouped by signal kind — System State & Actions [FSM state,
+withdrawal-lock shading, SafeBlocks, AppHash agreement], Sensor Health [BTC/DA gap], P2P Network
+[active anchors, peer latency], Consensus Liveness [block height]; drops to 2 panels without the
+`sensor_snapshot` scrape). Fault-injection windows are shaded across every panel so a reader can
+follow one moment down through all of them. The Sensor Health/P2P panels are explicitly labeled
+DIAGNOSTIC/LOCAL — per-validator local reads, never committed state:**
 
-![E9 live 9-panel trace timeline](../scripts/e9_trace_driven/results/figure2_trace_timeline_live.png)
+![E9 live 4-panel trace timeline](../scripts/e9_trace_driven/results/figure2_trace_timeline_live.png)
 
 **Conclusion:**
 
@@ -1125,8 +1154,9 @@ the chain reached ANCHORED at t≈676s after reconnect (11m16s total). Two thing
 | **Fig. 2** | FSM timeline under combined failure *(E9)* |
 | **Fig. 3** | Availability/throughput during outage: Engram FSM vs. vanilla CometBFT *(E2)* |
 | **Fig. 4** | Recovery stability vs. `HYSTERESIS_WAIT` *(E5)* |
+| **Fig. 4b** | Hysteresis parameter sweeps, all 3 edges: uptime vs. absorption trade-off *(E5)* |
 | **Fig. 6** | Recovery Proof Scaling: 4 panels (Constraint Count, Proving Time, Verification Time, Proof Size) *(E6)* |
-| **Fig. 7** | Backend trade-off radar chart: Noir+Honk vs. Plonky3 *(E6, optional)* |
+| **Fig. 7** | Backend trade-off, 3 panels (proof size, verify time, prove time): Noir+Honk vs. Plonky3 *(E6, optional)* |
 | **Fig. 8** | FSM reaction to real Bitcoin reorgs by depth, 5 trials *(E10)* |
 | **Table 1** | Formal verification state-space results *(E1)* |
 | **Table 2** | Failure matrix and expected policy *(E3)* |

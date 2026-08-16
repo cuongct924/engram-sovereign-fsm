@@ -92,32 +92,37 @@ def build_figure6(rows):
     n = [r["n"] for r in rows]
     fig, axes = plt.subplots(2, 2, figsize=figsize_grid(2, 2))
 
-    axes[0, 0].plot(n, [r["acir_opcodes"] for r in rows], marker="o")
-    axes[0, 0].set_title("(A) Constraint Count")
-    axes[0, 0].set_xlabel("Sovereign Blocks (N)")
-    axes[0, 0].set_ylabel("ACIR Opcodes")
+    axes[0, 0].plot(n, [r["acir_opcodes"] for r in rows], marker="o", markersize=5, linewidth=1.8)
+    axes[0, 0].set_title("(A) Constraint Count", fontsize=10.5, fontweight="bold")
+    axes[0, 0].set_xlabel("Sovereign Blocks (N)", fontsize=9)
+    axes[0, 0].set_ylabel("ACIR Opcodes", fontsize=9)
 
-    axes[0, 1].plot(n, [r["prove_s"] for r in rows], marker="o", color="C1")
-    axes[0, 1].set_title("(B) Proving Time")
-    axes[0, 1].set_xlabel("Sovereign Blocks (N)")
-    axes[0, 1].set_ylabel("Prove (s)")
+    axes[0, 1].plot(n, [r["prove_s"] for r in rows], marker="o", color="C1", markersize=5, linewidth=1.8)
+    axes[0, 1].set_title("(B) Proving Time", fontsize=10.5, fontweight="bold")
+    axes[0, 1].set_xlabel("Sovereign Blocks (N)", fontsize=9)
+    axes[0, 1].set_ylabel("Prove (s)", fontsize=9)
 
-    axes[1, 0].plot(n, [r["verify_s"] * 1000 for r in rows], marker="o", color="C2")
-    axes[1, 0].set_title("(C) Verification Time")
-    axes[1, 0].set_xlabel("Sovereign Blocks (N)")
-    axes[1, 0].set_ylabel("Verify (ms)")
+    axes[1, 0].plot(n, [r["verify_s"] * 1000 for r in rows], marker="o", color="C2", markersize=5, linewidth=1.8)
+    axes[1, 0].set_title("(C) Verification Time", fontsize=10.5, fontweight="bold")
+    axes[1, 0].set_xlabel("Sovereign Blocks (N)", fontsize=9)
+    axes[1, 0].set_ylabel("Verify (ms)", fontsize=9)
     axes[1, 0].set_ylim(bottom=0)
 
-    axes[1, 1].plot(n, [r["proof_size_bytes"] for r in rows], marker="o", color="C3")
-    axes[1, 1].set_title("(D) Proof Size")
-    axes[1, 1].set_xlabel("Sovereign Blocks (N)")
-    axes[1, 1].set_ylabel("Proof Size (bytes)")
+    axes[1, 1].plot(n, [r["proof_size_bytes"] for r in rows], marker="o", color="C3", markersize=5, linewidth=1.8)
+    axes[1, 1].set_title("(D) Proof Size", fontsize=10.5, fontweight="bold")
+    axes[1, 1].set_xlabel("Sovereign Blocks (N)", fontsize=9)
+    axes[1, 1].set_ylabel("Proof Size (bytes)", fontsize=9)
     axes[1, 1].set_ylim(0, max(r["proof_size_bytes"] for r in rows) * 1.5)
 
+    for ax in axes.flat:
+        ax.tick_params(labelsize=8)
+
     fig.suptitle(
-        "Figure 6 -- Recovery Proof Scaling (Noir + UltraHonk, real measurements)"
+        "Figure 6 -- Recovery Proof Scaling\n(Noir + UltraHonk, real measurements)",
+        fontsize=12.5,
+        fontweight="bold",
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
     savefig_academic(fig, RESULTS_DIR, "figure6_scaling")
 
 

@@ -11,6 +11,7 @@ Run after benchmark_plonky3.sh:
 """
 
 import csv
+import math
 import os
 import sys
 
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils import setup_academic_plot_style, figsize_row, savefig_academic  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker as mticker  # noqa: E402
 
 RESULTS_DIR = os.path.dirname(__file__) + "/results"
 NOIR_CSV = os.path.join(RESULTS_DIR, "table6b_scaling.csv")
@@ -28,6 +30,21 @@ TABLE_OUT = os.path.join(RESULTS_DIR, "table6c_backend_comparison.md")
 # sides actually measured (256), matching docs/EXPERIMENT.md's Table 6C style
 # of quoting single representative numbers per backend rather than a curve.
 REPRESENTATIVE_N = 256
+
+
+def _compact_num(v, pos=None):
+    """K/M-suffixed for values >=1000 (never scientific "e+04"/"e+06"
+    notation), plain below that -- shared by Figure 7's bar-top value labels
+    and its log-scale axis tick labels so both use one consistent number
+    style. ".3g" (3 significant figures), not bare "g" (6 sig figs) --
+    "1278939/1e6" otherwise prints as "1.27894M", not the "1.28M" a reader
+    actually wants. `pos` is accepted (and ignored) so this doubles as a
+    matplotlib FuncFormatter callback."""
+    if v >= 1e6:
+        return f"{v / 1e6:.3g}M"
+    if v >= 1e3:
+        return f"{v / 1e3:.3g}K"
+    return f"{v:.3g}"
 
 
 def load_csv(path):
@@ -133,16 +150,61 @@ def build_figure7(noir_rows, plonky3_rows):
         # pushes the label above the bar top (log scale would otherwise clip
         # or overlap it on the neighboring bar).
         bars = ax.bar(["Noir+Honk", "Plonky3"], [nv, pv], width=0.6, color=["C0", "C1"])
-        ax.set_title(metric)
-        ax.bar_label(bars, fmt="%.3g", padding=4)
-        ax.set_yscale("log")
-        ymin, ymax = ax.get_ylim()
-        ax.set_ylim(ymin, ymax * 3)
+        ax.set_title(metric, fontsize=10.5, fontweight="bold")
+        ax.bar_label(bars, fmt=_compact_num, padding=4, fontsize=8.5)
+        ax.tick_params(labelsize=8)
+
+        if metric == "Verify (ms)":
+            # Linear, not log: both real values (22ms, 32.2ms) sit inside
+            # one decade, so log scale bought nothing here -- and only a
+            # linear axis can include an actual "0" tick (log(0) is
+            # undefined, a hard math limit, not a styling choice). Plain
+            # 0/20/40/60/80 instead of the log-scale tick-generation logic
+            # used by the other two panels below.
+            ax.set_ylim(0, 88)
+            ax.set_yticks([0, 20, 40, 60, 80])
+            ax.grid(True, which="major", axis="y", alpha=0.55, linewidth=0.7)
+        else:
+            ax.set_yscale("log")
+            ymin, ymax = ax.get_ylim()
+            ax.set_ylim(ymin, ymax * 3)
+
+            # Real labeled minor ticks: matplotlib's default LogLocator gives
+            # sparse major-only ticks on a narrow view, and its automatic
+            # minor locator produces no labels at all there. How many
+            # subdivisions per decade depends on how many decades this
+            # panel's own range spans -- "Proof size"/"Prove" (3-4 decades
+            # each) get only the 2x/5x subset, so the labels don't turn into
+            # a solid wall of overlapping numbers.
+            final_ymin, final_ymax = ax.get_ylim()
+            lo = int(math.floor(math.log10(final_ymin)))
+            hi = int(math.ceil(math.log10(final_ymax)))
+            subs = (2, 5)
+            minor_ticks = [
+                d * 10 ** p
+                for p in range(lo, hi + 1)
+                for d in subs
+                if final_ymin <= d * 10 ** p <= final_ymax
+            ]
+            ax.set_yticks(minor_ticks, minor=True)
+            # Plain labels, not LogFormatterSciNotation -- that formatter's
+            # built-in overlap heuristic silently blanks out most minor
+            # labels on a narrow view, which defeats the point of adding
+            # these ticks. Same _compact_num used for the bar-top value
+            # labels above, so the axis and the labels never disagree on
+            # number style (K/M suffixes, never "2e+06"/"500000" mixed).
+            plain_fmt = mticker.FuncFormatter(_compact_num)
+            ax.yaxis.set_minor_formatter(plain_fmt)
+            ax.yaxis.set_major_formatter(plain_fmt)
+            ax.tick_params(axis="y", which="minor", labelsize=7)
+            ax.grid(True, which="minor", axis="y", alpha=0.55, linewidth=0.7)
 
     fig.suptitle(
-        f"Figure 7 -- Backend Trade-off at N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale)"
+        f"Figure 7 -- Backend Trade-off\nat N={REPRESENTATIVE_N} sovereign blocks (real measurements, log scale except Verify)",
+        fontsize=12.5,
+        fontweight="bold",
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
     savefig_academic(fig, RESULTS_DIR, "figure7_backend_tradeoff")
 
 

@@ -5,7 +5,7 @@ consensus protocol that treats peripheral network health (Bitcoin settlement fin
 data availability, P2P health) as a first-class consensus variable, degrading gracefully into a
 local-PoS "Sovereign" fallback mode instead of halting when those layers fail.
 
-This is the reference implementation of the formal specification in [`spec/`](spec/) (TLA+, with
+This is the reference implementation of the formal specification in [`spec/core`](spec/core) (TLA+, with
 TLC/Apalache model-checked safety and liveness proofs). Consensus itself runs on a forked
 CometBFT core: **[cuongct924/engram-consensus-core](https://github.com/cuongct924/engram-consensus-core)**.
 
@@ -28,6 +28,9 @@ docs/                  Architecture, development, and experiment documentation
 
 ## Documentation
 
+- [`spec/README.md`](spec/README.md) — the formal specification write-up: protocol design, FSM
+  transition logic, the four-layer refinement hierarchy, and the safety/liveness proofs TLC and
+  Apalache check against `spec/core/*.tla`.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture: real network topology,
   sensor wiring, the `PrepareProposal` / `ProcessProposal` / `PreBlocker` consensus flow, diagrams.
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — build/test/lint workflow, the real multi-node
@@ -37,3 +40,6 @@ docs/                  Architecture, development, and experiment documentation
   figures (E1-E9): real measurements from the live 4-node Docker testnet, the in-process
   fault-injection harness, and the real Noir/Barretenberg proving pipeline, with which numbers are
   real vs. synthetic always labeled.
+- [`circuit/README.md`](circuit/README.md) — the re-anchoring ZK proof system: the
+  Noir/UltraHonk circuit's formal `Proof of Recovery` definition, the dynamic-padding (N_MAX=256)
+  production design, and the recursive-aggregation research spike's real measured numbers.

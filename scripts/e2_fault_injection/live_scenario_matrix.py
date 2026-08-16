@@ -48,7 +48,20 @@ from injector import (
     wait_for_no_active_netem,
 )  # noqa: E402
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from utils import (  # noqa: E402
+    setup_academic_plot_style,
+    figsize_single,
+    FIG_WIDTH_DOUBLE_COL,
+    savefig_academic,
+)
+
+import matplotlib.pyplot as plt  # noqa: E402
+
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
+# Figures (unlike raw CSVs/markdown) land alongside live_figure_builder.py's
+# output, not results_live/ -- one figures directory for all of E2's charts.
+FIGURES_DIR = os.path.join(os.path.dirname(__file__), "results")
 CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
 ENGRAM_NODES = ["engram-node01", "engram-node02", "engram-node03", "engram-node04"]
@@ -254,8 +267,59 @@ class Tracker:
         print(f"wrote throughput/latency summary to {path}")
 
 
+def plot_latency_whiskers(throughput_stats, out_dir):
+    """Combined p50-bar / p95-whisker / mean-marker latency chart -- one
+    view instead of 3 separate Mean/p50/p95 panels. Linear, full-range
+    y-axis (no truncated axis): S4's dramatic p95 tail is the real signal
+    for the graceful-degradation-under-fault narrative, not noise to hide."""
+    setup_academic_plot_style()
+    order = ["s1", "s2", "s3", "s4", "s5", "s6", "s7"]
+    keys = [k for k in order if throughput_stats.get(k)]
+    names = [k.upper() for k in keys]
+    p50s = [throughput_stats[k]["p50_s"] for k in keys]
+    p95s = [throughput_stats[k]["p95_s"] for k in keys]
+    means = [throughput_stats[k]["mean_s"] for k in keys]
+    x = list(range(len(keys)))
+
+    fig, ax = plt.subplots(figsize=figsize_single(width=FIG_WIDTH_DOUBLE_COL))
+    ax.bar(x, p50s, width=0.5, color="#2a78d6", zorder=3, label="p50 (typical)")
+    ax.errorbar(
+        x, p50s,
+        yerr=[[0.0] * len(keys), [p95 - p50 for p50, p95 in zip(p50s, p95s)]],
+        fmt="none", ecolor="#52514e", elinewidth=1.5, capsize=6, capthick=1.5,
+        zorder=4,
+    )
+    ax.scatter(x, means, marker="D", s=26, color="#52514e", zorder=5, label="Mean")
+
+    if throughput_stats.get("s1"):
+        s1_p50 = throughput_stats["s1"]["p50_s"]
+        ax.axhline(s1_p50, color="#c3c2b7", linestyle="--", linewidth=1, zorder=1)
+        ax.text(-0.4, s1_p50, f"S1 baseline p50 = {s1_p50:.2f}s",
+                fontsize=8, color="#898781", va="bottom", ha="left")
+
+    if "s4" in keys:
+        i4 = keys.index("s4")
+        ax.text(i4, p95s[i4], f"p95={p95s[i4]:.2f}s", fontsize=8,
+                color="#52514e", va="bottom", ha="center")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(names)
+    ax.set_ylabel("Block interval (s)")
+    ax.set_ylim(0, max(p95s) * 1.15)
+    ax.set_title(
+        "E2 Block-Interval Latency by Scenario\n"
+        "(bar = p50, whisker = p95 tail, diamond = mean; live 4-node Docker testnet)",
+        fontsize=10,
+    )
+    ax.legend(loc="upper left", fontsize=8, frameon=False)
+    fig.tight_layout()
+    savefig_academic(fig, out_dir, "figure3_latency_whiskers_live")
+    print(f"wrote latency whisker chart to {out_dir}/figure3_latency_whiskers_live.{{png,pdf}}")
+
+
 def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(FIGURES_DIR, exist_ok=True)
     tr = Tracker()
 
     print("=== S1: baseline ===")
@@ -377,6 +441,7 @@ def main():
     tr.write_scenario_csv("s7_recovery", "s7")
 
     tr.write_throughput_summary(os.path.join(RESULTS_DIR, "s2e_throughput_latency.md"))
+    plot_latency_whiskers(tr.throughput_stats, FIGURES_DIR)
 
     print(
         f"\n=== DONE: total duration {tr.elapsed():.0f}s, S7 reached ANCHORED: {reached} ==="
