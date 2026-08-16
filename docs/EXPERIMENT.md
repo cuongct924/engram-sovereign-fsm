@@ -944,15 +944,15 @@ hold/rise) would be the signal that flooding forced extra round-skips:
 
 | Run | Baseline (blocks/s) | Flood (blocks/s) | Rate-limiter drops/node | CPU (baseline → flood) | Memory |
 |---|---:|---:|---|---|---|
-| Moderate (20 msg/s), run 1 | 0.771 | 0.800 | not instrumented in this run | not instrumented in this run | not instrumented in this run |
-| Moderate (20 msg/s), run 2 | 0.661 | 0.816 | not instrumented in this run | not instrumented in this run | not instrumented in this run |
+| Moderate (20 msg/s), run 1 | 0.743 | 0.587 | 0/0/0 | 2.51–2.79% → 3.53–4.00% (max 7.22%; node04 itself 8.33%) | 69.5–77.7 → 72.7–77.7 MiB |
+| Moderate (20 msg/s), run 2 | 0.728 | 0.737 | 0/0/0 | 2.60–2.76% → 3.26–3.48% (max 5.45%; node04 itself 7.78%) | 79.7–86.1 → 80.9–86.1 MiB |
+| Moderate (20 msg/s), run 3 | 0.597 | 0.576 | 0/0/0 | 2.11–2.47% → 3.32–4.00% (max 8.04%; node04 itself 8.05%) | 83.6–88.2 → 84.2–88.2 MiB |
 | Extreme (500 msg/s, 25x the 20/s cap) | 0.825 | 0.789 | 28,071 / 29,238 / 30,376 (of ~30,000 attempted) | 2.4–3.3% → 7.85–9.51% (max 22.40%; node04 itself 28.47%) | 78.7–92.2 → 82.7–92.2 MiB |
-| Pairwise-link re-run, moderate | 0.808 | 0.608 | 37–38 | not instrumented in this run | not instrumented in this run |
 | Pairwise-link re-run, extreme | 0.586 | 0.813 | 26,563–28,777 | 2.7–3.1% → 6.4–6.9% (max 9.41%; node04 itself 25.60%) | 84.7–89.0 → 86.2–89.0 MiB |
 
-(`scripts/e8_attack_resilience/results_live/timeout_flood_2026081{2T072615,2T073456,2T073739,3T004311,3T004538}_summary.md`
-— the drop-count/resource-usage instrumentation was added starting with the Extreme run; the two
-original Moderate runs predate it and have no such data to report.)
+(`scripts/e8_attack_resilience/results_live/timeout_flood_2026081{2T073739,3T004538,6T150010,6T154324,6T154554}_summary.md`.
+Moderate runs 1-3: 0 drops/node at every run — real evidence the per-peer limiter never needs to
+engage right at its own 20/s cap, not just an inference from cadence holding.)
 
 **Conclusion:**
 

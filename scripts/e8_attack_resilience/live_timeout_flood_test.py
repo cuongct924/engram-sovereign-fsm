@@ -19,15 +19,17 @@ consensus/round_skip_test.go's TestStateTimeoutFloodCannotForceRoundSkipAlone
 (engram-consensus-core) -- the in-process version of check 2's claim,
 confirmed here under real network timing.
 
---sample-stats adds `docker stats` CPU%/memory sampling alongside each poll,
-and counts real "rate limit exceeded" log lines on the honest nodes during
-the flood (docker logs --since) -- direct evidence the per-peer limiter
+Always samples `docker stats` CPU%/memory alongside each poll (pass
+--no-sample-stats to skip it for a faster cadence/drops-only run), and
+counts real "rate limit exceeded" log lines on the honest nodes during the
+flood (docker logs --since) -- direct evidence the per-peer limiter
 (reactor.go's PeerState.allowTimeoutMessage) is engaging and resource cost
 stays bounded, not just an inference from cadence holding.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py
-    python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py --interval-ms 2 --flood-s 60 --sample-stats
+    python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py --interval-ms 2 --flood-s 60
+    python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py --no-sample-stats  # cadence/drops only, skip docker stats
 """
 
 import argparse
@@ -119,21 +121,43 @@ def sample_docker_stats(containers) -> dict:
     return out
 
 
-def count_rate_limit_drops(container: str, since_iso: str) -> int:
-    """Real count of reactor.go's "rate limit exceeded" drop log line on
-    `container` since `since_iso` -- direct evidence the per-peer Timeout
-    rate limiter engaged, not an inference from cadence/safety alone.
+def start_log_tail(container: str):
+    """Start tailing only NEW log lines from `container` (`docker logs -f
+    --tail 0`) -- avoids a `docker logs --since <timestamp>` linear scan
+    through this container's full log history: the json-file log driver has
+    no timestamp index, so `--since` must read from the start of the file,
+    which measured >60s on a long-running (debug-verbosity) testnet, far
+    past any reasonable subprocess timeout. Returns None if the tail
+    couldn't start.
     """
     try:
-        proc = subprocess.run(
-            ["docker", "logs", "--since", since_iso, container],
-            capture_output=True,
-            text=True,
-            timeout=15,
+        return subprocess.Popen(
+            ["docker", "logs", "-f", "--tail", "0", container],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except OSError:
+        return None
+
+
+def stop_log_tail(proc) -> int:
+    """Stop a tail started by start_log_tail and return its real count of
+    reactor.go's "rate limit exceeded" drop log line -- direct evidence the
+    per-peer Timeout rate limiter engaged, not an inference from
+    cadence/safety alone. -1 if the tail never started or didn't shut down
+    cleanly.
+    """
+    if proc is None:
         return -1
-    return (proc.stdout + proc.stderr).count("rate limit exceeded")
+    proc.terminate()
+    try:
+        out, _ = proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            out, _ = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            return -1
+    return out.count("rate limit exceeded") if out else 0
 
 
 class Tracker:
@@ -223,11 +247,11 @@ def run(interval_ms: int, flood_s: float, recovery_s: float, interval_s: float, 
     tr.poll_for(30.0, interval_s, "baseline")
 
     print(f"=== Phase 2: flood ({flood_s:.0f}s, node04 spams signed Timeout every {interval_ms}ms) ===")
-    flood_start_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    tail_procs = {node: start_log_tail(node) for node in HONEST_NODES}
     enable_flood(interval_ms)
     tr.poll_for(flood_s, interval_s, "flood")
     rate_limit_drops = {
-        node: count_rate_limit_drops(node, flood_start_iso) for node in HONEST_NODES
+        node: stop_log_tail(tail_procs[node]) for node in HONEST_NODES
     }
 
     print(f"=== Phase 3: recovery ({recovery_s:.0f}s, node04 reverted to honest) ===")
@@ -276,8 +300,8 @@ def run(interval_ms: int, flood_s: float, recovery_s: float, interval_s: float, 
 
         f.write("\n## Per-peer rate limiter (reactor.go's PeerState.allowTimeoutMessage)\n\n")
         f.write(
-            f"Real \"rate limit exceeded\" drop count on each honest node, counted from "
-            f"`docker logs --since` the flood phase started (not an inference):\n\n"
+            f"Real \"rate limit exceeded\" drop count on each honest node, counted from a "
+            f"live `docker logs -f` tail spanning the flood phase (not an inference):\n\n"
         )
         for node in HONEST_NODES:
             f.write(f"- {node}: {rate_limit_drops[node]} drops\n")
@@ -315,8 +339,9 @@ def main():
     parser.add_argument("--flood-s", type=float, default=60.0)
     parser.add_argument("--recovery-s", type=float, default=30.0)
     parser.add_argument("--interval-s", type=float, default=3.0)
-    parser.add_argument("--sample-stats", action="store_true",
-                         help="Sample docker stats CPU%%/memory alongside each poll")
+    parser.add_argument("--no-sample-stats", dest="sample_stats", action="store_false",
+                         help="Skip docker stats CPU%%/memory sampling (cadence/drops only, faster)")
+    parser.set_defaults(sample_stats=True)
     args = parser.parse_args()
 
     ok = run(args.interval_ms, args.flood_s, args.recovery_s, args.interval_s, args.sample_stats)
