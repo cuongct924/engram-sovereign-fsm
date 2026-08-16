@@ -82,6 +82,8 @@ testnet-up: build
 	@echo "--> Fetching celestia-bridge/celestia-bridge-2 admin JWTs into $(ENV_FILE)"
 	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge CELESTIA_BRIDGE_AUTH_TOKEN
 	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-2 CELESTIA_BRIDGE2_AUTH_TOKEN
+	@echo "--> Waiting for celestia-bridge to actually serve DA requests (its auth-token file lands well before that -- starting validators too early reliably trips MaxSuspiciousTime and forces an unwanted SOVEREIGN escalation on every fresh deploy)"
+	./scripts/testnet_wait_healthy.sh celestia-bridge
 	@echo "--> Starting the 4 validators"
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
 	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; builds nargo+bb on first run, can take a few minutes)"

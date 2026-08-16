@@ -162,8 +162,8 @@ This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`.
 
 `make testnet-up` automates the whole manual walkthrough of §5.3 with the correct ordering: wipes
 `testnet-data/`, regenerates fresh genesis, funds a mature BTC wallet, starts the miner loop,
-fetches both Celestia bridges' admin JWTs into `.env`, then starts the 4 validators and the
-re-anchoring prover. It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and requires `.env` to exist
+fetches both Celestia bridges' admin JWTs into `.env`, waits for `celestia-bridge` to actually be
+healthy (not just running), then starts the 4 validators and the re-anchoring prover. It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and requires `.env` to exist
 (`cp .env.example .env` and fill in `BITCOIN_RPC_USER`/`BITCOIN_RPC_PASSWORD` first).
 
 `make testnet-down` stops the core services **by name** — never a bare `docker compose down`
@@ -193,12 +193,14 @@ flowchart TD
     A["Wipe testnet-data/\n+ engramd testnet init-files --v 4"] --> B["Start bitcoind + Celestia"]
     B --> C["Create + fund BTC wallet\n(101+ blocks, name: engramwallet)"]
     C --> D["Start bitcoin-miner-loop container\n(steady ~1 block / 20s)"]
-    D --> E["Start the 4 validators"]
+    D --> W["Wait for celestia-bridge healthy\n(not just running)"]
+    W --> E["Start the 4 validators"]
     E --> F["Start reanchoring-prover container\n(needed for RECOVERING -> ANCHORED)"]
     F --> Ver["Verify: same AppHash\nat same height, all 4 nodes"]
 
     G["⚠ engramd started before wallet mature"] -.->|desyncs h_btc_current| H["Consensus stalls"]
     I["⚠ burst-mining while engramd runs"] -.->|same failure| H
+    J["⚠ validators started before celestia-bridge healthy"] -.->|DA reads fail, trips MaxSuspiciousTime| K["Unwanted SOVEREIGN escalation"]
 ```
 
 ```bash
@@ -229,6 +231,13 @@ docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
 docker compose --env-file .env -f compose.yml up -d bitcoin-miner-loop
   # steady cadence from here on, never manual bursts -- containerized
   # (docker/bitcoin-miner-loop.yml), no host process/PID file anymore
+
+./scripts/testnet_wait_healthy.sh celestia-bridge
+  # its auth-token file (needed above) lands within seconds of container
+  # start, well before header.NetworkHead RPC calls actually succeed --
+  # starting validators on that weaker signal reliably trips
+  # MaxSuspiciousTime and forces an unwanted SOVEREIGN escalation on every
+  # fresh deploy (confirmed live: ~40-60s gap between the two)
 
 # 5.3.3 — the 4 validators
 docker compose --env-file .env -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
