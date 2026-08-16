@@ -16,10 +16,10 @@ The ZK system proves a blockchain header chain is valid, to recover system state
 
 | Condition | Constraint | Guarantee |
 |---|---|---|
-| (a) Continuity | $H_{k+i+1}.\mathrm{prev\_hash} = \mathrm{Poseidon2}(H_{k+i})$ | No injected or reordered blocks |
-| (b) Policy | $H_{k+i}.\mathrm{fsm\_state} \in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | No illegal jump to `ANCHORED` |
-| (c) Circuit breaker | $H_{k+i}.\mathrm{withdrawal\_locked} = \mathrm{true}$ | No withdrawal during reduced security |
-| (d) Root binding | $H_{k+1}.\mathrm{old\_state\_root}=rt_{last}, H_{k+n}.\mathrm{new\_state\_root}=rt_{new}$ | New root bound to the validated chain |
+| (a) Continuity | $H_{k+i+1}$.`prev_hash` $= \mathrm{Poseidon2}(H_{k+i})$ | No injected or reordered blocks |
+| (b) Policy | $H_{k+i}$.`fsm_state` $\in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | No illegal jump to `ANCHORED` |
+| (c) Circuit breaker | $H_{k+i}$.`withdrawal_locked` $= \mathrm{true}$ | No withdrawal during reduced security |
+| (d) Root binding | $H_{k+1}$.`old_state_root` $=rt_{last}$, $H_{k+n}$.`new_state_root` $=rt_{new}$ | New root bound to the validated chain |
 
 `state_root` is CometBFT's own per-block `AppHash`; $\Phi_{Recovery}$ just needs some Merkle-rooted commitment to bind against.
 
