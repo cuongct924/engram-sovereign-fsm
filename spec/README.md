@@ -805,6 +805,8 @@ The parameters below are queued for re-run on the current spec (post symmetry-re
 | **C2** | 4, 1, 3, 2, 2, 6 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 | **C3** | 7, 2, 2, 2, 2, 4 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
 
+**Note:** `MC_ServerRefinementSafety`/`MC_ServerRefinementLiveness` are the full-stack (all four layers + refinement mapping) checks and TLC-only -- Apalache doesn't cover refinement or fairness-liveness properties. In-process runs on this class of check (e.g. the f+1-ablation liveness driver) reached 100M+ states without converging on an 8-core machine; completing the C1/C2/C3 sweep needs dedicated compute -- many-core (32+ vCPU), high-RAM (64GB+), fast local NVMe, and a long-running (multi-hour to multi-day) allocation, not a spot/preemptible instance. Not yet run to completion.
+
 #### 9.2.1. Per-Layer Verification Results (non-refinement)
 
 Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own checked-in `MC_*Safety`/`MC_*Liveness` driver and `.cfg` (§"Running the verification" table) was re-run standalone after the `EngramTendermint.tla` `Proposals`/`NilProposal` `healthy`-field fix (§6.1), to confirm the fix didn't regress that layer.
