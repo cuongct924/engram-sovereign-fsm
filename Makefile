@@ -5,12 +5,24 @@ BUILD_DIR=./build
 VERSION=$(shell git describe --tags --always)
 
 .PHONY: all build build-linux clean test lint proto-gen docker-build help \
+	e1-guard e1-fsm-safety e1-fsm-liveness e1-tendermint-safety \
+	e1-server-safety e1-server-liveness \
 	testnet-up testnet-down testnet-status \
 	byzantine-on byzantine-off double-sign-on double-sign-off \
-	timeout-flood-on timeout-flood-off \
+	timeout-flood-on timeout-flood-off node04-honest \
 	chaos-delay chaos-loss chaos-crash chaos-eclipse chaos-btc-delay chaos-stop \
 	chaos-wan-latency chaos-wan-loss chaos-wan-stop \
-	attacker-a1-up attacker-a1-down attacker-a2-up attacker-a2-down
+	attacker-a1-up attacker-a1-down attacker-a2-up attacker-a2-down \
+	prover-watch \
+	e2 e2-figures e2-timeline \
+	e3-lifecycle e3-p2p-lifecycle e3-recovery e3-latency \
+	e4-sybil e4-churn e4-relay-latency \
+	e5-spot-check e5-absorb-sweep \
+	e6-prover-bench e6-plonky3-bench e6-stats e6-table6c \
+	e7-overhead-scan e7-throughput e7-sensor-mismatch e7-vanilla-comparison \
+	e8-byzantine e8-censorship e8-combined e8-double-signing e8-timeout-flood e8-withdrawal \
+	e9-trace e9-figures \
+	e10-reorg e10-figures
 
 ENV_FILE := .env
 CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge celestia-bridge-2 \
@@ -63,6 +75,37 @@ docker-build:
 	docker build -t engram/node:$(VERSION) .
 
 # ==============================================================================
+# E1 FORMAL VERIFICATION (TLA+/TLC, spec/core)
+# ==============================================================================
+# Requires Java JDK 11+ and TLA_JAR pointing at tla2tools.jar (TLA+ releases
+# page: https://github.com/tlaplus/tlaplus/releases). Runnable from the repo
+# root -- TLC resolves EXTENDS relative to the main .tla file's own
+# directory, not the shell's cwd, so the spec/-prefixed paths below just
+# work (verified directly, see README.md's E1 section).
+#
+# Apalache's complementary bounded-safety checks (separate toolchain, JDK
+# 17+, per-layer --cinit/--init/--next flags, used for the E1 ablations) are
+# not wrapped here -- see spec/README.md's "Apalache" section.
+
+e1-guard:
+	@test -n "$(TLA_JAR)" || (echo "Usage: make <e1-target> TLA_JAR=/path/to/tla2tools.jar [WORKERS=8]" && exit 1)
+
+e1-fsm-safety: e1-guard
+	java -cp $(TLA_JAR) tlc2.TLC -workers $(or $(WORKERS),8) -config spec/core/MC_FSMSafety.cfg spec/core/MC_FSMSafety.tla
+
+e1-fsm-liveness: e1-guard
+	java -cp $(TLA_JAR) tlc2.TLC -workers $(or $(WORKERS),8) -config spec/core/MC_FSMLiveness.cfg spec/core/MC_FSMLiveness.tla
+
+e1-tendermint-safety: e1-guard
+	java -cp $(TLA_JAR) tlc2.TLC -workers $(or $(WORKERS),8) -config spec/core/MC_TendermintSafety.cfg spec/core/MC_TendermintSafety.tla
+
+e1-server-safety: e1-guard
+	java -cp $(TLA_JAR) tlc2.TLC -workers $(or $(WORKERS),8) -config spec/core/MC_ServerRefinementSafety.cfg spec/core/MC_ServerRefinementSafety.tla
+
+e1-server-liveness: e1-guard
+	java -cp $(TLA_JAR) tlc2.TLC -workers $(or $(WORKERS),8) -config spec/core/MC_ServerRefinementLiveness.cfg spec/core/MC_ServerRefinementLiveness.tla
+
+# ==============================================================================
 # LOCAL DOCKER TESTNET CONTROL
 # ==============================================================================
 # Wraps docs/DEVELOPMENT.md §3's manual walkthrough. Requires $(ENV_FILE)
@@ -106,9 +149,7 @@ byzantine-on:
 	ENGRAM_BYZANTINE_BEHAVIOR=$(BEHAVIOR) docker compose --env-file $(ENV_FILE) -f compose.yml -f docker/engram-node04-byzantine.yml up -d --no-deps engram-node04
 	@echo "--> node04 is byzantine: $(BEHAVIOR) -- never leave this set on a real validator"
 
-byzantine-off:
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --no-deps engram-node04
-	@echo "--> node04 reverted to honest"
+byzantine-off: node04-honest
 
 # --- Double-signing harness (docs/EXPERIMENT.md's E8 Double-signing) --------
 double-sign-on:
@@ -124,7 +165,12 @@ timeout-flood-on:
 	ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS=$(or $(INTERVAL_MS),50) docker compose --env-file $(ENV_FILE) -f compose.yml -f docker/engram-node04-timeout-flood.yml up -d --no-deps engram-node04
 	@echo "--> node04 is flooding Timeout messages every $(or $(INTERVAL_MS),50)ms -- never leave this set on a real validator"
 
-timeout-flood-off:
+timeout-flood-off: node04-honest
+
+# Shared by every harness that swaps node04's compose file (byzantine,
+# timeout-flood) -- reverting is the same "recreate from plain compose.yml"
+# regardless of which override put it into a non-honest state.
+node04-honest:
 	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --no-deps engram-node04
 	@echo "--> node04 reverted to honest"
 
@@ -172,6 +218,110 @@ attacker-a2-down:
 	docker compose --env-file $(ENV_FILE) --profile attacker-swarm-a2 stop $(ATTACKER_A2_SERVICES)
 	docker compose --env-file $(ENV_FILE) --profile attacker-swarm-a2 rm -f $(ATTACKER_A2_SERVICES)
 
+# ==============================================================================
+# LIVE EXPERIMENTS (E2-E10)
+# ==============================================================================
+# Methodology + real-vs-synthetic status: docs/EXPERIMENT.md. Full command
+# reference (incl. which need `prover-watch` running): README.md.
+# All of these expect `make testnet-up` already running.
+
+prover-watch:
+	./scripts/reanchoring_prover/watch_and_prove.sh
+
+e2:
+	python3 -u scripts/e2_fault_injection/live_scenario_matrix.py
+
+e2-figures:
+	python3 scripts/e2_fault_injection/live_figure_builder.py
+
+e2-timeline:
+	python3 scripts/e2_fault_injection/live_single_timeline.py
+
+e3-lifecycle:
+	python3 scripts/e3_failure_matrix/live_lifecycle_test.py
+
+e3-p2p-lifecycle:
+	python3 scripts/e3_failure_matrix/live_p2p_lifecycle_test.py
+
+e3-recovery:
+	python3 scripts/e3_failure_matrix/live_recovery_flow.py --minutes $(or $(MINUTES),20)
+
+e3-latency:
+	python3 scripts/e3_failure_matrix/measure_latency_live.py
+
+e4-sybil:
+	@test -n "$(LEG)" || (echo "Usage: make e4-sybil LEG=a1|a2" && exit 1)
+	python3 -u scripts/e4_p2p_eclipse_detection/live_sybil_attack.py $(LEG)
+
+e4-churn:
+	python3 -u scripts/e4_p2p_eclipse_detection/live_churn_attack.py
+
+e4-relay-latency:
+	python3 -u scripts/e4_p2p_eclipse_detection/live_relay_latency_attack.py
+
+e5-spot-check:
+	@test -n "$(HYSTERESIS_WAIT)" && test -n "$(ENV)" || (echo "Usage: make e5-spot-check HYSTERESIS_WAIT=... ENV=stable|noisy_da -- set ENGRAM_PARAM_HYSTERESIS_WAIT and redeploy first, see README.md" && exit 1)
+	python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait $(HYSTERESIS_WAIT) --env $(ENV)
+
+e5-absorb-sweep:
+	python3 -u scripts/e5_hysteresis_flapping/run_absorb_sweep.py
+
+e6-prover-bench:
+	./scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh
+
+e6-plonky3-bench:
+	./scripts/e6_zk_reanchoring_benchmark/benchmark_plonky3.sh
+
+e6-stats:
+	python3 scripts/e6_zk_reanchoring_benchmark/stats_collector.py
+
+e6-table6c:
+	python3 scripts/e6_zk_reanchoring_benchmark/table6c_collector.py
+
+e7-overhead-scan:
+	python3 scripts/e7_consensus_overhead/live_overhead_scan.py
+
+e7-throughput:
+	python3 -u scripts/e7_consensus_overhead/live_throughput_latency.py
+
+e7-sensor-mismatch:
+	python3 -u scripts/e7_consensus_overhead/live_sensor_mismatch.py
+
+e7-vanilla-comparison:
+	./scripts/e7_consensus_overhead/vanilla_comparison.sh
+
+e8-byzantine:
+	@test -n "$(ATTACK)" || (echo "Usage: make e8-byzantine ATTACK=a6_fake_fsm_state|a4_forge_btc_hash|a3_false_da_attestation|--all" && exit 1)
+	python3 -u scripts/e8_attack_resilience/live_byzantine_attacks.py $(ATTACK)
+
+e8-censorship:
+	python3 -u scripts/e8_attack_resilience/live_censorship_test.py
+
+e8-combined:
+	python3 -u scripts/e8_attack_resilience/live_combined_attack.py
+
+e8-double-signing:
+	python3 -u scripts/e8_attack_resilience/live_double_signing_test.py
+
+e8-timeout-flood:
+	python3 -u scripts/e8_attack_resilience/live_timeout_flood_test.py
+
+e8-withdrawal:
+	python3 -u scripts/e8_attack_resilience/live_withdrawal_test.py
+
+e9-trace:
+	python3 -u scripts/e9_trace_driven/live_combined_trace.py
+
+e9-figures:
+	python3 scripts/e9_trace_driven/live_figure_builder.py
+
+e10-reorg:
+	@test -n "$(DEPTH)" || (echo "Usage: make e10-reorg DEPTH=shallow|deep [REORG_DEPTH=N]" && exit 1)
+	python3 -u scripts/e10_bitcoin_reorg/live_reorg_test.py --depth $(DEPTH) $(if $(REORG_DEPTH),--reorg-depth $(REORG_DEPTH))
+
+e10-figures:
+	python3 scripts/e10_bitcoin_reorg/live_figure_builder.py
+
 clean:
 	rm -rf $(BUILD_DIR)
 
@@ -185,6 +335,11 @@ help:
 	@echo "  zk-compile    - Compile the Noir circuits"
 	@echo "  lint          - Run golangci-lint"
 	@echo "  docker-build  - Build the docker image"
+	@echo ""
+	@echo "E1 formal verification (TLA+/TLC, requires TLA_JAR=/path/to/tla2tools.jar):"
+	@echo "  e1-fsm-safety / e1-fsm-liveness           - FSM layer"
+	@echo "  e1-tendermint-safety                      - Tendermint layer"
+	@echo "  e1-server-safety / e1-server-liveness     - Full refinement bridge (all layers)"
 	@echo ""
 	@echo "Local docker testnet:"
 	@echo "  testnet-up          - Fresh genesis + bring up bitcoin/celestia/4 validators"
@@ -201,3 +356,15 @@ help:
 	@echo "  chaos-stop          - Stop all Pumba fault profiles"
 	@echo "  attacker-a1-up/-down - Peer-slot-exhaustion swarm (E4/E8 A1)"
 	@echo "  attacker-a2-up/-down - Simulated multi-subnet Sybil swarm (E4/E8 A2)"
+	@echo ""
+	@echo "Live experiments (E2-E10, see README.md for the full reference):"
+	@echo "  prover-watch        - Run the ZK re-anchoring prover loop (needed for RECOVERING -> ANCHORED legs)"
+	@echo "  e2 / e2-figures / e2-timeline       - Fault-injection scenario matrix (S1-S7)"
+	@echo "  e3-lifecycle / e3-p2p-lifecycle / e3-recovery / e3-latency - Full-lifecycle failure matrix"
+	@echo "  e4-sybil LEG=a1|a2 / e4-churn / e4-relay-latency - P2P eclipse-detection attacks"
+	@echo "  e5-spot-check HYSTERESIS_WAIT=... ENV=... / e5-absorb-sweep - Hysteresis flapping"
+	@echo "  e6-prover-bench / e6-plonky3-bench / e6-stats / e6-table6c - ZK re-anchoring benchmark"
+	@echo "  e7-overhead-scan / e7-throughput / e7-sensor-mismatch / e7-vanilla-comparison - Consensus overhead"
+	@echo "  e8-byzantine ATTACK=... / e8-censorship / e8-combined / e8-double-signing / e8-timeout-flood / e8-withdrawal - Attack resilience"
+	@echo "  e9-trace / e9-figures  - Trace-driven combined-failure capstone"
+	@echo "  e10-reorg DEPTH=shallow|deep / e10-figures - Bitcoin reorg"
