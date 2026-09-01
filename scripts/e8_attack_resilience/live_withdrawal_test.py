@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
 from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-CELESTIA_BRIDGE = "celestia-bridge"
+CELESTIA_BRIDGE = "celestia-bridge-node01"
 WITHDRAWAL_PAYLOAD = "TX_WITHDRAWAL live-e8-a5-test-payload"
 
 

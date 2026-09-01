@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LIVE hysteresis spot-check against the real 4-node testnet --
+"""LIVE hysteresis spot-check against the real 7-node testnet --
 docs/EXPERIMENT.md's E5, scoped as a small confirmatory check (2 values x 2
 environments), NOT a full 6x5 sweep. The in-process sweep
 (tests/e2e/hysteresis_sweep_test.go) already produced the real finding this
@@ -39,11 +39,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv  # noqa: E402
+from logger import sample_all_nodes, write_csv, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
 from injector import start_pumba_wan_profile, cleanup_wan_profile  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-CELESTIA_BRIDGE = "celestia-bridge"
 
 ENVIRONMENTS = {
     "stable": {"description": "no injected noise, control group"},
@@ -180,11 +179,11 @@ def main():
             if args.env == "noisy_da" and time.time() >= next_noise_toggle:
                 if da_currently_down:
                     print(f"[{now()}] >>> restoring celestia-bridge (noise cycle)")
-                    docker("start", CELESTIA_BRIDGE)
+                    start_all_da_bridges()
                     next_noise_toggle = time.time() + args.noise_off_s
                 else:
                     print(f"[{now()}] >>> stopping celestia-bridge (noise cycle)")
-                    docker("stop", CELESTIA_BRIDGE)
+                    stop_all_da_bridges()
                     next_noise_toggle = time.time() + args.noise_on_s
                 da_currently_down = not da_currently_down
 
@@ -192,7 +191,7 @@ def main():
 
         if args.env == "noisy_da" and da_currently_down:
             print(f"[{now()}] >>> restoring celestia-bridge (cleanup)")
-            docker("start", CELESTIA_BRIDGE)
+            start_all_da_bridges()
     finally:
         if args.wan_profile != "none":
             print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")

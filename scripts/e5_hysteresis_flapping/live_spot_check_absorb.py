@@ -2,7 +2,7 @@
 """LIVE spot-check for E5's 5b/5c sub-scenarios (docs/EXPERIMENT.md) --
 down-hysteresis (ANCHORED -> SUSPICIOUS, DownHysteresisThreshold) and
 SUSPICIOUS-exit hysteresis (SUSPICIOUS -> ANCHORED, SuspiciousHysteresisWait)
-against the real 4-node testnet. Sibling to live_spot_check.py (5a), kept
+against the real 7-node testnet. Sibling to live_spot_check.py (5a), kept
 separate so a bug here can't regress the already-proven 5a workflow.
 Both params are genesis params, not compile-time-fixed: set
 ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD / ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT
@@ -58,11 +58,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv  # noqa: E402
+from logger import sample_all_nodes, write_csv, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
 from injector import start_pumba_wan_profile, cleanup_wan_profile  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-CELESTIA_BRIDGE = "celestia-bridge"
 
 ENVIRONMENTS = {
     "stable": {
@@ -235,8 +234,8 @@ def drive_to_suspicious(interval_s: float, timeout_s: float) -> bool:
     or timeout_s elapses. Mirrors tests/e2e/suspicious_exit_sweep_test.go's
     driveToSuspicious. Returns whether every node reached SUSPICIOUS in time.
     """
-    print(f"[{now()}] >>> stopping {CELESTIA_BRIDGE} to drive ANCHORED -> SUSPICIOUS")
-    docker("stop", CELESTIA_BRIDGE)
+    print(f"[{now()}] >>> stopping all DA bridges to drive ANCHORED -> SUSPICIOUS")
+    stop_all_da_bridges()
 
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -340,7 +339,7 @@ def main():
                 f"{args.drive_timeout_s:.0f}s -- aborting without a measurement window.",
                 file=sys.stderr,
             )
-            docker("start", CELESTIA_BRIDGE)
+            start_all_da_bridges()
             sys.exit(1)
         print(f"[{now()}] >>> all nodes SUSPICIOUS, starting measurement window")
         # Baseline for suspicious_exit is DOWN (sustains the warning holding
@@ -379,30 +378,30 @@ def main():
                 if baseline_state_is_down:
                     # suspicious_exit: baseline DOWN, blip UP.
                     if da_down:
-                        print(f"[{now()}] >>> healthy blip: restoring {CELESTIA_BRIDGE}")
-                        docker("start", CELESTIA_BRIDGE)
+                        print(f"[{now()}] >>> healthy blip: restoring all DA bridges")
+                        start_all_da_bridges()
                         next_toggle = time.time() + args.noise_off_s
                     else:
-                        print(f"[{now()}] >>> back to baseline: stopping {CELESTIA_BRIDGE}")
-                        docker("stop", CELESTIA_BRIDGE)
+                        print(f"[{now()}] >>> back to baseline: stopping all DA bridges")
+                        stop_all_da_bridges()
                         next_toggle = time.time() + args.noise_on_s
                 else:
                     # down: baseline UP, blip DOWN.
                     if da_down:
-                        print(f"[{now()}] >>> restoring {CELESTIA_BRIDGE} (noise cycle)")
-                        docker("start", CELESTIA_BRIDGE)
+                        print(f"[{now()}] >>> restoring all DA bridges (noise cycle)")
+                        start_all_da_bridges()
                         next_toggle = time.time() + args.noise_off_s
                     else:
-                        print(f"[{now()}] >>> stopping {CELESTIA_BRIDGE} (noise cycle)")
-                        docker("stop", CELESTIA_BRIDGE)
+                        print(f"[{now()}] >>> stopping all DA bridges (noise cycle)")
+                        stop_all_da_bridges()
                         next_toggle = time.time() + args.noise_on_s
                 da_down = not da_down
 
             time.sleep(args.interval_s)
 
         if da_down:
-            print(f"[{now()}] >>> restoring {CELESTIA_BRIDGE} (cleanup)")
-            docker("start", CELESTIA_BRIDGE)
+            print(f"[{now()}] >>> restoring all DA bridges (cleanup)")
+            start_all_da_bridges()
     finally:
         if args.wan_profile != "none":
             print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")

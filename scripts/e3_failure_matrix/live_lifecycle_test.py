@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """LIVE full-lifecycle fault-injection test against the real 4-node docker
 testnet -- docs/EXPERIMENT.md's E2/E3 blueprint (S3 DA unavailable + S7
-Recovery), driving the real celestia-bridge/celestia-app containers
-(docker stop/start) instead of tests/e2e's mock-sensor Harness.
+Recovery), driving the real celestia-app container and all 4 validators'
+independent celestia-bridge* containers (docker stop/start) instead of
+tests/e2e's mock-sensor Harness.
 
 Exercises every edge in the full lifecycle:
     ANCHORED <-> SUSPICIOUS -> SOVEREIGN <-> RECOVERING -> ANCHORED
@@ -33,10 +34,9 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv  # noqa: E402
+from logger import sample_all_nodes, write_csv, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-CELESTIA_BRIDGE = "celestia-bridge"
 
 
 def docker(*args):
@@ -44,13 +44,13 @@ def docker(*args):
 
 
 def stop_celestia():
-    print(f"[{now()}] >>> docker stop {CELESTIA_BRIDGE} (injecting DA outage)")
-    docker("stop", CELESTIA_BRIDGE)
+    print(f"[{now()}] >>> docker stop all 4 independent celestia bridges (injecting DA outage)")
+    stop_all_da_bridges()
 
 
 def start_celestia():
-    print(f"[{now()}] >>> docker start {CELESTIA_BRIDGE} (restoring DA)")
-    docker("start", CELESTIA_BRIDGE)
+    print(f"[{now()}] >>> docker start all 4 independent celestia bridges (restoring DA)")
+    start_all_da_bridges()
 
 
 def now():

@@ -2,7 +2,7 @@
 """Orchestrates E5's 5b/5c live spot-check sweep (docs/EXPERIMENT.md) across the
 in-process sweep's value set, DownHysteresisThreshold / SuspiciousHysteresisWait
 in {1,2,4,6,8}, x2 environments (stable, noisy_da -- matching 5a's 5x2 design):
-for each (edge, value) pair, redeploys the real 4-node testnet with that param
+for each (edge, value) pair, redeploys the real 7-node testnet with that param
 baked into a fresh genesis, then runs live_spot_check_absorb.py's 300s
 measurement window once per env against that same deployed genesis (no
 redeploy needed between envs, just re-waiting for a healthy ANCHORED
@@ -45,19 +45,20 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ENV_PATH = os.path.join(REPO_ROOT, ".env")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "scripts", "framework"))
-from logger import sample_all_nodes  # noqa: E402
+from logger import sample_all_nodes, NODE_RPC_PORTS  # noqa: E402
 
 PARAM_FIELD = {
     "down": "ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD",
     "suspicious_exit": "ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT",
 }
-VALIDATOR_SERVICES = [
-    "engram-node01",
-    "engram-node02",
-    "engram-node03",
-    "engram-node04",
-    "reanchoring-prover",
-]
+# Derived from logger.NODE_RPC_PORTS (ENGRAM_VALIDATOR_COUNT-aware) so this
+# sweep's redeploy/health-wait automatically matches whichever `make
+# testnet-up N=4|7` topology is running. reanchoring-prover (containerized
+# watch_and_prove.sh) is NOT part of the current live pipeline -- that's now
+# a host-side script (scripts/reanchoring_prover/watch_and_prove.sh), not a
+# compose service; deliberately not listed here.
+VALIDATOR_SERVICES = list(NODE_RPC_PORTS.keys())
+NUM_VALIDATORS = len(VALIDATOR_SERVICES)
 
 
 def now() -> str:
@@ -96,7 +97,7 @@ def set_env_param(field: str, value: int) -> None:
 def redeploy(edge: str, value: int) -> None:
     set_env_param(PARAM_FIELD[edge], value)
 
-    log("stopping validators + prover before wiping testnet-data/")
+    log("stopping validators before wiping testnet-data/")
     subprocess.run(
         ["docker", "compose", "--env-file", ".env", "-f", "compose.yml", "stop", *VALIDATOR_SERVICES],
         cwd=REPO_ROOT,
@@ -110,7 +111,7 @@ def redeploy(edge: str, value: int) -> None:
 
 
 def wait_for_healthy_anchored(timeout_s: float = 240.0, interval_s: float = 5.0) -> bool:
-    """Polls until all 4 validators report catching_up=False, a positive
+    """Polls until all 7 validators report catching_up=False, a positive
     height, and fsm_state=ANCHORED on 2 consecutive samples -- the baseline
     live_spot_check_absorb.py's 5b measurement (and 5c's drive-to-SUSPICIOUS
     pre-phase) assumes.
@@ -122,7 +123,7 @@ def wait_for_healthy_anchored(timeout_s: float = 240.0, interval_s: float = 5.0)
         states = {s.node: (s.fsm_state, s.height, s.catching_up, s.error) for s in samples}
         log(f"health poll: {states}")
         healthy = (
-            len(samples) == 4
+            len(samples) == NUM_VALIDATORS
             and all(not s.error for s in samples)
             and all(not s.catching_up for s in samples)
             and all(s.height > 0 for s in samples)

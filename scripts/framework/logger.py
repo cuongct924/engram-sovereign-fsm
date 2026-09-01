@@ -1,6 +1,6 @@
 """Live-Docker data-collection framework, replacing tests/e2e's in-process
 Harness as the data source for E2/E3/E4/E7/E9: reads from the REAL running
-docker testnet (engram-node01..04, bitcoin-node01, celestia-bridge), not
+docker testnet (engram-node01..07, bitcoin-node01, celestia-bridge), not
 tests/e2e/results/*.csv (in-process, mock-sensor Go harness).
 
 Every function here talks to real, already-running services over their real
@@ -19,13 +19,47 @@ import urllib.error
 from dataclasses import dataclass, asdict
 from typing import List, Optional
 
-# engram-node01..04's host-mapped RPC ports (docker/engram-validator-node0N.yml).
+# ENGRAM_VALIDATOR_COUNT (default 7): must match whichever `make testnet-up
+# N=4|7` topology is actually running (Makefile's N variable,
+# docker/engram-validator-cluster.yml's "seven-node" profile) -- every
+# live_*.py script importing NODE_RPC_PORTS/CELESTIA_BRIDGES/sample_all_nodes
+# from here inherits this count, so this is the ONE place to change when
+# switching cluster sizes rather than a per-script edit. Getting it wrong
+# doesn't crash outright: query_node() catches connection errors and returns
+# an error-flagged sample for a not-actually-running node instead, so a
+# too-high count here just leaves phantom unreachable entries in every
+# poll -- which silently hangs any wait_for_state()-style "all N nodes
+# reached X" check on a real 4-node cluster forever, not a fast failure.
+VALIDATOR_COUNT = int(os.environ.get("ENGRAM_VALIDATOR_COUNT", "7"))
+
+# engram-node01..NN's host-mapped RPC ports (docker/engram-validator-
+# cluster.yml): node01=26657, +100 per subsequent node. Most existing
+# E2-E10 scripts still hardcode their own 4-node ENGRAM_NODES list for
+# experiment-specific topology reasons (a named byzantine/eclipse target,
+# etc.) -- this dict's size only changes sample_all_nodes()'s default (used
+# for cluster-wide baseline/health checks), not those scripts' deliberate
+# node choices.
 NODE_RPC_PORTS = {
-    "engram-node01": 26657,
-    "engram-node02": 26757,
-    "engram-node03": 26857,
-    "engram-node04": 26957,
+    f"engram-node{i:02d}": 26657 + (i - 1) * 100 for i in range(1, VALIDATOR_COUNT + 1)
 }
+
+# Each validator's own independent Celestia bridge (docker/celestia-local-
+# cluster.yml) -- one per node01..NN, so a real cluster-wide DA outage means
+# stopping ALL of them, not just "celestia-bridge" (that alone only blinds
+# node01; AggregateHealthCertificates' power-weighted majority would keep
+# reporting DA-healthy from the rest, so a single-bridge stop no longer
+# drives the FSM the way it did under the old shared-bridge topology).
+CELESTIA_BRIDGES = [f"celestia-bridge-node{i:02d}" for i in range(1, VALIDATOR_COUNT + 1)]
+
+
+def stop_all_da_bridges(timeout: float = 30.0) -> None:
+    for name in CELESTIA_BRIDGES:
+        subprocess.run(["docker", "stop", name], capture_output=True, text=True, timeout=timeout)
+
+
+def start_all_da_bridges(timeout: float = 30.0) -> None:
+    for name in CELESTIA_BRIDGES:
+        subprocess.run(["docker", "start", name], capture_output=True, text=True, timeout=timeout)
 
 QUERY_STATE_PATH = "/engram.sovereignty.v1.Query/State"
 
@@ -237,6 +271,18 @@ def dump_consensus_state(node: str, port: Optional[int] = None) -> dict:
     """
     port = port or NODE_RPC_PORTS[node]
     return _rpc_get(port, "/dump_consensus_state")
+
+
+def block_proposer(node: str, height: int, port: Optional[int] = None) -> str:
+    """proposer_address for a specific COMMITTED height, from CometBFT's
+    real /block RPC (result.block.header.proposer_address) -- which
+    validator actually proposed that block. Used to determine the
+    round-robin proposer schedule (E8's live_censorship_test.py) rather
+    than assuming a target validator gets a turn within some fixed window.
+    """
+    port = port or NODE_RPC_PORTS[node]
+    block = _rpc_get(port, f"/block?height={height}")
+    return block["result"]["block"]["header"]["proposer_address"]
 
 
 def own_validator_address(node: str, port: Optional[int] = None) -> str:
