@@ -1,26 +1,15 @@
 #!/usr/bin/env python3
-"""LIVE Byzantine-mode validator test against the real 4-node testnet --
-docs/EXPERIMENT.md's E8 A3 (Data Withholding), A4 (Forged BTC Receipt), A6
-(Malicious Proposer). Swaps engram-node04's compose definition for
-docker/engram-node04-byzantine.yml's override (adds ENGRAM_BYZANTINE_BEHAVIOR,
-read by x/sovereignty/proposal.go's applyByzantineBehavior to deliberately
-misbehave on its own PrepareProposal calls), then reverts to the honest
-definition.
+"""LIVE Byzantine-mode validator test against the real testnet -- docs/EXPERIMENT.md's E8 A3
+(Data Withholding), A4 (Forged BTC Receipt), A6 (Malicious Proposer). Swaps engram-node04's
+compose definition for the byzantine override (ENGRAM_BYZANTINE_BEHAVIOR, read by
+applyByzantineBehavior to deliberately misbehave), then reverts to honest.
 
-node04 stays IN the real validator set (N=4,f=1) throughout -- not a new/5th
-node, matching this repo's tuned Byzantine-fault assumption.
+node04 stays IN the real validator set throughout, matching this repo's tuned Byzantine-fault
+assumption. Safety bar: the honest nodes' AppHash must stay identical at every sampled height,
+demonstrated through real ABCI tx routing rather than proposal_test.go's in-process version.
 
-Safety bar checked every round: the 3 HONEST nodes' AppHash must stay
-identical at every height sampled (never adopting node04's malicious claim)
--- the bar proposal_test.go's in-process tests already enforce, now
-demonstrated through real ABCI tx routing on a real multi-node network.
-
-Known limitation, honestly flagged: A7's adversarial half (censoring a
-specific forced tx) needs a real MsgSubmitForcedTx submitted first to have
-something to censor -- no CLI command for that exists yet in cmd/engramd
-(only the ABCI Msg type and in-process test coverage). Not attempted here;
-applyByzantineBehavior already supports censor_tx:<hash> mechanically, it
-just has no live driver script yet for the tx-submission half.
+Known limitation: A7's censoring half needs a real forced tx submitted first to have something
+to censor -- no CLI command for that exists yet, so it's not attempted here.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_byzantine_attacks.py a6_fake_fsm_state
@@ -73,7 +62,7 @@ def enable_byzantine(behavior: str) -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "-f",
             "docker/engram-node04-byzantine.yml",
             "up",
@@ -97,7 +86,7 @@ def disable_byzantine() -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "up",
             "-d",
             "--no-deps",
@@ -127,10 +116,7 @@ class Tracker:
             self.samples.extend(all_samples)
 
             # AppHash only means something compared WITHIN the same height --
-            # different heights differ under identical honest execution, and
-            # nodes aren't always sampled at the same height in one poll round
-            # (round-trip timing varies per node). Comparing across heights
-            # directly would false-positive a "SAFETY VIOLATION".
+            # nodes aren't always sampled at the same height in one poll round.
             honest_hashes = {
                 s.node: s.app_hash
                 for s in all_samples

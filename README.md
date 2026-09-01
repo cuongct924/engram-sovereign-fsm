@@ -19,7 +19,7 @@ app/                   EngramApp (real BaseApp wiring)
 cmd/engramd/           Node binary -- init/start, testnet bootstrap, CLI tooling
 circuit/               Noir ZK circuit for the re-anchoring recovery proof
 proto/                 Protobuf sources
-docker/, compose.yml   Multi-node local testnet + Pumba chaos-engineering profiles
+docker/, docker-compose.yml   Multi-node local testnet + Pumba chaos-engineering profiles
 scripts/               Python live-experiment framework (E2-E10)
 tests/e2e/             In-process fault-injection harness
 spec/                  TLA+ formal specification + model-checking proofs

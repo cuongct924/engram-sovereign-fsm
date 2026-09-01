@@ -1,36 +1,14 @@
 #!/usr/bin/env python3
-"""LIVE Censorship / forced-tx-withholding test against the real 4-node
-testnet -- docs/EXPERIMENT.md's E8 A7 adversarial half. Previously had no
-live driver: x/sovereignty/proposal.go's applyByzantineBehavior already
-supported ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<target> mechanically, but
-nothing exercised it end-to-end against a real forced tx.
+"""LIVE Censorship / forced-tx-withholding test against the real testnet -- docs/EXPERIMENT.md's
+E8 A7 adversarial half. applyByzantineBehavior already supported
+ENGRAM_BYZANTINE_BEHAVIOR=censor_tx:<target> mechanically, but nothing exercised it end-to-end.
 
-Protocol, real and byte-exact throughout (no mocked queue/tx content):
-
-  1. Build a real, independently-decodable "target" tx (another
-     MsgSubmitForcedTxRequest, chosen only because a CLI to build it exists
-     -- its own content is otherwise irrelevant) via
-     `engramd tx-submit-forced-tx --dry-run`. buildMinimalTx
-     (cmd/engramd/reanchor_cli.go) has no timestamp/nonce/random field, so
-     this is deterministic -- re-running reproduces the exact same bytes.
-  2. Register those exact raw bytes in ForcedTxQueue via a SEPARATE
-     MsgSubmitForcedTxRequest{Tx: <target's raw bytes>}, using --payload-hex
-     for byte-exact content (x/sovereignty/keeper/msg_server.go's
-     SubmitForcedTx just does ForcedTxQueue.Set(ctx, string(msg.Tx))).
-  3. Broadcast the target tx itself as a real, standalone tx (so it can ever
-     appear verbatim in req.Txs[1:], which is what IsCensoring/
-     ProcessProposal's check #0 compares ForcedTxQueue entries against --
-     x/sovereignty/proposal.go:305-318).
-  4. Set node04 byzantine with censor_tx:<hex of target's raw bytes> --
-     applyByzantineBehavior hex-decodes this; the target is hex-encoded
-     because Docker Compose env-var/YAML interpolation doesn't survive
-     arbitrary non-UTF8 tx bytes.
-  5. Poll: whenever node04 leads a round, its proposal should omit the target
-     tx (observable as it not landing in a block node04 proposed); once
-     MaxIgnoreRounds (Params default: 1) is exceeded, the NEXT censoring
-     proposal must be REJECTED by the 3 honest validators' IsCensoring check
-     -- never committed, safety bar (honest AppHash never diverges) checked
-     the whole time, matching live_byzantine_attacks.py's Tracker pattern.
+Protocol, real and byte-exact throughout: build a deterministic "target" tx via --dry-run,
+register its exact raw bytes in ForcedTxQueue, broadcast it as a real standalone tx (so it can
+appear in req.Txs), set node04 byzantine with censor_tx:<hex>, then poll -- whenever node04
+leads, its proposal should omit the target; once MaxIgnoreRounds is exceeded, the next censoring
+proposal must be REJECTED by the honest validators' IsCensoring check, with AppHash never
+diverging throughout (same Tracker pattern as live_byzantine_attacks.py).
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_censorship_test.py
@@ -72,16 +50,9 @@ def run_cli(*args: str) -> subprocess.CompletedProcess:
 
 
 def build_target_tx_hex() -> str:
-    """--dry-run: builds the raw bytes of a throwaway MsgSubmitForcedTxRequest
-    WITHOUT broadcasting it -- this is the "other tx" that will be registered
-    as forced AND separately broadcast for real, per this module's doc.
-
-    Payload includes a real wall-clock nonce -- a fixed literal payload
-    produces the SAME tx hash every run, and CometBFT's tx cache remembers
-    a previously-committed hash for a while after commit, rejecting a later
-    run's identical resubmission with "tx already exists in cache" (hit
-    live, confirmed the earlier tx really had committed successfully).
-    """
+    """--dry-run: builds raw tx bytes without broadcasting. Payload includes a wall-clock nonce
+    since a fixed literal would hash the same every run, and CometBFT's tx cache rejects a
+    resubmitted hash still in its cache."""
     proc = run_cli(
         "tx-submit-forced-tx", "--payload", f"e8-a7-censorship-target-{time.time()}", "--dry-run"
     )
@@ -140,17 +111,10 @@ def observe_recent_proposers(node: str, count: int = 8) -> list:
 
 
 def predict_next_turn(node: str, target_address: str, count: int = 8):
-    """Predicts the next height target_address will propose, from the
-    observed round-robin period among the last `count` committed blocks.
-    Returns (predicted_height, period) or (None, None) if target_address
-    hasn't proposed at all in the observed window (period can't be inferred
-    yet -- caller should widen `count` or just poll normally).
-
-    With N equal-power validators (this testnet: genesis power 10 each),
-    CometBFT's proposer-priority algorithm converges to a period-N cycle,
-    but the offset is arbitrary and a round skip can perturb it -- this is
-    a real-world observed prediction, not a protocol guarantee, so callers
-    must tolerate misses (see wait_for_upcoming_turn's retry loop).
+    """Predicts the next height target_address will propose, from the observed round-robin
+    period among the last `count` blocks. Returns (predicted_height, period), or (None, None)
+    if it hasn't proposed in the window yet -- an observed prediction, not a guarantee, so
+    callers must tolerate misses.
     """
     observed = observe_recent_proposers(node, count)
     turns = [h for h, addr in observed if addr == target_address]
@@ -161,11 +125,9 @@ def predict_next_turn(node: str, target_address: str, count: int = 8):
 
 
 def wait_for_upcoming_turn(node: str, target_address: str, max_wait_s: float = 60.0):
-    """Blocks until 1 height before target_address's next predicted
-    proposer turn (so a tx submitted right after this returns has a full
-    block's worth of gossip time to reach target_address's mempool before
-    it builds that height's proposal), or gives up after max_wait_s and
-    returns None -- callers fall back to blind polling in that case.
+    """Blocks until 1 height before target_address's next predicted turn (so a tx submitted
+    right after has a full block's gossip time to reach its mempool), or gives up after
+    max_wait_s and returns None.
     """
     deadline = time.time() + max_wait_s
     while time.time() < deadline:
@@ -205,12 +167,9 @@ def blocks_proposed_by(node: str, target_address: str, start_height: int, end_he
 
 
 def censorship_actually_observed(node: str, target_address: str, target_tx_hex: str, heights: list) -> bool:
-    """True iff at least one of `heights` (node04's own real proposer turns
-    during the censoring window) has a block that OMITS the target tx --
-    the direct evidence that ENGRAM_BYZANTINE_BEHAVIOR=censor_tx actually
-    fired, not just that node04 got no turn (docs/EXPERIMENT.md's E8 A7
-    caveat this closes: a prior run's node04 simply never proposed during
-    its poll window, so "no divergence" was vacuous).
+    """True iff at least one of node04's real proposer turns in `heights` has a block that
+    OMITS the target tx -- direct evidence the censor_tx behavior actually fired, not just
+    that node04 got no turn at all.
     """
     from logger import _rpc_get
     import base64
@@ -237,7 +196,7 @@ def enable_byzantine(target_hex: str) -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "-f",
             "docker/engram-node04-byzantine.yml",
             "up",
@@ -261,7 +220,7 @@ def disable_byzantine() -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "up",
             "-d",
             "--no-deps",
@@ -301,11 +260,8 @@ class Tracker:
         self.start = time.time()
         self.samples = []
         self.divergence_events = []
-        # phase -> [(t, max_honest_height), ...] -- liveness signal (chain
-        # kept committing during the attack, not just stayed un-diverged),
-        # ported from live_timeout_flood_test.py's Tracker.phase_heights/
-        # height_rate; this script previously tracked height only to bucket
-        # AppHash comparisons, never as a rate.
+        # phase -> [(t, max_honest_height), ...] -- liveness signal (chain kept
+        # committing during the attack, not just stayed un-diverged).
         self.phase_heights: dict = {}
 
     def elapsed(self):
@@ -364,34 +320,20 @@ def main():
     tr.poll_for(15.0, 3.0, "baseline")
 
     # node04 goes byzantine BEFORE the target tx is registered/broadcast --
-    # ordering matters: x/sovereignty/preblock.go's updateForcedTxTracking
-    # dequeues a forced tx the moment ANY leader includes it (an earlier
-    # version left it queued forever after inclusion, permanently
-    # deadlocking the chain). If the target were registered while node04 is
-    # still honest, an honest leader could dequeue it before byzantine mode
-    # activates and the test would pass without exercising node04's
-    # censor_tx path. Enabling byzantine first means whichever validator
-    # leads the round the target lands in determines what's observed: node04
-    # (25% of rounds) censors it and the NEXT leader picks it up; an honest
-    # leader just includes it -- either way, height keeps progressing.
+    # otherwise an honest leader could dequeue it first (one-shot dequeue on
+    # first inclusion) and the test would pass without exercising censor_tx.
     print("=== Phase 2: node04 byzantine (censor_tx), before target tx exists ===")
     build_only_hex = build_target_tx_hex()
     enable_byzantine(build_only_hex)
-    # 20s, not 10s: --force-recreate leaves node04 RPC-unreachable for several
-    # seconds (confirmed live: height=-1 at t=19s of the old 10s window) --
-    # too short a settle window let phase 3's tx submission land while node04
-    # was still catching up, tripping a slow/round-skipping block and the
-    # CLI's own 30s DeliverTx-wait timeout (confirmed live, twice).
+    # 20s settle: --force-recreate leaves node04 RPC-unreachable for a few
+    # seconds; too short a window let phase 3's tx land while it was still
+    # catching up, tripping the CLI's own DeliverTx-wait timeout.
     tr.poll_for(20.0, 3.0, "byzantine_armed")
 
     # Wait until node04's predicted next proposer turn is imminent before
-    # submitting the target tx -- registering it right after an ARBITRARY
-    # point in the round-robin cycle risks an honest leader dequeuing it
-    # first (updateForcedTxTracking dequeues on first inclusion, one-shot),
-    # or the 90s window simply ending before node04 ever gets a turn at all
-    # (docs/EXPERIMENT.md's E8 A7 finding: reject_signals all zero because
-    # the attack was never actually exercised). Falls back to submitting
-    # immediately if a schedule can't be predicted within 60s.
+    # submitting -- otherwise an honest leader may dequeue it first, or the
+    # window may end before node04 ever gets a turn (falls back to
+    # submitting immediately if no schedule is predictable within 60s).
     node04_address = own_validator_address(BYZANTINE_SERVICE)
     print(f"=== Phase 3: predicting {BYZANTINE_SERVICE}'s next proposer turn ===")
     predicted_height = wait_for_upcoming_turn(HONEST_NODES[0], node04_address, max_wait_s=60.0)

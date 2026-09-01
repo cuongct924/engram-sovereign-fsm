@@ -7,7 +7,7 @@ import time
 THRESHOLD_SUSPICIOUS = 100
 THRESHOLD_SOVEREIGN = 500
 
-COMPOSE_FILE = "compose.yml"
+COMPOSE_FILE = "docker-compose.yml"
 
 
 # ==========================================

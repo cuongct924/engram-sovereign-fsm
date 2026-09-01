@@ -1,29 +1,13 @@
 #!/usr/bin/env python3
-"""LIVE Combined Attack (A8) against the real 4-node testnet --
-docs/EXPERIMENT.md's E8 capstone: overlays MULTIPLE attack vectors from the
-A1-A7 matrix simultaneously, confirming safety holds under compounding
-adversarial pressure rather than testing each vector in isolation.
+"""LIVE Combined Attack (A8) against the real testnet -- docs/EXPERIMENT.md's E8 capstone:
+overlays MULTIPLE attack vectors simultaneously (node04 byzantine fake_fsm_state:SOVEREIGN + the
+A1 peer-slot-exhaustion swarm against node01), confirming safety holds under compounding
+pressure, not just each vector in isolation -- neither attack's defense touches the other's
+surface (ingress filter doesn't see consensus content; proposal rejection doesn't see peer
+admission).
 
-Depends on two mechanisms, both required for this to be meaningful:
-  - A1/A2: docker/attacker-peer-swarm.yml's A1 leg (peer-slot exhaustion
-    swarm against engram-node01) -- scripts/e4_p2p_eclipse_detection/
-    live_sybil_attack.py's mechanism, reused directly here.
-  - A3/A4/A6: docker/engram-node04-byzantine.yml (node04 running
-    with ENGRAM_BYZANTINE_BEHAVIOR set) --
-    scripts/e8_attack_resilience/live_byzantine_attacks.py's mechanism.
-
-This overlay: node04 runs fake_fsm_state:SOVEREIGN (A6) for the whole
-window, WHILE the A1 attacker swarm simultaneously floods engram-node01's
-peer slots -- two independent attack surfaces active at once, neither
-defended against by the other's mitigation (the ingress filter doesn't
-touch consensus-layer proposal content; the honest-validator rejection
-path doesn't touch peer admission).
-
-Safety bar: the HONEST, non-byzantine, non-swarm-targeted nodes
-(node02/03/05/06/07 -- engram-node01 is excluded from the "honest"
-comparison set here since it's ALSO the A1 swarm's direct target and
-node04 is byzantine) must keep an identical AppHash at every height
-sampled, the entire time both attacks are active.
+Safety bar: every HONEST, non-byzantine, non-swarm-targeted node (excludes node01, the swarm's
+direct target, and node04, byzantine) must keep an identical AppHash at every sampled height.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_combined_attack.py
@@ -40,11 +24,8 @@ from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS  # noqa: E402
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 BYZANTINE_SERVICE = "engram-node04"
 BYZANTINE_BEHAVIOR = "fake_fsm_state:SOVEREIGN"
-# Deliberately excludes engram-node01 (the A1 swarm's direct dial target --
-# its own peer count/behavior is part of what's under attack, not a clean
-# "did safety hold" witness) and engram-node04 (byzantine). All other real
-# validators are included (was hardcoded to just node02/node03 from the old
-# 4-node cluster, which had no other honest nodes left to include).
+# Excludes engram-node01 (the A1 swarm's direct target, not a clean "did
+# safety hold" witness) and engram-node04 (byzantine); all others included.
 SAFETY_WITNESS_NODES = [n for n in NODE_RPC_PORTS if n not in ("engram-node01", BYZANTINE_SERVICE)]
 
 
@@ -63,7 +44,7 @@ def enable_byzantine(behavior: str) -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "-f",
             "docker/engram-node04-byzantine.yml",
             "up",
@@ -87,7 +68,7 @@ def disable_byzantine() -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "up",
             "-d",
             "--no-deps",

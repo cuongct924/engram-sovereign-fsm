@@ -62,7 +62,7 @@ def enable_flood(interval_ms: int) -> None:
             "docker",
             "compose",
             "-f",
-            "compose.yml",
+            "docker-compose.yml",
             "-f",
             "docker/engram-node04-timeout-flood.yml",
             "up",
@@ -82,7 +82,7 @@ def enable_flood(interval_ms: int) -> None:
 def disable_flood() -> None:
     print(f"[{now()}] >>> reverting {FLOOD_SERVICE} to its honest definition")
     subprocess.run(
-        ["docker", "compose", "-f", "compose.yml", "up", "-d", "--no-deps",
+        ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "--no-deps",
          "--force-recreate", FLOOD_SERVICE],
         capture_output=True,
         text=True,

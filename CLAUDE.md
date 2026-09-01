@@ -27,7 +27,7 @@ cmd/engramd/         -- node binary: `engramd init`, `start [--vanilla]`, `testn
 proto/               -- protobuf sources (buf); generated .pb.go land in x/sovereignty/types/
 circuit/reanchoring/ -- Noir ZK circuit for the re-anchoring recovery proof
 tests/e2e/           -- in-process fault-injection harness (docs/EXPERIMENT.md's E2)
-docker/, compose.yml -- multi-node local testnet + Pumba chaos-engineering profiles
+docker/, docker-compose.yml -- multi-node local testnet + Pumba chaos-engineering profiles
 scripts/             -- Python analysis/plotting for the E1-E9 experiments
 docs/EXPERIMENT.md   -- the experiment design this codebase satisfies (E1-E9); read before adding
                         experiment-facing code

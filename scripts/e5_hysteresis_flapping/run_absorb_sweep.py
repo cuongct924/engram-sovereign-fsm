@@ -99,11 +99,11 @@ def redeploy(edge: str, value: int) -> None:
 
     log("stopping validators before wiping testnet-data/")
     subprocess.run(
-        ["docker", "compose", "--env-file", ".env", "-f", "compose.yml", "stop", *VALIDATOR_SERVICES],
+        ["docker", "compose", "--env-file", ".env", "-f", "docker-compose.yml", "stop", *VALIDATOR_SERVICES],
         cwd=REPO_ROOT,
     )
     subprocess.run(
-        ["docker", "compose", "--env-file", ".env", "-f", "compose.yml", "rm", "-f", *VALIDATOR_SERVICES],
+        ["docker", "compose", "--env-file", ".env", "-f", "docker-compose.yml", "rm", "-f", *VALIDATOR_SERVICES],
         cwd=REPO_ROOT,
     )
 
