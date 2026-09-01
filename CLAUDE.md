@@ -73,8 +73,7 @@ only, 2-3 lines per comment unless a genuine divergence from the spec needs just
   `collections.Item[...]` — it's a proto3 type embedding `sync.Mutex`; passing by value trips
   `go vet`'s lock-copy check.
 - **`go.mod`'s local `replace github.com/cometbft/cometbft => ../engram-consensus-core`** requires
-  that fork checked out as a sibling directory — CI clones it explicitly (see the
-  `github-actions-ci` skill); it won't resolve otherwise.
+  that fork checked out as a sibling directory; it won't resolve otherwise.
 - **Docker multi-node testnet**: always wipe `testnet-data/` and regenerate fresh genesis
   (`engramd testnet init-files --v N`) before redeploying. A persisted `priv_validator_state.json`
   without a matching fresh WAL replay trips FilePV's anti-double-sign guard.
