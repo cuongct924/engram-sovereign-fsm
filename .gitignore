@@ -90,5 +90,11 @@ build/
 # from git, causing CI failures that don't reproduce locally.
 /engramd
 
+# Raw (uncompressed) zk verifier WASM binary -- only the gzip-compressed
+# barretenberg.wasm.gz is committed (the raw build output is 80-115MB,
+# over GitHub's 100MB file limit; see x/sovereignty/keeper/zk_verifier.go
+# and https://github.com/cuongct924/engram-barretenberg-wasm).
+x/sovereignty/keeper/zk_assets/*.wasm
+
 .claude/worktrees
 .claude/settings.local.json
