@@ -452,8 +452,7 @@ fn build_chain<let COUNT: u32>() -> ([Header; N_MAX], Field, Field) {
 // to check header-chain semantics, not boundary-signature semantics, so one
 // fixed, valid boundary fixture (captured from a real run of
 // types.VoteSignBytes/ValidatorSet.Hash against the engram-consensus-core
-// fork, cross-checked in circuit/reanchoring_sigtest/) is reused for both
-// the first and last block in every call.
+// fork) is reused for both the first and last block in every call.
 fn test_boundary_fixture() -> (ValidatorSetWitness, [u8; 32], BoundaryBlockWitness, [u8; 32]) {
     let validators = ValidatorSetWitness {
         pubkey_x: [

@@ -332,8 +332,8 @@ func buildValidatorSetToml(validators []*sovereigntytypes.QueryValidatorInfo) (s
 // (validator pubkeys are bound via the SimpleValidator leaf hash; see
 // circuit/reanchoring/src/main.nr's ValidatorSetWitness doc), so this
 // decompression is never trusted on its own, only required to be
-// self-consistent -- ground-truthed against real CometBFT keys earlier this
-// session (circuit/reanchoring_sigtest/).
+// self-consistent -- ground-truthed against real CometBFT keys during
+// development.
 func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 	p, err := edwards25519.NewIdentityPoint().SetBytes(compressed)
 	if err != nil {
@@ -351,9 +351,8 @@ func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 // extractTimestampContent walks a real types.VoteSignBytes(chainID, vote)
 // output (round==0 CanonicalVote, MarshalDelimited protobuf) tag-by-tag to
 // pull out exactly the Timestamp submessage's own content bytes -- ground-
-// truthed field layout (circuit/reanchoring_sigtest/'s
-// build_vote_sign_bytes_matches_real_cometbft_output test, earlier this
-// session): outer varint length prefix, field1 type (2 bytes, fixed value),
+// truthed field layout (matches circuit/reanchoring/src/main.nr's
+// build_vote_sign_bytes): outer varint length prefix, field1 type (2 bytes, fixed value),
 // field2 height (9 bytes, fixed64), field4 block_id (tag+varint-len+content,
 // skipped), field5 timestamp (tag+varint-len+CAPTURED content), field6
 // chain_id (tag+varint-len+content, cross-checked against chainID as a

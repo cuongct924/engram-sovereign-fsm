@@ -9,11 +9,10 @@ import (
 
 // TestExtractTimestampContent_RealCometBFTSignBytes cross-checks
 // extractTimestampContent's tag-by-tag walk against the exact ground-truth
-// bytes captured earlier this session via a real
-// types.VoteSignBytes("engram-dev-1", vote) call against the
-// engram-consensus-core fork (circuit/reanchoring_sigtest's
-// build_vote_sign_bytes_matches_real_cometbft_output test uses the same
-// fixture) -- a Precommit at height 12345, round 0, block_hash=[1..32],
+// bytes captured via a real types.VoteSignBytes("engram-dev-1", vote) call
+// against the engram-consensus-core fork (same fixture as circuit/
+// reanchoring/src/main.nr's build_vote_sign_bytes_matches_real_cometbft_output
+// test) -- a Precommit at height 12345, round 0, block_hash=[1..32],
 // part_set{total:1, hash=[200..231]}, timestamp content
 // [0x08,0xc0,0xd9,0xd5,0xd4,0x06], chain_id="engram-dev-1".
 func TestExtractTimestampContent_RealCometBFTSignBytes(t *testing.T) {
@@ -52,7 +51,7 @@ func TestExtractTimestampContent_TruncatedBufferErrors(t *testing.T) {
 
 // TestDecompressEd25519_RealValidatorKey cross-checks decompressEd25519
 // against a real ed25519 keypair's ground-truthed decompression (same
-// fixture as circuit/reanchoring_sigtest's
+// fixture as circuit/reanchoring/src/main.nr's
 // validator_set_hash_matches_real_cometbft_output test, validator index 0):
 // compressed pubkey 66e09c9b...a89e decompresses to this exact (x, y).
 func TestDecompressEd25519_RealValidatorKey(t *testing.T) {
