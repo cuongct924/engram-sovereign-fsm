@@ -34,9 +34,8 @@ func (k *QueryServerImpl) State(ctx context.Context, _ *types.QueryStateRequest)
 }
 
 // RecoveryHeaders dumps the current interval's HeaderHistory + rt_last, plus
-// the boundary-block binding data (circuit/README.md's Scope section) an
-// off-chain prover needs to build a full witness -- without reconstructing
-// any of it independently.
+// the boundary-block binding data an off-chain prover needs to build a full
+// witness without reconstructing any of it independently.
 func (k *QueryServerImpl) RecoveryHeaders(ctx context.Context, _ *types.QueryRecoveryHeadersRequest) (*types.QueryRecoveryHeadersResponse, error) {
 	lastAnchoredRoot, _ := k.LastAnchoredRoot.Get(ctx)
 	lastAnchoredHeight, _ := k.LastAnchoredHeight.Get(ctx)

@@ -15,26 +15,16 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// zkVerifierWasmGz is barretenberg.wasm (a wasm32-wasi UltraHonk/BN254
-// verifier, built from https://github.com/cuongct924/engram-barretenberg-wasm
-// -- a minimal, patched subset of AztecProtocol/aztec-packages, pinned to
-// commit 87aa5283d5b0cab6632ed49fdd25f6548d2ba91f / tag
-// v5.0.0-nightly.20260522, matching the exact `bb` release this repo's own
-// Dockerfile installs (ARG BB_VERSION=5.0.0-nightly.20260522) -- prover and
-// verifier must share one toolchain build, see that repo's README for why),
-// gzip-compressed (83MB -> 5.6MB; WASM bytecode compresses very well) to
-// stay well under GitHub's 100MB file limit.
+// zkVerifierWasmGz is barretenberg.wasm (a wasm32-wasi UltraHonk/BN254 verifier built from
+// https://github.com/cuongct924/engram-barretenberg-wasm, pinned to the same `bb` release
+// this repo's Dockerfile installs), gzip-compressed to stay under GitHub's 100MB limit.
 //
 //go:embed zk_assets/barretenberg.wasm.gz
 var zkVerifierWasmGz []byte
 
-// bn254G1FirstElement is the CIRCUIT-INDEPENDENT first point of the BN254
-// trusted-setup G1 SRS, uncompressed (bb::srs::factories::
-// BN254_G1_FIRST_ELEMENT_COMPRESSED's affine (1,2), matching
-// ~/.bb-crs/bn254_g1.dat's first 64 bytes on any real bb install). Real
-// UltraHonk verification only ever needs num_points=1
-// (VerifierCommitmentKey::get_verifier_crs() == get_crs(1)) -- the full
-// multi-hundred-MB proving SRS is never touched here.
+// bn254G1FirstElement is the circuit-independent first point of the BN254 trusted-setup G1
+// SRS (matches ~/.bb-crs/bn254_g1.dat's first 64 bytes) -- real UltraHonk verification only
+// ever needs num_points=1, so the multi-hundred-MB proving SRS is never touched here.
 var bn254G1FirstElement = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
@@ -42,19 +32,14 @@ var bn254G1FirstElement = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
 }
 
-// bn254G2Element is bb::srs::factories::BN254_G2_ELEMENT_BYTES, the
-// canonical Aztec trusted-setup [x]_2 -- a compile-time constant inside
-// barretenberg.wasm itself (src/barretenberg/srs/factories/bn254_crs_data.hpp),
-// not read from any file. Kept here identically so SrsInitSrs (which
-// requires a caller-supplied g2_point regardless) has something to pass.
+// bn254G2Element is the canonical Aztec trusted-setup [x]_2, a compile-time constant inside
+// barretenberg.wasm itself -- kept here so SrsInitSrs has a g2_point to pass.
 var bn254G2Element = []byte{
 	0x01, 0x18, 0xc4, 0xd5, 0xb8, 0x37, 0xbc, 0xc2, 0xbc, 0x89, 0xb5, 0xb3, 0x98, 0xb5, 0x97, 0x4e, 0x9f, 0x59, 0x44, 0x07, 0x3b, 0x32, 0x07, 0x8b, 0x7e, 0x23, 0x1f, 0xec, 0x93, 0x88, 0x83, 0xb0, 0x26, 0x0e, 0x01, 0xb2, 0x51, 0xf6, 0xf1, 0xc7, 0xe7, 0xff, 0x4e, 0x58, 0x07, 0x91, 0xde, 0xe8, 0xea, 0x51, 0xd8, 0x7a, 0x35, 0x8e, 0x03, 0x8b, 0x4e, 0xfe, 0x30, 0xfa, 0xc0, 0x93, 0x83, 0xc1, 0x22, 0xfe, 0xbd, 0xa3, 0xc0, 0xc0, 0x63, 0x2a, 0x56, 0x47, 0x5b, 0x42, 0x14, 0xe5, 0x61, 0x5e, 0x11, 0xe6, 0xdd, 0x3f, 0x96, 0xe6, 0xce, 0xa2, 0x85, 0x4a, 0x87, 0xd4, 0xda, 0xcc, 0x5e, 0x55, 0x04, 0xfc, 0x63, 0x69, 0xf7, 0x11, 0x0f, 0xe3, 0xd2, 0x51, 0x56, 0xc1, 0xbb, 0x9a, 0x72, 0x85, 0x9c, 0xf2, 0xa0, 0x46, 0x41, 0xf9, 0x9b, 0xa4, 0xee, 0x41, 0x3c, 0x80, 0xda, 0x6a, 0x5f, 0xe4,
 }
 
-// wasmMemoryMinPages/wasmMemoryMaxPages are barretenberg.wasm's own memory
-// import limits (--stack-first,-z,stack-size=16777216,--max-memory=4294967296
-// at link time) -- must match exactly what the module was linked to expect,
-// re-derived via wazero's own CompiledModule.ImportedMemories() if this
+// wasmMemoryMinPages/wasmMemoryMaxPages are barretenberg.wasm's own memory import limits
+// (set at link time) -- re-derive via wazero's CompiledModule.ImportedMemories() if this
 // build is ever regenerated with different limits.
 const (
 	wasmMemoryMinPages = 272
@@ -113,19 +98,15 @@ func newZKVerifierRuntime(ctx context.Context) (*zkVerifierRuntime, error) {
 	gofuncsBuilder := rt.NewHostModuleBuilder("gofuncs").
 		NewFunctionBuilder().
 		WithFunc(func(_ context.Context, m api.Module, msgPtr uint32) {
-			// throw_or_abort_impl: real invariant violations inside
-			// barretenberg (e.g. a malformed VK) surface here as a wasm
-			// trap right after this returns -- log for diagnosis, the trap
-			// itself is what VerifyZKProof's caller ultimately observes.
+			// throw_or_abort_impl: a real invariant violation (e.g. malformed VK) traps
+			// right after this returns -- log for diagnosis, the caller sees the trap.
 			fmt.Println("engramd: zk verifier wasm throw_or_abort:", readWasmCString(m, msgPtr))
 		}).
 		Export("throw_or_abort_impl").
 		NewFunctionBuilder().
 		WithFunc(func(_ context.Context, _ api.Module, _ uint32) {
-			// logstr: barretenberg's internal info()/vinfo() logging --
-			// deliberately dropped, not printed, so a validator's own
-			// verify-path logging stays as quiet as the previous `bb`
-			// CLI subprocess's stdout already was (never captured).
+			// logstr: barretenberg's internal info()/vinfo() logging -- dropped, matching
+			// the previous `bb` CLI subprocess's stdout (never captured either).
 		}).
 		Export("logstr")
 
@@ -137,19 +118,10 @@ func newZKVerifierRuntime(ctx context.Context) (*zkVerifierRuntime, error) {
 	}, nil
 }
 
-// buildZKVerifierEnvModule hand-assembles a minimal WASM binary module that
-// imports the "gofuncs"-hosted throw_or_abort_impl/logstr functions,
-// defines the linear memory barretenberg.wasm's own "env" import expects,
-// and re-exports both the memory and the two functions under module name
-// "env" -- WASM natively allows a module to re-export what it imports.
-//
-// This exists because wazero's HostModuleBuilder can only export functions,
-// never memory: since barretenberg.wasm imports BOTH memory and functions
-// from the same source module name ("env"), a real Go-backed host module
-// can't supply the memory half. Splitting the Go functions into a
-// separately-named host module ("gofuncs") and gluing the two together
-// via this synthetic module lets one WASM instantiation of "env" satisfy
-// both halves of that single import namespace.
+// buildZKVerifierEnvModule hand-assembles a WASM module that re-exports the "gofuncs" host
+// functions plus a linear memory under module name "env" -- works around wazero's
+// HostModuleBuilder only being able to export functions, never memory, while
+// barretenberg.wasm's "env" import needs both from the same source module.
 func buildZKVerifierEnvModule(minPages, maxPages uint32) []byte {
 	var buf bytes.Buffer
 	buf.Write([]byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}) // magic + version
@@ -234,11 +206,8 @@ func readWasmCString(m api.Module, ptr uint32) string {
 	return string(out)
 }
 
-// circuitVerifyRequest mirrors bb::bbapi::CircuitVerify's SERIALIZATION_FIELDS
-// exactly (verification_key, public_inputs, proof, settings) -- field NAMES
-// are the wire keys as-declared (snake_case), not camelCase; see
-// https://github.com/cuongct924/engram-barretenberg-wasm's README for how
-// this was confirmed against the real C++ NVP/msgpack macro.
+// circuitVerifyRequest mirrors bb::bbapi::CircuitVerify's SERIALIZATION_FIELDS exactly --
+// field names are the real snake_case wire keys, not camelCase.
 type circuitVerifyRequest struct {
 	VerificationKey []byte              `msgpack:"verification_key"`
 	PublicInputs    [][]byte            `msgpack:"public_inputs"`
@@ -263,11 +232,9 @@ type srsInitSrsRequest struct {
 	G2Point   []byte `msgpack:"g2_point"`
 }
 
-// chunk32 splits raw concatenated 32-byte field elements -- the same
-// convention circuit/reanchoring's proof/public_inputs files, and
-// Barretenberg's own many_from_buffer_exact<uint256_t>, already use. No
-// length prefix, no byte-order conversion: msg.ZkProof/msg.PublicInputs are
-// already in exactly this format.
+// chunk32 splits raw concatenated 32-byte field elements -- the same convention
+// circuit/reanchoring's proof/public_inputs files and Barretenberg's own
+// many_from_buffer_exact<uint256_t> already use; no prefix or conversion needed.
 func chunk32(data []byte) [][]byte {
 	out := make([][]byte, 0, len(data)/32)
 	for i := 0; i+32 <= len(data); i += 32 {
@@ -276,12 +243,9 @@ func chunk32(data []byte) [][]byte {
 	return out
 }
 
-// verifyZKProofWasm runs vk/proof/publicInputs through the embedded
-// wasm32-wasi UltraHonk verifier via wazero -- a deterministic, pure-Go
-// replacement for shelling out to the `bb` CLI. Every validator running the
-// same engramd binary runs the exact same verifier bytecode, removing the
-// external-binary/PATH/OS dependency a pinned checksum could only detect
-// after the fact, never eliminate.
+// verifyZKProofWasm runs vk/proof/publicInputs through the embedded wasm32-wasi UltraHonk
+// verifier via wazero -- a deterministic, pure-Go replacement for shelling out to `bb`, so
+// every validator runs the exact same verifier bytecode regardless of local install.
 func verifyZKProofWasm(vk, proof, publicInputs []byte) (bool, error) {
 	ctx := context.Background()
 	zkrt, err := getZKVerifierRuntime(ctx)
@@ -289,12 +253,9 @@ func verifyZKProofWasm(vk, proof, publicInputs []byte) (bool, error) {
 		return false, fmt.Errorf("zk verifier runtime: %w", err)
 	}
 
-	// Each call gets its own fresh gofuncs/env/main instances -- module names
-	// must be unique within a runtime at any given time, and reusing a
-	// single main-module instance across calls would leak barretenberg's
-	// internal C++ static state (the SRS factory, CRS init flags) between
-	// verifications. Closed in dependency order (main, then env, then
-	// gofuncs) via LIFO defers below.
+	// Fresh gofuncs/env/main instances every call -- reusing one main-module instance would
+	// leak barretenberg's internal C++ static state between verifications. Closed in
+	// dependency order (main, env, gofuncs) via the LIFO defers below.
 	gofuncsInst, err := zkrt.gofuncsBuilder.Instantiate(ctx)
 	if err != nil {
 		return false, fmt.Errorf("instantiate gofuncs host module: %w", err)
@@ -313,10 +274,8 @@ func verifyZKProofWasm(vk, proof, publicInputs []byte) (bool, error) {
 	}
 	defer mod.Close(ctx)
 
-	// WASI reactor pattern: barretenberg.wasm exports "_initialize" (runs
-	// C++ global/static constructors, e.g. Poseidon2's round-constant
-	// tables), not "_start" -- WithStartFunctions() above only auto-runs
-	// "_start", so this must be called explicitly before any other export.
+	// WASI reactor pattern: barretenberg.wasm exports "_initialize" (runs C++ static
+	// constructors), not "_start", so it must be called explicitly before any other export.
 	if initFn := mod.ExportedFunction("_initialize"); initFn != nil {
 		if _, err := initFn.Call(ctx); err != nil {
 			return false, fmt.Errorf("_initialize: %w", err)
@@ -381,10 +340,8 @@ func verifyZKProofWasm(vk, proof, publicInputs []byte) (bool, error) {
 	return vresp.Verified, nil
 }
 
-// encodeBBAPICommand builds bbapi's msgpack wire format for Command:
-// bbapi(Command&&) takes ONE argument, so msgpack_cbind_impl unpacks into
-// std::tuple<Command> -- an outer 1-element array wrapping the Command
-// itself, which is in turn NamedUnion's own [type_name, payload] 2-array.
+// encodeBBAPICommand builds bbapi's msgpack wire format: a 1-element array wrapping
+// Command (msgpack_cbind_impl's std::tuple<Command>), itself a [type_name, payload] 2-array.
 func encodeBBAPICommand(name string, payload interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := msgpack.NewEncoder(&buf)
@@ -403,12 +360,9 @@ func encodeBBAPICommand(name string, payload interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// callBBAPI runs one bbapi(Command) round-trip: writes cmdBuf into the
-// module's linear memory via bbmalloc, calls bbapi(input_ptr, input_len,
-// &output_ptr, &output_len), copies the response out, and frees every
-// allocation it made (matching c_bind.hpp's "caller must free the memory"
-// doc). Returns the raw CommandResponse bytes and the response's own
-// NamedUnion type name (e.g. "CircuitVerifyResponse" or "ErrorResponse").
+// callBBAPI runs one bbapi(Command) round-trip via bbmalloc/bbapi/bbfree, freeing every
+// allocation it made (c_bind.hpp's "caller must free the memory"). Returns the raw
+// CommandResponse bytes and its NamedUnion type name (e.g. "CircuitVerifyResponse").
 func callBBAPI(ctx context.Context, mod api.Module, bbmalloc, bbfree, bbapiFn api.Function, cmdBuf []byte) ([]byte, string, error) {
 	res, err := bbmalloc.Call(ctx, uint64(len(cmdBuf)))
 	if err != nil {

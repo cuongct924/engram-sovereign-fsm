@@ -36,22 +36,11 @@ func NewPreBlocker(k *keeper.Keeper) sdk.PreBlocker {
 		if err := CommitFSMTransition(ctx, k, ext); err != nil {
 			return nil, err
 		}
-		// BlockHashByHeight: this height's own real CometBFT block hash --
-		// req.Hash ("the merkle root hash of the fields of the decided
-		// block", abci/types/types.pb.go's RequestFinalizeBlock doc). Lives
-		// here (not CommitFSMTransition) because req.Hash is only available
-		// via the real ABCI request; CommitFSMTransition is also called
-		// directly by tests/the in-process e2e BeginBlocker path with no
-		// such request. ctx.BlockHeader().LastBlockId is NOT a substitute:
-		// that field is never populated in this context (RequestFinalizeBlock
-		// carries no LastBlockId at all, unlike AppHash, which BaseApp
-		// threads through from its own prior response) -- an earlier
-		// version of this code wrongly assumed it behaved the same way and
-		// silently wrote empty hashes. What SubmitRecoveryProof later reads
-		// for the first/last real header's boundary-signature binding
-		// (keeper.go's BlockHashByHeight doc); kept general (any tracked
-		// height, not just two fixed endpoints) so a checkpoint's own
-		// height doesn't need to already be known before it can be proven.
+		// req.Hash is this height's real block hash, only available here (not
+		// in CommitFSMTransition, which tests also call directly with no ABCI
+		// request). ctx.BlockHeader().LastBlockId is NOT a substitute -- it's
+		// never populated here, unlike AppHash; an earlier version wrongly
+		// assumed otherwise and silently wrote empty hashes.
 		if types.WithdrawLocked(ext.FsmState) {
 			if err := k.BlockHashByHeight.Set(ctx, uint64(ctx.BlockHeight()), req.Hash); err != nil {
 				return nil, err
@@ -133,11 +122,10 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 	if err := k.HBtcAnchored.Set(ctx, ext.BtcCheckpointBlockHeight); err != nil {
 		return err
 	}
-	// HEngramVerifiedAtRecoveryEntry: snapshot the PRE-transition value (not
-	// ext.DaPublishedBlockHeight, the value about to be committed below) the
-	// one block RECOVERING is first entered -- see its keeper.go doc for why
-	// a fixed per-episode reference, not the ratcheting committed value, is
-	// required for the zk_proof_ref freshness gate to be satisfiable at all.
+	// Snapshot the PRE-transition value (not the value about to be committed
+	// below) the one block RECOVERING is entered -- keeper.go's
+	// HEngramVerifiedAtRecoveryEntry doc explains why a fixed per-episode
+	// reference is required.
 	if currState != types.StateRecovering && ext.FsmState == types.StateRecovering {
 		hEngramVerifiedBefore, _ := k.HEngramVerified.Get(ctx)
 		if err := k.HEngramVerifiedAtRecoveryEntry.Set(ctx, hEngramVerifiedBefore); err != nil {
@@ -152,14 +140,10 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 		return err
 	}
 
-	// h_btc_current: the quorum-certified median (metrics.BtcCurrentHeight,
-	// re-derived deterministically from ext.Certificates -- the SAME
-	// computation PrepareProposal/ProcessProposal already did this round),
-	// written unconditionally every block. See PeripheralMetrics.
-	// btc_current_height's doc: leaving this committed value stale (only
-	// updated on the rare RECOVERING->ANCHORED edge, as the pre-vote-
-	// extension design did) round-skips every proposal forever once a real,
-	// growing checkpoint height first exceeds the frozen h_btc_current.
+	// h_btc_current: the quorum-certified median, re-derived deterministically
+	// from ext.Certificates (same computation ProcessProposal already did),
+	// written unconditionally every block -- leaving it stale round-skips
+	// every proposal once a real checkpoint height exceeds it.
 	metrics, _ := AggregateHealthCertificates(ctx, k, ctx.ChainID(), ext.Height, ext.Certificates)
 	var hBtcCurrent uint64
 	if metrics != nil {
@@ -169,27 +153,19 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 		return err
 	}
 
-	// reanchoring_proof_valid: recomputed from THIS block's just-committed
-	// FSMState/HBtcAnchored above (see refreshReanchoringProofValid's doc --
-	// moved here from RefreshMetrics, which only ever ran inside ExtendVote's
-	// throwaway CacheMultiStore and so could set this to true, but never make
-	// it stick: the RECOVERING->ANCHORED transition (gated on this value) was
-	// consequently unreachable in real committed state -- reproduced live,
-	// the third instance of the h_btc_current dead-write bug class in this
-	// file). Must run before Step 4 below, which unconditionally overwrites
-	// this block's own freshly-submitted-proof case back to false.
+	// Recomputed from THIS block's just-committed FSMState/HBtcAnchored, not
+	// inside ExtendVote's throwaway CacheMultiStore (a dead-write bug class
+	// that made this unreachable before). Must run before Step 4, which
+	// overwrites the freshly-submitted-proof case back to false.
 	if err := refreshReanchoringProofValid(ctx, k); err != nil {
 		return err
 	}
 
-	// Step 4: mark a claimed ZK proof as submitted (pending BTC confirmation).
-	// Latched ONCE per episode (HeuristicProofLatched's doc): SafeBlocks caps
-	// at HysteresisWait and stays there, so a non-empty ZkProofRef keeps
-	// showing up on every subsequent block too (ProcessProposal's check #5
-	// requires it as long as SafeBlocks==HysteresisWait) -- re-running this
-	// body every time would re-pin HBtcSubmitted to the current, ever-
-	// climbing h_btc_current and reset ReanchoringProofValid to false every
-	// block, so hAnchored (BTC-confirmation-lagged) could never catch up.
+	// Step 4: mark a claimed ZK proof as submitted. Latched ONCE per episode
+	// (HeuristicProofLatched's doc) -- SafeBlocks stays pinned at
+	// HysteresisWait, so re-running this every block would re-pin
+	// HBtcSubmitted to an ever-climbing value and hAnchored could never
+	// catch up.
 	if ext.FsmState == types.StateRecovering && len(ext.ZkProofRef) > 0 {
 		latched, _ := k.HeuristicProofLatched.Get(ctx)
 		if !latched {
@@ -234,22 +210,16 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 		}
 	}
 
-	// Step 6: track per-block header history for the ZK re-anchoring circuit's
-	// witness (spec/README.md's §Re-anchoring via ZK-Proof of Recovery), only
-	// while SOVEREIGN/RECOVERING. StateRoot is CometBFT's real AppHash;
-	// Accumulator is HashHeader chained from LastAnchoredRoot -- the value a
-	// real, honest witness built from this exact history would produce
-	// (circuit/reanchoring/src/main.nr's hash_header). Only consensus ever
-	// writes here, so the accumulator can't be advanced except by real,
-	// agreed blocks -- see circuit/reanchoring/src/main.nr's rt_new-binding
-	// doc for why this matters.
+	// Step 6: track per-block header history for the ZK re-anchoring
+	// circuit's witness, only while SOVEREIGN/RECOVERING. Accumulator chains
+	// via HashHeader (main.nr's hash_header) so it can only advance via
+	// real, agreed blocks.
 	if types.WithdrawLocked(ext.FsmState) {
 		if !types.WithdrawLocked(currState) {
-			// First entry into the interval: rt_last is this block's incoming
-			// AppHash, the pre-interval state headers[0].prev_hash must bind
-			// to; LastAnchoredHeight tracks the height it corresponds to, so
-			// SubmitRecoveryProof can later enforce the proof's claimed
-			// `count` against the real interval length.
+			// First entry: rt_last is this block's incoming AppHash, the
+			// pre-interval state headers[0].prev_hash must bind to;
+			// LastAnchoredHeight lets SubmitRecoveryProof later enforce the
+			// proof's claimed `count` against the real interval length.
 			if err := k.LastAnchoredRoot.Set(ctx, types.ReduceToField(ctx.BlockHeader().AppHash)); err != nil {
 				return err
 			}
@@ -257,11 +227,9 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 				return err
 			}
 		}
-		// The accumulator chains from the immediately preceding tracked
-		// header, or from LastAnchoredRoot when HeaderHistory is empty --
-		// either because this is the interval's first header, or because a
-		// prior proof pruned the backlog up to the current tip while the
-		// interval is still ongoing (pruneHeaderHistoryUpTo).
+		// Chains from the preceding tracked header, or LastAnchoredRoot when
+		// HeaderHistory is empty (first header, or a prior proof pruned the
+		// backlog up to the current tip mid-interval).
 		prevAccumulator, err := k.LastAnchoredRoot.Get(ctx)
 		if err != nil {
 			return err
@@ -341,14 +309,9 @@ func recordDetectedEvidence(ctx sdk.Context, k *keeper.Keeper, req *abci.Request
 }
 
 // refreshReanchoringProofValid ports UpdateSensors' reanchoring_proof_valid
-// (spec/core/EngramFSM.tla:294-301). Called from CommitFSMTransition, after
-// this block's FSMState/HBtcAnchored writes above, so its own
-// k.FSMState.Get/k.HBtcAnchored.Get reads pick up THIS block's freshly
-// committed values, not last block's -- matching how every other certified
-// value in this file already works (one block's CommitFSMTransition feeds
-// the next block's PrepareProposal/ProcessProposal). It reads no live
-// sensor, only already-committed keeper state, so it needs no vote-extension
-// certification of its own.
+// (spec/core/EngramFSM.tla:294-301). Runs after this block's FSMState/
+// HBtcAnchored writes so its reads pick up THIS block's fresh values. Reads
+// only committed keeper state, never a live sensor.
 func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
 	currState, err := k.FSMState.Get(ctx)
 	if err != nil {

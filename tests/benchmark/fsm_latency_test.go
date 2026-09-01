@@ -1,16 +1,8 @@
 // Package benchmark implements E7 (Consensus Overhead of the Extended
 // Proposal) as Go benchmarks: `go test ./tests/benchmark/... -bench=. -benchmem`.
-//
-// V0-V5 don't map to separate code paths -- the real ExtendedProposal always
-// carries the full field set. So size is measured by json.Marshal-ing
-// progressively larger structs (BenchmarkProposalSize), and CPU cost by the
-// real sub-steps ProcessProposal calls (CalculateNextState, da.VerifyReceipt,
-// anchor.VerifyReceipt) plus one end-to-end benchmark for V5.
-// scripts/e7_consensus_overhead composes V1-V4 from these.
-//
-// P2P health (V4) isn't on the real wire today (validated from the leader's
-// keeper.Metrics, see currentFSMInput); P2PDigestSizeEstimate only estimates
-// what a digest would add -- an estimate, not a measurement of shipped code.
+// V0-V5 don't map to separate code paths, so size is measured via
+// json.Marshal on progressively larger structs and CPU cost via the real
+// ProcessProposal sub-steps; P2P health (V4) is an estimate, not shipped code.
 package benchmark
 
 import (
@@ -60,8 +52,7 @@ func newTestKeeperCtx(tb testing.TB) (*keeper.Keeper, sdk.Context) {
 
 // signedCertificates registers n equal-power validators and signs the same
 // metrics for each -- AggregateHealthCertificates verifies a real ed25519
-// signature per certificate, so a benchmark fixture needs real key material,
-// not just a claimed value (see x/sovereignty/vote_extension.go).
+// signature per certificate, so the fixture needs real key material.
 func signedCertificates(tb testing.TB, k *keeper.Keeper, ctx sdk.Context, height int64, metrics *types.PeripheralMetrics, n int) []*types.SignedHealthCertificate {
 	tb.Helper()
 	ext, err := proto.Marshal(metrics)

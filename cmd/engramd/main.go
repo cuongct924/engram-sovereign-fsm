@@ -36,12 +36,9 @@ import (
 )
 
 // engramConsensusParams enables ABCI++ vote extensions from genesis --
-// without this, CometBFT never calls ExtendVote/VerifyVoteExtension
-// (app/app.go's SetExtendVoteHandler/SetVerifyVoteExtensionHandler wiring is
-// otherwise dead code) and NewPrepareProposalHandler's LocalLastCommit stays
-// permanently empty, i.e. AggregateHealthCertificates never reaches quorum
-// (see x/sovereignty/vote_extension.go, x/sovereignty/proposal.go's
-// degradedMetrics fallback).
+// without this, CometBFT never calls ExtendVote/VerifyVoteExtension and
+// AggregateHealthCertificates never reaches quorum (x/sovereignty/
+// vote_extension.go).
 func engramConsensusParams() *cmttypes.ConsensusParams {
 	cp := cmttypes.DefaultConsensusParams()
 	cp.ABCI.VoteExtensionsEnableHeight = 1
@@ -107,10 +104,8 @@ func initHome(home, moniker string) error {
 	cmtcfg.EnsureRoot(home)
 
 	config.Moniker = moniker
-	// Enables the ABCI ingress peer filter (peer_filter.go's FilterPeerByAddr,
-	// via baseapp.SetAddrPeerFilter) -- a stock CometBFT mechanism,
-	// createCometTransport already builds the "/p2p/filter/addr/..." query
-	// path when true, no fork changes needed.
+	// Enables the ABCI ingress peer filter (peer_filter.go's FilterPeerByAddr)
+	// -- a stock CometBFT mechanism, no fork changes needed.
 	config.FilterPeers = true
 	cmtcfg.WriteConfigFile(filepath.Join(home, "config", "config.toml"), config)
 
@@ -171,12 +166,9 @@ func mustMarshalGenesis(gs *sovereigntytypes.GenesisState) json.RawMessage {
 	return bz
 }
 
-// paramsFromEnv builds x/sovereignty's Params from ENGRAM_PARAM_* env vars,
-// DefaultParams() per-field. Read ONLY at genesis-generation time
-// (initHome/testnetInitFiles), never by `start`: every node copies the same
-// generated genesis.json, so an override baked in stays uniform; re-reading
-// env at `start` would let each node's local .env silently diverge -- a
-// liveness/safety bug for consensus-compared values (see Params.Validate).
+// paramsFromEnv builds x/sovereignty's Params from ENGRAM_PARAM_* env vars.
+// Read ONLY at genesis-generation time, never by `start` -- every node must
+// copy the same generated genesis.json, or consensus-compared params diverge.
 func paramsFromEnv() (sovereigntytypes.Params, error) {
 	p := sovereigntytypes.DefaultParams()
 	fields := []struct {
@@ -215,12 +207,9 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 		*f.dst = v
 	}
 
-	// ENGRAM_PARAM_PROOF_ONLY_RECOVERY (bool, not uint64 like the fields
-	// above): forces refreshReanchoringProofValid to require a real ZK
-	// proof, disabling the heuristic fallback -- see types.Params.
-	// ProofOnlyRecovery's doc. Used to run E10's recovery-time measurement
-	// under a mode where the result is attributable to the ZK pipeline
-	// specifically (docs/EXPERIMENT.md's E10 recovery-time finding).
+	// ENGRAM_PARAM_PROOF_ONLY_RECOVERY (bool, not uint64): forces recovery to
+	// require a real ZK proof, disabling the heuristic fallback -- see
+	// types.Params.ProofOnlyRecovery's doc.
 	if raw := os.Getenv("ENGRAM_PARAM_PROOF_ONLY_RECOVERY"); raw != "" {
 		v, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -236,10 +225,8 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 }
 
 // testnetInitFilesCmd generates N validator homes sharing ONE genesis (all
-// power 10) and per-node persistent_peers. initHome only makes a
-// single-validator genesis -- correct for single-node but can't bootstrap a
-// real multi-node testnet, where each node would otherwise generate a
-// DIFFERENT single-validator genesis and never agree.
+// power 10) and per-node persistent_peers -- initHome alone would give each
+// node a DIFFERENT single-validator genesis, which never agree.
 func testnetInitFilesCmd() *cobra.Command {
 	var (
 		numValidators  int
@@ -264,9 +251,8 @@ func testnetInitFilesCmd() *cobra.Command {
 }
 
 // pairwiseLinkIndex returns the 0-indexed link for unordered pair {i,j} in
-// row-major order: (0,1),(0,2),...,(0,n-1),(1,2),... -- must match
-// docker/engram-validator-cluster.yml's validator-link-NN-MM networks 1:1
-// (no shared source of truth between the YAML and this file).
+// row-major order -- must match docker/engram-validator-cluster.yml's
+// validator-link-NN-MM networks 1:1 (no shared source of truth).
 func pairwiseLinkIndex(i, j, n int) int {
 	if i > j {
 		i, j = j, i
@@ -275,11 +261,9 @@ func pairwiseLinkIndex(i, j, n int) int {
 }
 
 // pairwiseLinkPeerIP returns validator `peer`'s static IP as dialed by `self`
-// on their dedicated link (172.40.<link>.0/29, gateway .1, lower-indexed
-// validator .2, higher .3) -- a literal IP, not a hostname, so real
-// SubnetDiversity reads each peer from a genuinely distinct subnet. Peer auth
-// is unaffected: CometBFT verifies nodeID via the secret handshake regardless
-// of which address reached it.
+// on their dedicated /29 link (lower-indexed validator .2, higher .3) -- a
+// literal IP, not a hostname, so real SubnetDiversity sees each peer on a
+// genuinely distinct subnet.
 func pairwiseLinkPeerIP(self, peer, n int) string {
 	link := pairwiseLinkIndex(self, peer, n)
 	if peer < self {
@@ -440,10 +424,8 @@ func runStart(home string, vanilla bool) error {
 	if err != nil {
 		return fmt.Errorf("load genesis (did you run `engramd init` first?): %w", err)
 	}
-	// ENGRAM_BYZANTINE_BEHAVIOR: unset ("") on every real validator --
-	// deliberate misbehavior for docs/EXPERIMENT.md's E8 A3/A4/A6/A7 rows,
-	// only ever set by docker/engram-node04-byzantine.yml. See
-	// x/sovereignty/proposal.go's applyByzantineBehavior for recognized values.
+	// ENGRAM_BYZANTINE_BEHAVIOR: unset on every real validator -- deliberate
+	// misbehavior for E8's attack rows only (proposal.go's applyByzantineBehavior).
 	byzantineBehavior := os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR")
 	if byzantineBehavior != "" {
 		fmt.Println("engramd: WARNING -- ENGRAM_BYZANTINE_BEHAVIOR is set:", byzantineBehavior,
@@ -488,11 +470,8 @@ func runStart(home string, vanilla bool) error {
 	return n.Stop()
 }
 
-// lp2pHealthAdapter converts the CometBFT fork's raw lp2p.HealthSnapshot
-// (github.com/cuongct090_04/engram-consensus-core) into the field-compatible
-// sensors.P2PSnapshot shape x/sovereignty expects -- implements
-// sensors.P2PHealthSource. Lives here because it's the only layer importing
-// both the fork's lp2p package and x/sovereignty's sensors package.
+// lp2pHealthAdapter converts the CometBFT fork's raw lp2p.HealthSnapshot into
+// the field-compatible sensors.P2PSnapshot shape x/sovereignty expects.
 type lp2pHealthAdapter struct {
 	sw *lp2p.Switch
 }

@@ -3,56 +3,27 @@
 (Relay Node Attack / relay-node latency inflation), beyond the existing synthetic Monte Carlo data
 (tests/e2e/p2p_detector_comparison_test.go's A4_RelayNodeAttack).
 
-Same live-observability mechanism as A3 (live_churn_attack.py, see its module doc for the full
-explanation): PeerLatency is read from CometBFT's real p2p.Peer.RTT() by
-cmd/engramd/main.go's vanillaP2PHealthAdapter (the real max RTT across a node's own peers), folded
-into IsP2PQualityHealthy, and the derived Healthy boolean is committed consensus state via
-ExtendedProposal.Healthy -- so, like A3, this attack's live success signal is a real, bounded FSM
-degradation during the attack window followed by hysteresis-gated recovery, the opposite polarity
-from A1/A2 (whose success signal is the FSM staying untouched, since FilterPeerByAddr absorbs
-those attacks at ingress before the FSM ever sees them).
+Same live-observability mechanism as A3 (see live_churn_attack.py's module doc): PeerLatency
+folds into IsP2PQualityHealthy, which IS committed consensus state -- so success here means a
+real, bounded FSM degradation and recovery, not the FSM staying untouched (A1/A2's signal).
 
-Mechanism: one real validator (engram-node04) gets ITS ACTUAL P2P LINKS delayed via direct `tc
-qdisc add ... netem delay` (350ms +-50ms), applied through a throwaway privileged debug container
-sharing node04's network namespace (docker run --net=container:engram-node04 --cap-add=NET_ADMIN)
--- clearly above MaxPeerLatency=200ms (x/sovereignty/types/params.go), and comfortably above the
-existing WAN baseline's own max (140ms+-25ms, which never crosses 200ms and so can't double as
-this attack).
+Mechanism: real `tc qdisc add ... netem delay` (350ms +-50ms) applied directly to node04's actual
+P2P interfaces via a throwaway container sharing its netns -- above MaxPeerLatency=200ms and the
+WAN baseline's max (140ms).
 
-NOT via Pumba's `netem delay <container>` command, despite that being every other netem profile's
-mechanism in this file's family (compose.yml). Confirmed live: Pumba applies its delay to
-whichever interface Docker assigns as `eth0`, and this cluster's real P2P gossip does NOT run over
-that interface. `docker/engram-validator-cluster.yml` gives node04 NINE networks (bitcoin-net,
-celestia-net, engram-net, plus six dedicated pairwise validator-link-0X-04 networks, one per
-other validator in this 7-node cluster -- this is a pairwise-link topology, not a shared-bridge one). Docker assigns eth0..eth5 by
-network *attachment* order, which does not match the YAML's `networks:` block order -- confirmed
-live via `ip -o addr show` inside node04's netns: eth0 is bitcoin-net (172.21.0.130), completely
-unrelated to consensus traffic. The real per-peer gossip links are the three validator-link-0X-04
-interfaces (172.40.0.0/16 addresses) -- discovered dynamically at runtime by IP prefix, not
-hardcoded as eth3/eth4/eth5, since attachment order is not a stable contract. A first live run
-using Pumba's `dev eth0` genuinely applied a confirmed-active 350ms delay for the whole 240s attack
-window (verified via `tc qdisc show`) with ZERO effect on any validator's measured PeerLatency,
-because it delayed the wrong network entirely.
+NOT via Pumba's `netem delay <container>`: confirmed live that Pumba's default `eth0` isn't this
+cluster's real gossip interface (node04 has 9 networks; eth-index != attachment order). The real
+per-peer links are discovered at runtime by IP prefix (172.40.0.0/16), not hardcoded -- a first
+run using Pumba's eth0 applied a confirmed-active delay with zero effect on PeerLatency, because
+it hit the wrong network.
 
-Cluster-wide-visibility note (the opposite of A3's proposer-visibility caveat): delaying ALL SIX
-of node04's pairwise links means every other validator's real p.RTT() measurement of ITS
-connection to node04 goes up simultaneously, so all six non-target validators should see the
-same degraded reading regardless of whose turn it is to propose -- a cleaner, less intermittent
-signal is expected here than for A3.
+Quorum note (see live_churn_attack.py for A3's full explanation): unlike A3's single-link churn
+(visible to only 2/7 validators), delaying all of node04's links degrades every OTHER validator's
+own RTT reading of it too -- all 7 should independently see Healthy=false, past the >2/3 quorum
+needed to commit. A real FSM transition is therefore the expected outcome here, unlike A3.
 
-Quorum note (see live_churn_attack.py's module doc for A3's full BFT-quorum explanation): unlike
-A3's single-peer-link churn (visible to only 2 of 7 validators' own local view), delaying node04
-degrades every OTHER validator's own measurement of that link too -- all 7 validators should
-independently compute Healthy=false, well past the >2/3 quorum ProcessProposal
-(x/sovereignty/proposal.go:293-303) requires to commit a transition. This attack is not
-minority-visible the way A3's was, so a real FSM transition is the expected outcome here.
-
-Window duration: `RTT()` (../engram-consensus-core/p2p/conn/connection.go) only updates once per
-real PacketPing/PacketPong exchange, and CometBFT only pings each peer every `defaultPingInterval`
-(60s) -- a 120s attack window can span as few as 0-1 real exchanges depending on the ping timer's
-phase relative to when the attack starts, an unreliable sample size. --attack-s defaults to 240s
-(~4 ping cycles) so at least one elevated-RTT exchange is captured with real margin, regardless of
-phase.
+Window duration: RTT() only updates once per real ping/pong exchange (CometBFT pings every 60s),
+so --attack-s defaults to 240s (~4 cycles) to reliably capture at least one elevated reading.
 
 Usage (against an already-deployed, default-params, healthy ANCHORED testnet -- no genesis change
 needed, MaxPeerLatency is already DefaultParams()):

@@ -3,45 +3,22 @@
 (Churn-based Rotation), beyond the existing synthetic Monte Carlo data
 (tests/e2e/p2p_detector_comparison_test.go's A3_ChurnBasedRotation).
 
-A3 is structurally different from A1/A2 (live_sybil_attack.py): A1/A2 are absorbed at the
-INGRESS filter (FilterPeerByAddr, subnet-count gating) before ever reaching the FSM, so their
-live success signal is the FSM STAYING healthy throughout. A3 targets PeerChurnRate/AvgPeerTenure
-instead -- fields FilterPeerByAddr never reads -- so it isn't stopped at ingress at all. Its real
-churn/tenure values are read from CometBFT's actual p2p.Switch by
-cmd/engramd/main.go's vanillaP2PHealthAdapter and folded into IsP2PQualityHealthy
-(x/sovereignty/types/predicates.go), whose boolean result IS committed consensus state via
-ExtendedProposal.Healthy (x/sovereignty/proposal.go) and can drive ANCHORED->SUSPICIOUS. So A3's
-live success signal is the OPPOSITE of A1/A2's: a real, correctly-bounded FSM degradation during
-the attack window (matching the synthetic 0% FNR result), followed by hysteresis-gated recovery
-once churn stops -- not the FSM staying untouched.
+Unlike A1/A2 (blocked at the ingress filter), A3's PeerChurnRate/AvgPeerTenure reach
+IsP2PQualityHealthy (x/sovereignty/types/predicates.go), which IS committed consensus state and
+can drive ANCHORED->SUSPICIOUS -- so success here means a real, bounded degradation followed by
+hysteresis-gated recovery, not the FSM staying untouched.
 
-Raw PeerChurnRate/AvgPeerTenure values are never queryable live -- logger.py's
-_decode_query_state deliberately skips PeripheralMetrics (PreBlocker never commits k.Metrics) --
-so only the resulting FSM state transition is observable here, not the sensor's raw numbers.
+Raw PeerChurnRate/AvgPeerTenure aren't queryable live (never committed state), so only the
+resulting FSM transition is observable, not the sensor's raw numbers.
 
-Two real attacker peers (docker/attacker-peer-swarm.yml's attacker-a3-01/02, profile
-attacker-swarm-a3) dial engram-node03 and engram-node04 respectively (empirically-confirmed
-ADJACENT proposers in this 7-validator cluster's real round-robin rotation, see
-ATTACKER_SERVICES' doc below); churn is driven by directly
-`docker stop`/`docker start`-ing the attacker CONTAINERS each cycle -- a real TCP teardown, unlike
-netem packet loss, which CometBFT's ping/pong liveness check (60s interval, 45s pong timeout,
-../engram-consensus-core/p2p/conn/connection.go) does not reliably treat as a disconnect.
+Two real attacker containers (docker/attacker-peer-swarm.yml, profile attacker-swarm-a3) dial
+node03/node04 (adjacent proposers, see ATTACKER_SERVICES below); churn is real docker stop/start
+on the containers, not netem (which CometBFT's liveness check doesn't reliably catch).
 
-Expected outcome: **no committed FSM transition**, and this is the correct result, not a detection
-failure. `ProcessProposal` (x/sovereignty/proposal.go:293-303) has every validator independently
-recompute `fsm_state` from its OWN local `PeripheralMetrics` and reject any proposal that disagrees
--- CometBFT then needs >2/3 voting power to commit a block. With only node03/node04 (2 of 7,
-~28.6% voting power) seeing degraded PeerChurnRate, the five honest validators (unaffected)
-always reject an "unhealthy" proposal, forcing round-retries until an honest proposer's ANCHORED
-claim -- which matches the honest majority's own view -- commits instead. A real, verified P2P
-degradation on a MINORITY of validators (confirmed via the sensor_snapshot diagnostic line,
-x/sovereignty/sensors_refresh.go: PeerChurnRate genuinely exceeds MaxChurnRate on both attacked
-nodes) can therefore never force a state transition, by design: "sensors propose, consensus
-decides" means no minority's local view -- however degraded -- can unilaterally move committed
-state. This is the same quorum requirement that gives the protocol its Byzantine-safety guarantee;
-demonstrating it holds here is a real result about the system's robustness to localized/partial P2P
-attacks, not a null result. A supermajority attack (>=5 of 7 validators) would be a structurally
-different experiment.
+Expected: **no committed FSM transition** -- node03/node04 are only 2 of 7 validators (~28.6%
+power), below the >2/3 quorum `ProcessProposal` requires, so the honest majority's ANCHORED claim
+always wins. This demonstrates the same quorum safety that gives Byzantine-safety, not a detection
+failure -- a supermajority attack (>=5 of 7) would be a different experiment.
 
 Usage (against an already-deployed, default-params, healthy ANCHORED testnet -- no genesis change
 needed, MaxChurnRate/MinAvgTenure are already DefaultParams()):
@@ -61,11 +38,9 @@ from logger import sample_all_nodes, write_csv  # noqa: E402
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 ATTACKER_PROFILE = "attacker-swarm-a3"
 ATTACKER_SERVICES = ["attacker-a3-01", "attacker-a3-02"]  # -> engram-node03, engram-node04
-# node03/node04: empirically-confirmed ADJACENT proposers in this 7-validator cluster's real
-# round-robin rotation -- read directly off 15 consecutive real blocks' proposer_address
-# (/block?height=N, round=0 throughout): node06 -> node03 -> node04 -> node01 -> node02 ->
-# node07 -> node05 -> (repeat), period 7. NOT the old 4-node cluster's node02->node04 order
-# (that rotation no longer applies at 7 validators) -- re-verify if the validator set changes.
+# node03/node04: empirically-confirmed adjacent proposers in this 7-validator cluster's real
+# round-robin (node06->node03->node04->node01->node02->node07->node05) -- re-verify if the
+# validator set changes.
 MAX_CHURN_RATE = 5  # x/sovereignty/types/params.go's DefaultParams(), per the 1h rolling window
 
 
@@ -74,13 +49,9 @@ def now() -> str:
 
 
 def attacker_up() -> None:
-    # Observed live, twice, always right after a fresh `make testnet-up`
-    # redeploy: the very next `docker compose up -d` can fail transiently
-    # (exit 1, no useful stderr) -- re-running the identical command by hand
-    # seconds later always succeeds immediately. Looks like compose's own
-    # internal project-state cache needing a moment to resync after a big
-    # redeploy, not a real config/dependency problem. A short retry avoids
-    # needing manual intervention for this.
+    # Right after a fresh `make testnet-up` redeploy, the first `docker
+    # compose up -d` can fail transiently (compose's project-state cache
+    # resyncing) -- retrying briefly avoids needing manual intervention.
     print(f"[{now()}] >>> docker compose --profile {ATTACKER_PROFILE} up -d {' '.join(ATTACKER_SERVICES)}")
     last_err = None
     for attempt in range(3):

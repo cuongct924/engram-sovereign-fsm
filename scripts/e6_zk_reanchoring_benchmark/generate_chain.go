@@ -2,26 +2,12 @@
 
 // generate_chain.go builds a real, valid, hash-linked header chain AND a
 // real, structurally-valid boundary-signature witness (7 fresh ed25519
-// keypairs, 5-of-7 real precommit signatures over real CometBFT vote
-// sign-bytes for a synthetic first/last block) and prints a complete
-// Prover.toml for circuit/reanchoring/src/main.nr's CURRENT main() at
-// count=N1, N_MAX=N2 (both from argv). The header-chain half uses
-// x/sovereignty/types.HashHeader/ReduceToField directly -- the same
-// implementation the Go keeper uses, cross-verified against the circuit's
-// own fixture (types.TestHashHeader_MatchesCircuitFixture). The boundary
-// half is generated fresh per invocation (not the circuit's own hardcoded
-// test_boundary_fixture(), which signs one FIXED height and can't cover
-// first_height != last_height once count > 1) using the same real
-// types.VoteSignBytes/ed25519 signing convention cmd/engramd/
-// reanchor_witness_cli.go uses against a live chain -- offline here, since
-// this benchmark has no live chain to query. rt_last/rt_new/headers and
-// first_block_hash/last_block_hash/validator_set_hash are intentionally
-// unrelated fabricated values: main()'s header-chain checks
-// (verify_header_chain) and boundary-signature checks (verify_boundary_block)
-// are independent circuit-level assertions with no cross-binding between
-// them (the real chain ties them together via keeper lookups in
-// msg_server.go's SubmitRecoveryProof, which this benchmark doesn't
-// exercise).
+// keypairs, 5-of-7 real precommit signatures) and prints a complete
+// Prover.toml for main.nr's main() at count=N1, N_MAX=N2 (argv). The
+// header-chain and boundary-signature halves are intentionally unrelated
+// fabricated values -- they're independent circuit-level assertions with
+// no cross-binding here (the real chain ties them together via keeper
+// lookups this benchmark doesn't exercise).
 //
 // Usage: go run generate_chain.go <count> <n_max> > Prover.toml
 package main
@@ -94,12 +80,9 @@ func main() {
 	for i := 0; i < numValidators; i++ {
 		privs[i] = cmted25519.GenPrivKey()
 	}
-	// cmttypes.NewValidatorSet internally sorts by address
-	// (ValidatorsByAddress) before hashing -- the circuit's leaf order
-	// (validators.pubkey_x[i]/power[i], positional, no re-sort) must match
-	// that same order, or validator_set_hash_7 disagrees with the real
-	// ValidatorSet.Hash() (confirmed live: fails main.nr:314's assert
-	// without this sort).
+	// cmttypes.NewValidatorSet sorts by address before hashing -- the
+	// circuit's leaf order must match, or validator_set_hash_7 disagrees
+	// with the real ValidatorSet.Hash().
 	sort.Slice(privs, func(i, j int) bool {
 		return bytes.Compare(privs[i].PubKey().Address(), privs[j].PubKey().Address()) < 0
 	})
@@ -116,11 +99,8 @@ func main() {
 	lastBlock := buildBoundaryBlockWitness(lastHeight, lastBlockHash, privs, "last_block")
 
 	// --- emit Prover.toml: ALL loose keys first, then tables, then
-	// [[headers]] array-of-tables last (TOML ordering rule -- a loose key
-	// after any [table]/[[table]] silently attaches to the last table
-	// entry instead of the top level; this exact bug class was found and
-	// fixed elsewhere this session, see scripts/reanchoring_prover/
-	// prove_and_submit.sh's BOUNDARY_LOOSE/BOUNDARY_TABLES split). ---
+	// [[headers]] last -- a loose key after any [table] silently attaches
+	// to the last table entry instead of the top level. ---
 	fmt.Printf("rt_last = \"%s\"\n", fieldDecimal(rtLast))
 	fmt.Printf("rt_new = \"%s\"\n", fieldDecimal(rtNew))
 	fmt.Printf("count = \"%d\"\n", count)
@@ -183,11 +163,9 @@ func fabricatedBlockHash(seed byte) []byte {
 }
 
 // buildBoundaryBlockWitness signs a real CometBFT precommit (5 of 7
-// validators, >2/3 quorum, matching main.nr's own test_boundary_fixture
-// shape) for (height, blockHash) and renders the BoundaryBlockWitness TOML
-// fragment -- the offline counterpart of cmd/engramd/reanchor_witness_cli.
-// go's buildBoundaryBlockWitness, which does the same thing against a real
-// live commit instead of a fabricated one.
+// validators, >2/3 quorum) for (height, blockHash) and renders the
+// BoundaryBlockWitness TOML fragment -- the offline counterpart of
+// cmd/engramd/reanchor_witness_cli.go's version of this function.
 func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted25519.PrivKey, tableName string) string {
 	psTotal := uint32(1)
 	psHash := fabricatedBlockHash(3)
@@ -238,10 +216,8 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 			dummyRX, dummyRY, dummyS = sigRXs[i], sigRYs[i], sigSs[i]
 		}
 	}
-	// Every validator still needs a structurally VALID (on-curve) signature
-	// even when not counted -- ed25519_verify's assert_is_on_curve would
-	// trap on a zero/garbage point otherwise (matches reanchor_witness_cli.
-	// go's identical non-signer handling).
+	// Every validator still needs a structurally valid (on-curve) signature
+	// even when not counted -- ed25519_verify traps on a garbage point otherwise.
 	for i := 0; i < numValidators; i++ {
 		if !signed[i] {
 			sigRXs[i], sigRYs[i], sigSs[i] = dummyRX, dummyRY, dummyS
@@ -269,10 +245,8 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 	return string(b)
 }
 
-// decompressEd25519 recovers the affine (x, y) little-endian byte
-// coordinates of a compressed ed25519 point (a raw 32-byte pubkey, or a
-// signature's first 32 bytes, the R point) -- identical to
-// cmd/engramd/reanchor_witness_cli.go's decompressEd25519.
+// decompressEd25519 recovers the affine (x, y) little-endian coordinates of
+// a compressed ed25519 point -- identical to reanchor_witness_cli.go's version.
 func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 	p, err := edwards25519.NewIdentityPoint().SetBytes(compressed)
 	if err != nil {
@@ -288,9 +262,8 @@ func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 }
 
 // extractTimestampContent walks a real types.VoteSignBytes(chainID, vote)
-// output tag-by-tag to pull out exactly the Timestamp submessage's own
-// content bytes -- identical to cmd/engramd/reanchor_witness_cli.go's
-// extractTimestampContent (ground-truthed field layout, see that file's doc).
+// output tag-by-tag to pull out the Timestamp submessage's content bytes --
+// identical to cmd/engramd/reanchor_witness_cli.go's version.
 func extractTimestampContent(signBytes []byte, chainID string) ([]byte, error) {
 	pos := 0
 	_, n, err := readVarint(signBytes, pos)
@@ -372,11 +345,8 @@ func fieldDecimal(reduced []byte) string {
 }
 
 // byteArrayToml renders a byte slice as a Noir/TOML `[u8; N]` array literal
-// (quoted per-byte hex strings) -- nargo's Prover.toml parser rejects a
-// single hex string for a whole array-typed field; only Field-typed params
-// accept that shorthand. Identical convention to cmd/engramd/
-// reanchor_witness_cli.go's byteArrayToml, confirmed correct via a real
-// `nargo execute` run earlier this session.
+// (quoted per-byte hex strings) -- nargo rejects a single hex string for a
+// whole array-typed field; only Field-typed params accept that shorthand.
 func byteArrayToml(b []byte) string {
 	parts := make([]string, len(b))
 	for i, v := range b {

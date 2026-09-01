@@ -1,31 +1,16 @@
 #!/usr/bin/env python3
-"""Orchestrates E5's 5b/5c live spot-check sweep (docs/EXPERIMENT.md) across the
-in-process sweep's value set, DownHysteresisThreshold / SuspiciousHysteresisWait
-in {1,2,4,6,8}, x2 environments (stable, noisy_da -- matching 5a's 5x2 design):
-for each (edge, value) pair, redeploys the real 7-node testnet with that param
-baked into a fresh genesis, then runs live_spot_check_absorb.py's 300s
-measurement window once per env against that same deployed genesis (no
-redeploy needed between envs, just re-waiting for a healthy ANCHORED
-baseline). live_spot_check_absorb.py itself only measures one already-deployed
-(value, env) pair; this script is what drives the redeploy between values.
+"""Orchestrates E5's 5b/5c live spot-check sweep (docs/EXPERIMENT.md): for each
+(DownHysteresisThreshold/SuspiciousHysteresisWait, value) pair in {1,2,4,6,8}, redeploys the real
+7-node testnet with that param baked into a fresh genesis, then runs live_spot_check_absorb.py's
+300s window once per env (stable, noisy_da -- matching 5a's design) against that same genesis.
 
-Bitcoin regtest and Celestia stay running for the whole sweep (only engramd's
-genesis/Params changes between iterations, not their state) -- `make
-testnet-up`'s wallet-funding and token-fetch steps are idempotent
-(scripts/testnet_fund_wallet.sh), so re-running it per iteration only pays the
-cost of a fresh genesis + validator restart, not a full from-scratch bring-up.
-Re-mining is never triggered: CLAUDE.md's "Bitcoin regtest must mine
-continuously" -- this script never bursts blocks itself.
+Bitcoin/Celestia stay running for the whole sweep -- only engramd's genesis/Params changes per
+iteration, `make testnet-up`'s funding/token steps are idempotent so a redeploy only pays for a
+fresh genesis + validator restart.
 
-Every fresh genesis cold-starts h_btc_anchored=0, so btc_gap is huge (real
-live BTC tip minus 0) until the first checkpoint reaches k_deep_finality+1
-confirmations (~60-90s of real BTC blocks) -- IsCriticalCondition has no
-hysteresis (5a's own finding), so this reliably forces SOVEREIGN immediately
-after every redeploy, self-resolving through RECOVERING back to ANCHORED only
-once the anchor/ZK pipeline catches up. --health-timeout-s must cover this
-(baseline can take minutes, not just RPC-reachability), or the measurement
-window starts mid-recovery and contaminates the very absorb-rate/uptime
-numbers being measured.
+Every fresh genesis cold-starts h_btc_anchored=0, forcing SOVEREIGN immediately after redeploy
+until the anchor/ZK pipeline catches up (~60-90s+) -- --health-timeout-s must cover this, or the
+measurement window starts mid-recovery and contaminates the absorb-rate/uptime numbers.
 
 Usage (from repo root, needs `make testnet-up` prerequisites already met --
 .env with BITCOIN_RPC_USER/PASSWORD filled in, docker daemon running):
@@ -51,12 +36,8 @@ PARAM_FIELD = {
     "down": "ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD",
     "suspicious_exit": "ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT",
 }
-# Derived from logger.NODE_RPC_PORTS (ENGRAM_VALIDATOR_COUNT-aware) so this
-# sweep's redeploy/health-wait automatically matches whichever `make
-# testnet-up N=4|7` topology is running. reanchoring-prover (containerized
-# watch_and_prove.sh) is NOT part of the current live pipeline -- that's now
-# a host-side script (scripts/reanchoring_prover/watch_and_prove.sh), not a
-# compose service; deliberately not listed here.
+# Derived from logger.NODE_RPC_PORTS so this sweep's redeploy/health-wait
+# automatically matches whichever `make testnet-up N=4|7` topology is running.
 VALIDATOR_SERVICES = list(NODE_RPC_PORTS.keys())
 NUM_VALIDATORS = len(VALIDATOR_SERVICES)
 

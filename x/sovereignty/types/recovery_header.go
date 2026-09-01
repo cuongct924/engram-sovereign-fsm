@@ -11,12 +11,8 @@ import (
 // (spec/README.md's §Re-anchoring via ZK-Proof of Recovery).
 //
 // prev_hash is omitted: derived at proof time by the off-chain witness
-// helper (circuit/reanchoring_witness/), chaining HashHeader from
-// LastAnchoredRoot -- never stored in Go. StateRoot is CometBFT's real
-// per-block AppHash, reduced to field. Accumulator is this height's
-// HashHeader output (preblock.go's CommitFSMTransition), i.e. what a real,
-// honest witness chain from rt_last would produce by this height -- see
-// HashHeader's doc for why msg_server.go binds rt_new to this, not StateRoot.
+// helper, chaining HashHeader from LastAnchoredRoot. Accumulator is this
+// height's HashHeader output -- msg_server.go binds rt_new to it, not StateRoot.
 type RecoveryHeader struct {
 	FsmState         string
 	WithdrawalLocked bool
@@ -59,14 +55,9 @@ func BoolToField(b bool) int64 {
 }
 
 // HashHeader ports circuit/reanchoring/src/main.nr's hash_header exactly:
-// concatenates prevHash/fsm_state/withdrawal_locked/stateRoot as 32-byte
-// big-endian field elements, SHA-256s the 128-byte result, then folds the
-// digest back into the scalar field the same way the circuit does (a
-// big-endian byte fold, equivalent to ReduceToField -- cross-verified
-// byte-for-byte against the Noir implementation before this landed).
-// prevHash and stateRoot must already be 32-byte field encodings (e.g.
-// ReduceToField's output); fsmState is a string (StateSovereign/
-// StateRecovering), converted via FSMStateToField.
+// concatenates the 4 fields as 32-byte big-endian field elements, SHA-256s
+// the 128-byte result, then reduces the digest to field. prevHash/stateRoot
+// must already be field-reduced (see ReduceToField).
 func HashHeader(prevHash []byte, fsmState string, withdrawalLocked bool, stateRoot []byte) []byte {
 	var buf [128]byte
 	copy(buf[0:32], leftPad32(prevHash))

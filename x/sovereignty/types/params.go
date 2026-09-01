@@ -53,11 +53,9 @@ type Params struct {
 	// for that height, trading forced-inclusion guarantees for liveness.
 	MaxCensorshipRounds uint64
 
-	// ProofOnlyRecovery, when true, requires refreshReanchoringProofValid
-	// (sensors_refresh.go) to grant reanchoring_proof_valid ONLY from a
-	// real, verified ZK proof -- disables the BTC-height heuristic fallback.
-	// Default false preserves today's behavior; E10 sets it true to
-	// attribute a measured recovery to the ZK pipeline specifically.
+	// ProofOnlyRecovery, when true, requires a real verified ZK proof for
+	// reanchoring_proof_valid, disabling the BTC-height heuristic fallback
+	// (sensors_refresh.go). Default false.
 	ProofOnlyRecovery bool
 }
 

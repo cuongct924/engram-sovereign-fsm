@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
-"""LIVE withdrawal-during-SOVEREIGN test against the real 4-node testnet --
-docs/EXPERIMENT.md's E8 A5. No byzantine validator needed: drives the real
-cluster into SOVEREIGN via the already-proven `docker stop celestia-bridge`
-fault injection (same mechanism as live_lifecycle_test.py), then submits a
-real withdrawal-marker tx via `engramd tx-submit-forced-tx` (cmd/engramd/
-e8_cli.go), confirming it is never committed while the FSM stays SOVEREIGN.
+"""LIVE withdrawal-during-SOVEREIGN test against the real testnet -- docs/EXPERIMENT.md's E8 A5.
+No byzantine validator needed: drives the cluster into SOVEREIGN via celestia-bridge stop, then
+submits a real withdrawal-marker tx, confirming it's never committed while SOVEREIGN.
 
-Important nuance, unlike A3/A4/A6's byzantine-mode tests: the withdrawal
-check (x/sovereignty/proposal.go's check #4, types.WithdrawLocked +
-containsWithdrawal) rejects the WHOLE PROPOSAL in ProcessProposal, not the
-tx individually in CheckTx/DeliverTx -- CheckTx has no such check, so the tx
-is admitted to the mempool successfully. The observable safety symptom is
-therefore "never gets included/committed while SOVEREIGN" (the submitting
-CLI call times out waiting for a DeliverTx result), not an explicit
-rejection error code. This script checks for that directly via RPC polling
-rather than relying solely on the CLI's own timeout message.
+Nuance: the withdrawal check rejects the WHOLE PROPOSAL in ProcessProposal, not the tx in
+CheckTx -- so the tx IS admitted to the mempool, and the observable symptom is "never gets
+committed" (CLI times out), not an explicit rejection code. This script checks that via RPC
+polling, not just the CLI's own timeout message.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_withdrawal_test.py
@@ -69,15 +61,9 @@ def submit_withdrawal_tx(node_url: str):
 
 
 def compute_divergence(samples):
-    """By-height AppHash divergence check across ALL 4 validators -- unlike
-    live_byzantine_attacks.py's HONEST_NODES filter, A5 has no byzantine node
-    at all (this scenario tests withdrawal-locking under real SOVEREIGN, not
-    an adversarial validator), so every sampled node must agree, not just a
-    subset. Mirrors that script's by-height grouping so a node sampled at a
-    different height in the same poll round can't false-positive a
-    divergence. Works identically whether samples came from a live poll loop
-    or an already-written raw CSV (see --from-csv), since it only needs
-    node/height/app_hash per row.
+    """By-height AppHash divergence check across ALL validators -- A5 has no byzantine node,
+    so every sampled node must agree, not just a subset. Works on live samples or an
+    already-written CSV (see --from-csv).
     """
     by_height: dict = {}
     for s in samples:
@@ -115,10 +101,8 @@ class Tracker:
 
 
 def backfill_from_csv(csv_path: str) -> None:
-    """Recomputes safety_held/divergence_events from an existing raw samples
-    CSV (already has node/height/app_hash per round) and rewrites that run's
-    summary .md in place -- no rerun needed, same backfill pattern used for
-    E5's Tier 1 metrics this session.
+    """Recomputes safety_held/divergence_events from an existing raw samples CSV and rewrites
+    that run's summary .md in place -- no rerun needed.
     """
     class Row:
         __slots__ = ("node", "height", "app_hash")
@@ -187,10 +171,8 @@ def main():
     submit_start = tr.elapsed()
     proc = submit_withdrawal_tx(node_url)
     submit_end = tr.elapsed()
-    # A CLI timeout/DeliverTx-not-observed error is the EXPECTED correct
-    # outcome here (see module doc) -- a returncode of 0 (real success,
-    # meaning the tx WAS committed while SOVEREIGN) would be the actual
-    # safety violation to flag.
+    # A CLI timeout is the EXPECTED outcome (see module doc) -- returncode 0
+    # (tx WAS committed while SOVEREIGN) would be the actual safety violation.
     blocked_correctly = proc.returncode != 0
 
     print("=== Phase 4: restore celestia-bridge, confirm recovery still works ===")

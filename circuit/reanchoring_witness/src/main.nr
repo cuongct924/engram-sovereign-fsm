@@ -1,16 +1,9 @@
 // circuit/reanchoring_witness/src/main.nr
 //
 // Off-chain witness helper for circuit/reanchoring/src/main.nr: NOT a proof
-// circuit (only `nargo execute` + println, never a proof). Builds a real
-// prev_hash-linked witness from real chain data (HeaderHistory, dumped via
-// `engramd query sovereignty recovery-headers`) WITHOUT a Go-side
-// Poseidon/pedersen_hash implementation.
-//
-// Links only the REAL `count` headers (1..=N_MAX) -- padding is applied by
-// prove_and_submit.sh when it writes the real circuit's Prover.toml. That
-// script feeds rt_last + raw {fsm_state, withdrawal_locked, state_root} per
-// header (no prev_hash -- this crate derives it), runs `nargo execute witness
-// --show-output`, and greps the printed, linked chain into the real Prover.toml.
+// circuit (only `nargo execute` + println). Builds a real prev_hash-linked
+// witness from real chain data without a Go-side hash_header implementation
+// -- prove_and_submit.sh greps the printed output into the real Prover.toml.
 
 global N_MAX: u32 = 256;
 
@@ -22,10 +15,8 @@ struct Header {
 }
 
 fn hash_header(h: Header) -> Field {
-    // Byte-identical copy of the real circuit's hash_header (SHA-256 over
-    // the 4 fields' 32-byte big-endian encodings, folded back into a Field),
-    // hand-kept in sync; N_MAX must match too. See main circuit's hash_header
-    // doc for why SHA-256, not Poseidon2.
+    // Byte-identical, hand-kept copy of the real circuit's hash_header;
+    // N_MAX must stay in sync too.
     let mut bytes: [u8; 128] = [0; 128];
     let b0 = h.prev_hash.to_be_bytes::<32>();
     let b1 = h.fsm_state.to_be_bytes::<32>();
@@ -45,10 +36,8 @@ fn hash_header(h: Header) -> Field {
     acc
 }
 
-// raw_* are the per-header values tracked by the Go keeper (types.RecoveryHeader),
-// without prev_hash (this crate derives it). Only the first `count` are real;
-// the rest are ignored. rt_last seeds the chain, matching the real circuit's
-// headers[0].prev_hash == rt_last binding.
+// raw_* are the per-header values tracked by types.RecoveryHeader, without
+// prev_hash (derived here). Only the first `count` are real.
 fn main(
     rt_last: pub Field,
     count: pub u32,
@@ -69,20 +58,15 @@ fn main(
             prev_hash = hash_header(h);
         }
     }
-    // rt_new for the real circuit must be hash_header(headers[count-1]), NOT
-    // that header's raw state_root field (circuit/reanchoring/src/main.nr's
-    // rt_new-binding doc) -- prev_hash, after the loop above, already holds
-    // exactly that value. Distinct, greppable prefix: prove_and_submit.sh
-    // parses this line for RT_NEW instead of the last header's state_root.
+    // rt_new must be hash_header(headers[count-1]), not the raw state_root
+    // field -- prev_hash already holds that value after the loop above.
     println(f"rt_new_hash={prev_hash}");
 }
 
 #[test]
 fn hash_header_matches_main_circuit_fixture() {
-    // Cross-checks against the real circuit's fixture -- this hash_header is
-    // a hand-kept copy (Noir has no cross-crate import for one function), so a
-    // failure here means they've drifted and this output would no longer link
-    // into a witness the real circuit accepts.
+    // Cross-checks against the real circuit's fixture -- a failure here
+    // means the two hand-kept copies have drifted.
     let h0 = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
     assert(hash_header(h0) == 0x060e309975f992b137193db39633a65bf0c12ff9582767b9f1b50d7aedd202cc);
 }

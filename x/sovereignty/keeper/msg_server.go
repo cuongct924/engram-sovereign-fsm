@@ -44,33 +44,19 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 	return &types.MsgSubmitForcedTxResponse{}, nil
 }
 
-// SubmitRecoveryProof verifies a real re-anchoring ZK proof
-// (spec/README.md's §Re-anchoring via ZK-Proof of Recovery); if valid it
-// advances the rolling checkpoint (LastAnchoredRoot/LastAnchoredHeight) and
-// latches RealProofSubmittedHeight. Never sets FSMState directly ->
-// RECOVERING -> ANCHORED still fires only via CalculateNextState's
-// hysteresis-gated pipeline (refreshReanchoringProofValid).
-//
-// Rolling: a proof covers up to N_MAX=256 headers
-// (circuit/reanchoring/src/main.nr), so rt_new must match SOME tracked
-// header's Accumulator (findHeaderByAccumulator), not the tip -- each
-// accepted proof advances the checkpoint, letting a sequence cover an
-// arbitrarily long interval.
+// SubmitRecoveryProof verifies a real ZK re-anchoring proof (spec/README.md's Re-anchoring
+// via ZK-Proof of Recovery); if valid it advances the rolling checkpoint and latches
+// RealProofSubmittedHeight -- never sets FSMState directly, only refreshReanchoringProofValid does.
 func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProofRequest) (*types.MsgSubmitRecoveryProofResponse, error) {
 	// 1. Verify proof math against the circuit's embedded verification key.
 	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
 		return nil, types.ErrInvalidZKProof
 	}
 
-	// 2. Bind rt_last/rt_new/count/boundary-binding public inputs to tracked
-	// state so a previously valid proof can't be replayed against unrelated
-	// chain history, and so a proof can't claim fewer headers than it
-	// actually needs to cover (circuit/reanchoring/src/main.nr's public
-	// input declaration order: rt_last, rt_new, count, first_height,
-	// first_block_hash, last_block_hash, validator_set_hash -- 7 x 32-byte
-	// fields, matching bb's public-inputs layout; count/first_height are u32/
-	// u64 right-aligned in their 32-byte field encoding, the rest are full
-	// Field values).
+	// 2. Bind rt_last/rt_new/count/boundary public inputs to tracked state so a proof can't be
+	// replayed against unrelated history or claim fewer headers than it covers. Public-input
+	// layout (circuit/reanchoring/src/main.nr): rt_last, rt_new, count, first_height,
+	// first/last_block_hash, validator_set_hash -- 7x32B fields, matching bb's layout.
 	if len(msg.PublicInputs) != 224 {
 		return nil, types.ErrInvalidZKProof
 	}
@@ -97,23 +83,12 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 		return nil, types.ErrInvalidZKProof
 	}
 
-	// 2b. Boundary-block binding (circuit/README.md's Scope section): the
-	// proof's claimed first/last real block and genesis validator set must
-	// match what this chain actually recorded -- ties the header-chain proof
-	// to real, >=2/3-signed CometBFT blocks rather than letting a self-
-	// consistent-but-fabricated chain and an unrelated real signed block
-	// pass as two independently-satisfiable proofs. Reads BlockHashByHeight
-	// at both boundary heights (its doc) rather than a single fixed
-	// "interval end" value -- any tracked height can be a rolling
-	// checkpoint, restoring the pre-boundary-binding design's rolling-proof
-	// generality (a proof no longer has to cover the whole remaining
-	// interval in one shot).
+	// 2b. Boundary-block binding (circuit/README.md's Scope section): the proof's claimed
+	// first/last block and validator set must match what this chain actually recorded, tying
+	// the proof to real >=2/3-signed CometBFT blocks, not a self-consistent fabricated chain.
 	//
-	// first_height is lastAnchoredHeight+1 (headers[0]'s OWN height, the
-	// interval's first real WithdrawLocked block), not lastAnchoredHeight
-	// itself: lastAnchoredHeight is the pre-interval ANCHORED block, which
-	// never gets a BlockHashByHeight entry (only WithdrawLocked heights do
-	// -- BlockHashByHeight's doc).
+	// first_height is lastAnchoredHeight+1 (the interval's first real WithdrawLocked block) --
+	// lastAnchoredHeight itself is the pre-interval ANCHORED block, which has no BlockHashByHeight entry.
 	if uint64(firstHeight) != lastAnchoredHeight+1 {
 		return nil, types.ErrInvalidZKProof
 	}
@@ -156,11 +131,9 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
 }
 
-// findHeaderByAccumulator returns the tracked header's height whose
-// Accumulator equals root, if any -- matches rt_new by content, not exact
-// tip. Accumulator (not StateRoot) is what rt_new binds to: it's the value
-// only a real hash_header chain from LastAnchoredRoot could have produced
-// (circuit/reanchoring/src/main.nr's rt_new-binding doc).
+// findHeaderByAccumulator matches rt_new by content (not the tip) against a tracked header's
+// Accumulator -- a proof covers up to N_MAX=256 headers, so rt_new may land mid-history, and
+// Accumulator is what only a real hash_header chain from LastAnchoredRoot could have produced.
 func (k *Keeper) findHeaderByAccumulator(ctx context.Context, root []byte) (uint64, bool, error) {
 	iter, err := k.HeaderHistory.Iterate(ctx, nil)
 	if err != nil {

@@ -5,32 +5,24 @@ package engram.sovereignty.v1;
 option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types";
 
 // SignedHealthCertificate is one validator's raw ABCI++ vote-extension
-// payload plus the CometBFT ExtensionSignature that authenticated it,
-// carried inside AggregatedHealthCertificate so every validator (not just
-// the proposer, who is the only one to receive ExtendedCommitInfo) can
-// independently re-verify the signature and recompute the aggregation --
-// see x/sovereignty/vote_extension.go.
+// payload plus its ExtensionSignature, so every validator (not just the
+// proposer) can independently re-verify and recompute the aggregation.
 message SignedHealthCertificate {
   bytes validator_address = 1;
   // Round the vote extension was signed at (ExtendedVoteInfo's originating
   // precommit round), needed to reconstruct CometBFT's VoteExtensionSignBytes.
   int32 round = 2;
-  // Raw ExtendedVoteInfo.VoteExtension bytes exactly as CometBFT delivered
-  // them (a marshaled PeripheralMetrics) -- kept as opaque bytes, not a
-  // decoded PeripheralMetrics field, so signature verification runs against
-  // the literal signed bytes rather than a re-marshal that could diverge
-  // from the original encoding.
+  // Raw ExtendedVoteInfo.VoteExtension bytes exactly as delivered -- kept
+  // opaque so verification runs against the literal signed bytes, not a
+  // re-marshal that could diverge.
   bytes metrics_extension = 3;
   bytes extension_signature = 4;
 }
 
-// AggregatedHealthCertificate replaces ExtendedProposal (former
-// x/sovereignty/proposal.go) as Txs[0]. certificates carries >=2f+1
-// signed per-validator sensor snapshots from the previous height's precommit
-// round; the remaining fields are the leader's claimed deterministic
-// aggregation over them, cross-checked by every validator via
-// AggregateHealthCertificates before ProcessProposal accepts and
-// CommitFSMTransition commits -- never a live local sensor re-read.
+// AggregatedHealthCertificate replaces the former ExtendedProposal as
+// Txs[0]. certificates carries >=2f+1 signed sensor snapshots; the
+// remaining fields are the leader's claimed aggregation over them,
+// cross-checked by every validator before ProcessProposal accepts.
 message AggregatedHealthCertificate {
   // Height at which `certificates` were signed as vote extensions
   // (current proposal height - 1, ABCI++'s one-block vote-extension lag).

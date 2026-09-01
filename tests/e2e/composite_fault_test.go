@@ -1,8 +1,6 @@
-// E9 -- Trace-Driven Stress Test (E9, Figure 2). Replays one continuous
-// combined-failure trace through the real Harness/BeginBlocker path: BTC
-// congestion ramps, DA outage overlaps it, P2P churn overlaps both, then all
-// three heal in sequence and the chain recovers. Unlike S1-S7 (one fault per
-// scenario), faults overlap here.
+// E9 -- Composite-Fault Stress Test (Figure 2). One scripted fault
+// sequence: BTC congestion ramps, DA outage overlaps it, P2P churn overlaps
+// both, then all three heal and the chain recovers.
 package e2e
 
 import (

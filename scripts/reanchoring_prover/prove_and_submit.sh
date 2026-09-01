@@ -1,39 +1,23 @@
 #!/usr/bin/env bash
-# Real end-to-end ZK re-anchoring pipeline (spec/README.md's §Re-anchoring
-# via ZK-Proof of Recovery), driving REAL chain data through the REAL
-# circuit -- not a synthetic fixture like scripts/e6_zk_reanchoring_benchmark
-# uses for its constraint-count sweep.
+# Real end-to-end ZK re-anchoring pipeline (spec/README.md's Re-anchoring via
+# ZK-Proof of Recovery), driving REAL chain data through the REAL circuit --
+# not the synthetic fixture scripts/e6_zk_reanchoring_benchmark uses.
 #
-# Pipeline:
-#   1. engramd query-recovery-headers   -- pull the CURRENT SOVEREIGN/
-#      RECOVERING interval's real tracked headers (keeper.HeaderHistory).
-#   2. circuit/reanchoring_witness      -- link the raw headers into a real
-#      prev_hash chain (Poseidon2), without a Go-side hash implementation
-#      (see that crate's doc).
-#   3. circuit/reanchoring              -- the real N_MAX=256 circuit: nargo
-#      execute + bb prove against the SAME verification key the Go node
-#      embeds (x/sovereignty/keeper/zk_assets/vk), so the proof verifies
-#      against exactly what the chain will check.
-#   4. engramd tx-submit-recovery-proof -- broadcast the real proof.
+# Pipeline: query-recovery-headers -> circuit/reanchoring_witness (real
+# prev_hash chain) -> circuit/reanchoring (nargo execute + bb prove against
+# the embedded VK) -> tx-submit-recovery-proof (broadcast).
 #
-# Requires: nargo, bb on PATH; a running engramd node; the engramd binary
-# built from THIS checkout (query-recovery-headers/tx-submit-recovery-proof
-# are new, see cmd/engramd/reanchor_cli.go).
+# Requires: nargo, bb on PATH; a running engramd node; engramd built from
+# THIS checkout.
 #
-# Rolling checkpoint, oldest-COUNT slice, COUNT dynamic up to N_MAX=256 (see
-# x/sovereignty/keeper/msg_server.go's SubmitRecoveryProof doc): proves the
-# OLDEST min(TOTAL_N, N_MAX) tracked headers after rt_last, padding the
-# remaining N_MAX-COUNT circuit slots with zero-valued (unconstrained, see
-# main.nr's `active` gate) headers. Any COUNT from 1 to N_MAX is provable in
-# one proof -- unlike the old fixed-N=4 design, which could never prove a
-# trailing remainder shorter than N once the interval stopped growing
-# (liveness gap), and raced behind a backlog it couldn't cover (E2 S7:
-# 29/52 real proof attempts rejected).
-#
-# HeaderHistory keeps every header from the checkpoint until the proven
-# segment is pruned, so the oldest COUNT entries stay a valid, provable
-# segment however many more accumulate -- up to N_MAX, beyond which this
-# script must be re-run (watch_and_prove.sh does this automatically).
+# Rolling checkpoint: proves the OLDEST min(TOTAL_N, N_MAX) tracked headers,
+# padding the rest with zero-valued unconstrained headers. Any COUNT from 1
+# to N_MAX is provable in one proof, unlike the old fixed-N=4 design, which
+# couldn't prove a trailing remainder once the interval stopped growing.
+# HeaderHistory keeps every header until the proven segment is pruned, so
+# the oldest COUNT entries stay valid however many more accumulate -- up to
+# N_MAX, beyond which this script must re-run (watch_and_prove.sh does this
+# automatically).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -130,31 +114,20 @@ fi
 echo "[reanchoring_prover] 3b/5: fetching real boundary-block signature witness (circuit/README.md's Scope section)..."
 BOUNDARY_WITNESS_TOML=$(mktemp)
 trap 'rm -f "$BOUNDARY_WITNESS_TOML"' EXIT
-# --last-height MUST be headers[COUNT-1]'s own real height, not
-# build-boundary-witness's own default (the highest height BlockHashByHeight
-# currently has data for, i.e. the live tip) -- when COUNT is capped below
-# TOTAL_N (a tracked interval longer than N_MAX), the tip keeps climbing
-# past headers[COUNT-1] while this proof is being built, so the default
-# fetches boundary-signature data for a LATER block than the one this proof
-# actually claims as its last header. verify_boundary_block then checks a
-# real commit's quorum/hash against public inputs computed from a different
-# block, which can fail non-deterministically (real proposers rotating
-# in/out between the two heights change which validators' signatures land
-# in each commit) -- reproduced live as a "Failed constraint:
-# signed_power*3 >= total_power*2" nargo execute failure, misleadingly
-# similar-looking to (but NOT) the SubmitRecoveryProof-side staleness race
-# documented below.
+# --last-height MUST be headers[COUNT-1]'s own real height, not the default
+# (live tip) -- when COUNT is capped below TOTAL_N, the tip keeps climbing
+# past headers[COUNT-1] while this proof is built, so the default would fetch
+# boundary-signature data for a LATER block than this proof actually claims,
+# which can fail non-deterministically (a "Failed constraint:
+# signed_power*3 >= total_power*2" nargo error) -- distinct from the
+# SubmitRecoveryProof-side staleness race documented below.
 LAST_REAL_HEIGHT=$(field "$COUNT" height)
 "$ENGRAMD" build-boundary-witness --node "$NODE_URL" --chain-id "$CHAIN_ID" --last-height "$LAST_REAL_HEIGHT" --out "$BOUNDARY_WITNESS_TOML"
 
-# TOML requires every loose (non-table) key to precede any [table]/[[table]]
-# section -- rt_last/rt_new/count and the boundary witness's own loose keys
-# (first_height, first_block_hash, ...) must ALL come before headers'
-# [[headers]] array-of-tables and the boundary witness's own
-# [validators]/[first_block]/[last_block] tables, or nargo silently
-# misattributes later keys to the wrong (or no) top-level scope. Split the
-# boundary witness at its first `[` line so its loose keys land in the same
-# leading block as rt_last/rt_new/count.
+# TOML requires every loose (non-table) key to precede any [table] section,
+# or nargo silently misattributes later keys to the wrong scope -- split the
+# boundary witness at its first `[` line so its loose keys land alongside
+# rt_last/rt_new/count.
 BOUNDARY_LOOSE=$(awk '/^\[/{exit} {print}' "$BOUNDARY_WITNESS_TOML")
 BOUNDARY_TABLES=$(awk 'BEGIN{p=0} /^\[/{p=1} p{print}' "$BOUNDARY_WITNESS_TOML")
 
@@ -194,19 +167,14 @@ BOUNDARY_TABLES=$(awk 'BEGIN{p=0} /^\[/{p=1} p{print}' "$BOUNDARY_WITNESS_TOML")
   bb prove -b target/reanchoring.json -w target/witness.gz -o target/proof -k target/proof/vk
 )
 
-# Publish the real (non-padding) header chain to Celestia DA before
-# submitting the proof -- pure audit trail, never verified on-chain (see
-# publish-recovery-witness's doc): HeaderHistory is pruned once the proof is
-# accepted, so without this no late-joining node or external auditor could
-# retrieve the header chain it was built from. A publish failure degrades to
-# skipping --da-height, not aborting the submission.
+# Publish the real header chain to Celestia DA before submitting the proof --
+# pure audit trail, never verified on-chain (HeaderHistory is pruned once
+# accepted, so this is the only way a late auditor could retrieve it). A
+# publish failure degrades to skipping --da-height, not aborting submission.
 #
-# Throttled, not on every proof: celestia-bridge-prover signs every blob
-# submission (this AND the validators' regular block-data publishing) from
-# one shared account -- publishing per proof sustained 3-4 account-sequence-
-# mismatch races/sec, degrading DA health for all 7 validators. Skipped
-# attempts still submit the proof itself (never throttled) with no
-# --da-height.
+# Throttled, not on every proof: celestia-bridge-prover signs from one shared
+# account, and publishing per proof sustained 3-4 sequence-mismatch races/sec.
+# Skipped attempts still submit the proof itself, just with no --da-height.
 WITNESS_PUBLISH_MIN_INTERVAL_S="${WITNESS_PUBLISH_MIN_INTERVAL_S:-120}"
 WITNESS_PUBLISH_MARKER="$MAIN_CIRCUIT_DIR/target/.last_witness_publish"
 NOW_S=$(date +%s)

@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
-"""LIVE E9 combined-failure trace against the real 7-node testnet --
-docs/EXPERIMENT.md's E9 capstone: ONE continuous run layering multiple
-overlapping peripheral failures (not sequential isolated toggles like
-live_lifecycle_test.py), a genuinely compounding stress trace across all 3
-peripheral systems.
+"""LIVE E9 combined-failure trace against the real 7-node testnet -- docs/EXPERIMENT.md's E9
+capstone: ONE continuous run layering multiple overlapping peripheral failures (not sequential
+isolated toggles like live_lifecycle_test.py), a genuinely compounding stress trace.
 
-Run LAST, after these prerequisite mechanisms have each been individually
-validated in isolation -- betting a long combined run on unproven mechanisms
-compounds the risk of an inconclusive result:
-  - live_scenario_matrix.py's S2 leg (confirms chaos-btc-delay actually
-    produces a gradual btc_gap ramp).
-  - live_sybil_attack.py or injector.toggle_profile_bursts (confirms real
-    P2P churn behavior).
+Run LAST, after live_scenario_matrix.py's S2 leg and live_sybil_attack.py have each individually
+validated their own fault mechanism -- betting a long combined run on unproven mechanisms
+compounds the risk of an inconclusive result.
 
 Layering, one continuous timeline (not sequential):
   1. chaos-btc-delay ramp starts (BTC congestion pressure builds).
@@ -234,20 +228,15 @@ def main():
     print(f"\nwrote {len(tr.samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")
 
-    # Diagnostic-only per-validator BTC/DA/P2P sensor reads, scraped from
-    # x/sovereignty/sensors_refresh.go's sensor_snapshot log line (never
-    # committed state -- see the note below). Best-effort: a scrape failure
-    # or empty result just means these 3 extra panels won't be available,
-    # not a run failure.
+    # Diagnostic-only per-validator BTC/DA/P2P sensor reads, scraped from the
+    # sensor_snapshot log line (never committed state). Best-effort: an empty
+    # result just means these 3 extra panels won't be available.
     sensor_rows = []
     for node in ALL_NODES:
         node_samples = [s for s in tr.samples if s.node == node]
-        # scrape_sensor_snapshots reads the container's ENTIRE log history
-        # (its own doc), not just this run -- a long-lived container carries
-        # sensor_snapshot lines from every prior run/session. Dropping rows
-        # outside this run's real sampled height range keeps stale heights
-        # (e.g. genesis-era startup noise) out of nearest_timestamp, which
-        # would otherwise snap them to a misleadingly plausible in-run time.
+        # scrape_sensor_snapshots reads the container's ENTIRE log history, so
+        # rows outside this run's real height range (stale prior-run noise)
+        # must be dropped before nearest_timestamp can use them.
         heights_this_run = {s.height for s in node_samples}
         lo, hi = min(heights_this_run), max(heights_this_run)
         for row in scrape_sensor_snapshots(node):

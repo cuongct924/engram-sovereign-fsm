@@ -63,13 +63,10 @@ func TestRefreshReanchoringProofValid_ExactMatchStillValid(t *testing.T) {
 	require.True(t, valid, "gap=0 (exact match) must still be valid")
 }
 
-// TestRefreshReanchoringProofValid_WithinBoundedGapIsValid covers the real
-// liveness bug this was added to fix: on a fast-producing testnet, a real,
-// accepted proof's checkpoint is ALWAYS at least 1 block behind the tip by
-// the time it lands (the committing block's own header is appended in
-// PreBlocker, strictly after the proof's DeliverTx already ran) -- an exact
-// match was found live to be structurally almost unreachable. A gap within
-// Params.MaxUnprovenTailBlocks (default 8) must now count as valid.
+// TestRefreshReanchoringProofValid_WithinBoundedGapIsValid covers a real
+// liveness bug: a real accepted proof's checkpoint is always at least 1
+// block behind the tip by the time it lands, so an exact match is almost
+// unreachable live. A gap within Params.MaxUnprovenTailBlocks must be valid.
 func TestRefreshReanchoringProofValid_WithinBoundedGapIsValid(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
 	setUpRecoveringWithProof(t, k, ctx, 18, 10) // gap = 8 = MaxUnprovenTailBlocks
@@ -81,9 +78,8 @@ func TestRefreshReanchoringProofValid_WithinBoundedGapIsValid(t *testing.T) {
 }
 
 // TestRefreshReanchoringProofValid_BeyondBoundedGapIsInvalid confirms the
-// bound is actually enforced, not accidentally unlimited -- a proof whose
-// checkpoint has fallen further behind than Params.MaxUnprovenTailBlocks
-// must NOT be treated as covering the current tip.
+// bound is actually enforced: a checkpoint further behind than
+// MaxUnprovenTailBlocks must NOT be treated as covering the current tip.
 func TestRefreshReanchoringProofValid_BeyondBoundedGapIsInvalid(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
 	setUpRecoveringWithProof(t, k, ctx, 19, 10) // gap = 9 > MaxUnprovenTailBlocks(8)
@@ -94,11 +90,9 @@ func TestRefreshReanchoringProofValid_BeyondBoundedGapIsInvalid(t *testing.T) {
 	require.False(t, valid, "gap beyond MaxUnprovenTailBlocks must be invalid -- this is a bound, not a bypass")
 }
 
-// TestRefreshReanchoringProofValid_ProofOnlyRecoveryDisablesHeuristic is
-// E10's attribution fix: with ProofOnlyRecovery=true, a purely
-// heuristic-valid state (h_btc_anchored >= h_btc_submitted, no real proof
-// ever submitted) must NOT grant reanchoring_proof_valid -- otherwise a
-// measured recovery can't be attributed to the ZK pipeline specifically.
+// TestRefreshReanchoringProofValid_ProofOnlyRecoveryDisablesHeuristic: with
+// ProofOnlyRecovery=true, a purely heuristic-valid state (no real proof)
+// must NOT grant reanchoring_proof_valid.
 func TestRefreshReanchoringProofValid_ProofOnlyRecoveryDisablesHeuristic(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
 	require.NoError(t, k.FSMState.Set(ctx, types.StateRecovering))
@@ -132,14 +126,9 @@ func TestRefreshReanchoringProofValid_ProofOnlyRecoveryStillAcceptsRealProof(t *
 }
 
 // TestDaGapMetric_NeverVerifiedReportsMaxGap is a regression test for a real
-// genesis-bootstrap deadlock (reproduced live on a fresh 4-node deploy):
-// before Publisher.MaybePublish ever completes a submit+confirm cycle,
-// VerifiedHeight() returns ok=false. daGapMetric used to fall back to
-// hVerified=0 and compute gap=hCurrent-0, which reads as a small, healthy
-// gap at low heights despite zero real DA activity -- IsDAHealthy=true then
-// forced da.VerifyReceipt to require a real Attestation that couldn't exist
-// yet, rejecting every proposal forever. A never-verified source must report
-// the maximal gap instead, matching btcGapMetric's own fail-safe convention.
+// genesis-bootstrap deadlock: before any submit+confirm cycle completes,
+// falling back to gap=hCurrent-0 reads as healthy and rejected every
+// proposal forever. A never-verified source must report the maximal gap.
 func TestDaGapMetric_NeverVerifiedReportsMaxGap(t *testing.T) {
 	k, ctx := newRefreshTestKeeperCtx(t)
 	ctx = ctx.WithBlockHeight(2) // low height -- hCurrent-0 would read as a tiny, healthy gap

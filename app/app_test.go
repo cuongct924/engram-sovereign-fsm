@@ -10,15 +10,10 @@ import (
 	log "cosmossdk.io/log/v2"
 )
 
-// Proves the fact E2's "Vanilla comparison" rests on: with vanilla=true,
-// NewEngramApp never registers PreBlocker (app.go's only vanilla-conditional
-// branch), so a vanilla node's FSMState stays pinned at genesis forever --
-// the sole post-genesis mutation path (CommitFSMTransition) is never wired.
-//
-// Only PreBlocker is asserted: BaseApp.Init() auto-fills defaults for
-// PrepareProposal/ProcessProposal, so they're non-nil even in vanilla mode;
-// PreBlocker has no such fallback. Read via reflection on the unexported
-// abciHandlers field (no public getter; IsNil() needs no unsafe).
+// Proves the fact E2's "Vanilla comparison" rests on: vanilla=true never
+// registers PreBlocker, so FSMState stays pinned at genesis (CommitFSM
+// Transition is never wired). PrepareProposal/ProcessProposal aren't
+// asserted -- BaseApp auto-fills those regardless of vanilla mode.
 func TestNewEngramApp_VanillaSkipsPreBlocker(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

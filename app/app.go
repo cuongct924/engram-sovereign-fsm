@@ -34,12 +34,9 @@ import (
 const Name = "engramd"
 
 // EngramApp wires x/sovereignty onto a real BaseApp: codec, a single
-// KVStoreKey (the module keeps its own state via collections), the
-// circuit-breaker ante handler, and the three ABCI++ hooks from
-// x/sovereignty/proposal.go + preblock.go.
-//
-// Bank/Auth/Staking are intentionally unwired -- this demo needs none of
-// them; the validator set comes only from genesis (no staking rotation).
+// KVStoreKey, the circuit-breaker ante handler, and the ABCI++ hooks from
+// proposal.go/preblock.go/vote_extension.go. Bank/Auth/Staking are
+// unwired -- the validator set comes only from genesis, no rotation.
 type EngramApp struct {
 	*baseapp.BaseApp
 
@@ -55,16 +52,10 @@ type EngramApp struct {
 	Sensors *sovereignty.Sensors
 }
 
-// NewEngramApp builds a real, runnable EngramApp (BaseApp + codec + store +
-// keeper + ante + ABCI++ handlers). chainID must match the genesis file's
-// chain_id (InitChain handshake rejects a mismatch).
-//
-// vanilla skips the three Set*Proposal/SetPreBlocker calls, so BaseApp falls
-// back to default handlers -- E2/E3/E7's vanilla baseline: same binary and
-// module, only the hook wiring differs.
-//
-// byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
-// validator -- forwarded to NewPrepareProposalHandler (see its doc).
+// NewEngramApp builds a real, runnable EngramApp. chainID must match the
+// genesis file's chain_id. vanilla skips the ABCI++ hook wiring below,
+// giving E2/E3/E7 a same-binary baseline. byzantineBehavior is
+// ENGRAM_BYZANTINE_BEHAVIOR, empty on every real validator.
 func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, byzantineBehavior string) *EngramApp {
 	// "engram" HRP: GetSigners() auto-decodes bech32 from the
 	// `cosmos.msg.v1.signer` field even without SigVerificationDecorator --
@@ -98,10 +89,9 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 
 	sovKeeper := sovereigntykeeper.NewKeeper(runtime.NewKVStoreService(storeKey), cdc)
 
-	// Lets SubmitForcedTx reject content that can never appear as real
-	// block-tx bytes before it enters ForcedTxQueue -- see Keeper.TxDecoder's
-	// doc for the live permanent-deadlock incident this closes. Same txConfig
-	// BaseApp itself decodes with.
+	// Lets SubmitForcedTx reject undecodable content before it enters
+	// ForcedTxQueue -- see Keeper.TxDecoder's doc for the deadlock this
+	// closes. Same txConfig BaseApp itself decodes with.
 	sovKeeper.TxDecoder = txConfig.TxDecoder()
 
 	// Real active Sybil/eclipse ingress defense (peer_filter.go's
@@ -118,10 +108,8 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	anteHandler := sdk.ChainAnteDecorators(NewCircuitBreakerDecorator(sovKeeper))
 	bApp.SetAnteHandler(anteHandler)
 
-	// Route x/sovereignty's Msg/Query services directly against BaseApp's
-	// routers -- no module.Manager here (InitChain is hand-rolled below), so
-	// AppModule.RegisterServices is never called; without this nothing is
-	// routable via a real submitted tx.
+	// Route Msg/Query services directly against BaseApp's routers -- no
+	// module.Manager here, so AppModule.RegisterServices never runs.
 	sovereigntytypes.RegisterMsgServer(bApp.MsgServiceRouter(), sovereigntykeeper.NewMsgServerImpl(sovKeeper))
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
@@ -147,10 +135,8 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	}
 }
 
-// newConsensusParamStore builds the collections.Item[cmtproto.ConsensusParams]
-// BaseApp's ABCI handshake needs (baseapp.SetParamStore) -- collections.Item's
-// Get/Has/Set already match the baseapp.ParamStore interface exactly, no
-// wrapper type needed.
+// newConsensusParamStore builds the collections.Item BaseApp's ABCI
+// handshake needs -- its Get/Has/Set already match baseapp.ParamStore.
 func newConsensusParamStore(storeService store.KVStoreService) collections.Item[cmtproto.ConsensusParams] {
 	sb := collections.NewSchemaBuilder(storeService)
 	item := collections.NewItem(sb, collections.NewPrefix(0), "consensus_params", collections.NewJSONValueCodec[cmtproto.ConsensusParams]())
@@ -196,22 +182,18 @@ func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 			}
 		}
 
-		// Genesis-supplied Params (nil -> DefaultParams(), see
-		// GenesisParams.ToParams) -- the ONLY point k.Params is ever set.
-		// Every validator's genesis.json is generated once and copied
-		// identically to all nodes, so this can't diverge between validators
-		// (unlike a per-process env var). Validated here too, so a
-		// hand-edited AppStateBytes can't start a chain with unsafe params.
+		// Genesis-supplied Params -- the ONLY point k.Params is set. All
+		// validators share one generated genesis.json, so this can't
+		// diverge between them the way a per-process env var could.
 		params := gs.Params.ToParams()
 		if err := params.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid genesis params: %w", err)
 		}
 		k.Params = params
 
-		// Capture the genesis validator set's pubkeys (types.ValidatorInfo's
-		// doc) -- the only point they're ever available to this app, since
-		// there's no x/staking module and ABCI never hands a pubkey to
-		// ProcessProposal/VerifyVoteExtension, only a validator's address.
+		// Capture the genesis validator set's pubkeys -- the only point
+		// they're available, since ABCI never hands ProcessProposal/
+		// VerifyVoteExtension anything but a validator's address.
 		var cmtValidators []*cmttypes.Validator
 		for _, vu := range req.Validators {
 			pubKey, err := encoding.PubKeyFromProto(vu.PubKey)
@@ -228,13 +210,10 @@ func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 			cmtValidators = append(cmtValidators, cmttypes.NewValidator(pubKey, vu.Power))
 		}
 
-		// ValidatorSetHash: the real cmttypes.ValidatorSet.Hash() (the same
-		// Merkle root every validator's own consensus engine computes) --
-		// the genesis-fixed anchor the reanchoring circuit's boundary-block
-		// binding proves against (circuit/reanchoring/src/main.nr's
-		// validator_set_hash_7). Built from the real cmttypes.Validator type
-		// rather than re-derived by hand, so its internal sort order matches
-		// upstream exactly.
+		// The real cmttypes.ValidatorSet.Hash() -- the genesis-fixed anchor
+		// the reanchoring circuit's boundary-block binding proves against
+		// (main.nr's validator_set_hash_7). Built from the real type so its
+		// sort order matches upstream exactly.
 		if err := k.ValidatorSetHash.Set(ctx, cmttypes.NewValidatorSet(cmtValidators).Hash()); err != nil {
 			return nil, err
 		}

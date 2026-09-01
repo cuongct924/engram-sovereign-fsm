@@ -53,10 +53,8 @@ func TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Regression test: this handler used to set FSMState=ANCHORED on proof
-// validity alone, bypassing StrictFSMTransitionSafety/HysteresisWait. It
-// must never touch FSMState -- only latch RealProofSubmittedHeight, consumed
-// via sensors_refresh.go's refreshReanchoringProofValid.
+// Regression: this handler used to set FSMState=ANCHORED on proof validity alone, bypassing
+// StrictFSMTransitionSafety/HysteresisWait -- it must only latch RealProofSubmittedHeight.
 func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	require.NoError(t, srv.FSMState.Set(ctx, types.StateSovereign))
@@ -169,10 +167,8 @@ func TestFindHeaderByAccumulator_NotFound(t *testing.T) {
 	require.False(t, found)
 }
 
-// Rolling checkpoint: advancing to height H drops only headers AT OR BELOW
-// H (the consumed segment); later headers survive as the next segment's
-// start. Unlike pruneHeaderHistory (full clear on return to ANCHORED), this
-// is always a prefix trim.
+// Rolling checkpoint: advancing to height H drops only headers at or below H; later headers
+// survive as the next segment's start (unlike pruneHeaderHistory's full clear on ANCHORED).
 func TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)

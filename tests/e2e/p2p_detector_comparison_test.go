@@ -1,10 +1,7 @@
-// E4 -- P2P Eclipse/Sybil Detection (E4, Table 6). Live Pumba/Docker chaos
-// isn't available here (no Docker daemon), so this is a synthetic Monte Carlo
-// comparison of the real tri-interface profiler (types.IsP2PQualityHealthy,
-// spec/core/EngramFSM.tla:76-81) against a naive peer-count-only baseline
-// (CometBFT's default: CleanPeers only), across E4's 4 attack scenarios. It
-// measures real FPR/FNR/detection-delay of both real detectors on synthetic
-// data -- documented so results aren't mistaken for a live measurement.
+// E4 -- P2P Eclipse/Sybil Detection (Table 6). No Docker daemon here, so
+// this is a synthetic Monte Carlo comparison of the real tri-interface
+// profiler (types.IsP2PQualityHealthy) against a naive peer-count-only
+// baseline, across E4's 4 attack scenarios -- not a live measurement.
 package e2e
 
 import (
@@ -89,11 +86,9 @@ var p2pAttackGenerators = map[string]attackGenerator{
 	},
 }
 
-// productionScaleParams is NOT DefaultParams(): DefaultParams uses the
-// smallest TLC-verified thresholds (state-space tractability), making every
-// synthetic attack trivially separable -- a degenerate 0%/100% FPR/FNR split.
-// This variant uses realistic values so the comparison says something about
-// detector sensitivity. Both are reported.
+// productionScaleParams is NOT DefaultParams(): DefaultParams's smallest
+// TLC-verified thresholds make every synthetic attack trivially separable
+// (degenerate 0%/100% FPR/FNR); this uses realistic values instead.
 func productionScaleParams() types.Params {
 	p := types.DefaultParams()
 	p.MinSubnetDiversity = 8
@@ -220,13 +215,8 @@ func TestE4_P2PDetectorComparison(t *testing.T) {
 
 // evasionThreshold binary-searches for the intensity at which a detector
 // stops flagging gen's output unhealthy at least half the time -- an
-// oracle-guided (adaptive) search using the detector's own pass/fail
-// feedback at each probe, rather than a fixed a-priori ramp
-// (runP2PDetectorComparison's rampSteps=10). probesPerLevel repeats each
-// candidate intensity since gen draws random jitter per call. Returns the
-// highest intensity at which the adversary still evades (healthy==true a
-// majority of probes) -- the adversary's actual goal, not just "detected at
-// some point during a ramp."
+// oracle-guided adaptive search, not a fixed a-priori ramp. Returns the
+// highest intensity at which the adversary still evades.
 func evasionThreshold(rng *rand.Rand, p types.Params, gen attackGenerator, healthy func(*types.PeripheralMetrics, types.Params) bool, probesPerLevel int) float64 {
 	evades := func(intensity float64) bool {
 		evadeCount := 0
@@ -256,14 +246,10 @@ func evasionThreshold(rng *rand.Rand, p types.Params, gen attackGenerator, healt
 	return lo
 }
 
-// TestE4_AdaptiveAdversary answers the advisor's "cần adaptive adversary"
-// gap: runP2PDetectorComparison's FPR/FNR/detection-delay all use a FIXED,
-// a-priori attack shape (uniform ramp or full-intensity). Here the search
-// itself uses the detector's live pass/fail feedback each probe
-// (evasionThreshold) -- a real adversary that adapts, not a fixed schedule.
-// Reports each detector's evasion threshold per attack: LOWER is better for
-// the defender (caught at lower intensity, less room for the adversary to
-// operate undetected).
+// TestE4_AdaptiveAdversary closes the "needs an adaptive adversary" gap:
+// runP2PDetectorComparison's FPR/FNR use a fixed a-priori attack shape;
+// here the search uses the detector's own live pass/fail feedback.
+// Reports each detector's evasion threshold per attack -- lower is better.
 func TestE4_AdaptiveAdversary(t *testing.T) {
 	rng := rand.New(rand.NewSource(4242))
 	p := productionScaleParams() // DefaultParams' thresholds are trivially separable (see its own doc)
@@ -317,12 +303,10 @@ var p2pIntensityShapes = []intensityShape{
 	{"stealthy_slow_ramp", func(step float64) float64 { return step * step }},
 }
 
-// TestE4_DistributionSensitivity answers the advisor's "sensitivity theo
-// distribution" gap: runP2PDetectorComparison always ramps intensity
-// linearly. Sweeps 3 differently-shaped intensity trajectories (front-loaded,
-// linear, stealthy) per attack/detector and reports detection delay
-// (in ramp steps) for each, so a claim like "detected within N snapshots"
-// isn't reported for only the one shape that happens to look best.
+// TestE4_DistributionSensitivity closes the "sensitivity to distribution"
+// gap: runP2PDetectorComparison always ramps linearly. Sweeps 3 differently-
+// shaped intensity trajectories per attack/detector, so detection delay
+// isn't reported for only the shape that looks best.
 func TestE4_DistributionSensitivity(t *testing.T) {
 	rng := rand.New(rand.NewSource(99))
 	p := productionScaleParams()
@@ -373,17 +357,10 @@ func TestE4_DistributionSensitivity(t *testing.T) {
 	}
 }
 
-// TestE4_CorrelatedDomainFailure answers the advisor's "correlated sensor
-// failures" gap directly against the real detector functions: both
-// IsP2PQualityHealthy and peerCountOnlyHealthy are pure functions of
-// PeripheralMetrics' P2P fields alone (see their definitions) -- BTC/DA
-// fields never enter their computation. So the correct, honest finding here
-// is that P2P detector accuracy is structurally INVARIANT to simultaneous
-// BTC/DA degradation, by the FSM's own separation of concerns
-// (spec/core/EngramFSM.tla's IsHealthyCondition ANDs three independent
-// per-domain predicates, never lets one domain's reading influence
-// another's). This test asserts that invariant holds for the real code
-// (not just the spec), rather than silently skipping the question.
+// TestE4_CorrelatedDomainFailure closes the "correlated sensor failures"
+// gap: both P2P detectors are pure functions of P2P fields alone, so their
+// accuracy is structurally invariant to simultaneous BTC/DA degradation.
+// Asserts that invariant holds for the real code, not just the spec.
 func TestE4_CorrelatedDomainFailure(t *testing.T) {
 	rng := rand.New(rand.NewSource(7))
 	p := productionScaleParams()
@@ -419,9 +396,7 @@ func TestE4_CorrelatedDomainFailure(t *testing.T) {
 	}
 
 	// The full FSM-level predicate, by contrast, MUST catch a P2P attack
-	// even when BTC/DA happen to be healthy at the same time -- confirms
-	// correlated degradation can't mask a P2P attack at the FSM level either,
-	// via the opposite direction: BTC/DA healthy + P2P attacked -> unhealthy.
+	// even when BTC/DA happen to be healthy at the same time.
 	for attack, gen := range p2pAttackGenerators {
 		m := gen(rng, p, 1.0) // full-intensity P2P attack
 		m.BtcGap = 0

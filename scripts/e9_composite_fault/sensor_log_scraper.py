@@ -1,17 +1,9 @@
-"""Scrapes E9's diagnostic-only `sensor_snapshot` lines from `docker logs` --
-x/sovereignty/sensors_refresh.go's RefreshMetrics prints one per block, per
-validator, right before the derived (not raw) PeripheralMetrics gets
-committed. These are each validator's own LOCAL sensor reads: never
-committed state (`preblock.go`'s NewPreBlocker), so unlike every other E9
-live metric, they can legitimately differ between validators -- that's
-expected, not a bug, and callers must not average/reconcile them.
+"""Scrapes E9's diagnostic-only `sensor_snapshot` lines from `docker logs` -- each validator's
+own LOCAL sensor read (never committed state), so unlike every other E9 metric they can
+legitimately differ between validators; callers must not average/reconcile them.
 
-Same `docker logs` + regex pattern as
-scripts/e8_attack_resilience/live_double_signing_test.py's
-scan_logs_for_evidence -- no timestamp to parse (the line is height-keyed,
-matching this package's existing engramd: diagnostic convention), so a
-caller correlates height -> wall-clock time via its own RPC-sampled timeline
-instead.
+No timestamp to parse (height-keyed) -- a caller correlates height to wall-clock time via its
+own RPC-sampled timeline instead.
 """
 
 import re
@@ -25,10 +17,8 @@ SENSOR_SNAPSHOT_RE = re.compile(
 
 
 def scrape_sensor_snapshots(container: str) -> list:
-    """Pulls and parses every sensor_snapshot line seen in `container`'s
-    entire log history so far -- one dict per block this validator ran
-    RefreshMetrics on. Returns [] on any docker/log failure (best-effort
-    diagnostic data, never something a caller should treat as required).
+    """Pulls and parses every sensor_snapshot line in `container`'s log history. Returns [] on
+    any docker/log failure -- best-effort diagnostic data, never required.
     """
     try:
         proc = subprocess.run(
@@ -72,11 +62,8 @@ def scrape_sensor_snapshots(container: str) -> list:
 
 
 def nearest_timestamp(height: int, rpc_samples: list) -> float:
-    """Maps a scraped block height to an approximate wall-clock timestamp by
-    finding the closest-height real RPC sample (scripts/framework/logger.py's
-    NodeSample, which carries both height and timestamp) already collected
-    for the same run -- avoids needing a timestamp in the diagnostic log line
-    at all. rpc_samples must be same-node samples with .height/.timestamp.
+    """Maps a scraped height to an approximate timestamp via the closest-height real RPC sample
+    already collected for the same run. rpc_samples must be same-node with .height/.timestamp.
     """
     if not rpc_samples:
         return None

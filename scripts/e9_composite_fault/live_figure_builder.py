@@ -1,39 +1,17 @@
 #!/usr/bin/env python3
-"""E9 -- Trace-Driven Stress Test, LIVE-docker Figure 2 (docs/EXPERIMENT.md's
-E9), built from live_combined_trace.py's real output against the real 7-node
-testnet (not tests/e2e's in-process mock).
+"""E9 -- Composite-Fault Stress Test, LIVE-docker Figure 2, built from live_combined_trace.py's
+real output against the real 7-node testnet.
 
-live_combined_trace.py's doc explains why BTC finality gap, DA availability,
-and P2P health score aren't committed state (x/sovereignty/preblock.go's
-NewPreBlocker only ever commits the already-agreed fsm_state/receipts, never
-a fresh local sensor read -- see that function's doc for the real safety bug
-this restriction fixes), so a live RPC/ABCI-query poll structurally cannot
-observe them AS COMMITTED DATA.
+BTC finality gap, DA availability, and P2P health score aren't committed state (see
+NewPreBlocker's doc), so a live RPC poll can't observe them as agreed data. This script builds 4
+panels (2 if the sensor scrape is missing), grouped by signal kind: (1) System State & Actions --
+FSM state, withdrawal-locked shading, proof-valid star, SafeBlocks, AppHash agreement; (2) Sensor
+Health -- BTC/DA gap (DIAGNOSTIC/LOCAL); (3) P2P Network -- anchors + latency (also LOCAL); (4)
+Consensus Liveness -- block height alone.
 
-This script builds 4 panels (2 if the sensor scrape is missing) from what IS
-committed/agreed and observable via CometBFT RPC + Query.State, grouped by
-signal kind rather than one row per raw field:
-    1. System State & Actions -- FSM state step-line (real), red shading over
-       derived withdrawal-locked windows (fsm_state in
-       {SOVEREIGN, RECOVERING}), a star at the real re-anchoring
-       proof-valid transition (if any this run), SafeBlocks (real hysteresis
-       counter), and cross-node AppHash agreement as a caption fact when
-       constant this run (plotted as a line only if it ever diverges)
-    2. Sensor Health -- BTC finality gap + DA availability gap, twin axes
-       (DIAGNOSTIC/LOCAL sensor reads, not committed state -- see
-       x/sovereignty/preblock.go's NewPreBlocker doc)
-    3. P2P Network -- active anchors + peer latency, twin axes (also
-       DIAGNOSTIC/LOCAL)
-    4. Consensus Liveness -- block height alone, proving the chain never
-       stalled
-
-The 3 real fault windows (BTC congestion / DA outage / P2P churn, from the
-run's own marker timestamps) are shaded translucently across every panel
-(not a separate categorical panel), with one shared legend, so a reader can
-draw a single vertical line through all panels and see the storm converge.
-
-Panels 2-3 (both sensor-CSV-dependent) drop out together if no sibling
-`<csv>_sensors.csv` scrape exists, leaving a 2-panel figure.
+The 3 real fault windows are shaded across every panel with one shared legend, so a reader can
+draw one vertical line through all panels and see the storm converge. Panels 2-3 drop out
+together if no sibling `<csv>_sensors.csv` scrape exists.
 
 Usage:
     python3 scripts/e9_composite_fault/live_figure_builder.py [csv_path]
@@ -174,11 +152,8 @@ def fault_windows(markers):
 
 
 def withdrawal_locked(fsm_state):
-    """Deterministic function of fsm_state -- no withdrawal_locked column
-    exists in this live CSV schema, but x/sovereignty/preblock.go only ever
-    sets WithdrawalLocked=true for SOVEREIGN/RECOVERING headers (see
-    x/sovereignty/types/recovery_header.go), so it's derived here instead of
-    added as a new data dependency."""
+    """Deterministic function of fsm_state -- no withdrawal_locked column exists in this CSV,
+    but preblock.go only ever sets it true for SOVEREIGN/RECOVERING, so it's derived here."""
     return fsm_state in ("SOVEREIGN", "RECOVERING")
 
 
@@ -225,12 +200,8 @@ def find_proof_valid_transition(rep_rows):
 
 
 def _draw_state_segments(ax, ts, states):
-    """FSM state step-line colored per active state (STATE_COLOR), matching
-    scripts/e10_bitcoin_reorg/live_figure_builder.py's visual language --
-    small black-on-white dots mark each real transition. No per-segment
-    legend label; state identity reads off the color-matched y-tick labels
-    instead (avoids a 4-entry line legend competing with panel 1's other
-    handles)."""
+    """FSM state step-line colored per active state, small black-on-white dots marking each
+    transition. No per-segment legend label -- state identity reads off the y-tick labels."""
     if not ts:
         return
     run_start = 0
@@ -261,11 +232,8 @@ def _finish_figure(fig, windows, colors, csv_path):
         for name, (start, _end) in windows.items()
         if start is not None
     ]
-    # Header band (suptitle + fault-window legend, both outside the panel
-    # axes) laid out with golden-ratio-proportioned spacing: the gap above
-    # the suptitle and the gap between suptitle and legend follow the same
-    # ~1.618 rhythm as the figure's own width:height, instead of arbitrary
-    # y-values.
+    # Header band (suptitle + legend) spacing follows the figure's own
+    # ~1.618 width:height ratio instead of arbitrary y-values.
     fig.suptitle(
         "Figure 2 -- FSM Timeline Under a Real Combined-Failure Trace",
         fontsize=13,
@@ -300,8 +268,7 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     all_rep_rows = sorted(
         [r for r in rows if r["node"] == rep_node], key=lambda r: r["t"]
     )
-    # Drop transient RPC-error samples (logger.py's query_node sentinel:
-    # height=-1, fsm_state="") -- real blocks never go backwards; that was a
+    # Drop transient RPC-error samples (height=-1, fsm_state="") -- a
     # polling artifact, not a real event.
     rep_rows = [r for r in all_rep_rows if r["height"] >= 0]
     t0 = min(r["timestamp"] for r in rows)
@@ -315,37 +282,24 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
         )
 
     windows = fault_windows(markers)
-    # A consistent "these are all faults" warm trio (Okabe-Ito colorblind-safe
-    # hues) -- the previous DA-outage color (green, matplotlib C2) read as
-    # "healthy" by convention and collided with RECOVERING's green in panel
-    # 1's FSM line; none of these three overlaps green or blue, both of
-    # which already mean "healthy" elsewhere in this figure.
+    # Warm trio (colorblind-safe) -- avoids green/blue, which already mean
+    # "healthy" elsewhere in this figure (RECOVERING's line color etc).
     colors = {"BTC congestion": "#E69F00", "DA outage": "#CC79A7", "P2P churn": "#D55E00"}
 
-    # Grouped-by-signal-kind layout (not one row per raw field): 4 panels
-    # with sensor data (state+actions / BTC+DA / P2P / liveness), 2 without
-    # (sensor-CSV-dependent panels 2-3 drop out together). All panels share
-    # one x-axis (sharex=True) -- the whole point is a reader can draw one
-    # vertical line through every panel and see the real storm converge.
+    # 4 panels with sensor data, 2 without (panels 2-3 drop out together).
+    # All share one x-axis so a reader can draw one vertical line through
+    # every panel and see the real storm converge.
     n_panels = 4 if rep_sensor_rows else 2
-    # Uneven height_ratios instead of one flat panel_height for every row:
-    # panel 1 carries 4 categorical FSM levels + a twin axis + shading + a
-    # legend (the densest panel by far) and earns more vertical room; panel
-    # 4 is a single plain line and needs the least. Total height matches
-    # figsize_multi_panel(n_panels, panel_height=1.9)'s old flat total, just
-    # redistributed.
+    # Uneven height_ratios: panel 1 is the densest (4 FSM levels + twin axis
+    # + shading + legend) and earns the most room; panel 4 is a plain line.
     FIG_WIDTH = 12
     GOLDEN_RATIO = 1.618
-    # Whole-figure width:height fixed to the golden ratio, not just the
-    # panel stack -- the header band (suptitle + fault-window legend) is
-    # carved out of this same canvas via subplots_adjust(top=...) below, not
-    # added on top of it, so this height sets the entire figure's proportion.
+    # Whole-figure width:height fixed to the golden ratio -- the header band
+    # is carved out of this same canvas, not added on top of it.
     total_height = FIG_WIDTH / GOLDEN_RATIO
     height_ratios = [1.5, 1.0, 1.0, 0.7] if n_panels == 4 else [1.5, 0.9]
-    # Wider than the strict double-column width (7.16in): at that width the
-    # pre-SOVEREIGN stretch of panel 1 (the only part of the timeline clear
-    # of the withdrawal-locked shading) was too narrow to hold a legend
-    # without it spilling into the shaded region.
+    # Wider than the strict double-column width: at that width panel 1's
+    # legend spilled into the withdrawal-locked shaded region.
     fig, axes = plt.subplots(
         n_panels, 1, figsize=(FIG_WIDTH, total_height), sharex=True,
         gridspec_kw={"height_ratios": height_ratios},
@@ -354,11 +308,9 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     # --- Panel 1: System State & Actions ------------------------------
     ax = axes[0]
     shade_fault_windows(ax, windows, colors, t_max)
-    # Black diagonal hatch, no fill -- a solid red span here would be
-    # visually indistinguishable from the "P2P churn" fault window, which is
-    # also a shade of red and frequently overlaps this exact region (both
-    # active at once for most of the SOVEREIGN plateau). Hatching reads as a
-    # distinct annotation layer regardless of what fault color sits under it.
+    # Black diagonal hatch, no fill -- a solid red span would be
+    # indistinguishable from the "P2P churn" fault window, also reddish and
+    # frequently overlapping. Hatching reads as a distinct layer regardless.
     for start, end in locked_windows(rep_rows):
         ax.axvspan(start, end, facecolor="none", edgecolor="black", hatch="///",
                    linewidth=0, alpha=0.35, zorder=1)
@@ -382,9 +334,8 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
         lbl.set_fontweight("bold")
     ax.set_ylim(-0.5, len(STATES) - 0.5)
 
-    # SafeBlocks (real hysteresis counter) folded in here, twin axis --
-    # small count range, would be unreadable sharing the categorical FSM
-    # y-axis.
+    # SafeBlocks folded in here, twin axis -- small count range would be
+    # unreadable sharing the categorical FSM y-axis.
     ax_sb = ax.twinx()
     ax_sb.grid(False)
     ax_sb.step(
@@ -395,23 +346,17 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     ax_sb.set_ylabel("Safe blocks", fontsize=9, color="darkviolet", fontweight="bold")
     ax_sb.tick_params(axis="y", labelcolor="darkviolet", labelsize=8)
     sb_vals = [r["safe_blocks"] for r in rep_rows]
-    # Pin the SafeBlocks line into a band near the TOP of the panel (~75-95%
-    # of the visible height) instead of near the bottom -- the FSM line
-    # spends most of the run at ANCHORED (bottom, ~12%) or SOVEREIGN
-    # (mid-height, ~62%), so hugging the bottom (the previous approach)
-    # made SafeBlocks visually collide with the ANCHORED line, and the
-    # legend box sitting near the bottom to avoid one ended up covering the
-    # other. The upper band is clear for the whole run except the brief
-    # instant the FSM itself reaches RECOVERING.
+    # Pin SafeBlocks into a band near the TOP (not bottom) -- the FSM line
+    # spends most of the run near the bottom (ANCHORED) or mid-height
+    # (SOVEREIGN), so a bottom-hugging SafeBlocks line collided with it.
     sb_ref = max(max(sb_vals), 1)
     ax_sb.set_ylim(-3.75 * sb_ref, 1.25 * sb_ref)
     ax_sb.set_yticks(sorted(set([0] + sb_vals)))
     ax_sb.tick_params(axis="x", labelbottom=False)
 
-    # Cross-node AppHash agreement -- computation unchanged from the prior
-    # version. Conditional on the result: a real divergence is still
-    # plotted (never silently hidden); a constant all-agree series (this
-    # run) is stated as a caption fact instead of a flat, uninformative line.
+    # Cross-node AppHash agreement: a real divergence is still plotted
+    # (never silently hidden); a constant all-agree series becomes a
+    # caption fact instead of a flat, uninformative line.
     by_tick = {}
     for r in rows:
         if r["height"] < 0 or not r["app_hash"]:
@@ -440,12 +385,8 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     )
     handles.append(lock_patch)
     labels.append(lock_patch.get_label())
-    # "center left" -- for t=0..110 (before the first transition) the FSM
-    # line sits flat at the bottom (ANCHORED) and SafeBlocks now sits in its
-    # own band near the top, leaving the vertical middle of the panel
-    # completely empty; "lower left" used to sit directly on the ANCHORED
-    # line (the legend's own opaque background blanked out the real data
-    # under it).
+    # "center left": the vertical middle is empty (FSM at bottom, SafeBlocks
+    # near top); "lower left" used to sit directly on top of the ANCHORED line.
     ax.legend(handles, labels, loc="center left", fontsize=8)
 
     if agree_all:

@@ -1,47 +1,20 @@
 #!/usr/bin/env python3
-"""LIVE vanilla-vs-extended throughput/latency A/B under real load --
-docs/EXPERIMENT.md's E7.
+"""LIVE vanilla-vs-extended throughput/latency A/B under real load -- docs/EXPERIMENT.md's E7.
 
-"Extended" is measured against the REAL 7-validator Docker cluster
-(engram-validator-cluster, already running -- the same deployment E2/E4/E5/E6
-collect their data against), not a throwaway local process: real multi-node
-BFT voting overhead is what this experiment is actually trying to capture,
-and a single-node process can't produce that. "Vanilla" stays a local
-single-process comparison (standing up a second full 7-node vanilla-flagged
-cluster is a separate, large infra undertaking this script doesn't attempt)
--- this is a deliberate, documented simplification, not an oversight: it
-answers "does the extended payload's per-block byte/CPU overhead matter"
-without needing a second cluster, at the cost of not isolating cluster-size
-effects between the two arms. Treat the vanilla number as a lower bound on
-overhead-free throughput, not a strict apples-to-apples cluster comparison.
+"Extended" targets the REAL 7-validator Docker cluster (already running -- real multi-node BFT
+overhead can't come from a single-node process). "Vanilla" stays a local single process (a
+second full 7-node vanilla cluster is a separate infra undertaking) -- a deliberate
+simplification: treat it as a lower bound on overhead-free throughput, not a strict
+cluster-vs-cluster comparison.
 
-Load mechanism: `engramd tx-submit-forced-tx --payload <label>-<i> --dry-run`
-(cmd/engramd/e8_cli.go) builds N distinct, deterministic tx byte strings
-up front (this app's txs are unsigned envelopes, no x/auth -- no signing to
-replicate), varied per-submission so CometBFT's mempool doesn't dedup
-identical bytes (buildMinimalTx has no nonce/timestamp field). Each is then
-POSTed directly to /broadcast_tx_sync at a controlled rate -- the same
-build-then-broadcast-raw pattern scripts/e8_attack_resilience/
-live_censorship_test.py already uses, just looped instead of one-shot.
+Load mechanism: builds N distinct forced-tx byte strings up front, POSTs each directly to
+/broadcast_tx_sync at a controlled rate (same pattern as live_censorship_test.py, looped).
 
-Latency/throughput: reuses scripts/e2_fault_injection/live_scenario_matrix.py's
-block_interval_stats() verbatim (imported, not reimplemented) for Mean/p50/p95
-seconds-between-height-increments, plus real blocks/sec and tx-accepted/sec
-(broadcast_tx_sync responses with code==0).
-
-blocks_per_sec vs. mean/p50/p95 interval are NOT directly comparable and must
-not be read as contradicting each other: blocks_per_sec is
-(height range)/(full elapsed wall time), so it includes any stretch of the
-window where height didn't advance at all (round-skips, mempool backpressure,
-sampling-boundary rounding); block_interval_stats only averages over the
-CONSECUTIVE samples where height DID increase, so it's blind to those gaps by
-construction. A run with real stalls can show mean interval ~= 1/target-rate
-(steady-state, when it's moving) while blocks_per_sec reads well below
-1/mean_interval (because part of the window wasn't moving). This script now
-reports both explicitly plus a `gap_fraction` diagnostic
-(1 - n_intervals*mean_s/elapsed) quantifying how much of the window that
-gap-blindness hid, instead of presenting the two numbers side by side with no
-explanation.
+blocks_per_sec and mean/p50/p95 interval measure different things and can disagree without
+contradicting each other: blocks_per_sec includes any stalled stretch of the window (round-skips,
+backpressure), while interval stats only average over consecutive height-increasing samples, so
+they're blind to those gaps. `steady_blocks_per_sec` (1/mean interval) and `gap_fraction`
+reconcile the two explicitly instead of reporting them side by side unexplained.
 
 Usage (extended = the real running Docker cluster; vanilla = one local
 process spun up by this script):
@@ -176,12 +149,9 @@ def run_load_phase(mode: str, port: int, duration_s: float, rate_hz: float) -> d
     stats = block_interval_stats(samples) or {"mean_s": None, "p50_s": None, "p95_s": None, "n_intervals": 0}
     heights = [s.height for s in samples if s.height > 0]
     blocks_per_sec = (max(heights) - min(heights)) / elapsed if len(heights) >= 2 else None
-    # steady_blocks_per_sec: what throughput WOULD be if the whole window
-    # moved at the measured steady-state pace (1/mean_s) -- the module doc's
-    # blocks_per_sec-vs-interval reconciliation. gap_fraction: how much of
-    # elapsed isn't accounted for by n_intervals*mean_s (round-skips,
-    # backpressure, or just the sampling boundary) -- 0 means the two
-    # measures agree; a positive fraction quantifies the real stall.
+    # steady_blocks_per_sec: throughput if the whole window moved at the measured
+    # steady-state pace (1/mean_s). gap_fraction: how much of elapsed that pace
+    # doesn't account for (round-skips, backpressure) -- see module doc.
     steady_blocks_per_sec = 1.0 / stats["mean_s"] if stats["mean_s"] else None
     gap_fraction = (
         1.0 - (stats["n_intervals"] * stats["mean_s"]) / elapsed

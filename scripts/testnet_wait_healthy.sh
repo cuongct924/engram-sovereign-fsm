@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 # Waits for a container's Docker healthcheck to report "healthy" -- used
-# before starting the 4 validators so celestia-bridge-node01 is actually able to
-# serve DA reads/submits, not just running. testnet_fetch_celestia_token.sh's
-# wait (bridge_auth.txt exists) fires within seconds of container start, long
-# before header.NetworkHead RPC calls succeed; validators starting on that
-# weaker signal reliably see da_gap grow past MaxSuspiciousTime (24 blocks,
-# ~40-50s at this cluster's cadence) before the bridge is ready, forcing an
-# unwanted SOVEREIGN escalation on every fresh deploy.
+# before starting validators so each celestia-bridge can actually serve DA
+# reads, not just be running. testnet_fetch_celestia_token.sh's own wait
+# (bridge_auth.txt exists) fires too early and would let da_gap grow past
+# MaxSuspiciousTime, forcing an unwanted SOVEREIGN escalation on every deploy.
 #
 # Usage: scripts/testnet_wait_healthy.sh <container> [timeout_s]
 set -euo pipefail

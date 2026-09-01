@@ -97,17 +97,9 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		BtcCurrentHeight:      btcCurrentHeight,
 	}
 
-	// Diagnostic-only, never committed -- this node's own local sensor
-	// reads, printed for E9's live figure to scrape via `docker logs`
-	// (docs/EXPERIMENT.md's E9), and for E4 A3/A4 live-test debugging
-	// (churn_rate/avg_tenure/peer_latency added after a first A3 run showed
-	// a real SUSPICIOUS transition with BTC/DA/anchor-count all healthy,
-	// leaving the P2P-quality fields as the only unlogged, unconfirmed
-	// candidate cause). Deliberately height-keyed, not timestamped, matching
-	// this package's existing engramd: diagnostic convention (preblock.go's
-	// recordDetectedEvidence, reanchor.go, x/anchor/anchor.go) -- stdout
-	// only, no k.*.Set call, so it cannot affect AppHash or determinism
-	// regardless of per-validator disagreement.
+	// Diagnostic-only, never committed -- this node's own local sensor reads,
+	// scraped from `docker logs` by E9's live figure and E4's A3/A4 tests.
+	// stdout only, no k.*.Set, so it can't affect AppHash or determinism.
 	fmt.Printf(
 		"engramd: sensor_snapshot height=%d btc_gap=%d btc_spv_failed=%t da_gap=%d da_failed=%t attestation_failed=%t active_anchors=%d clean_peers=%d churn_rate=%d avg_tenure=%d peer_latency=%d\n",
 		ctx.BlockHeight(), metrics.BtcGap, metrics.IsBtcSpvFailed, metrics.DaGap, metrics.IsDasFailed, metrics.IsAttestationFailed, metrics.ActiveAnchors, metrics.CleanPeers, metrics.PeerChurnRate, metrics.AvgPeerTenure, metrics.PeerLatency,
@@ -116,14 +108,10 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 	return k.Metrics.Set(ctx, metrics)
 }
 
-// daGapMetric computes da_gap (EngramFSM.tla:87, h_engram_current -
-// h_engram_verified) plus is_das_failed/is_attestation_failed. Without a live
-// Source it mirrors DASensor's static flags; with one (da.Publisher) it
-// measures the real gap vs this validator's own chain height, persisted to
-// k.HEngramCurrent.
-//
-// Simplification: Source.Failed() stands in for both failure flags --
-// da.Publisher can't separate "sampling failed" from "attestation failed".
+// daGapMetric computes da_gap (EngramFSM.tla:87). Without a live Source it
+// mirrors DASensor's static flags; with one it measures the real gap vs
+// this validator's own chain height. Simplification: Source.Failed()
+// stands in for both failure flags -- da.Publisher can't separate them.
 func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (gap uint64, dasFailed, attestationFailed bool, err error) {
 	src := sensor.Source()
 	if src == nil {
@@ -144,18 +132,9 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 	failed := src.Failed() || !src.ProbeHealthy(ctx)
 	hVerified, ok := src.VerifiedHeight()
 	if !ok {
-		// No DA attestation has EVER completed yet (fresh chain, or
-		// Publisher lost all state) -- report the maximal gap, matching
-		// btcGapMetric's own fail-safe convention (return
-		// SovereignThreshold on an unreachable/unconfirmed source), not
-		// hCurrent-0. The latter reads as a SMALL, healthy gap at low
-		// heights even though zero real Celestia activity has happened,
-		// which forced IsDAHealthy=true before Publisher.MaybePublish had
-		// completed even one submit+confirm cycle -- da.VerifyReceipt then
-		// required a real Attestation that couldn't exist yet, deadlocking
-		// every proposal at genesis bootstrap (reproduced live on a fresh
-		// 4-node deploy). DA health absent any real attestation must fail
-		// toward degraded, not toward "coincidentally low height".
+		// No DA attestation has EVER completed yet -- report the maximal gap,
+		// not hCurrent-0 (reads as healthy at low heights and deadlocked every
+		// proposal at genesis bootstrap, reproduced live).
 		return k.Params.DAThreshold, failed, failed, nil
 	}
 	if hCurrent <= hVerified {
@@ -164,24 +143,12 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 	return hCurrent - hVerified, failed, failed, nil
 }
 
-// btcGapMetric computes btc_gap. Without a live Source it uses
-// btc.GetMetric's static SetGap; with one it uses h_btc_anchored, written
-// each block from the committed proposal's btc_receipt
-// (spec/core/EngramServer.tla:148) -- not the abstract
-// min(H_submitted, H_anchored) (EngramFSM.tla:95), which would collapse to
-// ~h_btc_current since h_btc_submitted is 0 outside a re-anchoring cycle
-// (EngramServer.tla:151-159).
-//
-// spvFailed re-verifies the agreed h_btc_anchored against our own bitcoind
-// (VerifyAnchor's OP_RETURN scan, mirroring is_btc_spv_failed,
-// EngramFSM.tla:184) so a forged/reorged anchor isn't trusted until btc_gap
-// crosses SOVEREIGN_THRESHOLD.
-//
-// hCurrent is this validator's own live reading of the current BTC height,
-// returned (not committed here) so RefreshMetrics can carry it into
-// PeripheralMetrics.BtcCurrentHeight for quorum certification -- see that
-// field's doc for why writing it directly to committed state from here
-// (the pre-vote-extension design) silently stopped working.
+// btcGapMetric computes btc_gap from h_btc_anchored (spec/core/
+// EngramServer.tla:148), not the abstract min(H_submitted, H_anchored)
+// (EngramFSM.tla:95). spvFailed re-verifies the agreed anchor against our
+// own bitcoind (is_btc_spv_failed, EngramFSM.tla:184). hCurrent is
+// returned, not committed here, for quorum certification via
+// PeripheralMetrics.BtcCurrentHeight.
 func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, hCurrent uint64, err error) {
 	src := btc.Source()
 	if src == nil {
@@ -219,4 +186,3 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 	}
 	return hCurrent - hAnchored, spvFailed, hCurrent, nil
 }
-

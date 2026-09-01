@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""LIVE Docker attacker-swarm test against the real 4-node testnet --
-docs/EXPERIMENT.md's E4/E8 A1 (Peer Slot Exhaustion) and A2 (Sybil via
-simulated multi-subnet swarm), verifying the real ingress filter
-(x/sovereignty/keeper/peer_filter.go's FilterPeerByAddr, Params.
-MaxPeersPerSubnet) against real attacker traffic, beyond E4's synthetic
-Monte Carlo data (simulate_eclipse_attack.py).
+"""LIVE Docker attacker-swarm test against the real testnet -- docs/EXPERIMENT.md's E4/E8 A1
+(Peer Slot Exhaustion) and A2 (Sybil via multi-subnet swarm), verifying the real ingress filter
+(FilterPeerByAddr, Params.MaxPeersPerSubnet) against real attacker traffic.
 
 Two legs, driven by docker/attacker-peer-swarm.yml's two profiles:
   a1 -- 10 attacker containers, all on engram-net (same /24 as the 4 real
@@ -86,11 +83,9 @@ def swarm_up(profile: str, services: list) -> None:
     print(
         f"[{now()}] >>> docker compose --profile {profile} up -d <services> (starting attacker swarm)"
     )
-    # Retries a transient `docker compose up -d` failure observed live and
-    # repeatedly this session (E4 A3's attacker_up hit the same thing) --
-    # a manual retry of the identical command always succeeded immediately,
-    # suggesting Compose's own project-state cache needing a moment to
-    # resync rather than a real config/dependency issue.
+    # Retries a transient `docker compose up -d` failure (Compose's project-
+    # state cache resyncing after a redeploy) -- an immediate manual retry
+    # always succeeds.
     last_err = None
     for attempt in range(3):
         try:
@@ -110,13 +105,9 @@ def swarm_up(profile: str, services: list) -> None:
 
 
 def swarm_down(profile: str, services: list) -> None:
-    # NEVER `docker compose down` here -- `down` tears down the ENTIRE
-    # project (all containers/networks, including the real 4-node cluster
-    # and bitcoin/celestia) regardless of --profile; its scope is the whole
-    # project, unlike `up`. Confirmed live: an earlier version used `down`
-    # and destroyed the running cluster mid-experiment. `stop` + `rm -f`
-    # with explicit service names (matching injector.py's cleanup_profile)
-    # is scoped correctly.
+    # NEVER `docker compose down` -- it tears down the ENTIRE project
+    # (the whole running cluster, not just this profile) regardless of
+    # --profile. `stop` + `rm -f` with explicit service names is scoped correctly.
     print(
         f"[{now()}] >>> docker compose stop/rm <services> (tearing down attacker swarm only)"
     )
@@ -139,18 +130,15 @@ class Tracker:
         self.start = time.time()
         self.rows = []  # list of dict rows for the CSV
         self.node_samples = []  # NodeSample objects, for write_csv reuse
-        # No byzantine validator exists in A1/A2 (the attack is external,
-        # non-validator containers) -- unlike live_byzantine_attacks.py's
-        # HONEST_NODES filter, every one of the 4 real validators must agree,
-        # so divergence is checked across ALL_VALIDATORS, not a subset.
+        # No byzantine validator in A1/A2 (attack is external, non-validator
+        # containers) -- every real validator must agree, so divergence is
+        # checked across ALL_VALIDATORS, not a HONEST_NODES subset.
         self.divergence_events = []
         self.phase_heights: dict = {}  # phase -> [(t, max_height), ...]
         self.phase_stats: dict = {}  # phase -> [{node: (cpu_pct, mem_mb)}, ...]
         self.sample_stats = sample_stats
-        # nil-prevote tracking (docs/EXPERIMENT.md's E4/E8 P2P-attack rows
-        # previously reported only "filter holds N/N" + AppHash divergence;
-        # this adds the specific rejection-mechanism signal, same pattern as
-        # E7's live_sensor_mismatch.py). phase -> {committed_height: vote_str}.
+        # nil-prevote tracking: the specific rejection-mechanism signal,
+        # beyond "filter holds N/N" + AppHash divergence. phase -> {height: vote_str}.
         self.target_address = own_validator_address(TARGET_NODE)
         self.phase_nil_votes: dict = {}
 
@@ -303,12 +291,9 @@ def main():
     final_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
     filter_held = peak_count <= MAX_PEERS_PER_SUBNET
-    # Not a fixed ANCHORED/SUSPICIOUS allowlist: the cluster's baseline
-    # depends on whatever the real BTC/DA/P2P pipeline's timing is at run
-    # time (e.g. RECOVERING mid-reanchoring is legitimate and unrelated to
-    # the attack). The real claim to check is "the attack didn't cause a
-    # WORSE transition" -- fsm_state during/after never regresses relative
-    # to the baseline phase's own state set.
+    # Not a fixed ANCHORED/SUSPICIOUS allowlist -- baseline depends on real
+    # BTC/DA/P2P timing at run time. The real claim: fsm_state during/after
+    # never regresses relative to the baseline phase's own state set.
     baseline_states = {
         r["fsm_state"] for r in tr.rows if r["phase"] == "baseline" and r["fsm_state"]
     }

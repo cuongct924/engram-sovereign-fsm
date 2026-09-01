@@ -1,17 +1,10 @@
 // circuit/reanchoring/src/main.nr
 //
-// Recovery proof circuit: proves a SOVEREIGN/RECOVERING interval of up to
-// N_MAX headers is well-formed before re-anchoring to ANCHORED, mirroring
-// VerifyZkProof (spec/core/EngramTendermint.tla:257-260), AND that the
-// interval's two boundary blocks were really committed by >=2/3 of the
-// genesis validator set (circuit/README.md's Scope section). For design
-// rationale, measurements, and the fixed-N=4 / recursion history see
-// circuit/reanchoring/README.md.
-//
-// Implementation: `count` (1..=N_MAX) is a real public input -- the ACTUAL
-// number of real headers in this proof -- not implicit in the circuit size;
-// N_MAX=256 is a compile-time ceiling. Slots at index >= count are padding:
-// no constraint is enforced on them (see the `active` gate below).
+// Recovery proof: a SOVEREIGN/RECOVERING interval of up to N_MAX headers
+// is well-formed (spec/core/EngramTendermint.tla:257-260's VerifyZkProof),
+// and its two boundary blocks were really committed by >=2/3 of the
+// genesis validator set (circuit/README.md's Scope section). `count`
+// (1..=N_MAX) is a public input; slots >= count are unconstrained padding.
 
 use bignum::{bignum::BigNum, ED25519_Fq as Fq};
 use edwards_bignum::ed25519::Ed25519;
@@ -33,18 +26,10 @@ struct Header {
     state_root: Field,
 }
 
-// hash_header chains a Header via SHA-256, not Poseidon2: Poseidon2 t=4 over
-// BN254 has no independently-verified Go implementation (gnark-crypto's
-// bn254 poseidon2 package supports only t=2,3; the Horizen Labs reference
-// implementation has a documented history of bugs specifically in the t=4
-// external linear layer) -- an unacceptable correctness risk for a value
-// the Go keeper must reproduce bit-for-bit every block
-// (x/sovereignty/types.HashHeader, called from CommitFSMTransition). SHA-256
-// has no tunable parameters, so Go's crypto/sha256 and this circuit
-// (noir-lang/sha256) are guaranteed to agree -- cross-verified byte-for-byte
-// against Go's stdlib before this change landed. Costs more per header than
-// Poseidon2 would have (see circuit/reanchoring/README.md's benchmark
-// section); the trade is deliberate.
+// hash_header chains via SHA-256, not Poseidon2: Poseidon2 t=4 over BN254
+// has no independently-verified Go implementation -- an unacceptable
+// correctness risk for a value x/sovereignty/types.HashHeader must
+// reproduce bit-for-bit every block. Costs more per header; deliberate trade.
 fn hash_header(h: Header) -> Field {
     let mut bytes: [u8; 128] = [0; 128];
     let b0 = h.prev_hash.to_be_bytes::<32>();
@@ -61,10 +46,8 @@ fn hash_header(h: Header) -> Field {
 }
 
 // reduce_to_field is the big-endian byte-to-Field fold shared by
-// hash_header's digest reduction and the boundary-binding block/validator-set
-// hash checks below -- Field arithmetic reduces mod the BN254 scalar field
-// automatically, matching Go's x/sovereignty/types.ReduceToField exactly
-// (both are mod-p reduction of the same big-endian 32-byte integer).
+// hash_header's digest reduction and the boundary hash checks below --
+// matches Go's x/sovereignty/types.ReduceToField exactly.
 fn reduce_to_field(bytes: [u8; 32]) -> Field {
     let mut acc: Field = 0;
     for i in 0..32 {
@@ -81,14 +64,9 @@ fn le_bytes_to_field(bytes: [u8; 32]) -> Field {
     acc
 }
 
-// build_simple_validator_bytes reconstructs the exact protobuf encoding of
-// tendermint.types.SimpleValidator{PubKey, VotingPower} that
-// types.Validator.Bytes() produces and ValidatorSet.Hash() hashes as each
-// Merkle leaf -- see crypto/merkle.HashFromByteSlices in the
-// engram-consensus-core fork. voting_power is constrained to < 128 (a
-// single-byte protobuf varint) -- true for every validator in this
-// deployment's genesis; a real deployment with larger per-validator power
-// would need a general varint encoder here, a documented scope limit.
+// build_simple_validator_bytes reconstructs types.Validator.Bytes()'s
+// protobuf encoding, hashed as each Merkle leaf by ValidatorSet.Hash().
+// voting_power < 128 (single-byte varint) is a documented scope limit.
 fn build_simple_validator_bytes(pubkey_compressed: [u8; 32], voting_power: u8) -> [u8; 38] {
     assert(voting_power < 128);
     let mut out: [u8; 38] = [0; 38];
@@ -123,16 +101,9 @@ fn sha256_inner(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
     digest(preimage)
 }
 
-// validator_set_hash_7 reproduces types.ValidatorSet.Hash() for EXACTLY 7
-// validators -- crypto/merkle.HashFromByteSlices's split-point recursion
-// (largest power of two < n) is hardcoded for n=7 rather than implemented
-// generically, since this deployment's genesis validator set is immutable
-// for the network's lifetime (CLAUDE.md: "no staking-driven rotation") and
-// the tree SHAPE is a fixed, compile-time-known function of n. A future
-// validator-count change requires recompiling this circuit (and its VK)
-// with a re-derived shape -- not a supported runtime parameter. Takes each
-// validator's ALREADY-COMPUTED leaf hash
-// (sha256_leaf(build_simple_validator_bytes(pubkey, power))).
+// validator_set_hash_7 reproduces types.ValidatorSet.Hash() for exactly 7
+// validators -- the tree shape is hardcoded since this deployment's
+// validator set never rotates; a count change needs a circuit+VK recompile.
 fn validator_set_hash_7(leaf: [[u8; 32]; 7]) -> [u8; 32] {
     let ll = sha256_inner(leaf[0], leaf[1]);
     let lr = sha256_inner(leaf[2], leaf[3]);
@@ -142,10 +113,8 @@ fn validator_set_hash_7(leaf: [[u8; 32]; 7]) -> [u8; 32] {
     sha256_inner(l, r)
 }
 
-// encode_varint_u64 is a protobuf-style base-128 varint ENCODER (not a
-// parser): given a value known at witness-build time, deterministically
-// produces its wire bytes. Bounded to 5 bytes (covers any u32, comfortably
-// covers real block heights/part-counts for the lifetime of this testnet).
+// encode_varint_u64: protobuf base-128 varint ENCODER (not a parser),
+// bounded to 5 bytes (covers any u32).
 fn encode_varint_u64<let MAX: u32>(v: Field) -> BoundedVec<u8, MAX> {
     let mut out: BoundedVec<u8, MAX> = BoundedVec::new();
     let mut remaining = v;
@@ -165,21 +134,10 @@ fn encode_varint_u64<let MAX: u32>(v: Field) -> BoundedVec<u8, MAX> {
     out
 }
 
-// build_vote_sign_bytes reconstructs the exact bytes a CometBFT validator
-// ed25519-signs for a Precommit vote (types.VoteSignBytes: MarshalDelimited
-// of the protobuf CanonicalVote{Type, Height, BlockID, Timestamp, ChainID},
-// round omitted since proto3 elides zero-valued scalar fields -- only
-// round==0 precommits are supported by this circuit, a documented scope
-// limit, not a silent gap).
-//
-// height and block_hash are the values the boundary-binding check BINDS to
-// public inputs; part_set_header and timestamp are real vote fields that
-// must be included in what was signed but whose specific values don't need
-// public verification (BlockID.Hash alone identifies the block -- see
-// circuit/README.md), so they're taken as opaque witness bytes. chain_id is
-// a compile-time constant, NOT taken from the witness, so a colluding
-// validator subset cannot pre-sign a vote for a different chain and replay
-// it here.
+// build_vote_sign_bytes reconstructs the bytes a CometBFT validator
+// ed25519-signs for a Precommit (types.VoteSignBytes); round==0 only, a
+// documented scope limit. chain_id is a compile-time constant, not a
+// witness value, so a colluding subset can't replay a vote from another chain.
 fn build_vote_sign_bytes<let MAX_LEN: u32, let MAX_TS_LEN: u32>(
     height: u64,
     block_hash: [u8; 32],
@@ -256,15 +214,10 @@ struct ValidatorSetWitness {
 struct BoundaryBlockWitness {
     ps_total: u32,
     ps_hash: [u8; 32],
-    // Per-validator, NOT shared: every honest validator signs the same
-    // ps_total/ps_hash/block_hash but their OWN local wall-clock timestamp
-    // (CometBFT's CanonicalVote.timestamp), and ed25519 verification is
-    // exact-byte -- reusing one validator's real timestamp bytes to verify
-    // another's real signature always fails except by coincidence (proven
-    // live: with a single shared timestamp only the ONE validator it was
-    // taken from ever verified, capping signed_power at 1/7 of total power,
-    // permanently short of 2/3 quorum -- not a rare edge case, the design
-    // could never pass with >1 real signer).
+    // Per-validator, NOT shared: each validator signs the same
+    // ps_total/ps_hash/block_hash but their OWN wall-clock timestamp, and
+    // ed25519 verification is exact-byte -- a shared timestamp caps
+    // signed_power at 1/7, permanently short of 2/3 quorum.
     timestamp_content: [BoundedVec<u8, 16>; 7],
     signed: [bool; 7],
     sig_r_x: [[u8; 32]; 7],
@@ -272,14 +225,9 @@ struct BoundaryBlockWitness {
     sig_s: [[u8; 32]; 7], // scalar s, little-endian (fits one Field: < 2^253)
 }
 
-// verify_boundary_block asserts that `height`/`block_hash` and
-// `validator_set_hash` are backed by >=2/3 real ed25519 precommit signatures
-// from the genesis validator set, over the real CometBFT sign-bytes for that
-// exact (height, block_hash) pair. This is the circuit side of "boundary
-// height, block/commit hash, validator-set hash" binding -- see
-// circuit/README.md's Scope section for what this does and does not prove
-// relative to a full in-circuit history verification (every header
-// individually, not just the two endpoints).
+// verify_boundary_block asserts height/block_hash/validator_set_hash are
+// backed by >=2/3 real ed25519 precommit signatures from the genesis
+// validator set (circuit/README.md's Scope section).
 fn verify_boundary_block(
     height: u64,
     block_hash: [u8; 32],
@@ -291,9 +239,8 @@ fn verify_boundary_block(
     let mut total_power: Field = 0;
     let mut signed_power: Field = 0;
     for i in 0..NUM_VALIDATORS {
-        // Built per-validator, from THEIR OWN timestamp_content -- see
-        // BoundaryBlockWitness.timestamp_content's doc for why a shared
-        // message can never work here.
+        // Built per-validator from THEIR OWN timestamp_content -- see
+        // BoundaryBlockWitness.timestamp_content's doc.
         let message: BoundedVec<u8, 160> = build_vote_sign_bytes(
             height,
             block_hash,
@@ -328,23 +275,17 @@ fn verify_boundary_block(
     assert((signed_power * 3) as u64 >= (total_power * 2) as u64);
 }
 
-// verify_header_chain is main()'s (a)-(d): chain continuity, FSM/withdrawal-
-// lock legality, and root binding -- everything EXCEPT boundary-signature
-// binding (e). Split out so tests exercising only header-chain semantics
-// don't pay for 14 ed25519 verifications (~257,588 gates each) they don't
-// need: nargo test runs a full witness-solve per #[test], and this circuit's
-// own #[test] suite calls this ~10x more often than it calls the full
-// main() (see the two dedicated *_with_boundary tests below) -- production
-// main()'s behavior/public interface is unchanged, this is a pure
-// refactor for testability.
+// verify_header_chain is main()'s (a)-(d): chain continuity, FSM/
+// withdrawal-lock legality, and root binding -- split out from
+// boundary-signature binding (e) so header-chain-only tests skip 14
+// costly ed25519 verifications per witness-solve.
 fn verify_header_chain(rt_last: Field, rt_new: Field, count: u32, headers: [Header; N_MAX]) {
     assert(count >= 1);
     assert(count <= N_MAX);
 
-    // (a) Header continuity (E6's C1): each REAL header's prev_hash must be
-    // the hash of the previous REAL header. Gated: for i >= count (padding)
-    // `active` is false, so the assert holds vacuously regardless of
-    // headers[i]'s (irrelevant) contents.
+    // (a) Header continuity (E6's C1): each real header's prev_hash must
+    // hash the previous real header. Padding slots (i >= count) hold
+    // vacuously since `active` gates them off.
     for i in 1..N_MAX {
         let active = i < count;
         assert(!active | (headers[i].prev_hash == hash_header(headers[i - 1])));
@@ -358,22 +299,11 @@ fn verify_header_chain(rt_last: Field, rt_new: Field, count: u32, headers: [Head
         assert(!active | (headers[i].withdrawal_locked == 1));
     }
 
-    // (d) Root binding (E6's C4/C5): the interval starts at rt_last and ends
-    // at rt_new. headers[0] is always real (count >= 1 above), so this is
-    // unconditional; headers[count-1] is a dynamic (witness-valued) index,
-    // which Noir compiles to a selector chain over all N_MAX slots.
-    //
-    // rt_new is bound to hash_header(headers[count-1]), NOT to
-    // headers[count-1].state_root directly: state_root is a free witness
-    // field, so binding rt_new to it literally would let a prover satisfy
-    // this assert for ANY (rt_last, rt_new) pair already recorded on-chain
-    // by fabricating a single header (count=1) whose state_root field is
-    // just set to rt_new -- the continuity check above never touches that
-    // header's OWN fields, only how it's referenced by the NEXT one. Forcing
-    // rt_new to be the hash OUTPUT means reproducing it requires knowing the
-    // real header content back to rt_last, chained through hash_header at
-    // every step -- see x/sovereignty/preblock.go's accumulator, which is
-    // the only thing capable of producing that output honestly.
+    // (d) Root binding (E6's C4/C5): rt_new binds to
+    // hash_header(headers[count-1]), not the state_root field directly --
+    // binding the field would let count=1 forge any (rt_last, rt_new) pair
+    // by fabricating one header; binding the hash output forces reproducing
+    // the real chain back to rt_last (see x/sovereignty/preblock.go's accumulator).
     assert(headers[0].prev_hash == rt_last);
     assert(hash_header(headers[count - 1]) == rt_new);
 }
@@ -397,14 +327,10 @@ fn main(
 ) {
     verify_header_chain(rt_last, rt_new, count, headers);
 
-    // (e) Boundary binding: the two REAL CometBFT blocks straddling the
-    // interval (first_height and first_height+count-1) were really
-    // committed by >=2/3 of the genesis validator set -- independent,
-    // stronger evidence than "the accumulator, trusted to have been written
-    // only by real consensus, says so" (see circuit/README.md's Scope
-    // section). Ties the header-chain proof above to real consensus rather
-    // than letting a self-consistent-but-fabricated chain and a real-but-
-    // unrelated signed block pass as two independently-satisfiable proofs.
+    // (e) Boundary binding: the two real CometBFT blocks straddling the
+    // interval were really committed by >=2/3 of the genesis validator
+    // set -- ties the header-chain proof to real consensus, not just a
+    // self-consistent but fabricated chain (circuit/README.md's Scope section).
     assert(reduce_to_field(first_block_hash_bytes) == first_block_hash);
     assert(reduce_to_field(last_block_hash_bytes) == last_block_hash);
     assert(reduce_to_field(validator_set_hash_bytes) == validator_set_hash);
@@ -425,10 +351,8 @@ fn main(
     );
 }
 
-// build_chain builds a real, valid, hash-linked chain of exactly COUNT
-// headers (compile-time generic, e.g. build_chain::<4>()), zero-padded to
-// N_MAX, as a test fixture -- mirrors prove_and_submit.sh's real-header-then-
-// padding shape, generated in-circuit instead of from Go/RPC data.
+// build_chain builds a real, hash-linked chain of exactly COUNT headers,
+// zero-padded to N_MAX, as a test fixture.
 fn build_chain<let COUNT: u32>() -> ([Header; N_MAX], Field, Field) {
     let mut headers = [Header { prev_hash: 0, fsm_state: 0, withdrawal_locked: 0, state_root: 0 }; N_MAX];
     let rt_last = 111;
@@ -447,12 +371,8 @@ fn build_chain<let COUNT: u32>() -> ([Header; N_MAX], Field, Field) {
 }
 
 // test_boundary_fixture returns a real, ground-truthed boundary-block
-// witness (7 real ed25519 keypairs, real CometBFT vote sign-bytes, 5-of-7
-// signatures -- >2/3 quorum) reused by every test below: these tests exist
-// to check header-chain semantics, not boundary-signature semantics, so one
-// fixed, valid boundary fixture (captured from a real run of
-// types.VoteSignBytes/ValidatorSet.Hash against the engram-consensus-core
-// fork) is reused for both the first and last block in every call.
+// witness (7 real ed25519 keypairs, 5-of-7 signatures, >2/3 quorum) reused
+// by every header-chain test below.
 fn test_boundary_fixture() -> (ValidatorSetWitness, [u8; 32], BoundaryBlockWitness, [u8; 32]) {
     let validators = ValidatorSetWitness {
         pubkey_x: [
@@ -547,12 +467,9 @@ fn test_boundary_fixture() -> (ValidatorSetWitness, [u8; 32], BoundaryBlockWitne
     }
     let mut one_timestamp_content: BoundedVec<u8, 16> = BoundedVec::new();
     one_timestamp_content.extend_from_array([0x08, 0xc0, 0xd9, 0xd5, 0xd4, 0x06]);
-    // All 5 real signatures in this fixture were captured signing the SAME
-    // fixed message (test_boundary_fixture's own doc: "one fixed, valid
-    // boundary fixture"), so replicating that one timestamp 7x here is
-    // correct for this fixture specifically -- unlike real production data,
-    // where each validator's timestamp genuinely differs (see
-    // BoundaryBlockWitness.timestamp_content's doc).
+    // All 5 real signatures here were captured signing the SAME fixed
+    // message, so replicating it 7x is correct for this fixture only --
+    // real production data has a genuinely different timestamp per validator.
     let timestamp_content: [BoundedVec<u8, 16>; 7] =
         [one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content];
 
@@ -677,11 +594,9 @@ fn test_boundary_fixture() -> (ValidatorSetWitness, [u8; 32], BoundaryBlockWitne
     (validators, validator_set_hash_bytes, block, block_hash_bytes)
 }
 
-// call_main_with_test_boundary calls the real main() with the given
-// header-chain args plus test_boundary_fixture()'s ground-truthed boundary
-// data (used identically as both the first and last block by every test
-// below -- these tests exercise header-chain semantics, not per-height
-// binding, so a fixed real height/hash pair is reused throughout).
+// call_main_with_test_boundary calls main() with test_boundary_fixture()'s
+// ground-truthed boundary data reused for both blocks -- these tests
+// exercise header-chain semantics, not per-height binding.
 fn call_main_with_test_boundary(rt_last: Field, rt_new: Field, count: u32, headers: [Header; N_MAX]) {
     let (validators, validator_set_hash_bytes, block, block_hash_bytes) = test_boundary_fixture();
     main(
@@ -703,10 +618,8 @@ fn call_main_with_test_boundary(rt_last: Field, rt_new: Field, count: u32, heade
 }
 
 // count_1_satisfies_circuit is the ONE positive test exercising the FULL
-// main() (header chain + boundary-signature binding) -- everything below it
-// tests verify_header_chain() directly, since header-chain semantics don't
-// need the ~14 ed25519 verifications (~3.6M gates) boundary binding costs
-// per witness-solve (this function's own doc).
+// main() (header chain + boundary-signature binding); the rest below test
+// verify_header_chain() directly to skip the costly ed25519 checks.
 #[test]
 fn count_1_satisfies_circuit() {
     let (headers, rt_last, rt_new) = build_chain::<1>();
@@ -734,13 +647,9 @@ fn count_n_max_satisfies_circuit() {
 
 #[test(should_fail)]
 fn fabricated_single_header_cannot_forge_arbitrary_rt_new() {
-    // Regression for the rt_new-binding fix: with the OLD
-    // `headers[count-1].state_root == rt_new` constraint, a prover could
-    // satisfy this with count=1 by simply setting state_root := target
-    // rt_new directly, without that value ever being the real hash_header
-    // output of a header chained from rt_last. Confirms the new
-    // `hash_header(headers[count-1]) == rt_new` binding rejects exactly
-    // that forgery.
+    // Regression for the rt_new-binding fix: the OLD
+    // `state_root == rt_new` constraint let count=1 forge any rt_new
+    // directly; confirms the new hash-output binding rejects that forgery.
     let rt_last = 111;
     let mut headers = [Header { prev_hash: 0, fsm_state: 0, withdrawal_locked: 0, state_root: 0 }; N_MAX];
     let target_rt_new = 999999; // an arbitrary value NOT derived from hash_header
@@ -769,10 +678,9 @@ fn wrong_fsm_state_fails_circuit() {
 
 #[test(should_fail)]
 fn padding_cannot_extend_real_coverage() {
-    // A proof claiming count=8 but whose headers[4..8) are NOT a real
-    // continuation of the count=4 chain (still zero padding) must be rejected
-    // -- confirms the gate enforces continuity up to the CLAIMED count, not
-    // just up to whatever is non-zero.
+    // A proof claiming count=8 whose headers[4..8) aren't a real
+    // continuation of the count=4 chain must be rejected -- confirms the
+    // gate enforces continuity up to the claimed count.
     let (headers, rt_last, _) = build_chain::<4>();
     verify_header_chain(rt_last, 1000, 8, headers);
 }

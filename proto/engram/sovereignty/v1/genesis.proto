@@ -49,11 +49,8 @@ message GenesisParams {
   uint64 suspicious_hysteresis_wait = 18;
   uint64 max_suspicious_forced_tx_queue = 19;
   uint64 max_censorship_rounds = 20;
-  // proof_only_recovery, when true, requires refreshReanchoringProofValid
-  // (x/sovereignty/sensors_refresh.go) to grant reanchoring_proof_valid
-  // ONLY from a real, on-chain-verified ZK proof -- the BTC-height heuristic
-  // (h_btc_anchored >= h_btc_submitted) is disabled. Exists so E10 can run a
-  // proof-only variant and attribute recovery to the ZK pipeline
-  // specifically, not either path. false = today's default (either path).
+  // proof_only_recovery, when true, requires reanchoring_proof_valid to
+  // come only from a real ZK proof -- the BTC-height heuristic fallback is
+  // disabled. false (default) allows either path.
   bool proof_only_recovery = 21;
 }

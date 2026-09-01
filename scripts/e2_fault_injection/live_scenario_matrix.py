@@ -78,12 +78,9 @@ NET_INFO_LOG = os.path.join(RESULTS_DIR, "s4_s5_net_info_check.md")
 
 
 def block_interval_stats(samples_for_node):
-    """Block-interval throughput/latency proxy (docs/EXPERIMENT.md's E2
-    Metrics table): consecutive-sample time deltas where height actually
-    increased, so it measures real block cadence, not polling-interval noise.
-    Not per-round consensus latency (fixed-interval RPC polling can't see
-    sub-interval timing) -- an honest proxy, stated as such in the docs.
-    """
+    """Block-interval throughput/latency proxy: consecutive-sample time
+    deltas where height increased. Not per-round consensus latency --
+    fixed-interval RPC polling can't see sub-interval timing."""
     samples_for_node = sorted(samples_for_node, key=lambda s: s.timestamp)
     deltas = []
     for prev, cur in zip(samples_for_node, samples_for_node[1:]):

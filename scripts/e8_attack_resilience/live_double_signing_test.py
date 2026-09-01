@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
-"""LIVE Double-signing detection test against the real 4-node testnet --
-docs/EXPERIMENT.md's E8 "Double-signing" row. Starts a SECOND, independent
-`engramd` process (docker/engram-node04-double-sign.yml) holding the exact
-same priv_validator_key.json as the real engram-node04, but with its own
-separate priv_validator_state.json (deliberately NOT sharing node04's
-signing-history file -- FilePV's state file is CometBFT's built-in
-anti-double-sign safety net; sharing it would prevent double-signing).
+"""LIVE Double-signing detection test against the real testnet -- docs/EXPERIMENT.md's E8
+"Double-signing" row. Starts a SECOND `engramd` process holding node04's exact
+priv_validator_key.json but its own separate priv_validator_state.json (deliberately not
+sharing node04's signing-history file, which is what normally prevents double-signing).
 
-Detection channel: x/sovereignty/preblock.go's recordDetectedEvidence prints
-"SLASHABLE EVIDENCE DETECTED" to stdout on every honest validator once
-CometBFT's own evidence pool reports real DuplicateVoteEvidence. This script
-polls `docker logs` on the 6 real validators (not node04 or the duplicate)
-for that marker -- no new gRPC query exists yet (the detected evidence IS
-committed to keeper state, DetectedEvidenceCount/LastDetectedEvidence, just
-not exposed through a Query RPC, which would need a new .proto message +
-`make proto-gen`); log-grepping is a real, honest detection channel.
+Detection channel: recordDetectedEvidence (x/sovereignty/preblock.go) prints "SLASHABLE
+EVIDENCE DETECTED" on every honest validator once CometBFT's evidence pool reports real
+DuplicateVoteEvidence. This script log-greps for that marker -- no Query RPC exposes it yet,
+though it is committed to keeper state.
 
 Usage:
     python3 -u scripts/e8_attack_resilience/live_double_signing_test.py
@@ -53,11 +46,8 @@ def now() -> str:
 
 
 def compute_persistent_peers() -> str:
-    """Builds the id@host:26656 list for the 6 OTHER real validators (not
-    node04 itself, whose identity the duplicate is impersonating). Node IDs
-    come from each real, already-running node's own /status RPC -- real and
-    authoritative, avoids reimplementing CometBFT's ID-from-pubkey derivation
-    here.
+    """Builds the id@host:26656 list for the other real validators (not node04, whose identity
+    is being impersonated). Node IDs come from each node's own /status RPC.
     """
     import json
 
@@ -79,14 +69,9 @@ def compute_persistent_peers() -> str:
 
 
 def stage_duplicate_identity() -> None:
-    """Copies the real node04 signing key + shared genesis onto the HOST at
-    the duplicate's own home dir, BEFORE the container starts -- see
-    docker/engram-node04-double-sign.yml's volumes doc for why this replaced
-    two nested bind-mount lines (a real Docker Desktop virtiofs limitation:
-    mounting a file whose target resolves inside an already-bind-mounted dir
-    fails with "mountpoint ... is outside of rootfs"). Wiping stale config/
-    first -- Docker can leave empty placeholder files at a failed mount's
-    target, which then block a clean file copy on retry.
+    """Copies node04's real signing key + genesis onto the host at the duplicate's home dir
+    before the container starts (a Docker Desktop virtiofs limitation blocks nested bind-mounts
+    for this). Wipes stale config/ first -- a failed mount can leave blocking placeholder files.
     """
     config_dir = os.path.join(DUPLICATE_HOME, "config")
     data_dir = os.path.join(DUPLICATE_HOME, "data")
@@ -98,13 +83,10 @@ def stage_duplicate_identity() -> None:
     os.makedirs(data_dir, exist_ok=True)
     shutil.copy(REAL_NODE04_KEY, os.path.join(config_dir, "priv_validator_key.json"))
     shutil.copy(REAL_GENESIS, os.path.join(config_dir, "genesis.json"))
-    # FilePV's own state file (last-signed height/round/step) -- normally
-    # created by `engramd init`, but init bails out early here since
-    # genesis.json/priv_validator_key.json already exist (pre-copied above),
-    # so `engramd start` crashed on a missing file the first real run. A
-    # brand-new validator starts at height 0 -- deliberately NOT copied from
-    # the real node04's advanced state file, which is the whole point of this
-    # harness.
+    # FilePV's state file: `engramd init` bails out early since config already
+    # exists (pre-copied above), so this must be written directly. Starts at
+    # height 0, deliberately NOT copied from node04's real state -- the point
+    # of this harness.
     with open(os.path.join(data_dir, "priv_validator_state.json"), "w") as f:
         f.write('{"height":"0","round":0,"step":0}')
 
@@ -136,10 +118,8 @@ def start_duplicate(persistent_peers: str) -> None:
 
 
 def stop_duplicate() -> None:
-    # NEVER `docker compose down` (no service names) -- tears down the WHOLE
-    # project (real cluster included), not just this profile. See
-    # scripts/e4_p2p_eclipse_detection/live_sybil_attack.py's swarm_down doc
-    # for the live incident this is fixed from.
+    # NEVER `docker compose down` -- tears down the WHOLE project, not just
+    # this profile (see live_sybil_attack.py's swarm_down).
     print(f"[{now()}] >>> stopping {DUPLICATE_SERVICE}")
     subprocess.run(
         [
@@ -171,11 +151,8 @@ def stop_duplicate() -> None:
 
 
 def scan_logs_for_evidence(container: str) -> list:
-    # --tail bounded: after hours of real debug-level D[...] log volume (this
-    # session's long-running cluster), an unbounded `docker logs` dump
-    # reliably exceeded a 30s timeout -- confirmed live. Only the marker's
-    # presence in RECENT output matters for this test's own detection
-    # window, not full container history.
+    # --tail bounded: an unbounded `docker logs` dump on a long-running cluster
+    # can exceed the timeout; only recent output matters for this test's window.
     proc = subprocess.run(
         ["docker", "logs", "--tail", "20000", container],
         capture_output=True, text=True, timeout=60,
@@ -184,15 +161,9 @@ def scan_logs_for_evidence(container: str) -> list:
 
 
 class Tracker:
-    """AppHash-divergence tracker for the 6 honest witnesses -- this script
-    previously had no RPC polling at all (log-grepping only), so double-
-    signing detection latency and whether the double-signing window ALSO
-    caused a real safety violation (AppHash divergence) were never checked
-    together, even though docs/EXPERIMENT.md's E8 text already distinguishes
-    the two and says "both are tracked here". Mirrors
-    live_byzantine_attacks.py's Tracker (WITNESS_CONTAINERS here plays the
-    same role as that script's HONEST_NODES -- node04's real identity is the
-    one being impersonated by the duplicate, so it's excluded the same way).
+    """AppHash-divergence tracker for the honest witnesses (mirrors
+    live_byzantine_attacks.py's Tracker; node04 excluded since its identity
+    is being impersonated) -- tracks detection latency and safety together.
     """
 
     def __init__(self):

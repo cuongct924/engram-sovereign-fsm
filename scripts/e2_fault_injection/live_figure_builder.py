@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
 """E2 -- Fault-Injection End-to-End Prototype, LIVE-docker Figure 3
-(docs/EXPERIMENT.md's E2), built from
-scripts/e2_fault_injection/live_scenario_matrix.py's real S1-S7 output
-against the real 4-node testnet (not tests/e2e's in-process mock).
-
-Same real-data-only discipline as scripts/e9_composite_fault/live_figure_builder.py:
-only fsm_state/height/safe_blocks/reanchoring_proof_valid/app_hash are ever
-committed state a live RPC/ABCI-query poll can observe (see
-x/sovereignty/preblock.go's NewPreBlocker doc) -- no withdraw_locked marker
-exists in this live schema the way tests/e2e's mock CSV has one, so the
-state-timeline panels here don't shade withdrawal-locked blocks.
+(docs/EXPERIMENT.md's E2), built from live_scenario_matrix.py's real S1-S7
+output. Only committed fields (fsm_state/height/safe_blocks/
+reanchoring_proof_valid/app_hash) are plottable -- no withdraw_locked
+marker exists in this live schema, so panels don't shade locked blocks.
 
 Usage:
     python3 scripts/e2_fault_injection/live_figure_builder.py
@@ -63,13 +57,9 @@ def load_scenario_csv(path):
 
 
 def representative_rows(rows):
-    """Picks whichever node has the MOST height-filtered (real, non-error)
-    samples, not the alphabetically-first one: E2's scenarios deliberately
-    isolate engram-node01 (S5's 100% loss), so always picking node01 produces
-    a near-empty timeline for exactly the scenarios most worth plotting.
-    Picking the best-covered node keeps every panel showing the real
-    cluster-wide behavior (3/4 healthy nodes still agree during partial
-    isolation)."""
+    """Picks the node with the most real samples, not the alphabetically-first
+    one: E2 deliberately isolates node01 (S5's 100% loss), so always picking
+    node01 would give a near-empty timeline for the scenarios worth plotting."""
     if not rows:
         return []
     by_node = {}
@@ -109,11 +99,8 @@ def plot_state_timelines(scenarios):
 
 
 def scenario_metrics(rows):
-    """Real, purely CSV-derived summary metrics -- in-process-only fields
-    (time_to_fallback/withdrawal_blocked_blocks) aren't observable from live
-    polling, so report what IS: elapsed duration, height delta (commit
-    throughput proxy), transition count (flapping proxy), and fraction of
-    samples outside ANCHORED (degraded-time fraction)."""
+    """CSV-derived summary metrics: duration, height delta (throughput proxy),
+    transition count (flapping proxy), fraction of time outside ANCHORED."""
     rep = representative_rows(rows)
     if not rep:
         return {

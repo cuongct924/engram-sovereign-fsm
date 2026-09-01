@@ -1,12 +1,7 @@
-"""Live-Docker data-collection framework, replacing tests/e2e's in-process
-Harness as the data source for E2/E3/E4/E7/E9: reads from the REAL running
-docker testnet (engram-node01..07, bitcoin-node01, celestia-bridge), not
-tests/e2e/results/*.csv (in-process, mock-sensor Go harness).
-
-Every function here talks to real, already-running services over their real
-RPC/ABCI-query interfaces (the same endpoints `engramd query-*` and
-CometBFT's RPC use) -- nothing mocks or recomputes FSM logic; it only
-OBSERVES the real chain's committed state.
+"""Live-Docker data-collection framework, the data source for E2/E3/E4/E7/E9: reads from the
+REAL running docker testnet, not tests/e2e's in-process mock-sensor Harness. Every function
+talks to real RPC/ABCI-query interfaces -- nothing mocks or recomputes FSM logic, it only
+OBSERVES committed state.
 """
 
 import base64
@@ -19,36 +14,23 @@ import urllib.error
 from dataclasses import dataclass, asdict
 from typing import List, Optional
 
-# ENGRAM_VALIDATOR_COUNT (default 7): must match whichever `make testnet-up
-# N=4|7` topology is actually running (Makefile's N variable,
-# docker/engram-validator-cluster.yml's "seven-node" profile) -- every
-# live_*.py script importing NODE_RPC_PORTS/CELESTIA_BRIDGES/sample_all_nodes
-# from here inherits this count, so this is the ONE place to change when
-# switching cluster sizes rather than a per-script edit. Getting it wrong
-# doesn't crash outright: query_node() catches connection errors and returns
-# an error-flagged sample for a not-actually-running node instead, so a
-# too-high count here just leaves phantom unreachable entries in every
-# poll -- which silently hangs any wait_for_state()-style "all N nodes
-# reached X" check on a real 4-node cluster forever, not a fast failure.
+# Must match whichever `make testnet-up N=4|7` topology is actually running --
+# the ONE place to change when switching cluster sizes. A too-high count
+# doesn't crash outright (query_node() returns error-flagged samples for
+# unreachable nodes), just silently hangs any wait_for_state() check.
 VALIDATOR_COUNT = int(os.environ.get("ENGRAM_VALIDATOR_COUNT", "7"))
 
-# engram-node01..NN's host-mapped RPC ports (docker/engram-validator-
-# cluster.yml): node01=26657, +100 per subsequent node. Most existing
-# E2-E10 scripts still hardcode their own 4-node ENGRAM_NODES list for
-# experiment-specific topology reasons (a named byzantine/eclipse target,
-# etc.) -- this dict's size only changes sample_all_nodes()'s default (used
-# for cluster-wide baseline/health checks), not those scripts' deliberate
-# node choices.
+# engram-node01..NN's host-mapped RPC ports: node01=26657, +100 per node.
+# Some E2-E10 scripts still hardcode their own node list for topology
+# reasons (a named byzantine/eclipse target) -- this only sets
+# sample_all_nodes()'s default.
 NODE_RPC_PORTS = {
     f"engram-node{i:02d}": 26657 + (i - 1) * 100 for i in range(1, VALIDATOR_COUNT + 1)
 }
 
-# Each validator's own independent Celestia bridge (docker/celestia-local-
-# cluster.yml) -- one per node01..NN, so a real cluster-wide DA outage means
-# stopping ALL of them, not just "celestia-bridge" (that alone only blinds
-# node01; AggregateHealthCertificates' power-weighted majority would keep
-# reporting DA-healthy from the rest, so a single-bridge stop no longer
-# drives the FSM the way it did under the old shared-bridge topology).
+# Each validator's own independent Celestia bridge -- a real cluster-wide DA
+# outage means stopping ALL of them, since AggregateHealthCertificates'
+# power-weighted majority would otherwise keep reporting DA-healthy from the rest.
 CELESTIA_BRIDGES = [f"celestia-bridge-node{i:02d}" for i in range(1, VALIDATOR_COUNT + 1)]
 
 
@@ -71,11 +53,8 @@ def _rpc_get(port: int, path: str, timeout: float = 3.0) -> dict:
 
 
 def _decode_query_state(value_b64: str) -> dict:
-    """Hand-decodes QueryStateResponse's protobuf wire format (fsm_state:
-    field 1 string, safe_blocks: field 2 varint, suspicious_duration: field
-    3 varint, reanchoring_proof_valid: field 4 bool, metrics: field 5
-    message) -- a deliberately minimal decoder for the tag/wire-type
-    combinations this one message uses, avoiding a generated Python stub.
+    """Hand-decodes QueryStateResponse's protobuf wire format -- a minimal decoder for this one
+    message's tag/wire-type combinations, avoiding a generated Python stub.
     """
     raw = base64.b64decode(value_b64) if value_b64 else b""
     out = {
@@ -97,10 +76,8 @@ def _decode_query_state(value_b64: str) -> dict:
             i += length
             if field_num == 1:
                 out["fsm_state"] = payload.decode("utf-8")
-            # field 5 (metrics) is an embedded message -- deliberately not
-            # decoded: PreBlocker never writes k.Metrics into committed state
-            # (see x/sovereignty/preblock.go's NewPreBlocker doc), so its
-            # content is always stale/empty.
+            # field 5 (metrics) deliberately not decoded: PreBlocker never
+            # writes k.Metrics into committed state, so it's always stale.
         elif wire_type == 0:  # varint
             value = 0
             shift = 0
@@ -174,11 +151,8 @@ def query_node(node: str, port: Optional[int] = None) -> NodeSample:
         KeyError,
         ValueError,
         RuntimeError,
-        OSError,  # covers ConnectionResetError/RefusedError etc. -- a
-        # mid-response reset while docker compose force-recreates a polled
-        # node raises these from the socket layer, NOT wrapped in
-        # urllib.error.URLError; without this they'd crash every long-running
-        # poll loop whenever a container is recreated mid-poll.
+        OSError,  # ConnectionReset/Refused etc. from a mid-poll container
+        # recreate -- raised from the socket layer, not wrapped in URLError.
     ) as e:
         return NodeSample(
             timestamp=ts,
@@ -262,12 +236,8 @@ def net_info(node: str, port: Optional[int] = None) -> dict:
 
 
 def dump_consensus_state(node: str, port: Optional[int] = None) -> dict:
-    """Real CometBFT /dump_consensus_state RPC, unmodified in the
-    engram-consensus-core fork (../engram-consensus-core/rpc/core/consensus.go's
-    GetRoundStateJSON) -- includes the current round's per-validator
-    prevotes/precommits (CometBFT's literal "nil-Vote" string for a nil vote,
-    else a "Vote{...}" string), used by E7's nil-prevote-under-sensor-mismatch
-    live test.
+    """Real CometBFT /dump_consensus_state RPC -- includes the current round's per-validator
+    prevotes/precommits ("nil-Vote" or "Vote{...}" strings), used by E7's nil-prevote live test.
     """
     port = port or NODE_RPC_PORTS[node]
     return _rpc_get(port, "/dump_consensus_state")
@@ -297,19 +267,13 @@ def own_validator_address(node: str, port: Optional[int] = None) -> str:
 
 
 def own_precommit_status(dump_state: dict, target_address: str):
-    """(committed_height, precommit_str) for target_address's precommit in
-    the most recently COMMITTED block (round_state.last_commit), or None if
-    no commit has happened yet (e.g. fresh redeploy) or the address isn't
-    found. precommit_str is CometBFT's literal "nil-Vote" if that validator
-    didn't precommit for the winning block, else a "Vote{...}" string.
+    """(committed_height, precommit_str) for target_address's precommit in the most recently
+    COMMITTED block (round_state.last_commit), or None if no commit yet or address not found.
 
-    Deliberately NOT the in-progress round's live `votes[].prevotes` array:
-    at this cluster's ~1s block time, fixed-interval polling of that array
-    mostly catches "not yet received" (itself rendered as "nil-Vote", making
-    it indistinguishable from a real nil vote) rather than a settled
-    per-validator outcome -- confirmed live this session, baseline nil-ratio
-    was ~1.0 using that approach, an unusable signal. last_commit is the
-    SETTLED record for a height that has already committed, immune to this.
+    Deliberately NOT the in-progress round's live `votes[].prevotes` array: at this cluster's
+    ~1s block time, fixed-interval polling of that array mostly catches "not yet received"
+    (indistinguishable from a real nil vote) rather than a settled outcome. last_commit is
+    SETTLED for an already-committed height, immune to this.
     """
     rs = dump_state["result"]["round_state"]
     validators = rs["validators"]["validators"]
@@ -356,14 +320,9 @@ def peer_subnet_counts(node: str, port: Optional[int] = None) -> dict:
 
 
 def bitcoin_cli(*args: str, node: str = "bitcoin-node01") -> str:
-    """Runs bitcoin-cli inside a real bitcoin node container (bitcoin-node01
-    by default) -- independently cross-checks anchor state (OP_RETURN scan)
-    against a manual bitcoin-cli query, or drives a real reorg via
-    bitcoin-node02 (E10, see e10_bitcoin_reorg/).
-
-    Credentials read from BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD (matching
-    .env / bitcoin_miner_loop.sh's convention) rather than hardcoded -- a
-    prior hardcoded value silently stopped working once .env diverged.
+    """Runs bitcoin-cli inside a real bitcoin node container -- cross-checks anchor state or
+    drives a real reorg via bitcoin-node02 (E10). Credentials read from
+    BITCOIN_RPC_USER/PASSWORD (matching .env), not hardcoded.
     """
     user = os.environ.get("BITCOIN_RPC_USER", "engram_admin")
     password = os.environ.get("BITCOIN_RPC_PASSWORD", "secure_password_123")

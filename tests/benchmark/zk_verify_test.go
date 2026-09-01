@@ -1,10 +1,7 @@
 // BenchmarkVerifyZKProof closes a real gap in E7's overhead measurement:
 // the V0-V5 decomposition never measured keeper.VerifyZKProof's real cost
-// (the embedded wasm32-wasi UltraHonk verifier, run via `wazero`), which
-// every validator pays on every accepted SubmitRecoveryProof tx (DeliverTx).
-// This is the "recovery-event cost" half of E7's steady-state/recovery-event
-// split (see live_overhead_scan.py) -- a measured CPU number alongside the
-// real ~14,656-byte UltraHonk proof size (E6's table6b_scaling.csv).
+// (the embedded wazero-hosted UltraHonk verifier), paid on every accepted
+// SubmitRecoveryProof tx.
 package benchmark
 
 import (
@@ -17,11 +14,9 @@ import (
 	"cosmossdk.io/collections/colltest"
 )
 
-// BenchmarkVerifyZKProof runs the REAL embedded verifier
-// (keeper/reanchor.go's VerifyZKProof) against the real N=4 proof/
-// public_inputs committed on disk
-// (circuit/reanchoring/target/proof/{proof,public_inputs}), not a mock.
-// Skips (not fails) if the proof files aren't present.
+// BenchmarkVerifyZKProof runs the REAL embedded verifier against the real
+// proof/public_inputs committed on disk, not a mock. Skips (not fails) if
+// those files aren't present.
 func BenchmarkVerifyZKProof(b *testing.B) {
 	repoRoot := findRepoRoot(b)
 	proofPath := filepath.Join(repoRoot, "circuit", "reanchoring", "target", "proof", "proof")

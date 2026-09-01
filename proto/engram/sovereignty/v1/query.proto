@@ -6,7 +6,7 @@ option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty
 
 import "engram/sovereignty/v1/state.proto";
 
-// Query service for a node's current FSM state -- serves the E9 trace-driven
+// Query service for a node's current FSM state -- serves E9's composite-fault
 // stress test and E2 observation (not part of consensus).
 service Query {
   rpc State(QueryStateRequest) returns (QueryStateResponse);
@@ -40,12 +40,8 @@ message QueryRecoveryHeader {
 }
 
 // QueryValidatorInfo is the wire form of types.ValidatorInfo, in the SAME
-// order keeper.ValidatorPubKeys iterates (ascending raw address bytes) --
-// which matches cmttypes.ValidatorSet.Validators' own sort order exactly
-// (both are byte-order-sorted by address), so an off-chain prover can build
-// a boundary-block witness (circuit/reanchoring/src/main.nr's
-// ValidatorSetWitness) whose per-validator order matches what
-// ValidatorSetHash was actually computed over.
+// order keeper.ValidatorPubKeys iterates -- matching cmttypes.ValidatorSet's
+// own sort order so a witness-builder's order matches ValidatorSetHash.
 message QueryValidatorInfo {
   bytes pub_key = 1;
   int64 power   = 2;
@@ -57,13 +53,9 @@ message QueryRecoveryHeadersResponse {
   bytes                        last_anchored_root = 1;
   repeated QueryRecoveryHeader headers             = 2;
 
-  // Boundary-block binding data (circuit/README.md's Scope section) --
-  // x/sovereignty/keeper/keeper.go's LastAnchoredHeight/BlockHashByHeight/
-  // ValidatorSetHash docs. block_hashes mirrors BlockHashByHeight's
-  // currently-tracked entries (bounded to roughly one interval's span, same
-  // as headers) -- a witness-builder looks up whichever height it's
-  // checkpointing at (any tracked height, not just a fixed interval end;
-  // see BlockHashByHeight's doc for why this is deliberately general).
+  // Boundary-block binding data (circuit/README.md's Scope section).
+  // block_hashes mirrors BlockHashByHeight's tracked entries -- a
+  // witness-builder can look up any tracked height, not just a fixed endpoint.
   uint64                       last_anchored_height = 3;
   bytes                        validator_set_hash   = 4;
   repeated QueryValidatorInfo  validators            = 5;

@@ -8,10 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chunk32 feeds both CircuitVerifyRequest.public_inputs and .proof --
-// msg.ZkProof/msg.PublicInputs already arrive in exactly this concatenated
-// 32-byte layout (chunk32's own doc), so this only exercises the splitting
-// logic itself, not any real proof data.
+// chunk32 feeds both CircuitVerifyRequest.public_inputs and .proof -- this only exercises
+// the splitting logic itself, not any real proof data.
 func TestChunk32(t *testing.T) {
 	require.Empty(t, chunk32(nil))
 	require.Empty(t, chunk32(make([]byte, 31))) // shorter than one element
@@ -32,10 +30,8 @@ func TestChunk32(t *testing.T) {
 	require.Equal(t, three[32:64], got[1])
 	require.Equal(t, three[64:96], got[2])
 
-	// A trailing partial element (not a multiple of 32) is silently
-	// dropped, not padded or errored on -- real callers only ever pass
-	// exact multiples (public inputs/proof are always whole field
-	// elements), so this documents the behavior rather than requiring it.
+	// A trailing partial element is silently dropped, not padded or errored on -- real
+	// callers only ever pass exact multiples of 32.
 	got = chunk32(append(three, make([]byte, 10)...))
 	require.Len(t, got, 3)
 }
@@ -53,14 +49,9 @@ func TestGetZKVerifierRuntime_Succeeds(t *testing.T) {
 	require.Same(t, rt1, rt2, "sync.Once must return the same cached runtime, not recompile per call")
 }
 
-// verifyZKProofWasm must reject a real, otherwise-valid proof when checked
-// against the WRONG verification key -- confirms the VK is load-bearing in
-// the pairing check, not merely decoded and ignored. reanchor_test.go's
-// TestVerifyZKProof_RealProof already covers garbage proof bytes and a
-// tampered proof against the CORRECT vk; this is the complementary case.
-// verifyZKProofWasm's own contract returns ok=false on every error path
-// too, so a single assertion on ok covers both a clean pairing-check
-// failure and a wasm-level trap on malformed key material.
+// verifyZKProofWasm must reject a real, otherwise-valid proof against the WRONG verification
+// key -- confirms the VK is load-bearing in the pairing check, not just decoded and ignored
+// (reanchor_test.go's TestVerifyZKProof_RealProof covers the correct-vk cases).
 func TestVerifyZKProofWasm_WrongVKRejected(t *testing.T) {
 	proofValid, err := os.ReadFile("zk_assets/testdata/proof_valid")
 	require.NoError(t, err)
@@ -75,13 +66,9 @@ func TestVerifyZKProofWasm_WrongVKRejected(t *testing.T) {
 	require.False(t, ok, "a corrupted verification key must never verify a proof")
 }
 
-// Each verifyZKProofWasm call instantiates fresh gofuncs/env/main module
-// instances specifically so barretenberg's internal C++ static state (the
-// SRS factory, CRS init flags) can't leak between verifications (see that
-// function's own doc). Repeating a real, valid verification several times
-// in a row is the direct regression test for that invariant: a leak would
-// most plausibly surface as a later call failing or trapping once earlier
-// state has been left behind.
+// Each verifyZKProofWasm call gets fresh module instances so barretenberg's internal C++
+// static state can't leak between verifications -- repeating a valid verification is the
+// direct regression test: a leak would surface as a later call failing or trapping.
 func TestVerifyZKProofWasm_RepeatedCallsAreIndependent(t *testing.T) {
 	proofValid, err := os.ReadFile("zk_assets/testdata/proof_valid")
 	require.NoError(t, err)

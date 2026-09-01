@@ -23,12 +23,9 @@ import (
 
 const byzantineTestChainID = "sovereignty-byzantine-test"
 
-// newByzantineTestKeeperCtx mirrors proposal_test.go's newTestKeeperCtx
-// (external package, can't be reused directly), registering a real quorum
-// of signed vote extensions -- since PrepareProposal now derives its
-// health view from AggregateHealthCertificates (never k.Metrics directly,
-// see NewExtendVoteHandler's doc), a healthy-ANCHORED fixture needs actual
-// certificates, not just a k.Metrics.Set.
+// newByzantineTestKeeperCtx mirrors proposal_test.go's newTestKeeperCtx,
+// registering a real quorum of signed vote extensions -- PrepareProposal
+// derives health from AggregateHealthCertificates, never k.Metrics directly.
 func newByzantineTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context, abci.ExtendedCommitInfo) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
@@ -49,10 +46,8 @@ func newByzantineTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context, abci.
 }
 
 // signedExtendedCommit registers n equal-power validators and builds an
-// ExtendedCommitInfo (the shape RequestPrepareProposal.LocalLastCommit
-// takes) whose votes all carry the same real, correctly signed
-// PeripheralMetrics extension -- mirrors what CometBFT itself would hand
-// PrepareProposal once >=2f+1 honest validators have voted.
+// ExtendedCommitInfo whose votes all carry the same real, correctly signed
+// PeripheralMetrics extension -- what CometBFT itself hands PrepareProposal.
 func signedExtendedCommit(t *testing.T, k *keeper.Keeper, ctx sdk.Context, chainID string, height int64, metrics *types.PeripheralMetrics, n int) abci.ExtendedCommitInfo {
 	t.Helper()
 	ext, err := proto.Marshal(metrics)
@@ -91,10 +86,9 @@ func TestPrepareProposal_EmptyByzantineBehaviorIsNoOp(t *testing.T) {
 }
 
 // TestPrepareProposal_FakeFSMStateOverridesRealComputation is A6 (Malicious
-// Proposer): fake_fsm_state:<STATE> forces the claimed fsm_state whatever
-// CalculateNextState computed -- the mutation the byzantine node's live
-// scenario depends on. The honest-validators' rejection half is already
-// covered by TestProcessProposal_RejectsFSMStateMismatch (proposal_test.go).
+// Proposer): fake_fsm_state:<STATE> forces the claimed fsm_state regardless
+// of CalculateNextState. Honest rejection is covered separately by
+// TestProcessProposal_RejectsFSMStateMismatch.
 func TestPrepareProposal_FakeFSMStateOverridesRealComputation(t *testing.T) {
 	k, ctx, extCommit := newByzantineTestKeeperCtx(t)
 	resp, err := NewPrepareProposalHandler(k, "fake_fsm_state:SOVEREIGN")(ctx, &abci.RequestPrepareProposal{LocalLastCommit: extCommit})

@@ -14,20 +14,12 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// NewExtendVoteHandler builds the ONLY ABCI++ hook still allowed to read
-// this validator's own live sensors or hit its own bitcoind/Celestia RPC
-// (RefreshMetrics -- moved here from ProcessProposal; see
-// NewProcessProposalHandler's doc for the AppHash-divergence risk this
-// closes). The resulting PeripheralMetrics snapshot becomes this
-// validator's signed ABCI++ vote extension for the block CometBFT is about
-// to precommit. It is real, protobuf-marshaled bytes (not this package's
-// usual JSON keeper codec) because vote extensions are gossiped with every
-// precommit and are size-sensitive.
-//
-// PrepareProposal aggregates >=2f+1 of these at the NEXT height into an
-// AggregatedHealthCertificate (AggregateHealthCertificates); from that point
-// on, ProcessProposal and CommitFSMTransition read only that certificate,
-// never a live sensor.
+// NewExtendVoteHandler is the ONLY ABCI++ hook still allowed to read this
+// validator's own live sensors or RPC (see NewProcessProposalHandler's doc
+// for the AppHash-divergence risk this avoids). The resulting metrics
+// snapshot becomes this validator's signed vote extension; PrepareProposal
+// aggregates >=2f+1 of these into a certificate that everyone else reads
+// instead of touching a live sensor again.
 func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors) sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 		if err := RefreshMetrics(ctx, k, s); err != nil {
@@ -45,13 +37,10 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors) sdk.ExtendVoteHandler {
 	}
 }
 
-// NewVerifyVoteExtensionHandler only checks that a received vote extension
-// decodes as a well-formed PeripheralMetrics -- it deliberately does NOT
-// re-verify the sensor readings themselves (that would reintroduce the
-// exact live-RPC non-determinism ProcessProposal used to have). Signature
-// authenticity against the genesis validator set is checked later, once,
-// by AggregateHealthCertificates -- doing it twice would be redundant, not
-// safer.
+// NewVerifyVoteExtensionHandler only checks that a vote extension decodes
+// as a well-formed PeripheralMetrics -- it deliberately does not re-verify
+// the sensor readings (that would reintroduce live-RPC non-determinism).
+// Signature authenticity is checked once, later, by AggregateHealthCertificates.
 func NewVerifyVoteExtensionHandler(k *keeper.Keeper) sdk.VerifyVoteExtensionHandler {
 	accept := &abci.ResponseVerifyVoteExtension{Status: abci.ResponseVerifyVoteExtension_ACCEPT}
 	reject := &abci.ResponseVerifyVoteExtension{Status: abci.ResponseVerifyVoteExtension_REJECT}
@@ -66,10 +55,9 @@ func NewVerifyVoteExtensionHandler(k *keeper.Keeper) sdk.VerifyVoteExtensionHand
 }
 
 // certificatesFromExtendedCommit extracts one SignedHealthCertificate per
-// validator that actually precommitted the previous block (BlockIDFlagCommit
-// -- ABCI 2.0 requires every other vote to carry an empty extension), from
-// the ExtendedCommitInfo only the proposer receives (RequestPrepareProposal's
-// LocalLastCommit). Called from PrepareProposal only.
+// validator that actually precommitted the previous block (every other
+// vote carries an empty extension), from the ExtendedCommitInfo only the
+// proposer receives.
 func certificatesFromExtendedCommit(extCommit abci.ExtendedCommitInfo) []*types.SignedHealthCertificate {
 	certs := make([]*types.SignedHealthCertificate, 0, len(extCommit.Votes))
 	for _, v := range extCommit.Votes {
@@ -98,24 +86,13 @@ func validatorTotalPower(ctx sdk.Context, k *keeper.Keeper) (int64, error) {
 }
 
 // AggregateHealthCertificates is the pure, deterministic function every
-// validator (leader in PrepareProposal, follower in ProcessProposal,
-// CommitFSMTransition) calls over the SAME certs bytes embedded in Txs[0] --
-// unlike the non-determinism this replaces, no live sensor or RPC read
-// happens here.
-//
-// Verifies each certificate's ExtensionSignature against the genesis
-// validator registry and CometBFT's own vote-extension canonical sign bytes
-// (cmttypes.VoteExtensionSignBytes), then computes a Byzantine-tolerant
-// per-field aggregate over every certificate that verifies: a power-weighted
-// median for numeric gauges (btc_gap, da_gap, ...) and a power-weighted
-// majority for booleans -- the same aggregation technique production ABCI++
-// oracle vote extensions use (e.g. Skip Connect's median price
-// aggregation), chosen because exact equality across independently-sampled
-// sensor readings isn't expected even among honest validators.
-//
-// Returns ok=false if verified voting power doesn't reach >=2f+1 of the
-// total genesis power -- callers must fall back to the previously committed
-// state, never invent a value.
+// validator calls over the SAME certs bytes embedded in Txs[0] -- no live
+// sensor or RPC read here. Verifies each signature against the genesis
+// validator registry, then takes a power-weighted median (gauges) or
+// majority (booleans) over every cert that verifies -- exact equality
+// across independently-sampled sensors isn't expected even among honest
+// validators. Returns ok=false below >=2f+1 verified power; callers must
+// fall back to previously committed state, never invent a value.
 func AggregateHealthCertificates(ctx sdk.Context, k *keeper.Keeper, chainID string, height int64, certs []*types.SignedHealthCertificate) (*types.PeripheralMetrics, bool) {
 	totalPower, err := validatorTotalPower(ctx, k)
 	if err != nil || totalPower == 0 {

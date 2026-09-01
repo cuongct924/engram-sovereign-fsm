@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Pulls a celestia-bridge-node01 container's admin/write JWT (written to
+# Pulls a celestia-bridge container's admin/write JWT (written to
 # /home/celestia/bridge_auth.txt on `bridge init`) and writes it into the
-# given .env file's VAR_NAME= line. All 4 validators need
-# CELESTIA_BRIDGE_AUTH_TOKEN before start (docker/engram-validator-cluster.yml);
-# reanchoring-prover needs CELESTIA_BRIDGE_PROVER_AUTH_TOKEN for its own
-# celestia-bridge-prover (docker/celestia-local-cluster.yml).
+# given .env file's VAR_NAME= line. Each validator needs its own
+# CELESTIA_BRIDGE_NODE0N_AUTH_TOKEN; the reanchoring prover needs
+# CELESTIA_BRIDGE_PROVER_AUTH_TOKEN.
 #
 # Usage: scripts/testnet_fetch_celestia_token.sh [env_file] [container] [var_name]
 set -euo pipefail

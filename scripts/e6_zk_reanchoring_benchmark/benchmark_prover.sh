@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
 # E6 -- Reanchoring Feasibility Evaluation (docs/EXPERIMENT.md's Table 6A/6B).
 #
-# Drives circuit/reanchoring/src/main.nr's recovery-proof circuit through the
-# real Noir (nargo) + Barretenberg (bb, UltraHonk) toolchain at increasing
-# `count` (real headers in the proof, out of the fixed N_MAX=256 capacity),
-# recording real constraint counts and prove/verify timings -- no
-# placeholder numbers.
+# Drives the recovery-proof circuit through real nargo+bb at increasing `count`
+# (real headers, out of the fixed N_MAX=256 capacity), recording real
+# constraint counts and prove/verify timings -- no placeholder numbers.
 #
-# The circuit compiles ONCE at a fixed N_MAX=256 (circuit/README.md's §1
-# dynamic-padding design) -- unlike an older version of this script, this
-# does NOT recompile per count; only Prover.toml's `count` and the number of
-# real (non-padding) headers vary. `generate_chain.go` builds a real,
-# hash-linked header chain and Prover.toml for one count value, using the
-# exact HashHeader algorithm x/sovereignty/types implements
-# (cross-verified against the circuit, see that package's
-# TestHashHeader_MatchesCircuitFixture).
+# The circuit compiles ONCE at N_MAX=256 (dynamic-padding design, VK is
+# count-invariant); only Prover.toml's `count` varies per iteration.
+# generate_chain.go builds a real hash-linked header chain per count value.
 #
 # Usage: scripts/e6_zk_reanchoring_benchmark/benchmark_prover.sh
 # Requires: nargo, bb, go on PATH.

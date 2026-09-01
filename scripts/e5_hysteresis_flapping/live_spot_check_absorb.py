@@ -1,40 +1,19 @@
 #!/usr/bin/env python3
-"""LIVE spot-check for E5's 5b/5c sub-scenarios (docs/EXPERIMENT.md) --
-down-hysteresis (ANCHORED -> SUSPICIOUS, DownHysteresisThreshold) and
-SUSPICIOUS-exit hysteresis (SUSPICIOUS -> ANCHORED, SuspiciousHysteresisWait)
-against the real 7-node testnet. Sibling to live_spot_check.py (5a), kept
-separate so a bug here can't regress the already-proven 5a workflow.
-Both params are genesis params, not compile-time-fixed: set
-ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD / ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT
-in .env, wipe testnet-data/, regenerate genesis, redeploy, then run with
---edge/--value matching what was deployed (docs/DEVELOPMENT.md §3).
+"""LIVE spot-check for E5's 5b/5c sub-scenarios (docs/EXPERIMENT.md) -- down-hysteresis
+(ANCHORED->SUSPICIOUS, DownHysteresisThreshold) and SUSPICIOUS-exit hysteresis
+(SUSPICIOUS->ANCHORED, SuspiciousHysteresisWait). Sibling to live_spot_check.py (5a), kept
+separate so a bug here can't regress that proven workflow. Both are genesis params: set the
+ENGRAM_PARAM_* env var, regenerate genesis, redeploy, then run matching --edge/--value.
 
-Noise source: celestia-bridge stop/start (the live-proven mechanism
-live_spot_check.py uses for noisy_da). DA unhealthiness is warning-level only
-(types.IsDAHealthy has no critical path, x/sovereignty/types/predicates.go),
-so it exercises down/SUSPICIOUS-exit hysteresis's absorb path without risking
-an accidental critical-level bypass -- unlike a BTC-gap-based noise source
-(calibrating h_btc_current into the Suspicious..Sovereign band via
-ANCHOR_SUBMISSION_PAUSED_FILE needs tight closed-loop gap monitoring this
-script doesn't attempt).
+Noise source: celestia-bridge stop/start (DA unhealthiness is warning-level only, so it can't
+accidentally trigger a critical-level bypass). --edge down measures directly from ANCHORED;
+--edge suspicious_exit first drives every node to SUSPICIOUS (bounded by --drive-timeout-s)
+before the measurement window starts.
 
---edge down (5b): cluster assumed to start ANCHORED (the chain's own genesis
-default) -- measures directly.
---edge suspicious_exit (5c): a pre-phase stops celestia-bridge and polls until
-every node reports SUSPICIOUS (bounded by --drive-timeout-s) before the
-measurement window starts, mirroring tests/e2e/suspicious_exit_sweep_test.go's
-driveToSuspicious.
-
---env stable vs noisy_da mirrors live_spot_check.py's (5a) same flag, but the MEANING inverts for
---edge suspicious_exit -- see ENVIRONMENTS below. stable never toggles celestia-bridge during the
-measurement window; for --edge down that's a 100%-healthy control, for --edge suspicious_exit
-(which still needs the drive-phase stop to reach SUSPICIOUS first) it's the opposite: celestia-bridge
-stays down for the whole window, a sustained-warning control. noisy_da toggles on the
---noise-on-s/--noise-off-s cadence, defaulted asymmetrically per edge (see --noise-off-s's help)
-to approximate tests/e2e/{hysteresis,suspicious_exit}_sweep_test.go's actual
-noiseProbability=0.2 model -- down's noise is a minority warning blip against a healthy baseline
-(matches 5a's own noisy_da), but suspicious_exit's noise is a minority HEALTHY blip against a
-sustained-warning baseline (inverted), so a symmetric 50/50 toggle would misrepresent it.
+--env noisy_da's MEANING inverts between edges (see ENVIRONMENTS below): for --edge down the
+noise is a minority warning blip against a healthy baseline; for --edge suspicious_exit it's a
+minority HEALTHY blip against a sustained-warning baseline -- the default --noise-off-s differs
+per edge to match each sweep test's noiseProbability=0.2 model instead of a symmetric toggle.
 
 Usage, once per (edge, value, env) combination already deployed:
 
@@ -88,15 +67,9 @@ def docker(*args):
 
 
 def compute_metrics(edge: str, states_by_node: dict, susp_duration_by_node: dict) -> dict:
-    """Mirrors live_spot_check.py's compute_metrics for the shared flapping/
-    total_transitions/anchored_uptime fields, plus edge-specific Tier 1 additions
-    (docs/EXPERIMENT.md's E5 Metrics table): --edge down adds
-    time_outside_anchored/demotion_count, --edge suspicious_exit adds
-    exit_count/max_suspicious_duration. Both are direction-specific transition
-    counts or a max() over already-polled suspicious_duration samples -- no
-    noise-window correlation (that's AbsorbedEvents/AbsorptionRate, still
-    in-process-only). See module doc for the granularity caveat versus the
-    in-process per-block version.
+    """Mirrors live_spot_check.py's shared flapping/anchored_uptime fields, plus edge-specific
+    Tier 1 additions: --edge down adds time_outside_anchored/demotion_count, suspicious_exit
+    adds exit_count/max_suspicious_duration.
     """
     out = {}
     for node, states in states_by_node.items():
@@ -306,12 +279,9 @@ def main():
     if args.noise_on_s is None:
         args.noise_on_s = 20.0
     if args.noise_off_s is None:
-        # suspicious_exit's "noise" is the MINORITY state (a healthy blip
-        # against a sustained-warning baseline) -- 20/4 approximates
-        # tests/e2e/suspicious_exit_sweep_test.go's noiseProbability=0.2
-        # (hysteresis_sweep_test.go:27) as an 80/20 time split per cycle,
-        # not a symmetric toggle. down's own noise IS the minority state
-        # already (healthy baseline, warning blip), so it keeps 20/20.
+        # suspicious_exit's noise is the minority state (healthy blip against a
+        # sustained-warning baseline) -- 20/4 approximates noiseProbability=0.2 as an
+        # 80/20 split, not a symmetric toggle. down's noise is already minority, so 20/20.
         args.noise_off_s = 4.0 if args.edge == "suspicious_exit" else 20.0
 
     if args.wan_profile != "none" and args.duration_s > 570:

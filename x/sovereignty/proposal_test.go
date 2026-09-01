@@ -33,11 +33,9 @@ func newTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	return k, sdkCtx
 }
 
-// testValidator bundles a registered genesis validator's key material, so
-// tests can sign real ABCI++ vote extensions the way NewExtendVoteHandler
-// does -- AggregateHealthCertificates (unlike the ExtendedProposal design it
-// replaces) verifies a real ed25519 signature per certificate, so a fixture
-// can no longer just declare a claimed value.
+// testValidator bundles a registered genesis validator's key material so
+// tests can sign real ABCI++ vote extensions -- AggregateHealthCertificates
+// verifies a real ed25519 signature per certificate.
 type testValidator struct {
 	priv ed25519.PrivKey
 	addr []byte
@@ -84,10 +82,8 @@ func signCertificates(t *testing.T, vals []testValidator, chainID string, height
 }
 
 // healthyAggregatedCertificate builds an AggregatedHealthCertificate that
-// ProcessProposal should accept at height reqHeight, given a freshly
-// constructed Keeper (all committed heights at 0, healthy metrics, ANCHORED
-// state) -- the certificate replacement for the old ExtendedProposal
-// fixture, backed by a real quorum of signed vote extensions.
+// ProcessProposal should accept at height reqHeight, given a fresh Keeper
+// (committed heights at 0, healthy metrics, ANCHORED state).
 func healthyAggregatedCertificate(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) *types.AggregatedHealthCertificate {
 	t.Helper()
 	p := k.Params

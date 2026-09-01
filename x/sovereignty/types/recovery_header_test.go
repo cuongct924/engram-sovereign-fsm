@@ -34,12 +34,9 @@ func TestReduceToField(t *testing.T) {
 	})
 }
 
-// TestHashHeader_MatchesCircuitFixture cross-checks against
-// circuit/reanchoring/src/main.nr's own fixture (Header{111,2,1,1000}) --
-// confirmed byte-for-byte via `nargo test --show-output` before this
-// landed (see git history). A failure here means Go and the circuit have
-// drifted and any on-chain accumulator would no longer bind to a witness
-// chain a real prover can build.
+// TestHashHeader_MatchesCircuitFixture cross-checks against circuit/
+// reanchoring/src/main.nr's own fixture (Header{111,2,1,1000}) -- a failure
+// here means Go and the circuit have drifted.
 func TestHashHeader_MatchesCircuitFixture(t *testing.T) {
 	prevHash := ReduceToField(big.NewInt(111).Bytes())
 	stateRoot := ReduceToField(big.NewInt(1000).Bytes())
