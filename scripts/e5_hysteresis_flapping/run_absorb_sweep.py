@@ -158,14 +158,31 @@ def main() -> None:
     results = []
     for edge in edges:
         for value in values:
-            log(f"--- {edge}={value}: redeploying ---")
-            redeploy(edge, value)
-
             # Same deployed genesis serves every env at this value -- no
             # redeploy between envs, just the ANCHORED-baseline wait each
             # measurement window assumes, re-run before every env including
-            # the first.
+            # the first. EXCEPT suspicious_exit: its "stable" env
+            # deliberately drives ANCHORED->SUSPICIOUS and holds until
+            # MaxSuspiciousTime exhausts (by design, not a failure), which
+            # leaves FailedRecoveryAttempts' backoff-doubled
+            # DownHysteresisThreshold hardened on that genesis -- a later
+            # env's own drive-to-SUSPICIOUS phase then falls straight
+            # through to SOVEREIGN before the poll ever catches SUSPICIOUS
+            # (confirmed live: reached ANCHORED baseline fine, then
+            # "not every node reached SUSPICIOUS within
+            # --drive-timeout-s=120s"). Redeploy before every env for this
+            # edge so each measurement starts from a genuinely fresh
+            # backoff state, not just a fresh ANCHORED reading.
+            redeploy_per_env = edge == "suspicious_exit"
+            if not redeploy_per_env:
+                log(f"--- {edge}={value}: redeploying ---")
+                redeploy(edge, value)
+
             for env in envs:
+                if redeploy_per_env:
+                    log(f"--- {edge}={value} env={env}: redeploying ---")
+                    redeploy(edge, value)
+
                 log(f"waiting for cluster to reach healthy ANCHORED baseline ({edge}={value}, env={env})")
                 if not wait_for_healthy_anchored(timeout_s=args.health_timeout_s):
                     log(f"ERROR: cluster did not reach healthy ANCHORED within {args.health_timeout_s:.0f}s, skipping {edge}={value} env={env}")
