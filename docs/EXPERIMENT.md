@@ -1063,9 +1063,9 @@ structurally can't see BTC/DA gap or P2P health.
 **Method:**
 
 * Live — `scripts/e9_composite_fault/live_combined_trace.py`: one continuous scripted fault sequence
-  on the 4-node cluster — `chaos-btc-delay` → layer `docker stop celestia-bridge-node01` → layer 3 cycles of
-  `chaos-loss` → heal in reverse — under a `chaos-wan-latency` baseline and the pairwise-link
-  topology. (Logic validated in-process first via
+  on the real 7-node cluster — `chaos-btc-delay` → layer `stop_all_da_bridges()` (all 7 independent
+  celestia bridges, not just node01's) → layer 3 cycles of `chaos-loss` → heal in reverse — under a
+  `chaos-wan-latency` baseline and the pairwise-link topology. (Logic validated in-process first via
   `go test ./tests/e2e/... -run TestE9_CompositeFaultCombinedFailure`; only live results are reported
   here.)
 
@@ -1073,27 +1073,31 @@ structurally can't see BTC/DA gap or P2P health.
 
 **Live**
 
-* Single 343s run, all 7 phases pass: height progressed continuously, no stalled round, all 4
+* Single 352s run, all 6 phases pass: height progressed continuously, no stalled round, all 7
   nodes height-synced at every sample.
-* All 4 validators transitioned together — ANCHORED→SOVEREIGN at t=110-113s (already during the
-  layered BTC+DA phase, before the P2P churn overlay even started — the dual BTC+DA fault alone
-  was enough to trip the transition this run), SOVEREIGN→RECOVERING→ANCHORED at t=318s/324s — zero
-  divergence at any transition.
-* Withdrawals locked for the entire SOVEREIGN/RECOVERING window (t=113s→324s, from the same real
+* All 7 validators transitioned together — ANCHORED→SOVEREIGN at t=48-51s (already during the
+  BTC-pressure-building phase, before DA outage or the P2P churn overlay even started — BTC
+  congestion alone was enough to trip the transition this run), SOVEREIGN→RECOVERING at
+  t=326-329s→ANCHORED at t=333s — zero divergence at any transition (every node lands on the same
+  state within a 3-5s window each time).
+* Withdrawals locked for the entire SOVEREIGN/RECOVERING window (t=48s→333s, from the same real
   `fsm_state` samples).
-* `ReanchoringProofValid` flips true at the same t=318s SOVEREIGN→RECOVERING transition, confirming
-  the real proof landed before recovery completed.
-* Diagnostic `sensor_snapshot` scrape (811 rows, ~203/validator — each validator's own LOCAL read,
-  never committed state):
-  * BTC gap (`node01`): jumps ~3→8-9 right as BTC-congestion starts (t≈110-140s), tracking the
-    fault.
-  * DA gap: ramps smoothly ~5→125 across the whole DA-outage window, drops back after healing.
-  * Active-anchors: flat at 3 throughout, including through P2P churn — this validator's anchor
-    peer set wasn't disrupted by the 5% packet-loss injection used here.
-  * Peer latency: the real signal on this sensor — flat near 0 until the DA-outage/P2P-churn
-    overlap (t≈160-220s), where it spikes to ~537ms before dropping back once P2P churn ends.
-* ([`scripts/e9_composite_fault/results_live/e9_combined_trace_20260816T001158.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260816T001158.csv), 404 samples;
-  [`..._sensors.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260816T001158_sensors.csv), 811 diagnostic rows)
+* `ReanchoringProofValid` flips true at t=321s, ahead of the t=326s SOVEREIGN→RECOVERING transition,
+  confirming the real proof landed before recovery started.
+* Diagnostic `sensor_snapshot` scrape (187 rows, `engram-node04`'s own LOCAL read, never committed
+  state):
+  * BTC gap: oscillates 2-9 through the BTC-congestion window, occasionally touching
+    `SovereignThreshold`=8 -- consistent with that fault alone driving the early SOVEREIGN
+    transition.
+  * DA gap: ramps smoothly ~8→147 across the whole DA-outage window (t≈97-314s), drops back to
+    single digits within a few samples of the bridges restarting.
+  * Active-anchors: flat at 6 throughout, including through P2P churn -- this validator's anchor
+    peer set (all 6 other validators) wasn't disrupted by the 5% packet-loss injection used here.
+  * Peer latency: near 0-9ms for most of the run, with two distinct spikes -- ~41-108ms around
+    t≈59-139s (BTC-pressure/early-DA-outage overlap) and ~46-49ms narrower bands later -- before
+    dropping back after healing.
+* ([`scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913.csv), 693 samples;
+  [`..._sensors.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913_sensors.csv), 187 diagnostic rows)
 
 **Figure 2 (live, 4 panels by signal kind; drops to 2 without the `sensor_snapshot` scrape):**
 
