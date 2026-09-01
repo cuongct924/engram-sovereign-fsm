@@ -18,12 +18,15 @@ import (
 	"testing"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/ed25519"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"google.golang.org/protobuf/proto"
 
 	"cosmossdk.io/collections/colltest"
 	log "cosmossdk.io/log/v2"
@@ -32,6 +35,8 @@ import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
+
+const benchmarkChainID = "sovereignty-benchmark"
 
 // P2PDigestSizeEstimate mirrors IsP2PQualityHealthy's 6 fields
 // (spec/core/EngramFSM.tla:76-81) -- an estimate, not shipped code.
@@ -49,11 +54,41 @@ func newTestKeeperCtx(tb testing.TB) (*keeper.Keeper, sdk.Context) {
 	storeService, ctx := colltest.MockStore()
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry())
 	k := keeper.NewKeeper(storeService, cdc)
-	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx)
+	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx).WithChainID(benchmarkChainID)
 	return k, sdkCtx
 }
 
-func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.ExtendedProposal {
+// signedCertificates registers n equal-power validators and signs the same
+// metrics for each -- AggregateHealthCertificates verifies a real ed25519
+// signature per certificate, so a benchmark fixture needs real key material,
+// not just a claimed value (see x/sovereignty/vote_extension.go).
+func signedCertificates(tb testing.TB, k *keeper.Keeper, ctx sdk.Context, height int64, metrics *types.PeripheralMetrics, n int) []*types.SignedHealthCertificate {
+	tb.Helper()
+	ext, err := proto.Marshal(metrics)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	signBytes := cmttypes.VoteExtensionSignBytes(benchmarkChainID, &cmtproto.Vote{Height: height, Round: 0, Extension: ext})
+
+	certs := make([]*types.SignedHealthCertificate, n)
+	for i := 0; i < n; i++ {
+		priv := ed25519.GenPrivKey()
+		pub := priv.PubKey().(ed25519.PubKey)
+		addr := pub.Address()
+		if err := k.ValidatorPubKeys.Set(ctx, string(addr), types.ValidatorInfo{PubKey: pub.Bytes(), Power: 1}); err != nil {
+			tb.Fatal(err)
+		}
+		sig, err := priv.Sign(signBytes)
+		if err != nil {
+			tb.Fatal(err)
+		}
+		certs[i] = &types.SignedHealthCertificate{ValidatorAddress: addr, Round: 0, MetricsExtension: ext, ExtensionSignature: sig}
+	}
+	return certs
+}
+
+func healthyAggregatedCertificate(tb testing.TB, k *keeper.Keeper, ctx sdk.Context) *types.AggregatedHealthCertificate {
+	tb.Helper()
 	p := k.Params
 	metrics := &types.PeripheralMetrics{
 		SubnetDiversity: p.MinSubnetDiversity,
@@ -61,13 +96,17 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 		CleanPeers:      p.MinPeers,
 		AvgPeerTenure:   p.MinAvgTenure,
 	}
-	_ = k.Metrics.Set(ctx, metrics)
+	certs := signedCertificates(tb, k, ctx, -1, metrics, 4)
 
-	return sovereignty.ExtendedProposal{
-		FSMState:   types.StateAnchored,
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
-		ZKProofRef: nil,
+	return &types.AggregatedHealthCertificate{
+		Height:                       -1,
+		Certificates:                 certs,
+		FsmState:                     types.StateAnchored,
+		Healthy:                      true,
+		DaAttestation:                true,
+		BtcCheckpointBlockHeight:     0,
+		BtcCheckpointBlockHashTag:    anchor.ExpectedBlockHash(0).Tag,
+		BtcCheckpointBlockHashHeight: anchor.ExpectedBlockHash(0).Height,
 	}
 }
 
@@ -100,12 +139,12 @@ func BenchmarkProposalSize(b *testing.B) {
 			BTCReceipt anchor.Receipt        `json:"btc_receipt"`
 			P2PDigest  P2PDigestSizeEstimate `json:"p2p_digest"`
 		}{types.StateAnchored, daReceipt, btcReceipt, p2pDigest}},
-		{"V5_PlusZKProofRef", sovereignty.ExtendedProposal{
-			FSMState:   types.StateAnchored,
-			DAReceipt:  daReceipt,
-			BTCReceipt: btcReceipt,
-			ZKProofRef: nil,
-		}},
+		{"V5_PlusZKProofRef", struct {
+			FSMState   string         `json:"fsm_state"`
+			DAReceipt  da.Receipt     `json:"da_receipt"`
+			BTCReceipt anchor.Receipt `json:"btc_receipt"`
+			ZKProofRef []byte         `json:"zk_proof_ref"`
+		}{types.StateAnchored, daReceipt, btcReceipt, nil}},
 	}
 
 	for _, v := range variants {
@@ -126,13 +165,13 @@ func BenchmarkProposalSize(b *testing.B) {
 // the V5 CPU cost.
 func BenchmarkProcessProposal(b *testing.B) {
 	k, ctx := newTestKeeperCtx(b)
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(b, k, ctx)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	if err != nil {
 		b.Fatal(err)
 	}
-	handler := sovereignty.NewProcessProposalHandler(k, nil)
-	req := &abci.RequestProcessProposal{Txs: [][]byte{tx}}
+	handler := sovereignty.NewProcessProposalHandler(k)
+	req := &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 0}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
