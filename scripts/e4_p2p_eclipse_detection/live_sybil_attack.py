@@ -29,7 +29,15 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, peer_subnet_counts, write_csv, NODE_RPC_PORTS  # noqa: E402
+from logger import (  # noqa: E402
+    sample_all_nodes,
+    peer_subnet_counts,
+    write_csv,
+    NODE_RPC_PORTS,
+    dump_consensus_state,
+    own_validator_address,
+    own_precommit_status,
+)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "e8_attack_resilience"))
 from live_timeout_flood_test import sample_docker_stats  # noqa: E402
@@ -139,6 +147,12 @@ class Tracker:
         self.phase_heights: dict = {}  # phase -> [(t, max_height), ...]
         self.phase_stats: dict = {}  # phase -> [{node: (cpu_pct, mem_mb)}, ...]
         self.sample_stats = sample_stats
+        # nil-prevote tracking (docs/EXPERIMENT.md's E4/E8 P2P-attack rows
+        # previously reported only "filter holds N/N" + AppHash divergence;
+        # this adds the specific rejection-mechanism signal, same pattern as
+        # E7's live_sensor_mismatch.py). phase -> {committed_height: vote_str}.
+        self.target_address = own_validator_address(TARGET_NODE)
+        self.phase_nil_votes: dict = {}
 
     def elapsed(self):
         return time.time() - self.start
@@ -181,6 +195,16 @@ class Tracker:
         if self.sample_stats:
             self.phase_stats[phase].append(sample_docker_stats(stats_containers or ALL_VALIDATORS))
 
+        try:
+            dump = dump_consensus_state(TARGET_NODE)
+            result = own_precommit_status(dump, self.target_address)
+        except Exception as e:  # noqa: BLE001 -- a failed poll is a data point, not a crash
+            result = None
+            print(f"  (dump_consensus_state poll failed: {e})")
+        if result:
+            committed_height, vote_str = result
+            self.phase_nil_votes.setdefault(phase, {})[committed_height] = vote_str
+
         row = {
             "t": round(t, 1),
             "phase": phase,
@@ -214,6 +238,15 @@ class Tracker:
         if t1 <= t0:
             return 0.0
         return (h1 - h0) / (t1 - t0)
+
+    def nil_ratio(self, phase: str):
+        """Fraction of distinct committed heights in phase where
+        TARGET_NODE's own precommit was nil -- None if no readings."""
+        votes = self.phase_nil_votes.get(phase, {})
+        if not votes:
+            return None
+        nil_count = sum(1 for v in votes.values() if v == "nil-Vote")
+        return nil_count / len(votes)
 
     def stats_summary(self, phase: str, node: str):
         """(avg_cpu, max_cpu, avg_mem, max_mem) for node across phase's
@@ -292,6 +325,9 @@ def main():
     baseline_rate = tr.height_rate("baseline")
     attack_rate = tr.height_rate("attack")
     recovery_rate = tr.height_rate("recovery")
+    nil_baseline = tr.nil_ratio("baseline")
+    nil_attack = tr.nil_ratio("attack")
+    nil_recovery = tr.nil_ratio("recovery")
     # No fixed threshold -- report the real rates and let the reader judge;
     # "roughly held" means attack didn't collapse toward 0 relative to baseline.
     liveness_held = baseline_rate == 0 or attack_rate >= 0.5 * baseline_rate
@@ -336,7 +372,12 @@ def main():
         f.write(
             f"- Liveness held (block rate during attack vs. baseline, no collapse toward 0): "
             f"**{liveness_held}** (baseline {baseline_rate:.3f} blocks/s, attack {attack_rate:.3f} "
-            f"blocks/s, recovery {recovery_rate:.3f} blocks/s)\n\n"
+            f"blocks/s, recovery {recovery_rate:.3f} blocks/s)\n"
+        )
+        f.write(
+            f"- {TARGET_NODE}'s own nil-prevote ratio (fraction of committed heights where its "
+            f"precommit was nil, not just 'no divergence'): baseline={nil_baseline}, "
+            f"attack={nil_attack}, recovery={nil_recovery}\n\n"
         )
         if tr.divergence_events:
             f.write("### Divergence detail\n\n")
@@ -371,7 +412,8 @@ def main():
         f"\nVERDICT: filter_held={filter_held} fsm_stayed_healthy={fsm_stayed_healthy} "
         f"safety_held={safety_held} divergence_events={len(tr.divergence_events)} "
         f"liveness_held={liveness_held} peak_target_subnet_count={peak_count} "
-        f"(limit={MAX_PEERS_PER_SUBNET})"
+        f"(limit={MAX_PEERS_PER_SUBNET}) nil_ratio(baseline/attack/recovery)="
+        f"{nil_baseline}/{nil_attack}/{nil_recovery}"
     )
 
 

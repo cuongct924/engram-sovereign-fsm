@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LIVE Docker churn attack against the real 4-node testnet -- docs/EXPERIMENT.md's E4 A3
+"""LIVE Docker churn attack against the real 7-node testnet -- docs/EXPERIMENT.md's E4 A3
 (Churn-based Rotation), beyond the existing synthetic Monte Carlo data
 (tests/e2e/p2p_detector_comparison_test.go's A3_ChurnBasedRotation).
 
@@ -20,7 +20,9 @@ _decode_query_state deliberately skips PeripheralMetrics (PreBlocker never commi
 so only the resulting FSM state transition is observable here, not the sensor's raw numbers.
 
 Two real attacker peers (docker/attacker-peer-swarm.yml's attacker-a3-01/02, profile
-attacker-swarm-a3) dial engram-node02 and engram-node04 respectively; churn is driven by directly
+attacker-swarm-a3) dial engram-node03 and engram-node04 respectively (empirically-confirmed
+ADJACENT proposers in this 7-validator cluster's real round-robin rotation, see
+ATTACKER_SERVICES' doc below); churn is driven by directly
 `docker stop`/`docker start`-ing the attacker CONTAINERS each cycle -- a real TCP teardown, unlike
 netem packet loss, which CometBFT's ping/pong liveness check (60s interval, 45s pong timeout,
 ../engram-consensus-core/p2p/conn/connection.go) does not reliably treat as a disconnect.
@@ -28,8 +30,8 @@ netem packet loss, which CometBFT's ping/pong liveness check (60s interval, 45s 
 Expected outcome: **no committed FSM transition**, and this is the correct result, not a detection
 failure. `ProcessProposal` (x/sovereignty/proposal.go:293-303) has every validator independently
 recompute `fsm_state` from its OWN local `PeripheralMetrics` and reject any proposal that disagrees
--- CometBFT then needs >2/3 voting power to commit a block. With only node02/node04 (2 of 4, 50%
-voting power) seeing degraded PeerChurnRate, the two honest validators (node01/node03, unaffected)
+-- CometBFT then needs >2/3 voting power to commit a block. With only node03/node04 (2 of 7,
+~28.6% voting power) seeing degraded PeerChurnRate, the five honest validators (unaffected)
 always reject an "unhealthy" proposal, forcing round-retries until an honest proposer's ANCHORED
 claim -- which matches the honest majority's own view -- commits instead. A real, verified P2P
 degradation on a MINORITY of validators (confirmed via the sensor_snapshot diagnostic line,
@@ -38,7 +40,7 @@ nodes) can therefore never force a state transition, by design: "sensors propose
 decides" means no minority's local view -- however degraded -- can unilaterally move committed
 state. This is the same quorum requirement that gives the protocol its Byzantine-safety guarantee;
 demonstrating it holds here is a real result about the system's robustness to localized/partial P2P
-attacks, not a null result. A supermajority attack (>=3 of 4 validators) would be a structurally
+attacks, not a null result. A supermajority attack (>=5 of 7 validators) would be a structurally
 different experiment.
 
 Usage (against an already-deployed, default-params, healthy ANCHORED testnet -- no genesis change
@@ -58,7 +60,12 @@ from logger import sample_all_nodes, write_csv  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 ATTACKER_PROFILE = "attacker-swarm-a3"
-ATTACKER_SERVICES = ["attacker-a3-01", "attacker-a3-02"]  # -> engram-node02, engram-node04 (adjacent proposers)
+ATTACKER_SERVICES = ["attacker-a3-01", "attacker-a3-02"]  # -> engram-node03, engram-node04
+# node03/node04: empirically-confirmed ADJACENT proposers in this 7-validator cluster's real
+# round-robin rotation -- read directly off 15 consecutive real blocks' proposer_address
+# (/block?height=N, round=0 throughout): node06 -> node03 -> node04 -> node01 -> node02 ->
+# node07 -> node05 -> (repeat), period 7. NOT the old 4-node cluster's node02->node04 order
+# (that rotation no longer applies at 7 validators) -- re-verify if the validator set changes.
 MAX_CHURN_RATE = 5  # x/sovereignty/types/params.go's DefaultParams(), per the 1h rolling window
 
 
@@ -131,7 +138,7 @@ class Tracker:
 
 
 def stop_attacker() -> None:
-    # Both containers stopped together -- node02 and node04 need to go
+    # Both containers stopped together -- node03 and node04 need to go
     # unhealthy on the SAME cycle for their proposer turns to have any
     # chance of landing back-to-back unhealthy.
     for svc in ATTACKER_SERVICES:
@@ -157,7 +164,7 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     tr = Tracker()
 
-    print(f"=== E4 live churn attack (A3): targets=engram-node02,engram-node04 via {', '.join(ATTACKER_SERVICES)}, MaxChurnRate={MAX_CHURN_RATE} ===")
+    print(f"=== E4 live churn attack (A3): targets=engram-node03,engram-node04 via {', '.join(ATTACKER_SERVICES)}, MaxChurnRate={MAX_CHURN_RATE} ===")
     print("NOTE: this script does not verify the deployed cluster's Params -- confirm it's running DefaultParams() before trusting this run's label.")
 
     print(f"=== Phase 1: baseline ({args.baseline_s:.0f}s) ===")
@@ -199,14 +206,15 @@ def main():
     with open(summary_path, "w") as f:
         f.write("# LIVE E4 churn attack, A3 (Churn-based Rotation)\n\n")
         f.write(
-            f"attacker-a3-01 dials engram-node02, attacker-a3-02 dials engram-node04 (the real, "
-            f"empirically-confirmed next proposer after node02 in this cluster's rotation order, "
-            f"node02 -> node04 -> node01 -> node03, per /dump_consensus_state); churn = "
+            f"attacker-a3-01 dials engram-node03, attacker-a3-02 dials engram-node04 (empirically-"
+            f"confirmed ADJACENT proposers in this 7-validator cluster's real rotation order, "
+            f"node06 -> node03 -> node04 -> node01 -> node02 -> node07 -> node05, read off 15 "
+            f"consecutive real blocks' proposer_address); churn = "
             f"{args.churn_cycles} real `docker stop`/`docker start` cycles on both attacker "
             f"containers together each cycle (on={args.churn_on_s:.0f}s stopped, off="
             f"{args.churn_off_s:.0f}s reconnected) -- a genuine TCP teardown each cycle, not netem "
             f"packet loss (an earlier design using 100% loss never actually disconnected "
-            f"CometBFT's MConnection, confirmed via real node02 logs). "
+            f"CometBFT's MConnection, confirmed via real node02 logs on the earlier 4-node cluster). "
             f"MaxChurnRate={MAX_CHURN_RATE} (1h rolling window). Total duration: {tr.elapsed():.0f}s.\n\n"
         )
         f.write(
@@ -214,13 +222,13 @@ def main():
             "not a detection failure. `ProcessProposal` (x/sovereignty/proposal.go:293-303) has "
             "every validator independently recompute `fsm_state` from its OWN local metrics and "
             "reject any disagreeing proposal; CometBFT needs >2/3 voting power to commit. Only "
-            "node02/node04 (2 of 4, 50%) see degraded PeerChurnRate here, so the honest majority "
-            "(node01/node03) always rejects an unhealthy claim, forcing round-retries until an "
+            "node03/node04 (2 of 7, ~28.6%) see degraded PeerChurnRate here, so the honest majority "
+            "(the other 5 validators) always rejects an unhealthy claim, forcing round-retries until an "
             "honest proposer's ANCHORED claim commits instead. A real, confirmed churn_rate "
             "excursion on a MINORITY of validators (well past MaxChurnRate on both attacked nodes, "
             "per the sensor_snapshot diagnostic line) cannot force a transition by design -- "
             "'sensors propose, consensus decides' means no minority view, however degraded, moves "
-            "committed state. A supermajority attack (>=3 of 4 validators) would be a structurally "
+            "committed state. A supermajority attack (>=5 of 7 validators) would be a structurally "
             "different experiment.\n\n"
         )
         f.write("## Verdict\n\n")

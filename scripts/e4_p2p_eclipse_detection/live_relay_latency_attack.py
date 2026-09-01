@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LIVE Docker relay-latency attack against the real 4-node testnet -- docs/EXPERIMENT.md's E4 A4
+"""LIVE Docker relay-latency attack against the real 7-node testnet -- docs/EXPERIMENT.md's E4 A4
 (Relay Node Attack / relay-node latency inflation), beyond the existing synthetic Monte Carlo data
 (tests/e2e/p2p_detector_comparison_test.go's A4_RelayNodeAttack).
 
@@ -22,9 +22,9 @@ this attack).
 NOT via Pumba's `netem delay <container>` command, despite that being every other netem profile's
 mechanism in this file's family (compose.yml). Confirmed live: Pumba applies its delay to
 whichever interface Docker assigns as `eth0`, and this cluster's real P2P gossip does NOT run over
-that interface. `docker/engram-validator-cluster.yml` gives node04 SIX networks (bitcoin-net,
-celestia-net, engram-net, plus three dedicated pairwise validator-link-0X-04 networks, one per
-peer -- this is a pairwise-link topology, not a shared-bridge one). Docker assigns eth0..eth5 by
+that interface. `docker/engram-validator-cluster.yml` gives node04 NINE networks (bitcoin-net,
+celestia-net, engram-net, plus six dedicated pairwise validator-link-0X-04 networks, one per
+other validator in this 7-node cluster -- this is a pairwise-link topology, not a shared-bridge one). Docker assigns eth0..eth5 by
 network *attachment* order, which does not match the YAML's `networks:` block order -- confirmed
 live via `ip -o addr show` inside node04's netns: eth0 is bitcoin-net (172.21.0.130), completely
 unrelated to consensus traffic. The real per-peer gossip links are the three validator-link-0X-04
@@ -34,15 +34,15 @@ using Pumba's `dev eth0` genuinely applied a confirmed-active 350ms delay for th
 window (verified via `tc qdisc show`) with ZERO effect on any validator's measured PeerLatency,
 because it delayed the wrong network entirely.
 
-Cluster-wide-visibility note (the opposite of A3's proposer-visibility caveat): delaying ALL THREE
+Cluster-wide-visibility note (the opposite of A3's proposer-visibility caveat): delaying ALL SIX
 of node04's pairwise links means every other validator's real p.RTT() measurement of ITS
-connection to node04 goes up simultaneously, so all three non-target validators should see the
+connection to node04 goes up simultaneously, so all six non-target validators should see the
 same degraded reading regardless of whose turn it is to propose -- a cleaner, less intermittent
 signal is expected here than for A3.
 
 Quorum note (see live_churn_attack.py's module doc for A3's full BFT-quorum explanation): unlike
-A3's single-peer-link churn (visible to only 1-2 of 4 validators' own local view), delaying node04
-degrades every OTHER validator's own measurement of that link too -- all 4 validators should
+A3's single-peer-link churn (visible to only 2 of 7 validators' own local view), delaying node04
+degrades every OTHER validator's own measurement of that link too -- all 7 validators should
 independently compute Healthy=false, well past the >2/3 quorum ProcessProposal
 (x/sovereignty/proposal.go:293-303) requires to commit a transition. This attack is not
 minority-visible the way A3's was, so a real FSM transition is the expected outcome here.
@@ -207,10 +207,10 @@ def main():
             f"degradation. MaxPeerLatency={MAX_PEER_LATENCY_MS}ms. Total duration: {tr.elapsed():.0f}s.\n\n"
         )
         f.write(
-            "**Quorum note:** unlike A3's single-peer-link churn (visible to only 1-2 of 4 "
+            "**Quorum note:** unlike A3's single-peer-link churn (visible to only 2 of 7 "
             "validators' own local view, see live_churn_attack.py's module doc), delaying all of "
             f"{TARGET_NODE}'s real P2P links degrades every OTHER validator's own RTT measurement "
-            f"of its connection to {TARGET_NODE} too -- all 4 validators should independently "
+            f"of its connection to {TARGET_NODE} too -- all 7 validators should independently "
             "compute Healthy=false, past the >2/3 quorum `ProcessProposal` "
             "(x/sovereignty/proposal.go:293-303) requires to commit. A real FSM transition is "
             "therefore the expected outcome here, unlike A3's minority-visible design.\n\n"
