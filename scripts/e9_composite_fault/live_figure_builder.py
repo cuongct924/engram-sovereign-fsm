@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """E9 -- Trace-Driven Stress Test, LIVE-docker Figure 2 (docs/EXPERIMENT.md's
-E9), built from live_combined_trace.py's real output against the real 4-node
+E9), built from live_combined_trace.py's real output against the real 7-node
 testnet (not tests/e2e's in-process mock).
 
 live_combined_trace.py's doc explains why BTC finality gap, DA availability,
@@ -36,7 +36,7 @@ Panels 2-3 (both sensor-CSV-dependent) drop out together if no sibling
 `<csv>_sensors.csv` scrape exists, leaving a 2-panel figure.
 
 Usage:
-    python3 scripts/e9_trace_driven/live_figure_builder.py [csv_path]
+    python3 scripts/e9_composite_fault/live_figure_builder.py [csv_path]
     (defaults to the newest e9_combined_trace_*.csv in results_live/)
 """
 
@@ -274,7 +274,7 @@ def _finish_figure(fig, windows, colors, csv_path):
     )
     fig.text(
         0.5, 0.945,
-        f"(live 4-node Docker testnet, {os.path.basename(csv_path)})",
+        f"(live 7-node Docker testnet, {os.path.basename(csv_path)})",
         ha="center", va="top", fontsize=10,
     )
     if fault_handles:
@@ -555,7 +555,7 @@ def main():
     if not csv_path or not os.path.exists(csv_path):
         print(
             f"No e9_combined_trace_*.csv found in {RESULTS_LIVE_DIR} -- "
-            "run scripts/e9_trace_driven/live_combined_trace.py first.",
+            "run scripts/e9_composite_fault/live_combined_trace.py first.",
             file=sys.stderr,
         )
         sys.exit(1)

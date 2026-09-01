@@ -22,7 +22,7 @@ type traceRow struct {
 	ProofSubmitted bool
 }
 
-func TestE9_TraceDrivenCombinedFailure(t *testing.T) {
+func TestE9_CompositeFaultCombinedFailure(t *testing.T) {
 	h := NewHarness(t)
 	p := h.keeper.Params
 	var rows []traceRow
@@ -104,7 +104,7 @@ func TestE9_TraceDrivenCombinedFailure(t *testing.T) {
 func writeTraceCSV(t *testing.T, rows []traceRow) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll("results", 0o755))
-	path := filepath.Join("results", "e9_trace_driven.csv")
+	path := filepath.Join("results", "e9_composite_fault.csv")
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	defer f.Close()

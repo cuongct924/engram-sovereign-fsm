@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LIVE E9 combined-failure trace against the real 4-node testnet --
+"""LIVE E9 combined-failure trace against the real 7-node testnet --
 docs/EXPERIMENT.md's E9 capstone: ONE continuous run layering multiple
 overlapping peripheral failures (not sequential isolated toggles like
 live_lifecycle_test.py), a genuinely compounding stress trace across all 3
@@ -28,18 +28,17 @@ Layering, one continuous timeline (not sequential):
      live_scenario_matrix.py's final phase).
 
 Usage:
-    python3 -u scripts/e9_trace_driven/live_combined_trace.py
-    python3 -u scripts/e9_trace_driven/live_combined_trace.py --wan-profile none  # old uniform-LAN behavior
+    python3 -u scripts/e9_composite_fault/live_combined_trace.py
+    python3 -u scripts/e9_composite_fault/live_combined_trace.py --wan-profile none  # old uniform-LAN behavior
 """
 
 import argparse
 import os
-import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS  # noqa: E402
+from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
 from injector import (
     start_pumba_profile,
     cleanup_profile,
@@ -50,17 +49,12 @@ from injector import (
 from sensor_log_scraper import scrape_sensor_snapshots, nearest_timestamp  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
 ALL_NODES = list(NODE_RPC_PORTS.keys())
 
 
 def now() -> str:
     return time.strftime("%H:%M:%S", time.gmtime())
-
-
-def docker(*args):
-    subprocess.run(["docker", *args], capture_output=True, text=True, timeout=30)
 
 
 class Tracker:
@@ -124,7 +118,7 @@ class Tracker:
             states = {s.node: s.fsm_state for s in round_samples}
             print(f"[{self.elapsed():6.0f}s][{self.phase}] {states}")
             if all(v == target_state for v in states.values()):
-                print(f"[{self.elapsed():6.0f}s] all 4 nodes reached {target_state}")
+                print(f"[{self.elapsed():6.0f}s] all {len(states)} nodes reached {target_state}")
                 return True
             time.sleep(2.0)
         print(
@@ -139,7 +133,7 @@ def main():
         "--wan-profile",
         choices=["none", "chaos-wan-latency", "chaos-wan-loss"],
         default="chaos-wan-latency",
-        help="per-validator WAN-realism baseline (each of the 4 validators gets a DIFFERENT "
+        help="per-validator WAN-realism baseline (each of the 7 validators gets a DIFFERENT "
         "delay/jitter or loss%%, approximating distinct real regions) held for the whole trace "
         "EXCEPT Phase 4 -- chaos-wan-* and chaos-loss both add a root netem qdisc on the same "
         "interfaces, so the WAN baseline is paused before Phase 4 and resumed after. 'none' "
@@ -168,10 +162,10 @@ def main():
     tr.poll(60, interval=3.0, phase="P2_btc_pressure_building")
 
     print(
-        "=== Phase 3: layer DA outage on top of BTC pressure (docker stop celestia-bridge) ==="
+        "=== Phase 3: layer DA outage on top of BTC pressure (stop all 7 celestia bridges) ==="
     )
-    docker("stop", CELESTIA_BRIDGE)
-    tr.mark("celestia-bridge stopped (DA outage layered on BTC pressure)")
+    stop_all_da_bridges()
+    tr.mark("all 7 celestia bridges stopped (DA outage layered on BTC pressure)")
     tr.poll(60, phase="P3_btc_plus_da")
 
     print(
@@ -202,8 +196,8 @@ def main():
     print("=== Phase 6: heal in reverse order ===")
     cleanup_profile("chaos-btc-delay")
     tr.mark("chaos-btc-delay cleaned up")
-    docker("start", CELESTIA_BRIDGE)
-    tr.mark("celestia-bridge restarted")
+    start_all_da_bridges()
+    tr.mark("all 7 celestia bridges restarted")
     tr.poll(30, phase="P6_healing")
 
     print(
