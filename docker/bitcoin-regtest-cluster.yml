@@ -26,6 +26,9 @@ services:
     # anonymous volume that isn't reused across recreate (loses the wallet).
     # -datadir= forces it onto the real bind mount; -wallet= auto-loads
     # engramwallet (bitcoind never loads a non-default wallet on its own).
+    # -rpcworkqueue=128 (default 16): confirmed live to reject requests
+    # ("http work queue depth exceeded") under 7 validators' concurrent
+    # per-block RPC polling plus the miner loop.
     command:
       -datadir=/home/bitcoin/.bitcoin
       -wallet=engramwallet
@@ -37,6 +40,7 @@ services:
       -rpcpassword=${BITCOIN_RPC_PASSWORD}
       -rpcallowip=0.0.0.0/0
       -rpcbind=0.0.0.0
+      -rpcworkqueue=128
       -zmqpubrawblock=tcp://0.0.0.0:28332
       -zmqpubrawtx=tcp://0.0.0.0:28333
       -addnode=bitcoin-node02:18444
