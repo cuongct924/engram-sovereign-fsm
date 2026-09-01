@@ -54,10 +54,12 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
 
 ENVIRONMENTS = ["stable", "noisy_btc", "noisy_da", "noisy_p2p", "combined_adversarial"]
 
-# Real live 4-node Docker spot-check points (300s/run), already measured and
+# Real live Docker spot-check points (300s/run), already measured and
 # reported in docs/EXPERIMENT.md's E5 "Live spot-check" tables -- transcribed
 # here, not re-derived, so the scatter dots below match the doc verbatim.
 # Sparse by construction (live is slow; in-process is the dense sweep).
+# LIVE_5A is still 4-node (not yet rerun); LIVE_5B/5C are the real 7-node
+# cluster.
 LIVE_5A = {  # HYSTERESIS_WAIT -> {env: AnchoredUptime}
     0: {"stable": 1.0000, "noisy_da": 0.1170},
     2: {"stable": 1.0000, "noisy_da": 0.1529},
@@ -65,23 +67,23 @@ LIVE_5A = {  # HYSTERESIS_WAIT -> {env: AnchoredUptime}
     10: {"stable": 1.0000, "noisy_da": 0.0106},
     20: {"stable": 1.0000, "noisy_da": 0.0104},
 }
-LIVE_5B = {  # DownHysteresisThreshold -> {env: AnchoredUptime}
-    1: {"stable": 0.7368, "noisy_da": 0.1348},
-    2: {"stable": 1.0000, "noisy_da": 0.0423},
-    4: {"stable": 1.0000, "noisy_da": 0.3000},
-    6: {"stable": 1.0000, "noisy_da": 0.3646},
-    8: {"stable": 1.0000, "noisy_da": 0.2824},
+LIVE_5B = {  # DownHysteresisThreshold -> {env: AnchoredUptime} -- 7-node cluster
+    1: {"stable": 0.9175, "noisy_da": 0.1884},
+    2: {"stable": 0.9474, "noisy_da": 0.1096},
+    4: {"stable": 0.9663, "noisy_da": 0.1791},
+    6: {"stable": 1.0000, "noisy_da": 0.2464},
+    8: {"stable": 1.0000, "noisy_da": 0.2273},
 }
-LIVE_5C = {  # SuspiciousHysteresisWait -> AnchoredUptime, "20% Healthy Blips" only
+LIVE_5C = {  # SuspiciousHysteresisWait -> AnchoredUptime, "20% Healthy Blips" only -- 7-node cluster
     # ("Sustained Warning" is flat 0% at every SHW by construction -- zero
     # healthy blips ever, so it never exercises the exit timer this sweep is
     # about; excluded here as uninformative for this trade-off, see
     # docs/EXPERIMENT.md's E5c conclusion).
-    1: 0.1875,
-    2: 0.3646,
-    4: 0.1250,
-    6: 0.1579,
-    8: 0.1711,
+    1: 0.1053,
+    2: 0.0444,
+    4: 0.0455,
+    6: 0.0303,
+    8: 0.0000,
 }
 
 # Real DefaultParams() values (x/sovereignty/types/params.go) used by every
