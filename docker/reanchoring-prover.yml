@@ -1,0 +1,38 @@
+name: reanchoring-prover
+
+# Containerized watch_and_prove.sh -- the ZK re-anchoring prover (not a
+# validator, no bitcoin-net). Without it zk_proof_ref stays null and
+# RECOVERING never reaches ANCHORED. Talks to node01's RPC over engram-net;
+# also on celestia-net so the witness-publish step stores each proof's
+# header witness on DA as an audit trail (RecoveryProofDAHeights).
+services:
+  reanchoring-prover:
+    build:
+      context: ..
+      dockerfile: docker/reanchoring-prover/Dockerfile
+      additional_contexts:
+        - cometbft-fork=../../engram-consensus-core
+    container_name: reanchoring-prover
+    hostname: reanchoring-prover
+    networks:
+      - engram-net
+      - celestia-net
+    environment:
+      - NODE_URL=http://engram-node01:26657
+      - POLL_INTERVAL_S=3
+      # celestia-bridge-prover, NOT the validators' shared celestia-bridge-node01 --
+      # see docker/celestia-local-cluster.yml's celestia-bridge-prover doc.
+      - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
+      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+      # bb prove (UltraHonk) spawns one worker thread per CPU -- a 1.0 cap
+      # made threads contend for one core (pure scheduling overhead). Raised
+      # to 6.0, leaving headroom for the validators + bitcoind + celestia.
+      # These limits predate the in-circuit ed25519 rebind (~1.9x more
+      # gates); re-check via `docker stats` on first real containerized
+      # prove after that change before trusting them under load.
+          cpus: '6.0'
+          memory: 2048M

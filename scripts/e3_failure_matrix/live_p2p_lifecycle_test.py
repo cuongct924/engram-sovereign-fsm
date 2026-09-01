@@ -30,9 +30,9 @@ Phases:
   4. Reconnect both links (with their original static IPs) -> expect
      SOVEREIGN -> RECOVERING.
   5. Let health stabilize -> expect RECOVERING -> ANCHORED for real (the
-     real ZK re-anchoring pipeline, scripts/reanchoring_prover/
-     watch_and_prove.sh, must already be running as a separate host-side
-     process -- `make testnet-up` does not start it).
+     real ZK re-anchoring pipeline, watch_and_prove.sh, must already be
+     running -- the reanchoring-prover container in a normal `make
+     testnet-up` deployment).
 
 Usage:
     python3 scripts/e3_failure_matrix/live_p2p_lifecycle_test.py

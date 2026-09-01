@@ -74,7 +74,7 @@ the way it is, and the two most common sources of consensus bugs when violated:
 | **CometBFT fork sibling** — `../engram-consensus-core` | any build / test / lint here | see warning below |
 | Docker Compose v2 | the 4/7-node Docker testnet | |
 | `buf` + `protoc-gen-go` + `protoc-gen-go-grpc` on PATH | `make proto-gen` | |
-| `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; running the real ZK re-anchoring prover (§6) | not needed just to reach a baseline ANCHORED (the heuristic recovery path covers that) |
+| `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; debugging the ZK pipeline outside its container | not needed for normal runs -- the prover runs as a container that builds its own copy (§6) |
 | Python 3.11 or 3.12 | `scripts/` (experiments, plotting) | see §3 |
 
 ### This repo needs a sibling checkout of its CometBFT fork
@@ -152,19 +152,19 @@ go build -o build/engramd ./cmd/engramd
 * Real `bitcoind` regtest (2 nodes) with a continuous miner loop (~1 block / 20s).
 * Real Celestia (`celestia-app` + one independent `celestia-bridge-node0N` bridge per validator,
   plus `celestia-bridge-prover` backing the ZK prover's audit trail).
+* The ZK re-anchoring prover container.
 * Pairwise validator gossip links (topology/IPs: `docs/ARCHITECTURE.md`).
 
-This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`. The ZK re-anchoring
-prover is a separate host-side process, not part of this cluster (§6).
+This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`.
 
 ### 5.2 The one-command path: `make testnet-up` / `make testnet-down`
 
 `make testnet-up N=4|7` (default 7) wipes `testnet-data/`, regenerates fresh genesis, starts
 Bitcoin + Celestia, funds a mature BTC wallet, starts the miner loop, fetches every bridge's admin
 JWT into `.env`, waits for each `celestia-bridge-node0N` to actually be healthy (not just running),
-then starts the `N` validators — see the target itself (`Makefile`) for the literal command
-sequence and load-bearing ordering (§5.3 explains *why* that order matters, not the commands
-verbatim, to avoid the two drifting apart). It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and
+then starts the `N` validators and the re-anchoring prover — see the target itself (`Makefile`)
+for the literal command sequence and load-bearing ordering (§5.3 explains *why* that order
+matters, not the commands verbatim, to avoid the two drifting apart). It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and
 requires `.env` to exist (`cp .env.example .env`, fill in `BITCOIN_RPC_USER`/`BITCOIN_RPC_PASSWORD`
 first).
 
@@ -196,7 +196,8 @@ flowchart TD
     C --> D["Start bitcoin-miner-loop container\n(steady ~1 block / 20s)"]
     D --> W["Wait for every celestia-bridge-node0N healthy\n(not just running)"]
     W --> E["Start the N validators"]
-    E --> Ver["Verify: same AppHash\nat same height, all N nodes"]
+    E --> F["Start reanchoring-prover container\n(needed for RECOVERING -> ANCHORED)"]
+    F --> Ver["Verify: same AppHash\nat same height, all N nodes"]
 
     G["⚠ engramd started before wallet mature"] -.->|desyncs h_btc_current| H["Consensus stalls"]
     I["⚠ burst-mining while engramd runs"] -.->|same failure| H
@@ -215,8 +216,7 @@ flowchart TD
   for the real signal.
 
 Verify: `curl -s http://localhost:26657/status | jq .result.sync_info`, and confirm the `AppHash`
-matches across all `N` nodes at the same height. If RECOVERING never reaches ANCHORED via a real
-proof, start the ZK re-anchoring prover -- a host-side script, not a container (§6).
+matches across all `N` nodes at the same height.
 
 ### 5.4 Changing `x/sovereignty.Params` (thresholds, hysteresis, peer limits, ...)
 
@@ -267,8 +267,11 @@ stopping a chaos-wan profile mid-run; see the Makefile's `chaos-wan-stop` target
 
 ## 6. ZK re-anchoring pipeline (RECOVERING → ANCHORED)
 
-Not a container: `scripts/reanchoring_prover/watch_and_prove.sh` is the real pipeline, run as a
-host-side process. Needs `nargo` + `bb` (Barretenberg) on `PATH`, pinned to `1.0.0-beta.22`.
+Runs automatically as the `reanchoring-prover` container (`docker/reanchoring-prover/`, built and
+started by `make testnet-up` -- its Dockerfile bundles `nargo`/`bb` and builds `engramd` from the
+current source, so no host install is needed for normal use). The manual, host-side path below is
+for debugging the pipeline in isolation; it needs `nargo` + `bb` (Barretenberg) on `PATH`, pinned
+to `1.0.0-beta.22`.
 
 ```bash
 ./scripts/reanchoring_prover/prove_and_submit.sh    # one-shot: query -> witness -> prove -> submit
@@ -617,7 +620,7 @@ Symptom → where to look (details live in the section cited):
 |---|---|
 | Consensus stalls after a restart | leftover `priv_validator_state.json` — §5.5, wipe `testnet-data/` and regenerate genesis |
 | Whole cluster torn down accidentally | a bare `docker compose down` or `--profile X stop` with no service names — §5.5 |
-| FSM never leaves `RECOVERING` | `watch_and_prove.sh` not running, or proof never accepted — §6 |
+| FSM never leaves `RECOVERING` | `reanchoring-prover` not running, or proof never accepted — §6 |
 | BTC/DA sensors report stale or mocked values | `BITCOIN_HOST` / `CELESTIA_BRIDGE_URL` unset — §4 |
 | FSM transitions diverge across validators | a live sensor read leaked into committed state — §1, §7.1 |
 | A validator is misbehaving in production | `ENGRAM_BYZANTINE_BEHAVIOR` set on a real validator — §7.4, §8.3 |

@@ -46,7 +46,7 @@ endif
 # not an error, so this stays correct either way without tracking N here.
 CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge-node01 celestia-bridge-prover \
 	celestia-bridge-node02 celestia-bridge-node03 celestia-bridge-node04 celestia-bridge-node05 celestia-bridge-node06 celestia-bridge-node07 \
-	engram-node01 engram-node02 engram-node03 engram-node04 engram-node05 engram-node06 engram-node07
+	engram-node01 engram-node02 engram-node03 engram-node04 engram-node05 engram-node06 engram-node07 reanchoring-prover
 WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04 \
 	pumba-wan-latency-05 pumba-wan-latency-06 pumba-wan-latency-07
 WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04 \
@@ -169,7 +169,9 @@ ifeq ($(N),7)
 endif
 	@echo "--> Starting the $(N) validators"
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) $(COMPOSE_PROFILE_FLAG) up -d --build engram-node01 engram-node02 engram-node03 engram-node04 $(VALIDATOR_SERVICES_EXTRA)
-	@echo "--> Up (ZK re-anchoring prover is the host-side scripts/reanchoring_prover/watch_and_prove.sh pipeline now, not the reanchoring-prover container -- start it separately if RECOVERING needs to reach ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED). Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
+	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED)"
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d --build reanchoring-prover
+	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
 	@echo "--> Stopping core services by name (never a bare 'docker compose down' -- see docs/DEVELOPMENT.md's gotcha)"
