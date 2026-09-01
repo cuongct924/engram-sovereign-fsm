@@ -9,6 +9,7 @@ package e2e
 
 import (
 	"encoding/csv"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -214,5 +215,218 @@ func TestE4_P2PDetectorComparison(t *testing.T) {
 			peerFNR := byKey[setName+"/"+attack+"/peer_count_only"].FNR
 			require.LessOrEqualf(t, triFNR, peerFNR, "[%s] %s: tri-interface FNR (%.4f) must not exceed peer-count-only FNR (%.4f)", setName, attack, triFNR, peerFNR)
 		}
+	}
+}
+
+// evasionThreshold binary-searches for the intensity at which a detector
+// stops flagging gen's output unhealthy at least half the time -- an
+// oracle-guided (adaptive) search using the detector's own pass/fail
+// feedback at each probe, rather than a fixed a-priori ramp
+// (runP2PDetectorComparison's rampSteps=10). probesPerLevel repeats each
+// candidate intensity since gen draws random jitter per call. Returns the
+// highest intensity at which the adversary still evades (healthy==true a
+// majority of probes) -- the adversary's actual goal, not just "detected at
+// some point during a ramp."
+func evasionThreshold(rng *rand.Rand, p types.Params, gen attackGenerator, healthy func(*types.PeripheralMetrics, types.Params) bool, probesPerLevel int) float64 {
+	evades := func(intensity float64) bool {
+		evadeCount := 0
+		for i := 0; i < probesPerLevel; i++ {
+			if healthy(gen(rng, p, intensity), p) {
+				evadeCount++
+			}
+		}
+		return evadeCount*2 > probesPerLevel // majority still reads healthy
+	}
+
+	lo, hi := 0.0, 1.0 // invariant: evades(lo) == true (or lo==0), evades(hi) == false (or hi==1 and still evades)
+	if !evades(lo) {
+		return 0.0 // detector catches even a near-benign snapshot at this param set
+	}
+	if evades(hi) {
+		return 1.0 // adversary evades even at full intensity -- detector has no ceiling
+	}
+	for i := 0; i < 12; i++ { // ~2^-12 resolution
+		mid := (lo + hi) / 2
+		if evades(mid) {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return lo
+}
+
+// TestE4_AdaptiveAdversary answers the advisor's "cần adaptive adversary"
+// gap: runP2PDetectorComparison's FPR/FNR/detection-delay all use a FIXED,
+// a-priori attack shape (uniform ramp or full-intensity). Here the search
+// itself uses the detector's live pass/fail feedback each probe
+// (evasionThreshold) -- a real adversary that adapts, not a fixed schedule.
+// Reports each detector's evasion threshold per attack: LOWER is better for
+// the defender (caught at lower intensity, less room for the adversary to
+// operate undetected).
+func TestE4_AdaptiveAdversary(t *testing.T) {
+	rng := rand.New(rand.NewSource(4242))
+	p := productionScaleParams() // DefaultParams' thresholds are trivially separable (see its own doc)
+
+	require.NoError(t, os.MkdirAll("results", 0o755))
+	path := filepath.Join("results", "e4_adaptive_adversary.csv")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	_ = w.Write([]string{"attack", "detector", "evasion_threshold_intensity"})
+
+	type thresholds struct{ peerCount, triInterface float64 }
+	byAttack := map[string]thresholds{}
+	for attack, gen := range p2pAttackGenerators {
+		peerT := evasionThreshold(rng, p, gen, peerCountOnlyHealthy, 20)
+		triT := evasionThreshold(rng, p, gen, types.IsP2PQualityHealthy, 20)
+		byAttack[attack] = thresholds{peerCount: peerT, triInterface: triT}
+		_ = w.Write([]string{attack, "peer_count_only", strconv.FormatFloat(peerT, 'f', 4, 64)})
+		_ = w.Write([]string{attack, "tri_interface", strconv.FormatFloat(triT, 'f', 4, 64)})
+		t.Logf("[adaptive] %s: peer_count_only evades up to intensity=%.4f, tri_interface evades up to intensity=%.4f",
+			attack, peerT, triT)
+	}
+
+	// Same claim as the FNR sanity check above, restated against an
+	// adaptive adversary's own best evasion point rather than a single
+	// fixed-intensity sample: tri-interface must not be easier to evade.
+	for attack, th := range byAttack {
+		require.LessOrEqualf(t, th.triInterface, th.peerCount,
+			"%s: tri-interface's evasion threshold (%.4f) must not exceed peer-count-only's (%.4f) -- "+
+				"an adaptive adversary must not find tri-interface easier to evade", attack, th.triInterface, th.peerCount)
+	}
+}
+
+// intensityShape maps a normalized ramp step in [0,1] to an attack
+// intensity in [0,1] -- TestE4_DistributionSensitivity's 3 shapes.
+type intensityShape struct {
+	name string
+	f    func(step float64) float64
+}
+
+var p2pIntensityShapes = []intensityShape{
+	// The existing runP2PDetectorComparison ramp: constant-rate escalation.
+	{"linear", func(step float64) float64 { return step }},
+	// Front-loaded: attacker escalates aggressively early, testing whether
+	// detectors tuned for a gradual ramp miss a fast-onset attack.
+	{"front_loaded", math.Sqrt},
+	// Stealthy: attacker escalates slowly, spending most of the ramp near
+	// benign, testing whether a slow creep evades longer than linear.
+	{"stealthy_slow_ramp", func(step float64) float64 { return step * step }},
+}
+
+// TestE4_DistributionSensitivity answers the advisor's "sensitivity theo
+// distribution" gap: runP2PDetectorComparison always ramps intensity
+// linearly. Sweeps 3 differently-shaped intensity trajectories (front-loaded,
+// linear, stealthy) per attack/detector and reports detection delay
+// (in ramp steps) for each, so a claim like "detected within N snapshots"
+// isn't reported for only the one shape that happens to look best.
+func TestE4_DistributionSensitivity(t *testing.T) {
+	rng := rand.New(rand.NewSource(99))
+	p := productionScaleParams()
+	const rampSteps = 10
+	const trialsPerShape = 300
+
+	require.NoError(t, os.MkdirAll("results", 0o755))
+	path := filepath.Join("results", "e4_distribution_sensitivity.csv")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	_ = w.Write([]string{"attack", "detector", "shape", "avg_detection_delay_steps", "detected_out_of_trials"})
+
+	detectors := map[string]func(*types.PeripheralMetrics, types.Params) bool{
+		"peer_count_only": peerCountOnlyHealthy,
+		"tri_interface":   types.IsP2PQualityHealthy,
+	}
+
+	for attack, gen := range p2pAttackGenerators {
+		for detName, healthy := range detectors {
+			for _, shape := range p2pIntensityShapes {
+				totalDelay, detected := 0.0, 0
+				for i := 0; i < trialsPerShape; i++ {
+					for step := 1; step <= rampSteps; step++ {
+						intensity := shape.f(float64(step) / rampSteps)
+						if !healthy(gen(rng, p, intensity), p) {
+							totalDelay += float64(step)
+							detected++
+							break
+						}
+					}
+				}
+				avgDelay := -1.0
+				if detected > 0 {
+					avgDelay = totalDelay / float64(detected)
+				}
+				_ = w.Write([]string{
+					attack, detName, shape.name,
+					strconv.FormatFloat(avgDelay, 'f', 2, 64),
+					strconv.Itoa(detected),
+				})
+				t.Logf("[sensitivity] %s/%s/%s: avg_delay=%.2f steps (detected %d/%d)",
+					attack, detName, shape.name, avgDelay, detected, trialsPerShape)
+			}
+		}
+	}
+}
+
+// TestE4_CorrelatedDomainFailure answers the advisor's "correlated sensor
+// failures" gap directly against the real detector functions: both
+// IsP2PQualityHealthy and peerCountOnlyHealthy are pure functions of
+// PeripheralMetrics' P2P fields alone (see their definitions) -- BTC/DA
+// fields never enter their computation. So the correct, honest finding here
+// is that P2P detector accuracy is structurally INVARIANT to simultaneous
+// BTC/DA degradation, by the FSM's own separation of concerns
+// (spec/core/EngramFSM.tla's IsHealthyCondition ANDs three independent
+// per-domain predicates, never lets one domain's reading influence
+// another's). This test asserts that invariant holds for the real code
+// (not just the spec), rather than silently skipping the question.
+func TestE4_CorrelatedDomainFailure(t *testing.T) {
+	rng := rand.New(rand.NewSource(7))
+	p := productionScaleParams()
+
+	for attack, gen := range p2pAttackGenerators {
+		for i := 0; i < 200; i++ {
+			intensity := rng.Float64()
+			isolated := gen(rng, p, intensity)
+			// Same P2P fields as isolated -- field-by-field, never a struct
+			// copy: *PeripheralMetrics embeds a sync.Mutex (CLAUDE.md), so
+			// copying the struct value trips go vet's lock-copy check.
+			correlated := &types.PeripheralMetrics{
+				SubnetDiversity: isolated.SubnetDiversity,
+				ActiveAnchors:   isolated.ActiveAnchors,
+				CleanPeers:      isolated.CleanPeers,
+				PeerChurnRate:   isolated.PeerChurnRate,
+				AvgPeerTenure:   isolated.AvgPeerTenure,
+				PeerLatency:     isolated.PeerLatency,
+			}
+			// Layer independent BTC/DA degradation on top of the SAME P2P
+			// attack snapshot -- a real multi-vector adversary manipulating
+			// its own peers while BTC/DA are also (independently) unhealthy.
+			correlated.BtcGap = p.SovereignThreshold + uint64(rng.Intn(10))
+			correlated.IsBtcSpvFailed = true
+			correlated.DaGap = p.DAThreshold + uint64(rng.Intn(10))
+			correlated.IsDasFailed = true
+
+			require.Equal(t, types.IsP2PQualityHealthy(isolated, p), types.IsP2PQualityHealthy(correlated, p),
+				"%s: P2P detector's verdict must not change when BTC/DA are ALSO degraded (cross-domain leakage would be a real bug)", attack)
+			require.Equal(t, peerCountOnlyHealthy(isolated, p), peerCountOnlyHealthy(correlated, p),
+				"%s: peer-count-only detector's verdict must not change when BTC/DA are ALSO degraded", attack)
+		}
+	}
+
+	// The full FSM-level predicate, by contrast, MUST catch a P2P attack
+	// even when BTC/DA happen to be healthy at the same time -- confirms
+	// correlated degradation can't mask a P2P attack at the FSM level either,
+	// via the opposite direction: BTC/DA healthy + P2P attacked -> unhealthy.
+	for attack, gen := range p2pAttackGenerators {
+		m := gen(rng, p, 1.0) // full-intensity P2P attack
+		m.BtcGap = 0
+		m.DaGap = 0
+		require.Falsef(t, types.IsHealthyCondition(m, p),
+			"%s: IsHealthyCondition must reflect the P2P attack even though BTC/DA read healthy", attack)
 	}
 }

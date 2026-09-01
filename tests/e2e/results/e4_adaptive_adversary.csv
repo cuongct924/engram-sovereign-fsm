@@ -1,0 +1,9 @@
+attack,detector,evasion_threshold_intensity
+A4_RelayNodeAttack,peer_count_only,1.0000
+A4_RelayNodeAttack,tri_interface,0.3167
+A1_PeerSlotExhaustion,peer_count_only,1.0000
+A1_PeerSlotExhaustion,tri_interface,0.1863
+A2_BGPHijackSybil,peer_count_only,1.0000
+A2_BGPHijackSybil,tri_interface,0.0000
+A3_ChurnBasedRotation,peer_count_only,1.0000
+A3_ChurnBasedRotation,tri_interface,0.1199
