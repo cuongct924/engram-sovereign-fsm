@@ -2,10 +2,10 @@
 
 A4 Forged BTC Receipt: node04 claims an advanced checkpoint with a tampered hash
 
-Total duration: 116s. Behavior: `forge_btc_hash`.
+Total duration: 117s. Behavior: `forge_btc_hash`.
 
 ## Verdict
 
-- Safety held (3 honest nodes' AppHash never diverged): **True**
+- Safety held (6 honest nodes' AppHash never diverged): **True**
 - Divergence events: 0
 

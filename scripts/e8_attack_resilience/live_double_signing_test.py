@@ -10,7 +10,7 @@ anti-double-sign safety net; sharing it would prevent double-signing).
 Detection channel: x/sovereignty/preblock.go's recordDetectedEvidence prints
 "SLASHABLE EVIDENCE DETECTED" to stdout on every honest validator once
 CometBFT's own evidence pool reports real DuplicateVoteEvidence. This script
-polls `docker logs` on the 3 real validators (not node04 or the duplicate)
+polls `docker logs` on the 6 real validators (not node04 or the duplicate)
 for that marker -- no new gRPC query exists yet (the detected evidence IS
 committed to keeper state, DetectedEvidenceCount/LastDetectedEvidence, just
 not exposed through a Query RPC, which would need a new .proto message +
@@ -40,7 +40,9 @@ REAL_GENESIS = os.path.join(
     REPO_ROOT, "testnet-data", "engram-node01", "config", "genesis.json"
 )
 DUPLICATE_SERVICE = "engram-node04-double-sign"
-WITNESS_CONTAINERS = ["engram-node01", "engram-node02", "engram-node03"]
+# All 6 real honest validators (node04 is the one being impersonated) --
+# was hardcoded to only 3 (node01-03) from the old 4-node cluster.
+WITNESS_CONTAINERS = ["engram-node01", "engram-node02", "engram-node03", "engram-node05", "engram-node06", "engram-node07"]
 EVIDENCE_MARKER = re.compile(
     r"SLASHABLE EVIDENCE DETECTED type=(\S+) validator=(\S+) offense_height=(\d+) detected_at_height=(\d+)"
 )
@@ -51,7 +53,7 @@ def now() -> str:
 
 
 def compute_persistent_peers() -> str:
-    """Builds the id@host:26656 list for the 3 OTHER real validators (not
+    """Builds the id@host:26656 list for the 6 OTHER real validators (not
     node04 itself, whose identity the duplicate is impersonating). Node IDs
     come from each real, already-running node's own /status RPC -- real and
     authoritative, avoids reimplementing CometBFT's ID-from-pubkey derivation
@@ -59,8 +61,11 @@ def compute_persistent_peers() -> str:
     """
     import json
 
-    peers = ["engram-node01", "engram-node02", "engram-node03"]
-    port_map = {"engram-node01": 26657, "engram-node02": 26757, "engram-node03": 26857}
+    peers = WITNESS_CONTAINERS
+    port_map = {
+        "engram-node01": 26657, "engram-node02": 26757, "engram-node03": 26857,
+        "engram-node05": 27057, "engram-node06": 27157, "engram-node07": 27257,
+    }
     node_ids = {}
     for node in peers:
         proc = subprocess.run(
@@ -166,14 +171,20 @@ def stop_duplicate() -> None:
 
 
 def scan_logs_for_evidence(container: str) -> list:
+    # --tail bounded: after hours of real debug-level D[...] log volume (this
+    # session's long-running cluster), an unbounded `docker logs` dump
+    # reliably exceeded a 30s timeout -- confirmed live. Only the marker's
+    # presence in RECENT output matters for this test's own detection
+    # window, not full container history.
     proc = subprocess.run(
-        ["docker", "logs", container], capture_output=True, text=True, timeout=30
+        ["docker", "logs", "--tail", "20000", container],
+        capture_output=True, text=True, timeout=60,
     )
     return [m.groups() for m in EVIDENCE_MARKER.finditer(proc.stdout + proc.stderr)]
 
 
 class Tracker:
-    """AppHash-divergence tracker for the 3 honest witnesses -- this script
+    """AppHash-divergence tracker for the 6 honest witnesses -- this script
     previously had no RPC polling at all (log-grepping only), so double-
     signing detection latency and whether the double-signing window ALSO
     caused a real safety violation (AppHash divergence) were never checked
@@ -276,7 +287,7 @@ def main():
             f"`DuplicateVoteEvidence`: **{len(found) == len(WITNESS_CONTAINERS)}**\n"
         )
         f.write(
-            f"- Safety held (3 honest witnesses' AppHash never diverged at the same height "
+            f"- Safety held (6 honest witnesses' AppHash never diverged at the same height "
             f"during or after the double-signing window): **{safety_held}**\n"
         )
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n\n")

@@ -189,7 +189,8 @@ def run_scenario(name: str, attack_s: float, recovery_s: float, interval_s: floa
         )
         f.write(f"## Verdict\n\n")
         f.write(
-            f"- Safety held (3 honest nodes' AppHash never diverged): **{safety_held}**\n"
+            f"- Safety held ({len(HONEST_NODES)} honest nodes' AppHash never diverged): "
+            f"**{safety_held}**\n"
         )
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n\n")
         if tr.divergence_events:

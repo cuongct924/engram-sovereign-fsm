@@ -2,10 +2,10 @@
 
 A6 Malicious Proposer: node04 claims SOVEREIGN while real conditions are healthy
 
-Total duration: 119s. Behavior: `fake_fsm_state:SOVEREIGN`.
+Total duration: 120s. Behavior: `fake_fsm_state:SOVEREIGN`.
 
 ## Verdict
 
-- Safety held (3 honest nodes' AppHash never diverged): **True**
+- Safety held (6 honest nodes' AppHash never diverged): **True**
 - Divergence events: 0
 

@@ -19,10 +19,10 @@ defended against by the other's mitigation (the ingress filter doesn't
 touch consensus-layer proposal content; the honest-validator rejection
 path doesn't touch peer admission).
 
-Safety bar: the 3 HONEST, non-byzantine, non-swarm-targeted nodes
-(engram-node02, engram-node03 -- engram-node01 is excluded from the
-"honest" comparison set here since it's ALSO the A1 swarm's direct target
-and node04 is byzantine) must keep an identical AppHash at every height
+Safety bar: the HONEST, non-byzantine, non-swarm-targeted nodes
+(node02/03/05/06/07 -- engram-node01 is excluded from the "honest"
+comparison set here since it's ALSO the A1 swarm's direct target and
+node04 is byzantine) must keep an identical AppHash at every height
 sampled, the entire time both attacks are active.
 
 Usage:
@@ -35,15 +35,17 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, write_csv  # noqa: E402
+from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 BYZANTINE_SERVICE = "engram-node04"
 BYZANTINE_BEHAVIOR = "fake_fsm_state:SOVEREIGN"
 # Deliberately excludes engram-node01 (the A1 swarm's direct dial target --
 # its own peer count/behavior is part of what's under attack, not a clean
-# "did safety hold" witness) and engram-node04 (byzantine).
-SAFETY_WITNESS_NODES = ["engram-node02", "engram-node03"]
+# "did safety hold" witness) and engram-node04 (byzantine). All other real
+# validators are included (was hardcoded to just node02/node03 from the old
+# 4-node cluster, which had no other honest nodes left to include).
+SAFETY_WITNESS_NODES = [n for n in NODE_RPC_PORTS if n not in ("engram-node01", BYZANTINE_SERVICE)]
 
 
 def now() -> str:
