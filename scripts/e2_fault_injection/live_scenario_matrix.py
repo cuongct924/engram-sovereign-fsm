@@ -11,7 +11,8 @@ buildup each). Each phase's "before" is the previous phase's healed "after".
     S2 BTC congestion   -- pause checkpoint submission (AnchorTracker's
                            ANCHOR_SUBMISSION_PAUSED_FILE): h_btc_anchored
                            freezes while h_btc_current climbs, growing btc_gap.
-    S3 DA unavailable   -- docker stop/start celestia-bridge.
+    S3 DA unavailable   -- docker stop/start all 7 validators' independent
+                           celestia bridges (logger.py's stop/start_all_da_bridges).
     S4 P2P eclipse partial -- 300ms+-50ms delay on all 6 real
                            validator-link-01-0N interfaces to/from node01
                            (see NODE01_P2P_LINK_TARGETS's doc).
@@ -41,7 +42,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
-from logger import sample_all_nodes, net_info, write_csv  # noqa: E402
+from logger import sample_all_nodes, net_info, write_csv, stop_all_da_bridges, start_all_da_bridges, NODE_RPC_PORTS  # noqa: E402
 from injector import (
     start_pumba_profile,
     cleanup_profile,
@@ -62,9 +63,16 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 # Figures (unlike raw CSVs/markdown) land alongside live_figure_builder.py's
 # output, not results_live/ -- one figures directory for all of E2's charts.
 FIGURES_DIR = os.path.join(os.path.dirname(__file__), "results")
-CELESTIA_BRIDGE = "celestia-bridge"
 BITCOIN_NODE = "bitcoin-node01"
-ENGRAM_NODES = ["engram-node01", "engram-node02", "engram-node03", "engram-node04"]
+# Derived from logger.NODE_RPC_PORTS (ENGRAM_VALIDATOR_COUNT-aware, default
+# 7) so S1/S2/S3/S5/S6/S7 (which only sample/wait-for-state across "every
+# node") automatically match whichever `make testnet-up N=4|7` topology is
+# actually running. S4's P2P eclipse mechanism does NOT follow this: its
+# NODE01_P2P_LINK_TARGETS interface mapping was empirically MAC-verified
+# for the specific 7-node topology and is NOT topology-agnostic -- running
+# the full matrix at N=4 would need that list re-verified against a real
+# 4-node deployment first (see NODE01_P2P_LINK_TARGETS's own doc).
+ENGRAM_NODES = list(NODE_RPC_PORTS.keys())
 ANCHOR_SUBMISSION_PAUSED_FILE = "/tmp/anchor_submission_paused"
 NET_INFO_LOG = os.path.join(RESULTS_DIR, "s4_s5_net_info_check.md")
 
@@ -91,26 +99,37 @@ def block_interval_stats(samples_for_node):
     return {"mean_s": mean, "p50_s": p50, "p95_s": p95, "n_intervals": n}
 
 
-# S4's real P2P eclipse mechanism: delay on node01's 3 dedicated pairwise-link
-# interfaces to its peers AND each peer's own link back to node01 --
-# bidirectional, all 3 links. Pumba's netem defaults to eth0, which on this
-# cluster maps to bitcoin-net for every validator (never a P2P-carrying
-# interface), so eth0-only loss/delay produced zero FSM-visible effect even
-# at 40% loss; the real inter-validator gossip runs over
-# validator-link-01-0N (docs/ARCHITECTURE.md's pairwise-link topology), and
-# targeting these 6 links produces the full ANCHORED->SUSPICIOUS->SOVEREIGN
-# ->RECOVERING->ANCHORED cycle, matching the in-process gray-failure-timeout
-# finding. One-sided delay (only node01's own egress) is NOT enough for the
-# CONSECUTIVE-streak-gated absorb (DownHysteresisThreshold) to reliably trip:
-# node01's degraded view only enters a proposal on node01's round-robin turn,
-# so bidirectional delay keeps every proposer's own view degraded every round.
+# S4's real P2P eclipse mechanism: delay on node01's 6 dedicated pairwise-link
+# interfaces to its peers (node02-07) AND each peer's own link back to node01
+# -- bidirectional, all 6 links (12 interface targets). Pumba's netem
+# defaults to eth0, which is NOT a fixed bitcoin-net/P2P mapping across
+# nodes -- confirmed empirically per-node via MAC-address cross-reference
+# (docker inspect's per-network MacAddress vs each container's
+# /sys/class/net/ethN/address) after the cluster scaled 4->7 validators,
+# since eth-index-to-network assignment is NOT alphabetical or declaration-
+# order and silently differs per container; do not assume these indices
+# without re-verifying if the topology changes again. The real
+# inter-validator gossip runs over validator-link-01-0N
+# (docs/ARCHITECTURE.md's pairwise-link topology), and targeting these links
+# produces the full ANCHORED->SUSPICIOUS->SOVEREIGN->RECOVERING->ANCHORED
+# cycle, matching the in-process gray-failure-timeout finding. One-sided
+# delay (only node01's own egress) is NOT enough for the CONSECUTIVE-streak-
+# gated absorb (DownHysteresisThreshold) to reliably trip: node01's degraded
+# view only enters a proposal on node01's round-robin turn, so bidirectional
+# delay keeps every proposer's own view degraded every round.
 NODE01_P2P_LINK_TARGETS = [
-    ("engram-node01", "eth3"),  # node01 -> node02
-    ("engram-node01", "eth4"),  # node01 -> node03
-    ("engram-node01", "eth5"),  # node01 -> node04
-    ("engram-node02", "eth2"),  # node02 -> node01
-    ("engram-node03", "eth4"),  # node03 -> node01
-    ("engram-node04", "eth3"),  # node04 -> node01
+    ("engram-node01", "eth4"),  # node01 -> node02
+    ("engram-node01", "eth0"),  # node01 -> node03
+    ("engram-node01", "eth2"),  # node01 -> node04
+    ("engram-node01", "eth3"),  # node01 -> node05
+    ("engram-node01", "eth6"),  # node01 -> node06
+    ("engram-node01", "eth5"),  # node01 -> node07
+    ("engram-node02", "eth3"),  # node02 -> node01
+    ("engram-node03", "eth7"),  # node03 -> node01
+    ("engram-node04", "eth0"),  # node04 -> node01
+    ("engram-node05", "eth8"),  # node05 -> node01
+    ("engram-node06", "eth1"),  # node06 -> node01
+    ("engram-node07", "eth7"),  # node07 -> node01
 ]
 
 
@@ -207,7 +226,7 @@ class Tracker:
             states = {s.node: s.fsm_state for s in round_samples}
             print(f"[{self.elapsed():6.0f}s][{self.phase}] {states}")
             if all(v == target_state for v in states.values()):
-                print(f"[{self.elapsed():6.0f}s] all 4 nodes reached {target_state}")
+                print(f"[{self.elapsed():6.0f}s] all {len(ENGRAM_NODES)} nodes reached {target_state}")
                 return True
             time.sleep(2.0)
         print(
@@ -229,8 +248,8 @@ class Tracker:
         return path
 
     def _block_interval_summary(self, scenario_samples):
-        """Aggregates block_interval_stats across all 4 nodes for one
-        scenario -- one throughput/latency-proxy number per scenario (all 4
+        """Aggregates block_interval_stats across all validator nodes for one
+        scenario -- one throughput/latency-proxy number per scenario (all
         validators stay in lockstep in every measured run)."""
         by_node = {}
         for s in scenario_samples:
@@ -251,7 +270,7 @@ class Tracker:
             f.write("# E2 live throughput/latency (block-interval proxy)\n\n")
             f.write(
                 "Mean/p50/p95 seconds between consecutive height increments, averaged "
-                "across all 4 validators per scenario (p95 is the max across nodes). "
+                "across all validators per scenario (p95 is the max across nodes). "
                 "Fixed-interval RPC polling, not per-round consensus timing -- a "
                 "throughput proxy, not a true latency percentile.\n\n"
             )
@@ -340,7 +359,7 @@ def main():
     # AnchorTracker.SetSubmissionPausedFile (x/anchor/anchor.go) -- MaybeSubmit
     # skips NEW checkpoints while the file exists, freezing h_btc_anchored
     # while h_btc_current climbs. Grew btc_gap to 12 (past SovereignThreshold=8)
-    # and committed all 4 validators to SOVEREIGN in lockstep.
+    # and committed all 7 validators to SOVEREIGN in lockstep.
     tr.set_scenario("s2")
     for node in ENGRAM_NODES:
         docker("exec", node, "touch", ANCHOR_SUBMISSION_PAUSED_FILE)
@@ -353,11 +372,11 @@ def main():
     tr.wait_for_state("ANCHORED", 90, phase="S2_btc_congestion_cooldown")
     tr.write_scenario_csv("s2_btc_congestion", "s2")
 
-    print("=== S3: DA unavailable (docker stop celestia-bridge) ===")
+    print("=== S3: DA unavailable (docker stop all 7 independent celestia bridges) ===")
     tr.set_scenario("s3")
-    docker("stop", CELESTIA_BRIDGE)
+    stop_all_da_bridges()
     tr.poll(60, phase="S3_da_unavailable")
-    docker("start", CELESTIA_BRIDGE)
+    start_all_da_bridges()
     tr.wait_for_state("ANCHORED", 90, phase="S3_da_recovery")
     tr.write_scenario_csv("s3_da_unavailable", "s3")
 
@@ -427,7 +446,7 @@ def main():
     )
     tr.set_scenario("s6")
     docker("stop", BITCOIN_NODE)
-    docker("stop", CELESTIA_BRIDGE)
+    stop_all_da_bridges()
     tr.poll(90, phase="S6_combined_btc_da_failure")
     tr.write_scenario_csv("s6_combined_btc_da_failure", "s6")
 
@@ -436,7 +455,7 @@ def main():
     )
     tr.set_scenario("s7")
     docker("start", BITCOIN_NODE)
-    docker("start", CELESTIA_BRIDGE)
+    start_all_da_bridges()
     reached = tr.wait_for_state("ANCHORED", 600, phase="S7_recovery")
     tr.write_scenario_csv("s7_recovery", "s7")
 

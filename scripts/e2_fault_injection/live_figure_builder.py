@@ -4,7 +4,7 @@
 scripts/e2_fault_injection/live_scenario_matrix.py's real S1-S7 output
 against the real 4-node testnet (not tests/e2e's in-process mock).
 
-Same real-data-only discipline as scripts/e9_trace_driven/live_figure_builder.py:
+Same real-data-only discipline as scripts/e9_composite_fault/live_figure_builder.py:
 only fsm_state/height/safe_blocks/reanchoring_proof_valid/app_hash are ever
 committed state a live RPC/ABCI-query poll can observe (see
 x/sovereignty/preblock.go's NewPreBlocker doc) -- no withdraw_locked marker
