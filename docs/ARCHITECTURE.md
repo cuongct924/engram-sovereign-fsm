@@ -29,7 +29,7 @@ flowchart TB
     end
     subgraph celestianet["celestia-net (172.22.0.0/24, isolated)"]
         CApp["celestia-app<br/>.50"]
-        CBridge["celestia-bridge<br/>.51"]
+        CBridge["celestia-bridge-node01<br/>.51"]
     end
     Prover["reanchoring-prover<br/>(engram-net + celestia-net, no fixed IP)"]
     N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
@@ -51,7 +51,7 @@ flowchart TB
 | `validator-link-NN-MM` (×6) | `172.40.<0-5>.0/29` | `.1` | one pair only | the 2 validators of that pair, `.2`/`.3` |
 | `engram-net` | `172.28.0.0/24` | `.1` | external clients | 4 validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
 | `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, `bitcoin-miner-loop` (no fixed IP), + validators `.100`/`.110`/`.120`/`.130` |
-| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge` `.51`, + validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
+| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge-node01` `.51`, + validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
 
 **Key facts:**
 
@@ -66,7 +66,7 @@ flowchart TB
 * `bitcoin-miner-loop`/`reanchoring-prover` are real, always-on containers (`make testnet-up`, not
   profile-gated), replacing a host `nohup` process and a manual script invocation. Neither needs a
   static IP -- both only make outbound RPC calls. `reanchoring-prover` also writes each accepted
-  proof's header-chain witness straight to `celestia-bridge`, since `HeaderHistory` (the on-chain
+  proof's header-chain witness straight to `celestia-bridge-node01`, since `HeaderHistory` (the on-chain
   copy) gets pruned once the proof lands -- an audit trail, never verified on-chain
   (`x/sovereignty/keeper/msg_server.go`'s `RecoveryProofDAHeights`).
 * Profile-gated fault-injection services (attacker swarm, double-signing harness) get extra
@@ -104,7 +104,7 @@ prometheus/grafana stack exists here. Every E2-E9 experiment number instead come
 | `bitcoin-node02` RPC | `docker/bitcoin-regtest-cluster.yml` | `19443` |
 | `celestia-app` RPC | `docker/celestia-local-cluster.yml` | `26658` |
 | `celestia-app` gRPC | `docker/celestia-local-cluster.yml` | `9090` |
-| `celestia-bridge` RPC | `docker/celestia-local-cluster.yml` | `26658` (distinct container from `celestia-app`, same in-network port) |
+| `celestia-bridge-node01` RPC | `docker/celestia-local-cluster.yml` | `26658` (distinct container from `celestia-app`, same in-network port) |
 
 No per-validator "Celestia Light RPC" port exists -- there's no light-client hop in this
-deployment; `x/da`'s `Publisher`/`RPCClient` talk to `celestia-bridge` directly.
+deployment; `x/da`'s `Publisher`/`RPCClient` talk to `celestia-bridge-node01` directly.

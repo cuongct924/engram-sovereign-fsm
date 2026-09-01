@@ -19,7 +19,7 @@ Three companion documents hold the parts this one doesn't:
 |---|---|
 | §1 What this system is | The idea in one page: FSM states, the two load-bearing rules |
 | §2 Prerequisites | What to install, including the CometBFT fork sibling |
-| §3 Build, test, lint | The command reference + two traps that break CI |
+| §3 Build, test, lint | The command reference + two traps to avoid |
 | §4 Run a single local node | The 3-command smoke test, no Docker |
 | §5 Run the 4-node Docker testnet | The real cluster: one-command path, manual walkthrough, params, gotchas |
 | §6 ZK re-anchoring pipeline | How RECOVERING → ANCHORED actually happens |
@@ -80,10 +80,8 @@ the way it is, and the two most common sources of consensus bugs when violated:
 ### This repo needs a sibling checkout of its CometBFT fork
 
 `go.mod` has `replace github.com/cometbft/cometbft => ../engram-consensus-core` — a local sibling
-repo, not a module dependency. Any build/test/lint here needs `../engram-consensus-core` to exist.
-CI clones it in a pinned step; see `.claude/skills/github-actions-ci/SKILL.md` rule 6 before
-touching those workflows (`actions/checkout`'s `path:` cannot check out a sibling repo — tried,
-confirmed broken).
+repo, not a module dependency. Any build/test/lint here needs `../engram-consensus-core` to exist,
+checked out as an actual sibling directory (not nested inside this repo's checkout).
 
 If you're changing the fork itself, build/test it directly in `engram-consensus-core` first (its
 own module) — this repo's `go build` only consumes the fork's code via `replace`, it doesn't build
@@ -104,8 +102,8 @@ the fork.
 | `go build ./... && go vet ./... && go test ./...` | the no-`make` equivalents |
 | `golangci-lint run` | the no-`make` lint |
 
-**Ordering:** run `go vet` before `go test` — it's cheap, CI-enforced, and easy to miss inside a
-passing test run's output.
+**Ordering:** run `go vet` before `go test` — it's cheap and easy to miss inside a passing test
+run's output.
 
 **Pointer trap to avoid:** proto types (`x/sovereignty/types/*.pb.go`) embed a `sync.Mutex`. Always
 pass `*PeripheralMetrics`, never the value type — `go vet` catches most but not all misuses.
@@ -121,8 +119,8 @@ black scripts/       # run before committing, not just black --check
 flake8 scripts/
 ```
 
-`black --check` fails on the whole tree, not just files you touched, and CI won't tell you which
-ones until it runs. Format the whole tree locally first.
+`black --check` fails on the whole tree, not just files you touched. Format the whole tree locally
+first.
 
 ---
 
@@ -151,7 +149,7 @@ go build -o build/engramd ./cmd/engramd
 
 * 4 real validators (`engram-node01..04`) with real ABCI++ hooks.
 * Real `bitcoind` regtest (2 nodes) with a continuous miner loop (~1 block / 20s).
-* Real Celestia (`celestia-app` + `celestia-bridge`, plus a second bridge backing the prover's
+* Real Celestia (`celestia-app` + `celestia-bridge-node01`, plus a second bridge backing the prover's
   audit trail).
 * The ZK re-anchoring prover container.
 * Pairwise validator gossip links (topology/IPs: `docs/ARCHITECTURE.md`).
@@ -162,7 +160,7 @@ This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`.
 
 `make testnet-up` automates the whole manual walkthrough of §5.3 with the correct ordering: wipes
 `testnet-data/`, regenerates fresh genesis, funds a mature BTC wallet, starts the miner loop,
-fetches both Celestia bridges' admin JWTs into `.env`, waits for `celestia-bridge` to actually be
+fetches both Celestia bridges' admin JWTs into `.env`, waits for `celestia-bridge-node01` to actually be
 healthy (not just running), then starts the 4 validators and the re-anchoring prover. It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and requires `.env` to exist
 (`cp .env.example .env` and fill in `BITCOIN_RPC_USER`/`BITCOIN_RPC_PASSWORD` first).
 
@@ -193,14 +191,14 @@ flowchart TD
     A["Wipe testnet-data/\n+ engramd testnet init-files --v 4"] --> B["Start bitcoind + Celestia"]
     B --> C["Create + fund BTC wallet\n(101+ blocks, name: engramwallet)"]
     C --> D["Start bitcoin-miner-loop container\n(steady ~1 block / 20s)"]
-    D --> W["Wait for celestia-bridge healthy\n(not just running)"]
+    D --> W["Wait for celestia-bridge-node01 healthy\n(not just running)"]
     W --> E["Start the 4 validators"]
     E --> F["Start reanchoring-prover container\n(needed for RECOVERING -> ANCHORED)"]
     F --> Ver["Verify: same AppHash\nat same height, all 4 nodes"]
 
     G["⚠ engramd started before wallet mature"] -.->|desyncs h_btc_current| H["Consensus stalls"]
     I["⚠ burst-mining while engramd runs"] -.->|same failure| H
-    J["⚠ validators started before celestia-bridge healthy"] -.->|DA reads fail, trips MaxSuspiciousTime| K["Unwanted SOVEREIGN escalation"]
+    J["⚠ validators started before celestia-bridge-node01 healthy"] -.->|DA reads fail, trips MaxSuspiciousTime| K["Unwanted SOVEREIGN escalation"]
 ```
 
 ```bash
@@ -215,8 +213,8 @@ make build-linux
 # declared in compose.yml's own top-level networks:, and an explicit -f opts out of
 # Compose's default auto-discovery of compose.yml from cwd.
 docker compose --env-file .env -f compose.yml up -d bitcoin-node01 bitcoin-node02
-docker compose --env-file .env -f compose.yml up -d celestia-app celestia-bridge
-  # (make testnet-up also starts celestia-bridge-2 here and fetches both bridges' admin JWTs)
+docker compose --env-file .env -f compose.yml up -d celestia-app celestia-bridge-node01
+  # (make testnet-up also starts celestia-bridge-prover here and fetches both bridges' admin JWTs)
 
 docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
   -rpcpassword=$BITCOIN_RPC_PASSWORD createwallet "engramwallet"   # must be this name --
@@ -232,7 +230,7 @@ docker compose --env-file .env -f compose.yml up -d bitcoin-miner-loop
   # steady cadence from here on, never manual bursts -- containerized
   # (docker/bitcoin-miner-loop.yml), no host process/PID file anymore
 
-./scripts/testnet_wait_healthy.sh celestia-bridge
+./scripts/testnet_wait_healthy.sh celestia-bridge-node01
   # its auth-token file (needed above) lands within seconds of container
   # start, well before header.NetworkHead RPC calls actually succeed --
   # starting validators on that weaker signal reliably trips
@@ -341,7 +339,7 @@ All sensors are real, live connections, not mocks:
   submits real OP_RETURN checkpoint transactions, tracks real confirmation depth. No separate
   Submitter/Reporter container exists (this app has no staking module to source a real
   Babylon-style BLS-aggregated checkpoint from).
-* **DA** (`x/da.Publisher`, linked in via `wireDASensor`): talks to a real `celestia-bridge` over
+* **DA** (`x/da.Publisher`, linked in via `wireDASensor`): talks to a real `celestia-bridge-node01` over
   JSON-RPC 2.0 (`x/da/rpc.go`) — submits real blobs, confirms real retrievability via
   `blob.GetAll`.
 * **P2P** (`vanillaP2PHealthAdapter`): reads real, live data from the running `*p2p.Switch`
@@ -434,7 +432,7 @@ flowchart TB
 
     peer1["Other validator nodes<br/>(pairwise validator-links, docs/ARCHITECTURE.md's §1)"]
     btc["bitcoin-node01 (regtest)<br/>x/anchor.AnchorTracker"]
-    celestia["celestia-bridge<br/>x/da.Publisher"]
+    celestia["celestia-bridge-node01<br/>x/da.Publisher"]
 
     genfile --> mainfn
     mainfn -->|"NewEngramApp(...)"| APP
@@ -520,7 +518,7 @@ mechanism:
 * **BTC congestion** (E2 S2): `AnchorTracker.SetSubmissionPausedFile` pauses new checkpoint
   submission (a pending one still confirms), growing `btc_gap` directly — `btc_gap` is a
   block-height delta, not an RPC round-trip, so network delay can't reproduce it.
-* **DA outage** (E2 S3, E3, E9): real `docker stop` / `start celestia-bridge`.
+* **DA outage** (E2 S3, E3, E9): real `docker stop` / `start celestia-bridge-node01`.
 * **Combined BTC+DA** (E2 S6): both together.
 
 ### 8.3 Attack / byzantine infrastructure
