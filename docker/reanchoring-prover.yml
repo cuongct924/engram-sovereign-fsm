@@ -25,14 +25,18 @@ services:
       - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
     restart: unless-stopped
+    # tini (Docker's built-in --init) so SIGTERM reaches nargo/bb, not just
+    # bash PID 1 -- without it, `docker stop`/`compose down` waits out the
+    # full grace period then SIGKILLs mid-proof instead of exiting cleanly.
+    init: true
     deploy:
       resources:
         limits:
-      # bb prove (UltraHonk) spawns one worker thread per CPU -- a 1.0 cap
-      # made threads contend for one core (pure scheduling overhead). Raised
-      # to 6.0, leaving headroom for the validators + bitcoind + celestia.
-      # These limits predate the in-circuit ed25519 rebind (~1.9x more
-      # gates); re-check via `docker stats` on first real containerized
-      # prove after that change before trusting them under load.
+      # cpus: bb prove (UltraHonk) spawns one worker thread per CPU; 6.0
+      # leaves headroom for the validators + bitcoind + celestia.
+      # memory: sized for witness-execution only (~2.2-2.4GB measured
+      # live) now that circuit/README.md's circuits are compiled at
+      # `docker build` time, not per proof cycle -- see the Dockerfile.
+      # Docker Desktop's VM has 7.7GB total, not the host's 16GB.
           cpus: '6.0'
-          memory: 2048M
+          memory: 4096M

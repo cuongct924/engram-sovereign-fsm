@@ -62,6 +62,14 @@ RUN curl -sL --fail https://raw.githubusercontent.com/noir-lang/noirup/main/inst
 
 COPY --from=builder /app/engramd /usr/local/bin/engramd
 COPY circuit ./circuit
+
+# Compile at BUILD time (not per-proof-cycle at runtime -- confirmed live
+# to OOM-kill even a 4096M container, since runtime deploy.resources.limits
+# don't constrain `docker build`). Before scripts/zk_assets so a change to
+# either doesn't invalidate this layer's cache.
+RUN cd circuit/reanchoring_witness && nargo compile
+RUN cd circuit/reanchoring && nargo compile
+
 COPY scripts/reanchoring_prover ./scripts/reanchoring_prover
 COPY x/sovereignty/keeper/zk_assets ./x/sovereignty/keeper/zk_assets
 

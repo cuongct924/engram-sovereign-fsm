@@ -61,7 +61,9 @@ Dockerfile.dev
 
 # circuit/: only reanchoring + reanchoring_witness needed. The recursion-
 # spike experiments (NO-GO, see their RESULTS.md) are dead weight; target/
-# excluded so builds prove fresh.
+# excluded so the Dockerfile's own `nargo compile` step (build-time, not
+# runtime) is what produces it -- never reuses a possibly-stale host
+# artifact.
 circuit/reanchoring_recursion_spike
 circuit/reanchoring_recursion_spike_aggregator
 circuit/reanchoring/target
