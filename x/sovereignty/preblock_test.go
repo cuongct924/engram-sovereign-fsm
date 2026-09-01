@@ -5,7 +5,6 @@ import (
 
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
@@ -27,11 +26,14 @@ func newTestKeeperCtxAt(t *testing.T, height int64, appHash []byte) (*keeper.Kee
 	return k, sdkCtx
 }
 
-func lockedExt(state string) sovereignty.ExtendedProposal {
-	return sovereignty.ExtendedProposal{
-		FSMState:   state,
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 1, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
+func lockedExt(state string) *types.AggregatedHealthCertificate {
+	return &types.AggregatedHealthCertificate{
+		FsmState:                     state,
+		DaPublishedBlockHeight:       1,
+		DaAttestation:                true,
+		BtcCheckpointBlockHeight:     0,
+		BtcCheckpointBlockHashTag:    anchor.ExpectedBlockHash(0).Tag,
+		BtcCheckpointBlockHashHeight: anchor.ExpectedBlockHash(0).Height,
 	}
 }
 
@@ -52,10 +54,14 @@ func TestCommitFSMTransition_HeaderHistory_FirstEntryWritesLastAnchoredRoot(t *t
 
 	header, err := k.HeaderHistory.Get(ctx, 100)
 	require.NoError(t, err)
+	stateRoot := types.ReduceToField(appHash)
 	require.Equal(t, types.RecoveryHeader{
 		FsmState:         types.StateSovereign,
 		WithdrawalLocked: true,
-		StateRoot:        types.ReduceToField(appHash),
+		StateRoot:        stateRoot,
+		// Chains from LastAnchoredRoot (the seed just latched above, since
+		// this is the interval's first header) -- see preblock.go's Step 6.
+		Accumulator: types.HashHeader(stateRoot, types.StateSovereign, true, stateRoot),
 	}, header)
 }
 

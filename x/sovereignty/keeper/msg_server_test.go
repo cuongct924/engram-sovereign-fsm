@@ -65,7 +65,7 @@ func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	// PATH (real rejection or fail-closed both return false).
 	_, err := srv.SubmitRecoveryProof(ctx, &types.MsgSubmitRecoveryProofRequest{
 		ZkProof:      []byte("not-a-real-proof"),
-		PublicInputs: make([]byte, 96),
+		PublicInputs: make([]byte, 224),
 	})
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 
@@ -77,14 +77,15 @@ func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	require.Zero(t, submittedHeight)
 }
 
-// Length guard for the (rt_last, rt_new, count) binding: a non-96-byte
-// PublicInputs is rejected before any on-chain state comparison.
+// Length guard for the 7-field public-input binding (rt_last, rt_new, count,
+// first_height, first_block_hash, last_block_hash, validator_set_hash): a
+// non-224-byte PublicInputs is rejected before any on-chain state comparison.
 func TestSubmitRecoveryProof_RejectsMalformedPublicInputs(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 
 	_, err := srv.SubmitRecoveryProof(ctx, &types.MsgSubmitRecoveryProofRequest{
 		ZkProof:      []byte("irrelevant-fails-verify-first"),
-		PublicInputs: make([]byte, 64), // wrong length (old 2-field layout)
+		PublicInputs: make([]byte, 96), // wrong length (old 3-field layout)
 	})
 	require.ErrorIs(t, err, types.ErrInvalidZKProof)
 }
@@ -139,17 +140,17 @@ func TestSubmitRecoveryProof_StaleProofRejectedAfterIntervalGrows(t *testing.T) 
 }
 
 // Rolling checkpoint: a proof's rt_new only needs to match SOME tracked
-// header's state_root, not the tip -- a valid proof (checked against the
+// header's Accumulator, not the tip -- a valid proof (checked against the
 // fixed-N circuit's VK) guarantees real headers connect rt_last to it.
-func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
+func TestFindHeaderByAccumulator_FindsMatchingHeight(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
 
-	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
-	require.NoError(t, k.HeaderHistory.Set(ctx, 8, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h8")}))
-	require.NoError(t, k.HeaderHistory.Set(ctx, 12, types.RecoveryHeader{FsmState: types.StateRecovering, StateRoot: []byte("h12")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, Accumulator: []byte("h4")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 8, types.RecoveryHeader{FsmState: types.StateRecovering, Accumulator: []byte("h8")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 12, types.RecoveryHeader{FsmState: types.StateRecovering, Accumulator: []byte("h12")}))
 
-	height, found, err := k.findHeaderByStateRoot(ctx, []byte("h8"))
+	height, found, err := k.findHeaderByAccumulator(ctx, []byte("h8"))
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, uint64(8), height, "must find the MIDDLE tracked header, not just the tip -- a rolling checkpoint proof's rt_new is rarely the current tip")
@@ -157,13 +158,13 @@ func TestFindHeaderByStateRoot_FindsMatchingHeight(t *testing.T) {
 
 // Fails closed (found=false, no error) for a root never tracked --
 // SubmitRecoveryProof treats it as ErrInvalidZKProof.
-func TestFindHeaderByStateRoot_NotFound(t *testing.T) {
+func TestFindHeaderByAccumulator_NotFound(t *testing.T) {
 	storeService, ctx := colltest.MockStore()
 	k := NewKeeper(storeService, nil)
 
-	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, StateRoot: []byte("h4")}))
+	require.NoError(t, k.HeaderHistory.Set(ctx, 4, types.RecoveryHeader{FsmState: types.StateSovereign, Accumulator: []byte("h4")}))
 
-	_, found, err := k.findHeaderByStateRoot(ctx, []byte("never-tracked"))
+	_, found, err := k.findHeaderByAccumulator(ctx, []byte("never-tracked"))
 	require.NoError(t, err)
 	require.False(t, found)
 }

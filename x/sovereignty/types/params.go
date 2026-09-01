@@ -52,6 +52,13 @@ type Params struct {
 	// past this many rounds, ProcessProposal (proposal.go) stops enforcing it
 	// for that height, trading forced-inclusion guarantees for liveness.
 	MaxCensorshipRounds uint64
+
+	// ProofOnlyRecovery, when true, requires refreshReanchoringProofValid
+	// (sensors_refresh.go) to grant reanchoring_proof_valid ONLY from a
+	// real, verified ZK proof -- disables the BTC-height heuristic fallback.
+	// Default false preserves today's behavior; E10 sets it true to
+	// attribute a measured recovery to the ZK pipeline specifically.
+	ProofOnlyRecovery bool
 }
 
 // DefaultParams returns this repo's tuned defaults for the real N=4 Docker
@@ -100,6 +107,9 @@ func DefaultParams() Params {
 		// a timeout) never trip it, while still bounding a genuine deadlock
 		// to a recoverable number of rounds rather than forever.
 		MaxCensorshipRounds: 100,
+		// Default: either the heuristic or a real proof grants recovery --
+		// set true only for an E10 proof-only run (types.Params doc).
+		ProofOnlyRecovery: false,
 	}
 }
 
@@ -165,6 +175,7 @@ func (p Params) ToGenesisParams() *GenesisParams {
 		SuspiciousHysteresisWait:   p.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: p.MaxSuspiciousForcedTxQueue,
 		MaxCensorshipRounds:        p.MaxCensorshipRounds,
+		ProofOnlyRecovery:          p.ProofOnlyRecovery,
 	}
 }
 
@@ -196,5 +207,6 @@ func (gp *GenesisParams) ToParams() Params {
 		SuspiciousHysteresisWait:   gp.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: gp.MaxSuspiciousForcedTxQueue,
 		MaxCensorshipRounds:        gp.MaxCensorshipRounds,
+		ProofOnlyRecovery:          gp.ProofOnlyRecovery,
 	}
 }

@@ -3,7 +3,7 @@ package sovereignty
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
+	"fmt"
 	"strings"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -11,62 +11,52 @@ import (
 	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
+	"google.golang.org/protobuf/proto"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// ExtendedProposal mirrors proposal fields in EngramTendermint.tla:149-158
-// (fsm_state, da_receipt, btc_receipt, zk_proof_ref). Encoded as JSON and
-// prepended as the first pseudo-transaction (Txs[0]) to bypass ABCI++
-// Vote Extension wiring complexity.
-type ExtendedProposal struct {
-	FSMState string `json:"fsm_state"`
-	// Healthy is IsHealthyCondition at proposal time -- committed consensus on
-	// this field lets CommitFSMTransition distinguish health from hysteresis
-	// without reading local sensors (violating "sensors propose, consensus
-	// decides").
-	Healthy    bool           `json:"healthy"`
-	DAReceipt  da.Receipt     `json:"da_receipt"`
-	BTCReceipt anchor.Receipt `json:"btc_receipt"`
-	// ZKProofRef carries rt_new (keeper.LastAnchoredRoot) when a recovery proof
-	// is present, nil otherwise -- refines the abstract BOOLEAN zk_proof_ref
-	// (EngramTendermint.tla:156) to trace which proof backed a transition.
-	ZKProofRef []byte `json:"zk_proof_ref"`
-}
+const aggregatedHealthCertMarker = "ENGRAM_AGGREGATED_HEALTH_CERT_V1|"
 
-const extendedProposalMarker = "ENGRAM_EXTENDED_PROPOSAL_V1|"
-
-func EncodeExtendedProposal(p ExtendedProposal) ([]byte, error) {
-	body, err := json.Marshal(p)
+// EncodeAggregatedHealthCertificate marshals a types.AggregatedHealthCertificate
+// (real protobuf -- it carries raw signature bytes, unlike this package's
+// usual JSON keeper codec) and prepends a marker, the same Txs[0]-smuggling
+// mechanism ExtendedProposal used (still needed: ABCI 2.0 hands
+// ProcessProposal a plain, non-extended CommitInfo with no vote-extension
+// payloads -- see NewProcessProposalHandler's doc -- so the certificate has
+// to travel as ordinary block data, not as a vote extension itself).
+func EncodeAggregatedHealthCertificate(c *types.AggregatedHealthCertificate) ([]byte, error) {
+	body, err := proto.Marshal(c)
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte(extendedProposalMarker), body...), nil
+	return append([]byte(aggregatedHealthCertMarker), body...), nil
 }
 
-// DecodeExtendedProposal returns ok=false (no error) if tx isn't a
-// marker-prefixed extended proposal -- callers should treat that as "not
+// DecodeAggregatedHealthCertificate returns ok=false (no error) if tx isn't
+// a marker-prefixed certificate -- callers should treat that as "not
 // present", not a decode failure.
-func DecodeExtendedProposal(tx []byte) (p ExtendedProposal, ok bool, err error) {
-	marker := []byte(extendedProposalMarker)
+func DecodeAggregatedHealthCertificate(tx []byte) (c *types.AggregatedHealthCertificate, ok bool, err error) {
+	marker := []byte(aggregatedHealthCertMarker)
 	if len(tx) < len(marker) || !bytes.Equal(tx[:len(marker)], marker) {
-		return ExtendedProposal{}, false, nil
+		return nil, false, nil
 	}
-	if err := json.Unmarshal(tx[len(marker):], &p); err != nil {
-		return ExtendedProposal{}, true, err
+	c = &types.AggregatedHealthCertificate{}
+	if err := proto.Unmarshal(tx[len(marker):], c); err != nil {
+		return nil, true, err
 	}
-	return p, true, nil
+	return c, true, nil
 }
 
-// currentFSMInput reads the keeper's current sensor/counter state into a
-// keeper.FSMInput, defaulting to FSMInit's values
-// (spec/core/EngramFSM.tla:195-220) when nothing has been persisted yet.
-func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in keeper.FSMInput) {
-	metrics, err := k.Metrics.Get(ctx)
-	if err != nil {
-		metrics = &types.PeripheralMetrics{}
-	}
-	currState, err = k.FSMState.Get(ctx)
+// fsmInputFromMetrics reads the keeper's committed counters into a
+// keeper.FSMInput, pairing them with the caller-supplied metrics --
+// defaulting to FSMInit's values (spec/core/EngramFSM.tla:195-220) when
+// nothing has been persisted yet. metrics must be a quorum-certified
+// AggregateHealthCertificates result (PrepareProposal, ProcessProposal),
+// never k.Metrics directly -- that Item is this validator's own local
+// sensor snapshot, only meaningful inside NewExtendVoteHandler.
+func fsmInputFromMetrics(ctx sdk.Context, k *keeper.Keeper, metrics *types.PeripheralMetrics) (currState string, in keeper.FSMInput) {
+	currState, err := k.FSMState.Get(ctx)
 	if err != nil {
 		currState = types.StateAnchored
 	}
@@ -88,6 +78,19 @@ func currentFSMInput(ctx sdk.Context, k *keeper.Keeper) (currState string, in ke
 	}
 }
 
+// degradedMetrics is the fail-safe aggregate used when
+// AggregateHealthCertificates can't reach quorum (chain start, before
+// vote extensions have accumulated enough history, or a live >f Byzantine
+// coalition withholding/forging extensions): treat peripheral health as
+// maximally degraded rather than inventing or assuming a healthy value,
+// mirroring RefreshMetrics's own btcGapMetric/daGapMetric fallbacks.
+func degradedMetrics(params types.Params) *types.PeripheralMetrics {
+	return &types.PeripheralMetrics{
+		BtcGap: params.SovereignThreshold,
+		DaGap:  params.DAThreshold,
+	}
+}
+
 // byzantineFakeFSMStatePrefix / byzantineForgeBTCHash / byzantineFalseDA /
 // byzantineCensorTxPrefix are ENGRAM_BYZANTINE_BEHAVIOR's recognized values
 // (cmd/engramd/main.go): controlled misbehavior for docs/EXPERIMENT.md's E8
@@ -100,26 +103,28 @@ const (
 	byzantineCensorTxPrefix     = "censor_tx:"
 )
 
-// applyByzantineBehavior mutates ext (and, for censor_tx, txs) per behavior.
-// Only called from the leader path (NewPrepareProposalHandler), matching a
-// real malicious proposer's capability: it can only lie about its own
-// proposal, never rewrite what other validators independently compute.
-func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte) [][]byte {
+// applyByzantineBehavior mutates cert's leader-claimed derived fields (and,
+// for censor_tx, txs) per behavior. Only called from the leader path
+// (NewPrepareProposalHandler), matching a real malicious proposer's
+// capability: it can only lie about what IT claims the certificates'
+// deterministic aggregation resolved to, never rewrite what other
+// validators independently recompute from the same certificates via
+// AggregateHealthCertificates.
+func applyByzantineBehavior(behavior string, cert *types.AggregatedHealthCertificate, txs [][]byte) [][]byte {
 	switch {
 	case strings.HasPrefix(behavior, byzantineFakeFSMStatePrefix):
-		// A6: claim a healthier state than local sensors actually support.
-		ext.FSMState = strings.TrimPrefix(behavior, byzantineFakeFSMStatePrefix)
+		// A6: claim a healthier state than the certified aggregate actually supports.
+		cert.FsmState = strings.TrimPrefix(behavior, byzantineFakeFSMStatePrefix)
 	case behavior == byzantineForgeBTCHash:
 		// A4: claim the checkpoint advanced with a hash that doesn't match
-		// ExpectedBlockHash -- every honest validator's own bitcoind check
-		// (checks #3/#3b) must reject this independently.
-		ext.BTCReceipt.CheckpointBlockHash = anchor.BlockHash{
-			Tag: "FORGED", Height: ext.BTCReceipt.CheckpointBlockHeight,
-		}
+		// ExpectedBlockHash -- every honest validator's check #3
+		// (anchor.VerifyReceipt) must reject this independently.
+		cert.BtcCheckpointBlockHashTag = "FORGED"
+		cert.BtcCheckpointBlockHashHeight = cert.BtcCheckpointBlockHeight
 	case behavior == byzantineFalseDA:
 		// A3: claim DA attestation succeeded without a real submission backing it.
-		ext.DAReceipt.Attestation = true
-		ext.DAReceipt.PublishedBlockHeight++
+		cert.DaAttestation = true
+		cert.DaPublishedBlockHeight++
 	case strings.HasPrefix(behavior, byzantineCensorTxPrefix):
 		// A7: omit one specific tx despite it being in the mempool/
 		// ForcedTxQueue, exercising IsCensoring against a real adversary.
@@ -143,48 +148,55 @@ func applyByzantineBehavior(behavior string, ext *ExtendedProposal, txs [][]byte
 }
 
 // NewPrepareProposalHandler builds the sdk.PrepareProposalHandler, mirroring
-// ServerInsertProposal (spec/core/EngramServer.tla:52-102): refreshes
-// k.Metrics from live sensors, computes target_state via CalculateNextState,
-// builds da_receipt/btc_receipt from tracked heights, and only attempts
-// zk_proof_ref once hysteresis is satisfied.
+// ServerInsertProposal (spec/core/EngramServer.tla:52-102). Unlike the
+// pre-vote-extension version, it never reads live sensors itself: the
+// leader's own last-height precommit vote extensions
+// (req.LocalLastCommit -- an ExtendedCommitInfo, available to the proposer
+// only) are aggregated into the SAME quorum-certified PeripheralMetrics
+// every other validator will independently recompute in ProcessProposal
+// from the identical certificates embedded below.
 //
 // byzantineBehavior is ENGRAM_BYZANTINE_BEHAVIOR, empty on every real
 // validator (see applyByzantineBehavior's doc).
-func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.PrepareProposalHandler {
+func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
-		if err := RefreshMetrics(ctx, k, s); err != nil {
-			return nil, err
+		certs := certificatesFromExtendedCommit(req.LocalLastCommit)
+		extHeight := req.Height - 1
+		metrics, ok := AggregateHealthCertificates(ctx, k, ctx.ChainID(), extHeight, certs)
+		if !ok {
+			metrics = degradedMetrics(k.Params)
 		}
-		currState, in := currentFSMInput(ctx, k)
+
+		currState, in := fsmInputFromMetrics(ctx, k, metrics)
 		targetState := keeper.CalculateNextState(currState, in, k.Params)
 
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
-		// Advance h_btc_anchored via ConfirmedAnchorHeight, capped at
-		// hBtcCurrent to enforce checkpoint_block_height <= h_btc_current
-		// (VerifySPVProof, EngramTendermint.tla:279-283) -- prevents proposer
-		// deadlocks when a local confirmed cache exceeds the committed, frozen
-		// hBtcCurrent.
-		if s != nil && s.Anchor != nil {
-			hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
-			if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok && confirmed > hBtcAnchored && confirmed <= hBtcCurrent {
-				hBtcAnchored = confirmed
-			}
+		// hBtcCurrent: THIS round's own quorum-certified median (metrics.
+		// BtcCurrentHeight), not a committed keeper read -- a committed
+		// h_btc_current is always at least one block stale, and staleness
+		// here specifically breaks the cap below (see PeripheralMetrics.
+		// btc_current_height's doc for the live-cluster failure this caused
+		// when h_btc_current was frozen at its genesis value forever).
+		hBtcCurrent := metrics.BtcCurrentHeight
+		// Advance h_btc_anchored via the quorum-certified median of every
+		// validator's own ConfirmedAnchorHeight (folded into `metrics` above
+		// by NewExtendVoteHandler->RefreshMetrics), capped at hBtcCurrent to
+		// enforce checkpoint_block_height <= h_btc_current (VerifySPVProof,
+		// EngramTendermint.tla:279-283).
+		if metrics.ConfirmedAnchorHeight > hBtcAnchored && metrics.ConfirmedAnchorHeight <= hBtcCurrent {
+			hBtcAnchored = metrics.ConfirmedAnchorHeight
 		}
-		// Preserve the start-of-round value for the zk_proof_ref freshness check
-		// before applying any live updates from s.DAPublisher below.
+		// Preserve the start-of-round value for the zk_proof_ref freshness
+		// check before applying the certified update below.
 		hEngramVerifiedPrev := hEngramVerified
-		if s != nil && s.DAPublisher != nil {
-			if verified, ok := s.DAPublisher.VerifiedHeight(); ok && verified > hEngramVerified {
-				hEngramVerified = verified
-			}
+		if metrics.DaVerifiedHeight > hEngramVerified {
+			hEngramVerified = metrics.DaVerifiedHeight
 		}
 
 		daReceipt := da.Receipt{
 			PublishedBlockHeight: hEngramVerified,
 			// Attestation represents historical retrievability (PublishedBlockHeight > 0).
-			// We do not use the transient in.Metrics.IsAttestationFailed probe here
-			// to preserve DATolerance's freshness window (EngramTendermint.tla:308-311).
 			Attestation: hEngramVerified > 0,
 		}
 		btcReceipt := anchor.Receipt{
@@ -194,21 +206,35 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 		// Attach zk_proof_ref (EngramServer.tla:73-76) once in RECOVERING,
 		// hysteresis is satisfied, and verification conditions are met.
+		// baseline: zkProofFreshnessBaseline's doc -- NOT hEngramVerifiedPrev
+		// directly once already in RECOVERING (that value ratchets up every
+		// block and can permanently starve this gate). >=, not >:
+		// verifyZkProofFlag's doc -- a strict > against this round's own
+		// certificate-supplied value is unsatisfiable once any round-skip
+		// has happened at this height (ExtendVote isn't solicited for nil
+		// precommits, so no later round can ever produce a fresher value).
+		baseline := zkProofFreshnessBaseline(ctx, k, currState, hEngramVerifiedPrev)
 		var zkProofRef []byte
 		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait &&
-			daReceipt.Attestation && daReceipt.PublishedBlockHeight > hEngramVerifiedPrev {
+			daReceipt.Attestation && daReceipt.PublishedBlockHeight >= baseline {
 			if root, rerr := k.LastAnchoredRoot.Get(ctx); rerr == nil {
 				zkProofRef = root
 			}
 		}
 
-		ext := ExtendedProposal{
-			FSMState:   targetState,
-			Healthy:    types.IsHealthyCondition(in.Metrics, k.Params),
-			DAReceipt:  daReceipt,
-			BTCReceipt: btcReceipt,
-			ZKProofRef: zkProofRef,
+		cert := &types.AggregatedHealthCertificate{
+			Height:                       extHeight,
+			Certificates:                 certs,
+			FsmState:                     targetState,
+			Healthy:                      types.IsHealthyCondition(in.Metrics, k.Params),
+			DaPublishedBlockHeight:       daReceipt.PublishedBlockHeight,
+			DaAttestation:                daReceipt.Attestation,
+			BtcCheckpointBlockHeight:     btcReceipt.CheckpointBlockHeight,
+			BtcCheckpointBlockHashTag:    btcReceipt.CheckpointBlockHash.Tag,
+			BtcCheckpointBlockHashHeight: btcReceipt.CheckpointBlockHash.Height,
+			ZkProofRef:                   zkProofRef,
 		}
+
 		innerTxs := req.Txs
 		// Filter withdrawal transactions early to avoid proposing rejected TXs
 		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:332).
@@ -223,10 +249,10 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 			innerTxs = filtered
 		}
 		if byzantineBehavior != "" {
-			innerTxs = applyByzantineBehavior(byzantineBehavior, &ext, innerTxs)
+			innerTxs = applyByzantineBehavior(byzantineBehavior, cert, innerTxs)
 		}
 
-		encoded, err := EncodeExtendedProposal(ext)
+		encoded, err := EncodeAggregatedHealthCertificate(cert)
 		if err != nil {
 			return nil, err
 		}
@@ -240,9 +266,48 @@ func NewPrepareProposalHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior s
 
 // verifyZkProofFlag ports VerifyZkProof (spec/core/EngramTendermint.tla:265-268).
 // zkProofRef's presence (non-nil), not its value, is safety-relevant here,
-// matching the abstract spec's BOOLEAN check.
-func verifyZkProofFlag(zkProofRef []byte, receipt da.Receipt, hEngramVerified uint64) bool {
-	return len(zkProofRef) > 0 && receipt.Attestation && receipt.PublishedBlockHeight > hEngramVerified
+// matching the abstract spec's BOOLEAN check. baseline is
+// zkProofFreshnessBaseline's result, not a raw committed h_engram_verified
+// read -- see HEngramVerifiedAtRecoveryEntry's doc for why.
+//
+// >= baseline, not the spec's literal > (VerifyZkProof's da_receipt.
+// published_block_height > h_engram_verified): the abstract spec can choose
+// a favorable interleaving where h_engram_verified' advances in the exact
+// step this check needs; the concrete system cannot. ext.Certificates for a
+// given height are fixed once that height's proposer collects them from the
+// PREVIOUS height's own precommit vote extensions (ExtendVote is only
+// solicited for a NON-nil precommit -- confirmed live: zero ExtendVote
+// calls, hence zero sensor refreshes, across 48+ consecutive nil-prevote
+// rounds at one stuck height). So once a height round-skips even once, NO
+// number of retries can ever produce a materially different DaVerifiedHeight
+// for that height's own certificate -- a strict `>` against a value that
+// cert itself supplies is unsatisfiable by construction, not just unlikely.
+// `>=` still requires real, current DA attestation (Attestation=true, and
+// baseline is itself a real previously-verified height); it only stops
+// requiring NEWER-than-recovery-entry, which the concrete refinement cannot
+// reliably produce on demand.
+func verifyZkProofFlag(zkProofRef []byte, receipt da.Receipt, baseline uint64) bool {
+	return len(zkProofRef) > 0 && receipt.Attestation && receipt.PublishedBlockHeight >= baseline
+}
+
+// zkProofFreshnessBaseline returns the fixed h_engram_verified reference the
+// zk_proof_ref gate's freshness check must exceed (VerifyZkProof,
+// spec/core/EngramTendermint.tla:268). While already in RECOVERING, this is
+// the snapshot captured once on entry (HEngramVerifiedAtRecoveryEntry's
+// doc); the round that is itself entering RECOVERING has no such snapshot
+// yet (CommitFSMTransition writes it only once the transition commits), so
+// that round's own pre-round hEngramVerifiedPrev IS what the snapshot is
+// about to become -- using it directly keeps this function total without an
+// error return.
+func zkProofFreshnessBaseline(ctx sdk.Context, k *keeper.Keeper, currState string, hEngramVerifiedPrev uint64) uint64 {
+	if currState != types.StateRecovering {
+		return hEngramVerifiedPrev
+	}
+	baseline, err := k.HEngramVerifiedAtRecoveryEntry.Get(ctx)
+	if err != nil {
+		return hEngramVerifiedPrev
+	}
+	return baseline
 }
 
 // containsWithdrawal is a placeholder for ContainsWithdrawal
@@ -253,23 +318,48 @@ func containsWithdrawal(tx []byte) bool {
 	return bytes.Contains(tx, []byte("TX_WITHDRAWAL"))
 }
 
-// NewProcessProposalHandler builds ProcessProposalHandler, porting IsValidProposal
-// (EngramTendermint.tla:289-338). Refreshes metrics locally to enforce
-// "sensors propose, consensus decides."
-func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposalHandler {
+// NewProcessProposalHandler builds ProcessProposalHandler, porting
+// IsValidProposal (EngramTendermint.tla:289-338).
+//
+// Unlike the version this replaces, it never reads a live sensor or calls
+// out to bitcoind/Celestia: ACCEPT/REJECT is now a pure function of the
+// proposal bytes plus committed state. The certificate embedded in Txs[0]
+// carries raw, signed per-validator vote extensions
+// (types.SignedHealthCertificate); AggregateHealthCertificates -- the exact
+// same deterministic function PrepareProposal used -- re-verifies every
+// signature against the genesis validator registry and recomputes the
+// aggregate here, so two honest validators reading identical proposal bytes
+// always reach the identical accept/reject decision (the AppHash-divergence
+// failure mode this closes).
+//
+// Trade-off, by design: a NEWLY claimed BTC/DA checkpoint advancement at
+// height H can only be independently spot-checked by real bitcoind/Celestia
+// RPC one block later, once height H's own vote extensions (signed during
+// H's precommit) feed into height H+1's aggregate -- ABCI++'s vote
+// extensions inherently lag proposals by one height, so an immediate
+// per-proposal RPC veto (the old check 3b) is not reproducible without
+// reintroducing non-determinism. Structural checks (anchor.VerifyReceipt's
+// ExpectedBlockHash/monotonicity/KDeepFinality) still gate acceptance at
+// proposal time; a forged claim that passes those is caught and demotes the
+// FSM within one block once is_btc_spv_failed propagates through the next
+// quorum-certified aggregate.
+func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	accept := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}
 
 	return func(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
 		if len(req.Txs) == 0 {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=empty_txs\n", req.Height, req.Round)
 			return reject, nil
 		}
-		ext, ok, err := DecodeExtendedProposal(req.Txs[0])
+		ext, ok, err := DecodeAggregatedHealthCertificate(req.Txs[0])
 		if err != nil || !ok {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=decode_cert err=%v ok=%v\n", req.Height, req.Round, err, ok)
 			return reject, nil
 		}
-		if err := RefreshMetrics(ctx, k, s); err != nil {
-			return nil, err
+		if ext.Height != req.Height-1 {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=height_mismatch ext.Height=%d\n", req.Height, req.Round, ext.Height)
+			return reject, nil
 		}
 
 		// 0. Censorship check (IsCensoring, EngramTendermint.tla:343-347; call
@@ -282,6 +372,7 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 		if uint64(req.Round) < k.Params.MaxCensorshipRounds {
 			forcedTxQueue, err := k.ForcedTxQueueSlice(ctx)
 			if err != nil {
+				fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=forced_tx_queue_err err=%v\n", req.Height, req.Round, err)
 				return reject, nil
 			}
 			if len(forcedTxQueue) > 0 {
@@ -291,67 +382,107 @@ func NewProcessProposalHandler(k *keeper.Keeper, s *Sensors) sdk.ProcessProposal
 					included[string(tx)] = true
 				}
 				if types.IsCensoring(forcedTxQueue, ignoredRounds, included, k.Params.MaxIgnoreRounds) {
+					fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=censoring\n", req.Height, req.Round)
 					return reject, nil
 				}
 			}
 		}
 
-		currState, in := currentFSMInput(ctx, k)
+		// Recompute the SAME deterministic aggregation the leader claims to
+		// have derived -- pure function over ext.Certificates, no live read.
+		metrics, aggOk := AggregateHealthCertificates(ctx, k, ctx.ChainID(), ext.Height, ext.Certificates)
+		if !aggOk {
+			metrics = degradedMetrics(k.Params)
+		}
+		currState, in := fsmInputFromMetrics(ctx, k, metrics)
 
 		// 1. fsm_state cross-check (IsValidProposal:296).
 		expectedState := keeper.CalculateNextState(currState, in, k.Params)
-		if ext.FSMState != expectedState {
+		if ext.FsmState != expectedState {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=fsm_state_mismatch ext=%s expected=%s currState=%s aggOk=%v safeBlocks=%d unhealthyStreak=%d susDur=%d susSafeBlocks=%d proofValid=%v\n",
+				req.Height, req.Round, ext.FsmState, expectedState, currState, aggOk, in.SafeBlocks, in.UnhealthyStreak, in.SuspiciousDuration, in.SuspiciousSafeBlocks, in.ReanchoringProofValid)
 			return reject, nil
 		}
 
 		// 1b. Healthy cross-check. Independent recomputation of health status
 		// to safely validate ext.Healthy before CommitFSMTransition.
 		if ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=healthy_mismatch ext.Healthy=%v computed=%v\n",
+				req.Height, req.Round, ext.Healthy, types.IsHealthyCondition(in.Metrics, k.Params))
 			return reject, nil
+		}
+
+		daReceipt := da.Receipt{PublishedBlockHeight: ext.DaPublishedBlockHeight, Attestation: ext.DaAttestation}
+		btcReceipt := anchor.Receipt{
+			CheckpointBlockHeight: ext.BtcCheckpointBlockHeight,
+			CheckpointBlockHash:   anchor.BlockHash{Tag: ext.BtcCheckpointBlockHashTag, Height: ext.BtcCheckpointBlockHashHeight},
 		}
 
 		// 2. DA pipeline check (IsValidProposal:308-311), utilizing req.Round
 		// for round-based tolerance widening.
 		round := uint64(req.Round)
-		hEngramCurrent, _ := k.HEngramCurrent.Get(ctx)
+		// h_engram_current is this chain's own height -- trivially known to
+		// every validator (req.Height), not external sensor data, so unlike
+		// h_btc_current it needs no quorum certification. A committed
+		// k.HEngramCurrent read is the same dead-write bug h_btc_current had
+		// (only ever written inside ExtendVote's throwaway CacheMultiStore,
+		// via daGapMetric -- ExtendVote's context is never written back to
+		// committed state): it stays frozen at its genesis value forever,
+		// and da.VerifyReceipt then rejects any real (growing)
+		// DaPublishedBlockHeight as "ahead of h_engram_current" -- confirmed
+		// live (round-skipped forever the moment DaVerifiedHeight first grew
+		// past 0, right after fixing the matching h_btc_current bug above).
+		hEngramCurrent := uint64(req.Height)
 		isDAHealthy := types.IsDAHealthy(in.Metrics, k.Params)
-		if !da.VerifyReceipt(ext.DAReceipt, ext.FSMState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold, round) {
+		if !da.VerifyReceipt(daReceipt, ext.FsmState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold, round) {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=da_verify_receipt daReceipt=%+v fsmState=%s isDAHealthy=%v hEngramCurrent=%d daThreshold=%d\n",
+				req.Height, req.Round, daReceipt, ext.FsmState, isDAHealthy, hEngramCurrent, k.Params.DAThreshold)
 			return reject, nil
 		}
 
 		// 3. Settlement monotonicity & BTC check (IsValidProposal:327-329).
-		hBtcCurrent, _ := k.HBtcCurrent.Get(ctx)
+		// hBtcCurrent: this round's independently-recomputed certified
+		// median (in.Metrics.BtcCurrentHeight), not a leader-claimed ext
+		// field and not a committed keeper read -- see PrepareProposal's
+		// matching comment for why a committed read is stale/wrong here,
+		// and AggregateHealthCertificates' doc for why every honest
+		// validator recomputes the identical value from ext.Certificates.
+		hBtcCurrent := in.Metrics.BtcCurrentHeight
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
-		if !anchor.VerifyReceipt(ext.BTCReceipt, ext.FSMState, isBTCHealthy, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
+		if !anchor.VerifyReceipt(btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=btc_verify_receipt btcReceipt=%+v fsmState=%s isBTCHealthy=%v hBtcCurrent=%d hBtcAnchored=%d kDeepFinality=%d\n",
+				req.Height, req.Round, btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, k.Params.KDeepFinality)
 			return reject, nil
 		}
 
-		// 3b. Local anchor verification to independently confirm leader's
-		// h_btc_anchored claim via bitcoind before accepting.
-		if s != nil && s.Anchor != nil && ext.BTCReceipt.CheckpointBlockHeight > hBtcAnchored {
-			verified, verr := s.Anchor.VerifyAnchor(ctx, ext.BTCReceipt.CheckpointBlockHeight)
-			if verr != nil || !verified {
-				return reject, nil
-			}
-		}
-
 		// 4. Circuit breaker: no withdrawal while SOVEREIGN/RECOVERING (IsValidProposal:332).
-		if types.WithdrawLocked(ext.FSMState) {
+		if types.WithdrawLocked(ext.FsmState) {
 			for _, tx := range req.Txs[1:] {
 				if containsWithdrawal(tx) {
+					fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=withdrawal_locked\n", req.Height, req.Round)
 					return reject, nil
 				}
 			}
 		}
 
-		// 5. Re-anchoring ZK-proof gating (IsValidProposal:336-338).
-		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
-		if ext.FSMState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait {
-			if !verifyZkProofFlag(ext.ZKProofRef, ext.DAReceipt, hEngramVerified) {
+		// 5. Re-anchoring ZK-proof gating (IsValidProposal:336-338). baseline:
+		// zkProofFreshnessBaseline's doc -- not a raw k.HEngramVerified read,
+		// which ratchets up every block and can permanently starve this gate.
+		// hEngramVerifiedCommitted is this round's pre-value (ProcessProposal
+		// never itself advances it), used only as the fallback for the round
+		// that is itself entering RECOVERING (zkProofFreshnessBaseline's doc).
+		hEngramVerifiedCommitted, _ := k.HEngramVerified.Get(ctx)
+		baseline := zkProofFreshnessBaseline(ctx, k, currState, hEngramVerifiedCommitted)
+		if ext.FsmState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait {
+			if !verifyZkProofFlag(ext.ZkProofRef, daReceipt, baseline) {
+				fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=zk_proof_gate zkProofRefLen=%d daReceipt=%+v baseline=%d\n",
+					req.Height, req.Round, len(ext.ZkProofRef), daReceipt, baseline)
 				return reject, nil
 			}
-		} else if len(ext.ZKProofRef) > 0 {
+		} else if len(ext.ZkProofRef) > 0 {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=unexpected_zk_proof_ref fsmState=%s safeBlocks=%d hysteresisWait=%d\n",
+				req.Height, req.Round, ext.FsmState, in.SafeBlocks, k.Params.HysteresisWait)
 			return reject, nil
 		}
 

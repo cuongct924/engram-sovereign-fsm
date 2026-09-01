@@ -22,18 +22,27 @@ struct Header {
 }
 
 fn hash_header(h: Header) -> Field {
-    // Byte-identical copy of the real circuit's hash_header (Poseidon2
-    // two-block absorb/squeeze), hand-kept in sync; N_MAX must match too.
-    let inputs = [h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root];
-    let iv: Field = 4 * 18446744073709551616; // (input_length << 64), input_length = 4
-    let mut state = [0, 0, 0, iv];
-    state[0] += inputs[0];
-    state[1] += inputs[1];
-    state[2] += inputs[2];
-    state = std::hash::poseidon2_permutation(state);
-    state[0] += inputs[3];
-    state = std::hash::poseidon2_permutation(state);
-    state[0]
+    // Byte-identical copy of the real circuit's hash_header (SHA-256 over
+    // the 4 fields' 32-byte big-endian encodings, folded back into a Field),
+    // hand-kept in sync; N_MAX must match too. See main circuit's hash_header
+    // doc for why SHA-256, not Poseidon2.
+    let mut bytes: [u8; 128] = [0; 128];
+    let b0 = h.prev_hash.to_be_bytes::<32>();
+    let b1 = h.fsm_state.to_be_bytes::<32>();
+    let b2 = h.withdrawal_locked.to_be_bytes::<32>();
+    let b3 = h.state_root.to_be_bytes::<32>();
+    for i in 0..32 {
+        bytes[i] = b0[i];
+        bytes[32 + i] = b1[i];
+        bytes[64 + i] = b2[i];
+        bytes[96 + i] = b3[i];
+    }
+    let digest = sha256::digest(bytes);
+    let mut acc: Field = 0;
+    for i in 0..32 {
+        acc = acc * 256 + digest[i] as Field;
+    }
+    acc
 }
 
 // raw_* are the per-header values tracked by the Go keeper (types.RecoveryHeader),
@@ -60,6 +69,12 @@ fn main(
             prev_hash = hash_header(h);
         }
     }
+    // rt_new for the real circuit must be hash_header(headers[count-1]), NOT
+    // that header's raw state_root field (circuit/reanchoring/src/main.nr's
+    // rt_new-binding doc) -- prev_hash, after the loop above, already holds
+    // exactly that value. Distinct, greppable prefix: prove_and_submit.sh
+    // parses this line for RT_NEW instead of the last header's state_root.
+    println(f"rt_new_hash={prev_hash}");
 }
 
 #[test]
@@ -69,5 +84,5 @@ fn hash_header_matches_main_circuit_fixture() {
     // failure here means they've drifted and this output would no longer link
     // into a witness the real circuit accepts.
     let h0 = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
-    assert(hash_header(h0) == 0x168c1f5895ad57e0d8257da085aab977ec14ed66699553157cd0bcffcd02bb3c);
+    assert(hash_header(h0) == 0x060e309975f992b137193db39633a65bf0c12ff9582767b9f1b50d7aedd202cc);
 }

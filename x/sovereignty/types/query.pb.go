@@ -239,19 +239,89 @@ func (x *QueryRecoveryHeader) GetStateRoot() []byte {
 	return nil
 }
 
+// QueryValidatorInfo is the wire form of types.ValidatorInfo, in the SAME
+// order keeper.ValidatorPubKeys iterates (ascending raw address bytes) --
+// which matches cmttypes.ValidatorSet.Validators' own sort order exactly
+// (both are byte-order-sorted by address), so an off-chain prover can build
+// a boundary-block witness (circuit/reanchoring/src/main.nr's
+// ValidatorSetWitness) whose per-validator order matches what
+// ValidatorSetHash was actually computed over.
+type QueryValidatorInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PubKey        []byte                 `protobuf:"bytes,1,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
+	Power         int64                  `protobuf:"varint,2,opt,name=power,proto3" json:"power,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryValidatorInfo) Reset() {
+	*x = QueryValidatorInfo{}
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryValidatorInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryValidatorInfo) ProtoMessage() {}
+
+func (x *QueryValidatorInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryValidatorInfo.ProtoReflect.Descriptor instead.
+func (*QueryValidatorInfo) Descriptor() ([]byte, []int) {
+	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *QueryValidatorInfo) GetPubKey() []byte {
+	if x != nil {
+		return x.PubKey
+	}
+	return nil
+}
+
+func (x *QueryValidatorInfo) GetPower() int64 {
+	if x != nil {
+		return x.Power
+	}
+	return 0
+}
+
 type QueryRecoveryHeadersResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// rt_last: state root of the last ANCHORED block before this interval
 	// started (empty if no interval is currently tracked).
 	LastAnchoredRoot []byte                 `protobuf:"bytes,1,opt,name=last_anchored_root,json=lastAnchoredRoot,proto3" json:"last_anchored_root,omitempty"`
 	Headers          []*QueryRecoveryHeader `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Boundary-block binding data (circuit/README.md's Scope section) --
+	// x/sovereignty/keeper/keeper.go's LastAnchoredHeight/BlockHashByHeight/
+	// ValidatorSetHash docs. block_hashes mirrors BlockHashByHeight's
+	// currently-tracked entries (bounded to roughly one interval's span, same
+	// as headers) -- a witness-builder looks up whichever height it's
+	// checkpointing at (any tracked height, not just a fixed interval end;
+	// see BlockHashByHeight's doc for why this is deliberately general).
+	LastAnchoredHeight uint64                `protobuf:"varint,3,opt,name=last_anchored_height,json=lastAnchoredHeight,proto3" json:"last_anchored_height,omitempty"`
+	ValidatorSetHash   []byte                `protobuf:"bytes,4,opt,name=validator_set_hash,json=validatorSetHash,proto3" json:"validator_set_hash,omitempty"`
+	Validators         []*QueryValidatorInfo `protobuf:"bytes,5,rep,name=validators,proto3" json:"validators,omitempty"`
+	BlockHashes        map[uint64][]byte     `protobuf:"bytes,6,rep,name=block_hashes,json=blockHashes,proto3" json:"block_hashes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *QueryRecoveryHeadersResponse) Reset() {
 	*x = QueryRecoveryHeadersResponse{}
-	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -263,7 +333,7 @@ func (x *QueryRecoveryHeadersResponse) String() string {
 func (*QueryRecoveryHeadersResponse) ProtoMessage() {}
 
 func (x *QueryRecoveryHeadersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[4]
+	mi := &file_engram_sovereignty_v1_query_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -276,7 +346,7 @@ func (x *QueryRecoveryHeadersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRecoveryHeadersResponse.ProtoReflect.Descriptor instead.
 func (*QueryRecoveryHeadersResponse) Descriptor() ([]byte, []int) {
-	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{4}
+	return file_engram_sovereignty_v1_query_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *QueryRecoveryHeadersResponse) GetLastAnchoredRoot() []byte {
@@ -289,6 +359,34 @@ func (x *QueryRecoveryHeadersResponse) GetLastAnchoredRoot() []byte {
 func (x *QueryRecoveryHeadersResponse) GetHeaders() []*QueryRecoveryHeader {
 	if x != nil {
 		return x.Headers
+	}
+	return nil
+}
+
+func (x *QueryRecoveryHeadersResponse) GetLastAnchoredHeight() uint64 {
+	if x != nil {
+		return x.LastAnchoredHeight
+	}
+	return 0
+}
+
+func (x *QueryRecoveryHeadersResponse) GetValidatorSetHash() []byte {
+	if x != nil {
+		return x.ValidatorSetHash
+	}
+	return nil
+}
+
+func (x *QueryRecoveryHeadersResponse) GetValidators() []*QueryValidatorInfo {
+	if x != nil {
+		return x.Validators
+	}
+	return nil
+}
+
+func (x *QueryRecoveryHeadersResponse) GetBlockHashes() map[uint64][]byte {
+	if x != nil {
+		return x.BlockHashes
 	}
 	return nil
 }
@@ -312,10 +410,22 @@ const file_engram_sovereignty_v1_query_proto_rawDesc = "" +
 	"\tfsm_state\x18\x02 \x01(\tR\bfsmState\x12+\n" +
 	"\x11withdrawal_locked\x18\x03 \x01(\bR\x10withdrawalLocked\x12\x1d\n" +
 	"\n" +
-	"state_root\x18\x04 \x01(\fR\tstateRoot\"\x92\x01\n" +
+	"state_root\x18\x04 \x01(\fR\tstateRoot\"C\n" +
+	"\x12QueryValidatorInfo\x12\x17\n" +
+	"\apub_key\x18\x01 \x01(\fR\x06pubKey\x12\x14\n" +
+	"\x05power\x18\x02 \x01(\x03R\x05power\"\xe6\x03\n" +
 	"\x1cQueryRecoveryHeadersResponse\x12,\n" +
 	"\x12last_anchored_root\x18\x01 \x01(\fR\x10lastAnchoredRoot\x12D\n" +
-	"\aheaders\x18\x02 \x03(\v2*.engram.sovereignty.v1.QueryRecoveryHeaderR\aheaders2\xe1\x01\n" +
+	"\aheaders\x18\x02 \x03(\v2*.engram.sovereignty.v1.QueryRecoveryHeaderR\aheaders\x120\n" +
+	"\x14last_anchored_height\x18\x03 \x01(\x04R\x12lastAnchoredHeight\x12,\n" +
+	"\x12validator_set_hash\x18\x04 \x01(\fR\x10validatorSetHash\x12I\n" +
+	"\n" +
+	"validators\x18\x05 \x03(\v2).engram.sovereignty.v1.QueryValidatorInfoR\n" +
+	"validators\x12g\n" +
+	"\fblock_hashes\x18\x06 \x03(\v2D.engram.sovereignty.v1.QueryRecoveryHeadersResponse.BlockHashesEntryR\vblockHashes\x1a>\n" +
+	"\x10BlockHashesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\x04R\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012\xe1\x01\n" +
 	"\x05Query\x12\\\n" +
 	"\x05State\x12(.engram.sovereignty.v1.QueryStateRequest\x1a).engram.sovereignty.v1.QueryStateResponse\x12z\n" +
 	"\x0fRecoveryHeaders\x122.engram.sovereignty.v1.QueryRecoveryHeadersRequest\x1a3.engram.sovereignty.v1.QueryRecoveryHeadersResponseBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
@@ -332,27 +442,31 @@ func file_engram_sovereignty_v1_query_proto_rawDescGZIP() []byte {
 	return file_engram_sovereignty_v1_query_proto_rawDescData
 }
 
-var file_engram_sovereignty_v1_query_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_engram_sovereignty_v1_query_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_engram_sovereignty_v1_query_proto_goTypes = []any{
 	(*QueryStateRequest)(nil),            // 0: engram.sovereignty.v1.QueryStateRequest
 	(*QueryStateResponse)(nil),           // 1: engram.sovereignty.v1.QueryStateResponse
 	(*QueryRecoveryHeadersRequest)(nil),  // 2: engram.sovereignty.v1.QueryRecoveryHeadersRequest
 	(*QueryRecoveryHeader)(nil),          // 3: engram.sovereignty.v1.QueryRecoveryHeader
-	(*QueryRecoveryHeadersResponse)(nil), // 4: engram.sovereignty.v1.QueryRecoveryHeadersResponse
-	(*PeripheralMetrics)(nil),            // 5: engram.sovereignty.v1.PeripheralMetrics
+	(*QueryValidatorInfo)(nil),           // 4: engram.sovereignty.v1.QueryValidatorInfo
+	(*QueryRecoveryHeadersResponse)(nil), // 5: engram.sovereignty.v1.QueryRecoveryHeadersResponse
+	nil,                                  // 6: engram.sovereignty.v1.QueryRecoveryHeadersResponse.BlockHashesEntry
+	(*PeripheralMetrics)(nil),            // 7: engram.sovereignty.v1.PeripheralMetrics
 }
 var file_engram_sovereignty_v1_query_proto_depIdxs = []int32{
-	5, // 0: engram.sovereignty.v1.QueryStateResponse.metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
+	7, // 0: engram.sovereignty.v1.QueryStateResponse.metrics:type_name -> engram.sovereignty.v1.PeripheralMetrics
 	3, // 1: engram.sovereignty.v1.QueryRecoveryHeadersResponse.headers:type_name -> engram.sovereignty.v1.QueryRecoveryHeader
-	0, // 2: engram.sovereignty.v1.Query.State:input_type -> engram.sovereignty.v1.QueryStateRequest
-	2, // 3: engram.sovereignty.v1.Query.RecoveryHeaders:input_type -> engram.sovereignty.v1.QueryRecoveryHeadersRequest
-	1, // 4: engram.sovereignty.v1.Query.State:output_type -> engram.sovereignty.v1.QueryStateResponse
-	4, // 5: engram.sovereignty.v1.Query.RecoveryHeaders:output_type -> engram.sovereignty.v1.QueryRecoveryHeadersResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	4, // 2: engram.sovereignty.v1.QueryRecoveryHeadersResponse.validators:type_name -> engram.sovereignty.v1.QueryValidatorInfo
+	6, // 3: engram.sovereignty.v1.QueryRecoveryHeadersResponse.block_hashes:type_name -> engram.sovereignty.v1.QueryRecoveryHeadersResponse.BlockHashesEntry
+	0, // 4: engram.sovereignty.v1.Query.State:input_type -> engram.sovereignty.v1.QueryStateRequest
+	2, // 5: engram.sovereignty.v1.Query.RecoveryHeaders:input_type -> engram.sovereignty.v1.QueryRecoveryHeadersRequest
+	1, // 6: engram.sovereignty.v1.Query.State:output_type -> engram.sovereignty.v1.QueryStateResponse
+	5, // 7: engram.sovereignty.v1.Query.RecoveryHeaders:output_type -> engram.sovereignty.v1.QueryRecoveryHeadersResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_engram_sovereignty_v1_query_proto_init() }
@@ -367,7 +481,7 @@ func file_engram_sovereignty_v1_query_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engram_sovereignty_v1_query_proto_rawDesc), len(file_engram_sovereignty_v1_query_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

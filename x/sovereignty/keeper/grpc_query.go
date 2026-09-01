@@ -33,10 +33,28 @@ func (k *QueryServerImpl) State(ctx context.Context, _ *types.QueryStateRequest)
 	}, nil
 }
 
-// RecoveryHeaders dumps the current interval's HeaderHistory + rt_last so an
-// off-chain prover can build a ZK witness without reconstructing the view.
+// RecoveryHeaders dumps the current interval's HeaderHistory + rt_last, plus
+// the boundary-block binding data (circuit/README.md's Scope section) an
+// off-chain prover needs to build a full witness -- without reconstructing
+// any of it independently.
 func (k *QueryServerImpl) RecoveryHeaders(ctx context.Context, _ *types.QueryRecoveryHeadersRequest) (*types.QueryRecoveryHeadersResponse, error) {
 	lastAnchoredRoot, _ := k.LastAnchoredRoot.Get(ctx)
+	lastAnchoredHeight, _ := k.LastAnchoredHeight.Get(ctx)
+	validatorSetHash, _ := k.ValidatorSetHash.Get(ctx)
+
+	bhIter, err := k.BlockHashByHeight.Iterate(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer bhIter.Close()
+	bhKvs, err := bhIter.KeyValues()
+	if err != nil {
+		return nil, err
+	}
+	blockHashes := make(map[uint64][]byte, len(bhKvs))
+	for _, kv := range bhKvs {
+		blockHashes[kv.Key] = kv.Value
+	}
 
 	iter, err := k.HeaderHistory.Iterate(ctx, nil)
 	if err != nil {
@@ -60,8 +78,34 @@ func (k *QueryServerImpl) RecoveryHeaders(ctx context.Context, _ *types.QueryRec
 		})
 	}
 
+	// ValidatorPubKeys iterated ascending (raw address-byte key order) --
+	// identical to cmttypes.ValidatorSet.Validators' own address-sort order
+	// (both are byte-compared on the same address bytes), so this list's
+	// order matches what ValidatorSetHash was actually computed over
+	// (QueryValidatorInfo's doc).
+	valIter, err := k.ValidatorPubKeys.Iterate(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer valIter.Close()
+	valKvs, err := valIter.KeyValues()
+	if err != nil {
+		return nil, err
+	}
+	validators := make([]*types.QueryValidatorInfo, 0, len(valKvs))
+	for _, kv := range valKvs {
+		validators = append(validators, &types.QueryValidatorInfo{
+			PubKey: kv.Value.PubKey,
+			Power:  kv.Value.Power,
+		})
+	}
+
 	return &types.QueryRecoveryHeadersResponse{
-		LastAnchoredRoot: lastAnchoredRoot,
-		Headers:          headers,
+		LastAnchoredRoot:   lastAnchoredRoot,
+		Headers:            headers,
+		LastAnchoredHeight: lastAnchoredHeight,
+		ValidatorSetHash:   validatorSetHash,
+		Validators:         validators,
+		BlockHashes:        blockHashes,
 	}, nil
 }

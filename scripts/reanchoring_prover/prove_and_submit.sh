@@ -44,6 +44,10 @@ EMBEDDED_VK="$REPO_ROOT/x/sovereignty/keeper/zk_assets/vk"
 
 ENGRAMD="${ENGRAMD_BIN:-$REPO_ROOT/engramd}"
 NODE_URL="${NODE_URL:-http://127.0.0.1:26657}"
+# Must match circuit/reanchoring/src/main.nr's CHAIN_ID constant exactly --
+# build-boundary-witness reconstructs real CometBFT vote sign-bytes with
+# this chain ID, and a mismatch makes every signature fail to verify.
+CHAIN_ID="${ENGRAM_CHAIN_ID:-engram-dev-1}"
 # Must match circuit/reanchoring/src/main.nr's `global N_MAX` AND
 # circuit/reanchoring_witness/src/main.nr's `global N_MAX` (kept in sync by
 # hand across both files, see their headers).
@@ -107,18 +111,60 @@ echo "[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reancho
   printf ']\n'
 } > "$WITNESS_CIRCUIT_DIR/Prover.toml"
 
-LINKED_CHAIN=$(cd "$WITNESS_CIRCUIT_DIR" && nargo execute witness 2>&1 | grep '^Header ')
+WITNESS_OUT=$(cd "$WITNESS_CIRCUIT_DIR" && nargo execute witness 2>&1)
+LINKED_CHAIN=$(echo "$WITNESS_OUT" | grep '^Header ')
 linked_field() {
   # linked_field <line-number 1-indexed> <field-name>
   echo "$LINKED_CHAIN" | sed -n "${1}p" | grep -o "${2}: [^,}]*" | awk '{print $2}'
 }
 
 echo "[reanchoring_prover] 3/4: building real Prover.toml (count=$COUNT real + $((N_MAX - COUNT)) padding) + running nargo execute + bb prove..."
-RT_NEW=$(linked_field "$COUNT" "state_root")
+# rt_new is hash_header(headers[count-1]), NOT that header's raw state_root
+# field (circuit/reanchoring/src/main.nr's rt_new-binding doc) --
+# reanchoring_witness prints this as a distinct rt_new_hash= line.
+RT_NEW=$(echo "$WITNESS_OUT" | grep '^rt_new_hash=' | cut -d= -f2)
+if [ -z "$RT_NEW" ]; then
+  echo "[reanchoring_prover] ERROR: reanchoring_witness did not print rt_new_hash= -- check nargo execute output above" >&2
+  exit 1
+fi
+echo "[reanchoring_prover] 3b/5: fetching real boundary-block signature witness (circuit/README.md's Scope section)..."
+BOUNDARY_WITNESS_TOML=$(mktemp)
+trap 'rm -f "$BOUNDARY_WITNESS_TOML"' EXIT
+# --last-height MUST be headers[COUNT-1]'s own real height, not
+# build-boundary-witness's own default (the highest height BlockHashByHeight
+# currently has data for, i.e. the live tip) -- when COUNT is capped below
+# TOTAL_N (a tracked interval longer than N_MAX), the tip keeps climbing
+# past headers[COUNT-1] while this proof is being built, so the default
+# fetches boundary-signature data for a LATER block than the one this proof
+# actually claims as its last header. verify_boundary_block then checks a
+# real commit's quorum/hash against public inputs computed from a different
+# block, which can fail non-deterministically (real proposers rotating
+# in/out between the two heights change which validators' signatures land
+# in each commit) -- reproduced live as a "Failed constraint:
+# signed_power*3 >= total_power*2" nargo execute failure, misleadingly
+# similar-looking to (but NOT) the SubmitRecoveryProof-side staleness race
+# documented below.
+LAST_REAL_HEIGHT=$(field "$COUNT" height)
+"$ENGRAMD" build-boundary-witness --node "$NODE_URL" --chain-id "$CHAIN_ID" --last-height "$LAST_REAL_HEIGHT" --out "$BOUNDARY_WITNESS_TOML"
+
+# TOML requires every loose (non-table) key to precede any [table]/[[table]]
+# section -- rt_last/rt_new/count and the boundary witness's own loose keys
+# (first_height, first_block_hash, ...) must ALL come before headers'
+# [[headers]] array-of-tables and the boundary witness's own
+# [validators]/[first_block]/[last_block] tables, or nargo silently
+# misattributes later keys to the wrong (or no) top-level scope. Split the
+# boundary witness at its first `[` line so its loose keys land in the same
+# leading block as rt_last/rt_new/count.
+BOUNDARY_LOOSE=$(awk '/^\[/{exit} {print}' "$BOUNDARY_WITNESS_TOML")
+BOUNDARY_TABLES=$(awk 'BEGIN{p=0} /^\[/{p=1} p{print}' "$BOUNDARY_WITNESS_TOML")
+
 {
   echo "rt_last = \"$RT_LAST\""
   echo "rt_new = \"$RT_NEW\""
   echo "count = \"$COUNT\""
+  echo "$BOUNDARY_LOOSE"
+  echo ""
+  echo "$BOUNDARY_TABLES"
   for ((i = 1; i <= COUNT; i++)); do
     echo ""
     echo "[[headers]]"
@@ -155,11 +201,12 @@ RT_NEW=$(linked_field "$COUNT" "state_root")
 # retrieve the header chain it was built from. A publish failure degrades to
 # skipping --da-height, not aborting the submission.
 #
-# Throttled, not on every proof: celestia-bridge signs every blob submission
-# (this AND the validators' regular block-data publishing) from one shared
-# account -- publishing per proof sustained 3-4 account-sequence-mismatch
-# races/sec, degrading DA health for all 4 validators. Skipped attempts still
-# submit the proof itself (never throttled) with no --da-height.
+# Throttled, not on every proof: celestia-bridge-prover signs every blob
+# submission (this AND the validators' regular block-data publishing) from
+# one shared account -- publishing per proof sustained 3-4 account-sequence-
+# mismatch races/sec, degrading DA health for all 7 validators. Skipped
+# attempts still submit the proof itself (never throttled) with no
+# --da-height.
 WITNESS_PUBLISH_MIN_INTERVAL_S="${WITNESS_PUBLISH_MIN_INTERVAL_S:-120}"
 WITNESS_PUBLISH_MARKER="$MAIN_CIRCUIT_DIR/target/.last_witness_publish"
 NOW_S=$(date +%s)

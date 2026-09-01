@@ -35,6 +35,19 @@ import (
 	"github.com/cosmos/cosmos-sdk/server"
 )
 
+// engramConsensusParams enables ABCI++ vote extensions from genesis --
+// without this, CometBFT never calls ExtendVote/VerifyVoteExtension
+// (app/app.go's SetExtendVoteHandler/SetVerifyVoteExtensionHandler wiring is
+// otherwise dead code) and NewPrepareProposalHandler's LocalLastCommit stays
+// permanently empty, i.e. AggregateHealthCertificates never reaches quorum
+// (see x/sovereignty/vote_extension.go, x/sovereignty/proposal.go's
+// degradedMetrics fallback).
+func engramConsensusParams() *cmttypes.ConsensusParams {
+	cp := cmttypes.DefaultConsensusParams()
+	cp.ABCI.VoteExtensionsEnableHeight = 1
+	return cp
+}
+
 func defaultHome() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -56,6 +69,7 @@ func main() {
 
 	rootCmd.AddCommand(queryStateCmd())
 	rootCmd.AddCommand(queryRecoveryHeadersCmd())
+	rootCmd.AddCommand(buildBoundaryWitnessCmd())
 	rootCmd.AddCommand(publishRecoveryWitnessCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
 	rootCmd.AddCommand(txSubmitForcedTxCmd())
@@ -130,7 +144,7 @@ func initHome(home, moniker string) error {
 	genDoc := cmttypes.GenesisDoc{
 		ChainID:         "engram-dev-1",
 		GenesisTime:     time.Now(),
-		ConsensusParams: cmttypes.DefaultConsensusParams(),
+		ConsensusParams: engramConsensusParams(),
 		Validators: []cmttypes.GenesisValidator{
 			{Address: pubKey.Address(), PubKey: pubKey, Power: 10, Name: moniker},
 		},
@@ -200,6 +214,21 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 		}
 		*f.dst = v
 	}
+
+	// ENGRAM_PARAM_PROOF_ONLY_RECOVERY (bool, not uint64 like the fields
+	// above): forces refreshReanchoringProofValid to require a real ZK
+	// proof, disabling the heuristic fallback -- see types.Params.
+	// ProofOnlyRecovery's doc. Used to run E10's recovery-time measurement
+	// under a mode where the result is attributable to the ZK pipeline
+	// specifically (docs/EXPERIMENT.md's E10 recovery-time finding).
+	if raw := os.Getenv("ENGRAM_PARAM_PROOF_ONLY_RECOVERY"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return p, fmt.Errorf("ENGRAM_PARAM_PROOF_ONLY_RECOVERY=%q: %w", raw, err)
+		}
+		p.ProofOnlyRecovery = v
+	}
+
 	if err := p.Validate(); err != nil {
 		return p, err
 	}
@@ -310,7 +339,7 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 	genDoc := cmttypes.GenesisDoc{
 		ChainID:         chainID,
 		GenesisTime:     time.Now(),
-		ConsensusParams: cmttypes.DefaultConsensusParams(),
+		ConsensusParams: engramConsensusParams(),
 		Validators:      validators,
 		AppState:        appStateBytes,
 	}

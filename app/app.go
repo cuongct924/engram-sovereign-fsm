@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/encoding"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmttypes "github.com/cometbft/cometbft/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/gogoproto/proto"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
@@ -124,8 +126,10 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
 	if !vanilla {
-		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, sensorBundle, byzantineBehavior))
-		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper, sensorBundle))
+		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, byzantineBehavior))
+		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper))
+		bApp.SetExtendVoteHandler(sovereignty.NewExtendVoteHandler(sovKeeper, sensorBundle))
+		bApp.SetVerifyVoteExtensionHandler(sovereignty.NewVerifyVoteExtensionHandler(sovKeeper))
 		bApp.SetPreBlocker(sovereignty.NewPreBlocker(sovKeeper))
 	}
 	bApp.SetInitChainer(newInitChainer(sovKeeper))
@@ -203,6 +207,37 @@ func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 			return nil, fmt.Errorf("invalid genesis params: %w", err)
 		}
 		k.Params = params
+
+		// Capture the genesis validator set's pubkeys (types.ValidatorInfo's
+		// doc) -- the only point they're ever available to this app, since
+		// there's no x/staking module and ABCI never hands a pubkey to
+		// ProcessProposal/VerifyVoteExtension, only a validator's address.
+		var cmtValidators []*cmttypes.Validator
+		for _, vu := range req.Validators {
+			pubKey, err := encoding.PubKeyFromProto(vu.PubKey)
+			if err != nil {
+				return nil, fmt.Errorf("invalid genesis validator pubkey: %w", err)
+			}
+			addr := string(pubKey.Address())
+			if err := k.ValidatorPubKeys.Set(ctx, addr, sovereigntytypes.ValidatorInfo{
+				PubKey: pubKey.Bytes(),
+				Power:  vu.Power,
+			}); err != nil {
+				return nil, err
+			}
+			cmtValidators = append(cmtValidators, cmttypes.NewValidator(pubKey, vu.Power))
+		}
+
+		// ValidatorSetHash: the real cmttypes.ValidatorSet.Hash() (the same
+		// Merkle root every validator's own consensus engine computes) --
+		// the genesis-fixed anchor the reanchoring circuit's boundary-block
+		// binding proves against (circuit/reanchoring/src/main.nr's
+		// validator_set_hash_7). Built from the real cmttypes.Validator type
+		// rather than re-derived by hand, so its internal sort order matches
+		// upstream exactly.
+		if err := k.ValidatorSetHash.Set(ctx, cmttypes.NewValidatorSet(cmtValidators).Hash()); err != nil {
+			return nil, err
+		}
 
 		return &abci.ResponseInitChain{Validators: req.Validators}, nil
 	}

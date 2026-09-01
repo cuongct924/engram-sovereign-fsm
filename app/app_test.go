@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	log "cosmossdk.io/log/v2"
 	dbm "github.com/cosmos/cosmos-db"
-
 	"github.com/stretchr/testify/require"
+
+	log "cosmossdk.io/log/v2"
 )
 
 // Proves the fact E2's "Vanilla comparison" rests on: with vanilla=true,

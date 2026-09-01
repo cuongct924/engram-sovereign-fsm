@@ -1,10 +1,12 @@
 package sovereignty
 
 import (
+	"context"
 	"testing"
 
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +15,17 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
+
+// stubDASource is a minimal sensors.DAAvailabilitySource for
+// TestDaGapMetric_NeverVerifiedReportsMaxGap.
+type stubDASource struct {
+	height uint64
+	ok     bool
+}
+
+func (s stubDASource) VerifiedHeight() (uint64, bool)        { return s.height, s.ok }
+func (s stubDASource) Failed() bool                          { return false }
+func (s stubDASource) ProbeHealthy(ctx context.Context) bool { return true }
 
 func newRefreshTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	t.Helper()
@@ -79,4 +92,65 @@ func TestRefreshReanchoringProofValid_BeyondBoundedGapIsInvalid(t *testing.T) {
 	valid, err := k.ReanchoringProofValid.Get(ctx)
 	require.NoError(t, err)
 	require.False(t, valid, "gap beyond MaxUnprovenTailBlocks must be invalid -- this is a bound, not a bypass")
+}
+
+// TestRefreshReanchoringProofValid_ProofOnlyRecoveryDisablesHeuristic is
+// E10's attribution fix: with ProofOnlyRecovery=true, a purely
+// heuristic-valid state (h_btc_anchored >= h_btc_submitted, no real proof
+// ever submitted) must NOT grant reanchoring_proof_valid -- otherwise a
+// measured recovery can't be attributed to the ZK pipeline specifically.
+func TestRefreshReanchoringProofValid_ProofOnlyRecoveryDisablesHeuristic(t *testing.T) {
+	k, ctx := newRefreshTestKeeperCtx(t)
+	require.NoError(t, k.FSMState.Set(ctx, types.StateRecovering))
+	require.NoError(t, k.HBtcSubmitted.Set(ctx, 5))
+	require.NoError(t, k.HBtcAnchored.Set(ctx, 5)) // heuristicValid: hAnchored >= hSubmitted > 0
+
+	require.NoError(t, refreshReanchoringProofValid(ctx, k))
+	valid, err := k.ReanchoringProofValid.Get(ctx)
+	require.NoError(t, err)
+	require.True(t, valid, "heuristic alone must still grant validity when ProofOnlyRecovery is unset (default)")
+
+	k.Params.ProofOnlyRecovery = true
+	require.NoError(t, refreshReanchoringProofValid(ctx, k))
+	valid, err = k.ReanchoringProofValid.Get(ctx)
+	require.NoError(t, err)
+	require.False(t, valid, "ProofOnlyRecovery=true must reject a purely heuristic-valid state with no real proof")
+}
+
+// TestRefreshReanchoringProofValid_ProofOnlyRecoveryStillAcceptsRealProof
+// confirms ProofOnlyRecovery doesn't break the real-proof path it exists to
+// isolate -- only the heuristic fallback is disabled.
+func TestRefreshReanchoringProofValid_ProofOnlyRecoveryStillAcceptsRealProof(t *testing.T) {
+	k, ctx := newRefreshTestKeeperCtx(t)
+	k.Params.ProofOnlyRecovery = true
+	setUpRecoveringWithProof(t, k, ctx, 18, 10) // gap = 8 = MaxUnprovenTailBlocks, no heuristic fields set
+
+	require.NoError(t, refreshReanchoringProofValid(ctx, k))
+	valid, err := k.ReanchoringProofValid.Get(ctx)
+	require.NoError(t, err)
+	require.True(t, valid, "a real, bounded-gap proof must still grant validity under ProofOnlyRecovery")
+}
+
+// TestDaGapMetric_NeverVerifiedReportsMaxGap is a regression test for a real
+// genesis-bootstrap deadlock (reproduced live on a fresh 4-node deploy):
+// before Publisher.MaybePublish ever completes a submit+confirm cycle,
+// VerifiedHeight() returns ok=false. daGapMetric used to fall back to
+// hVerified=0 and compute gap=hCurrent-0, which reads as a small, healthy
+// gap at low heights despite zero real DA activity -- IsDAHealthy=true then
+// forced da.VerifyReceipt to require a real Attestation that couldn't exist
+// yet, rejecting every proposal forever. A never-verified source must report
+// the maximal gap instead, matching btcGapMetric's own fail-safe convention.
+func TestDaGapMetric_NeverVerifiedReportsMaxGap(t *testing.T) {
+	k, ctx := newRefreshTestKeeperCtx(t)
+	ctx = ctx.WithBlockHeight(2) // low height -- hCurrent-0 would read as a tiny, healthy gap
+
+	s := sensors.NewDASensor()
+	s.SetSource(stubDASource{ok: false})
+
+	gap, dasFailed, attestationFailed, err := daGapMetric(ctx, k, s)
+	require.NoError(t, err)
+	require.False(t, dasFailed)
+	require.False(t, attestationFailed)
+	require.GreaterOrEqual(t, gap, k.Params.DAThreshold,
+		"a source that has never verified anything must report a gap >= DAThreshold (unhealthy), not hCurrent-0")
 }

@@ -34,11 +34,8 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		return nil
 	}
 
-	btcGap, btcSpvFailed, err := btcGapMetric(ctx, k, s.BTC, s.Anchor)
+	btcGap, btcSpvFailed, btcCurrentHeight, err := btcGapMetric(ctx, k, s.BTC, s.Anchor)
 	if err != nil {
-		return err
-	}
-	if err := refreshReanchoringProofValid(ctx, k); err != nil {
 		return err
 	}
 	if s.Anchor != nil {
@@ -65,18 +62,39 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		return err
 	}
 
+	// confirmedAnchorHeight/daVerifiedHeight feed NewPrepareProposalHandler/
+	// NewProcessProposalHandler's h_btc_anchored/h_engram_verified advancement
+	// (formerly a direct live read inside PrepareProposal itself) via the
+	// quorum-certified median in AggregateHealthCertificates -- this is now
+	// the only place any validator calls these sensor methods.
+	var confirmedAnchorHeight uint64
+	if s.Anchor != nil {
+		if confirmed, ok := s.Anchor.ConfirmedAnchorHeight(); ok {
+			confirmedAnchorHeight = confirmed
+		}
+	}
+	var daVerifiedHeight uint64
+	if s.DAPublisher != nil {
+		if verified, ok := s.DAPublisher.VerifiedHeight(); ok {
+			daVerifiedHeight = verified
+		}
+	}
+
 	metrics := &types.PeripheralMetrics{
-		BtcGap:              btcGap,
-		IsBtcSpvFailed:      btcSpvFailed,
-		DaGap:               daGap,
-		IsDasFailed:         dasFailed,
-		IsAttestationFailed: attestationFailed,
-		SubnetDiversity:     p2pSnap.SubnetDiversity,
-		ActiveAnchors:       p2pSnap.ActiveAnchors,
-		CleanPeers:          p2pSnap.CleanPeers,
-		PeerChurnRate:       p2pSnap.ChurnRate,
-		AvgPeerTenure:       p2pSnap.AvgTenure,
-		PeerLatency:         p2pSnap.Latency,
+		BtcGap:                btcGap,
+		IsBtcSpvFailed:        btcSpvFailed,
+		DaGap:                 daGap,
+		IsDasFailed:           dasFailed,
+		IsAttestationFailed:   attestationFailed,
+		SubnetDiversity:       p2pSnap.SubnetDiversity,
+		ActiveAnchors:         p2pSnap.ActiveAnchors,
+		CleanPeers:            p2pSnap.CleanPeers,
+		PeerChurnRate:         p2pSnap.ChurnRate,
+		AvgPeerTenure:         p2pSnap.AvgTenure,
+		PeerLatency:           p2pSnap.Latency,
+		ConfirmedAnchorHeight: confirmedAnchorHeight,
+		DaVerifiedHeight:      daVerifiedHeight,
+		BtcCurrentHeight:      btcCurrentHeight,
 	}
 
 	// Diagnostic-only, never committed -- this node's own local sensor
@@ -126,7 +144,19 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 	failed := src.Failed() || !src.ProbeHealthy(ctx)
 	hVerified, ok := src.VerifiedHeight()
 	if !ok {
-		hVerified = 0 // nothing confirmed yet -- full gap since genesis
+		// No DA attestation has EVER completed yet (fresh chain, or
+		// Publisher lost all state) -- report the maximal gap, matching
+		// btcGapMetric's own fail-safe convention (return
+		// SovereignThreshold on an unreachable/unconfirmed source), not
+		// hCurrent-0. The latter reads as a SMALL, healthy gap at low
+		// heights even though zero real Celestia activity has happened,
+		// which forced IsDAHealthy=true before Publisher.MaybePublish had
+		// completed even one submit+confirm cycle -- da.VerifyReceipt then
+		// required a real Attestation that couldn't exist yet, deadlocking
+		// every proposal at genesis bootstrap (reproduced live on a fresh
+		// 4-node deploy). DA health absent any real attestation must fail
+		// toward degraded, not toward "coincidentally low height".
+		return k.Params.DAThreshold, failed, failed, nil
 	}
 	if hCurrent <= hVerified {
 		return 0, failed, failed, nil
@@ -146,11 +176,17 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 // (VerifyAnchor's OP_RETURN scan, mirroring is_btc_spv_failed,
 // EngramFSM.tla:184) so a forged/reorged anchor isn't trusted until btc_gap
 // crosses SOVEREIGN_THRESHOLD.
-func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, err error) {
+//
+// hCurrent is this validator's own live reading of the current BTC height,
+// returned (not committed here) so RefreshMetrics can carry it into
+// PeripheralMetrics.BtcCurrentHeight for quorum certification -- see that
+// field's doc for why writing it directly to committed state from here
+// (the pre-vote-extension design) silently stopped working.
+func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, hCurrent uint64, err error) {
 	src := btc.Source()
 	if src == nil {
 		gap, err = btc.GetMetric(ctx)
-		return gap, false, err
+		return gap, false, 0, err
 	}
 
 	// Reachable first: a stale pooled connection can succeed on one validator
@@ -158,18 +194,15 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 	// while bitcoind is uniformly down. The fresh, stateless TCP check keeps
 	// the down/up determination consistent across validators.
 	if !src.Reachable(ctx) {
-		return k.Params.SovereignThreshold, false, nil
+		return k.Params.SovereignThreshold, false, 0, nil
 	}
 
-	hCurrent, err := src.CurrentHeight(ctx)
+	hCurrent, err = src.CurrentHeight(ctx)
 	if err != nil {
 		// An outage degrades through btc_gap, not a failed proposal: report
 		// the maximum gap (matching daGapMetric's fallback) -- zero
 		// visibility is at least as severe as any gap this threshold catches.
-		return k.Params.SovereignThreshold, false, nil
-	}
-	if err := k.HBtcCurrent.Set(ctx, hCurrent); err != nil {
-		return 0, false, err
+		return k.Params.SovereignThreshold, false, 0, nil
 	}
 
 	hAnchored, _ := k.HBtcAnchored.Get(ctx)
@@ -182,31 +215,8 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 	}
 
 	if hCurrent <= hAnchored {
-		return 0, spvFailed, nil
+		return 0, spvFailed, hCurrent, nil
 	}
-	return hCurrent - hAnchored, spvFailed, nil
+	return hCurrent - hAnchored, spvFailed, hCurrent, nil
 }
 
-// refreshReanchoringProofValid ports UpdateSensors' reanchoring_proof_valid
-// (spec/core/EngramFSM.tla:294-301). Lives here, not preblock.go, because
-// the concrete layer (EngramServer.tla:151-159) never flips it back TRUE.
-func refreshReanchoringProofValid(ctx sdk.Context, k *keeper.Keeper) error {
-	currState, err := k.FSMState.Get(ctx)
-	if err != nil {
-		currState = types.StateAnchored
-	}
-	hAnchored, _ := k.HBtcAnchored.Get(ctx)
-	hSubmitted, _ := k.HBtcSubmitted.Get(ctx)
-	realProofSubmittedHeight, _ := k.RealProofSubmittedHeight.Get(ctx)
-
-	realProofValid := false
-	if realProofSubmittedHeight > 0 {
-		if tipHeight, _, err := k.LatestTrackedHeader(ctx); err == nil && tipHeight-realProofSubmittedHeight <= k.Params.MaxUnprovenTailBlocks {
-			realProofValid = true
-		}
-	}
-
-	heuristicValid := hAnchored >= hSubmitted && hSubmitted > 0
-	valid := currState == types.StateRecovering && (heuristicValid || realProofValid)
-	return k.ReanchoringProofValid.Set(ctx, valid)
-}

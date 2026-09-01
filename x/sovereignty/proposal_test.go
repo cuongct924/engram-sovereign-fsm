@@ -4,13 +4,15 @@ import (
 	"testing"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/ed25519"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
-	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"cosmossdk.io/collections/colltest"
 	log "cosmossdk.io/log/v2"
@@ -20,19 +22,74 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
+const testChainID = "sovereignty-unit-test"
+
 func newTestKeeperCtx(t *testing.T) (*keeper.Keeper, sdk.Context) {
 	t.Helper()
 	storeService, ctx := colltest.MockStore()
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry())
 	k := keeper.NewKeeper(storeService, cdc)
-	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx)
+	sdkCtx := sdk.NewContext(nil, cmtproto.Header{}, false, log.NewNopLogger()).WithContext(ctx).WithChainID(testChainID)
 	return k, sdkCtx
 }
 
-// healthyExtendedProposal builds an ExtendedProposal that ProcessProposal
-// should accept given a freshly-constructed Keeper (all heights at 0,
-// healthy metrics, ANCHORED state).
-func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.ExtendedProposal {
+// testValidator bundles a registered genesis validator's key material, so
+// tests can sign real ABCI++ vote extensions the way NewExtendVoteHandler
+// does -- AggregateHealthCertificates (unlike the ExtendedProposal design it
+// replaces) verifies a real ed25519 signature per certificate, so a fixture
+// can no longer just declare a claimed value.
+type testValidator struct {
+	priv ed25519.PrivKey
+	addr []byte
+}
+
+// newTestValidators registers n equal-power genesis validators directly in
+// the keeper (bypassing InitChain, same shortcut other tests here take with
+// k.Metrics/k.FSMState).
+func newTestValidators(t *testing.T, k *keeper.Keeper, ctx sdk.Context, n int) []testValidator {
+	t.Helper()
+	vals := make([]testValidator, n)
+	for i := 0; i < n; i++ {
+		priv := ed25519.GenPrivKey()
+		pub := priv.PubKey().(ed25519.PubKey)
+		addr := pub.Address()
+		require.NoError(t, k.ValidatorPubKeys.Set(ctx, string(addr), types.ValidatorInfo{PubKey: pub.Bytes(), Power: 1}))
+		vals[i] = testValidator{priv: priv, addr: addr}
+	}
+	return vals
+}
+
+// signCertificates builds one SignedHealthCertificate per validator, all
+// reporting the same metrics, signed exactly the way CometBFT signs a real
+// vote extension (cmttypes.VoteExtensionSignBytes) so
+// AggregateHealthCertificates' signature check passes.
+func signCertificates(t *testing.T, vals []testValidator, chainID string, height int64, metrics *types.PeripheralMetrics) []*types.SignedHealthCertificate {
+	t.Helper()
+	ext, err := proto.Marshal(metrics)
+	require.NoError(t, err)
+	signBytes := cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{Height: height, Round: 0, Extension: ext})
+
+	certs := make([]*types.SignedHealthCertificate, len(vals))
+	for i, v := range vals {
+		sig, err := v.priv.Sign(signBytes)
+		require.NoError(t, err)
+		certs[i] = &types.SignedHealthCertificate{
+			ValidatorAddress:   v.addr,
+			Round:              0,
+			MetricsExtension:   ext,
+			ExtensionSignature: sig,
+		}
+	}
+	return certs
+}
+
+// healthyAggregatedCertificate builds an AggregatedHealthCertificate that
+// ProcessProposal should accept at height reqHeight, given a freshly
+// constructed Keeper (all committed heights at 0, healthy metrics, ANCHORED
+// state) -- the certificate replacement for the old ExtendedProposal
+// fixture, backed by a real quorum of signed vote extensions.
+func healthyAggregatedCertificate(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) *types.AggregatedHealthCertificate {
+	t.Helper()
 	p := k.Params
 	metrics := &types.PeripheralMetrics{
 		SubnetDiversity: p.MinSubnetDiversity,
@@ -40,74 +97,81 @@ func healthyExtendedProposal(k *keeper.Keeper, ctx sdk.Context) sovereignty.Exte
 		CleanPeers:      p.MinPeers,
 		AvgPeerTenure:   p.MinAvgTenure,
 	}
-	_ = k.Metrics.Set(ctx, metrics)
+	vals := newTestValidators(t, k, ctx, 4)
+	extHeight := reqHeight - 1
+	certs := signCertificates(t, vals, testChainID, extHeight, metrics)
 
-	return sovereignty.ExtendedProposal{
-		FSMState:   types.StateAnchored,
-		Healthy:    true, // matches the healthy metrics set above -- see check #1b's doc
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 0, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
-		ZKProofRef: nil,
+	return &types.AggregatedHealthCertificate{
+		Height:                       extHeight,
+		Certificates:                 certs,
+		FsmState:                     types.StateAnchored,
+		Healthy:                      true, // matches the healthy metrics set above -- see check #1b's doc
+		DaPublishedBlockHeight:       0,
+		DaAttestation:                true,
+		BtcCheckpointBlockHeight:     0,
+		BtcCheckpointBlockHashTag:    anchor.ExpectedBlockHash(0).Tag,
+		BtcCheckpointBlockHashHeight: anchor.ExpectedBlockHash(0).Height,
 	}
 }
 
 func TestProcessProposal_AcceptsWellFormedProposal(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsEmptyTxs(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: nil})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: nil})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsUndecodableFirstTx(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{[]byte("not an extended proposal")}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{[]byte("not a certificate")}})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsFSMStateMismatch(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	ext := healthyExtendedProposal(k, ctx)
-	ext.FSMState = types.StateSovereign // wrong: local computation would say ANCHORED
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	cert.FsmState = types.StateSovereign // wrong: local computation would say ANCHORED
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "a proposal claiming a fsm_state that doesn't match CalculateNextState must be rejected")
 }
 
 func TestProcessProposal_RejectsMissingDAAttestation(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	ext := healthyExtendedProposal(k, ctx)
-	ext.DAReceipt.Attestation = false // ANCHORED always requires attestation
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	cert.DaAttestation = false // ANCHORED always requires attestation
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
 
 func TestProcessProposal_RejectsForgedBTCHash(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	ext := healthyExtendedProposal(k, ctx)
-	ext.BTCReceipt.CheckpointBlockHash = anchor.BlockHash{Tag: "BTC_FORK", Height: 0}
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	cert.BtcCheckpointBlockHashTag = "BTC_FORK"
+	cert.BtcCheckpointBlockHashHeight = 0
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted())
 }
@@ -123,18 +187,23 @@ func TestProcessProposal_RejectsWithdrawalWhileSovereign(t *testing.T) {
 		CleanPeers:      p.MinPeers,
 		AvgPeerTenure:   p.MinAvgTenure,
 	}
-	require.NoError(t, k.Metrics.Set(ctx, metrics))
+	vals := newTestValidators(t, k, ctx, 4)
+	certs := signCertificates(t, vals, testChainID, 0, metrics)
 
-	ext := sovereignty.ExtendedProposal{
-		FSMState:   types.StateSovereign,
-		DAReceipt:  da.Receipt{Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
+	cert := &types.AggregatedHealthCertificate{
+		Height:                       0,
+		Certificates:                 certs,
+		FsmState:                     types.StateSovereign,
+		DaAttestation:                true,
+		BtcCheckpointBlockHeight:     0,
+		BtcCheckpointBlockHashTag:    anchor.ExpectedBlockHash(0).Tag,
+		BtcCheckpointBlockHashHeight: anchor.ExpectedBlockHash(0).Height,
 	}
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
-		Txs: [][]byte{tx, []byte("TX_WITHDRAWAL")},
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs: [][]byte{tx, []byte("TX_WITHDRAWAL")}, Height: 1,
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "circuit breaker must reject withdrawals while SOVEREIGN")
@@ -142,12 +211,12 @@ func TestProcessProposal_RejectsWithdrawalWhileSovereign(t *testing.T) {
 
 func TestProcessProposal_RejectsPrematureZKProofClaim(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	ext := healthyExtendedProposal(k, ctx)
-	ext.ZKProofRef = []byte("claimed-root") // hysteresis not even relevant here (state isn't RECOVERING)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	cert.ZkProofRef = []byte("claimed-root") // hysteresis not even relevant here (state isn't RECOVERING)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "zk_proof_ref must be false outside a hysteresis-satisfied RECOVERING state")
 }
@@ -157,12 +226,12 @@ func TestProcessProposal_RejectsCensoringProposal(t *testing.T) {
 	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
 	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds)) // already at threshold
 
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
 	// Proposal is otherwise well-formed but omits the forced tx.
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(), "a proposal that keeps omitting a forced tx past MaxIgnoreRounds must be rejected")
 }
@@ -172,16 +241,17 @@ func TestProcessProposal_AcceptsCensoringProposalPastMaxCensorshipRounds(t *test
 	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
 	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds))
 
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
 	// Same as TestProcessProposal_RejectsCensoringProposal (forced tx still
 	// omitted), but at MaxCensorshipRounds -- a forced tx that can never be
 	// included must not block the chain forever (types.Params' doc).
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
-		Txs:   [][]byte{tx},
-		Round: int32(k.Params.MaxCensorshipRounds),
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs:    [][]byte{tx},
+		Height: 1,
+		Round:  int32(k.Params.MaxCensorshipRounds),
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted(), "IsCensoring must stop being enforced past MaxCensorshipRounds")
@@ -192,12 +262,12 @@ func TestProcessProposal_AcceptsCensoredTxOnceIncluded(t *testing.T) {
 	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
 	require.NoError(t, k.TxIgnoredRounds.Set(ctx, "FORCED_TX_1", k.Params.MaxIgnoreRounds))
 
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k, nil)(ctx, &abci.RequestProcessProposal{
-		Txs: [][]byte{tx, []byte("FORCED_TX_1")},
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs: [][]byte{tx, []byte("FORCED_TX_1")}, Height: 1,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted(), "including the forced tx must clear the censorship rejection")
@@ -207,8 +277,8 @@ func TestPreBlocker_TracksForcedTxIgnoredRounds(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 	require.NoError(t, k.ForcedTxQueue.Set(ctx, "FORCED_TX_1"))
 
-	ext := healthyExtendedProposal(k, ctx)
-	tx, err := sovereignty.EncodeExtendedProposal(ext)
+	cert := healthyAggregatedCertificate(t, k, ctx, 1)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
 	// Block 1: forced tx absent -> counter increments to 1.
@@ -233,12 +303,13 @@ func TestPreBlocker_TracksForcedTxIgnoredRounds(t *testing.T) {
 func TestCommitFSMTransition_WritesAgreedStateAndHeights(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 
-	ext := sovereignty.ExtendedProposal{
-		FSMState:   types.StateSuspicious,
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 5, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 3, CheckpointBlockHash: anchor.ExpectedBlockHash(3)},
+	cert := &types.AggregatedHealthCertificate{
+		FsmState:                 types.StateSuspicious,
+		DaPublishedBlockHeight:   5,
+		DaAttestation:            true,
+		BtcCheckpointBlockHeight: 3,
 	}
-	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
+	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, cert))
 
 	state, err := k.FSMState.Get(ctx)
 	require.NoError(t, err)
@@ -258,12 +329,22 @@ func TestCommitFSMTransition_ForceSyncsSensorsOnRecoveringToAnchored(t *testing.
 	require.NoError(t, k.FSMState.Set(ctx, types.StateRecovering))
 	require.NoError(t, k.Metrics.Set(ctx, &types.PeripheralMetrics{IsDasFailed: true, IsAttestationFailed: true}))
 
-	ext := sovereignty.ExtendedProposal{
-		FSMState:   types.StateAnchored,
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 10, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 10, CheckpointBlockHash: anchor.ExpectedBlockHash(10)},
+	// h_btc_current comes from the certified quorum median of the embedded
+	// certificates (PeripheralMetrics.BtcCurrentHeight), not from
+	// BtcCheckpointBlockHeight -- see preblock.go's CommitFSMTransition doc.
+	vals := newTestValidators(t, k, ctx, 4)
+	const extHeight = int64(0)
+	certs := signCertificates(t, vals, testChainID, extHeight, &types.PeripheralMetrics{BtcCurrentHeight: 10})
+
+	cert := &types.AggregatedHealthCertificate{
+		Height:                   extHeight,
+		Certificates:             certs,
+		FsmState:                 types.StateAnchored,
+		DaPublishedBlockHeight:   10,
+		DaAttestation:            true,
+		BtcCheckpointBlockHeight: 10,
 	}
-	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
+	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, cert))
 
 	metrics, err := k.Metrics.Get(ctx)
 	require.NoError(t, err)
@@ -277,16 +358,25 @@ func TestCommitFSMTransition_ForceSyncsSensorsOnRecoveringToAnchored(t *testing.
 
 func TestCommitFSMTransition_TracksZKProofSubmission(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
-	require.NoError(t, k.HBtcCurrent.Set(ctx, 7))
 	require.NoError(t, k.ReanchoringProofValid.Set(ctx, true)) // stale; must be reset
 
-	ext := sovereignty.ExtendedProposal{
-		FSMState:   types.StateRecovering,
-		DAReceipt:  da.Receipt{PublishedBlockHeight: 1, Attestation: true},
-		BTCReceipt: anchor.Receipt{CheckpointBlockHeight: 0, CheckpointBlockHash: anchor.ExpectedBlockHash(0)},
-		ZKProofRef: []byte("claimed-root"),
+	// h_btc_current comes from the certified quorum median (see
+	// TestCommitFSMTransition_ForceSyncsSensorsOnRecoveringToAnchored's
+	// matching comment), not a pre-set keeper value.
+	vals := newTestValidators(t, k, ctx, 4)
+	const extHeight = int64(0)
+	certs := signCertificates(t, vals, testChainID, extHeight, &types.PeripheralMetrics{BtcCurrentHeight: 7})
+
+	cert := &types.AggregatedHealthCertificate{
+		Height:                   extHeight,
+		Certificates:             certs,
+		FsmState:                 types.StateRecovering,
+		DaPublishedBlockHeight:   1,
+		DaAttestation:            true,
+		BtcCheckpointBlockHeight: 0,
+		ZkProofRef:               []byte("claimed-root"),
 	}
-	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, ext))
+	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, cert))
 
 	hBtcSubmitted, err := k.HBtcSubmitted.Get(ctx)
 	require.NoError(t, err)

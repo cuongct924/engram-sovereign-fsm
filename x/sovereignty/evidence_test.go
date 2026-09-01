@@ -10,7 +10,7 @@ import (
 // TestRecordDetectedEvidence_NoMisbehaviorIsNoOp confirms a normal block
 // (the overwhelming common case) never touches evidence state.
 func TestRecordDetectedEvidence_NoMisbehaviorIsNoOp(t *testing.T) {
-	k, ctx := newByzantineTestKeeperCtx(t)
+	k, ctx, _ := newByzantineTestKeeperCtx(t)
 	require.NoError(t, recordDetectedEvidence(ctx, k, &abci.RequestFinalizeBlock{Height: 10}))
 
 	count, err := k.DetectedEvidenceCount.Get(ctx)
@@ -23,7 +23,7 @@ func TestRecordDetectedEvidence_NoMisbehaviorIsNoOp(t *testing.T) {
 // (docs/EXPERIMENT.md's E8, CometBFT's stock evidence pool output) must be
 // committed to queryable state with correct detection-latency bookkeeping.
 func TestRecordDetectedEvidence_DuplicateVoteIsRecorded(t *testing.T) {
-	k, ctx := newByzantineTestKeeperCtx(t)
+	k, ctx, _ := newByzantineTestKeeperCtx(t)
 	req := &abci.RequestFinalizeBlock{
 		Height: 42,
 		Misbehavior: []abci.Misbehavior{
@@ -52,7 +52,7 @@ func TestRecordDetectedEvidence_DuplicateVoteIsRecorded(t *testing.T) {
 // TestRecordDetectedEvidence_MultipleEntriesIncrementCount covers a block
 // reporting more than one piece of misbehavior at once.
 func TestRecordDetectedEvidence_MultipleEntriesIncrementCount(t *testing.T) {
-	k, ctx := newByzantineTestKeeperCtx(t)
+	k, ctx, _ := newByzantineTestKeeperCtx(t)
 	req := &abci.RequestFinalizeBlock{
 		Height: 100,
 		Misbehavior: []abci.Misbehavior{

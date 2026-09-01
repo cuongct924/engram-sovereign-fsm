@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
@@ -45,35 +46,87 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 
 // SubmitRecoveryProof verifies a real re-anchoring ZK proof
 // (spec/README.md's §Re-anchoring via ZK-Proof of Recovery); if valid it
-// advances the rolling checkpoint (LastAnchoredRoot) and latches
-// RealProofSubmittedHeight. Never sets FSMState directly -- RECOVERING ->
-// ANCHORED still fires only via CalculateNextState's hysteresis-gated
-// pipeline (refreshReanchoringProofValid).
+// advances the rolling checkpoint (LastAnchoredRoot/LastAnchoredHeight) and
+// latches RealProofSubmittedHeight. Never sets FSMState directly ->
+// RECOVERING -> ANCHORED still fires only via CalculateNextState's
+// hysteresis-gated pipeline (refreshReanchoringProofValid).
 //
 // Rolling: a proof covers up to N_MAX=256 headers
 // (circuit/reanchoring/src/main.nr), so rt_new must match SOME tracked
-// header's state_root (findHeaderByStateRoot), not the tip -- each accepted
-// proof advances the checkpoint, letting a sequence cover an arbitrarily
-// long interval.
+// header's Accumulator (findHeaderByAccumulator), not the tip -- each
+// accepted proof advances the checkpoint, letting a sequence cover an
+// arbitrarily long interval.
 func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProofRequest) (*types.MsgSubmitRecoveryProofResponse, error) {
 	// 1. Verify proof math against the circuit's embedded verification key.
 	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
 		return nil, types.ErrInvalidZKProof
 	}
 
-	// 2. Bind rt_last/rt_new to tracked state so a previously valid proof
-	// can't be replayed against unrelated chain history.
-	if len(msg.PublicInputs) != 96 {
+	// 2. Bind rt_last/rt_new/count/boundary-binding public inputs to tracked
+	// state so a previously valid proof can't be replayed against unrelated
+	// chain history, and so a proof can't claim fewer headers than it
+	// actually needs to cover (circuit/reanchoring/src/main.nr's public
+	// input declaration order: rt_last, rt_new, count, first_height,
+	// first_block_hash, last_block_hash, validator_set_hash -- 7 x 32-byte
+	// fields, matching bb's public-inputs layout; count/first_height are u32/
+	// u64 right-aligned in their 32-byte field encoding, the rest are full
+	// Field values).
+	if len(msg.PublicInputs) != 224 {
 		return nil, types.ErrInvalidZKProof
 	}
 	rtLast, rtNew := msg.PublicInputs[0:32], msg.PublicInputs[32:64]
+	count := binary.BigEndian.Uint32(msg.PublicInputs[92:96])
+	firstHeight := binary.BigEndian.Uint64(msg.PublicInputs[120:128])
+	firstBlockHash := msg.PublicInputs[128:160]
+	lastBlockHash := msg.PublicInputs[160:192]
+	validatorSetHash := msg.PublicInputs[192:224]
 
 	trackedLast, err := k.LastAnchoredRoot.Get(ctx)
 	if err != nil || !bytes.Equal(rtLast, trackedLast) {
 		return nil, types.ErrInvalidZKProof
 	}
-	newCheckpointHeight, found, err := k.findHeaderByStateRoot(ctx, rtNew)
+	lastAnchoredHeight, err := k.LastAnchoredHeight.Get(ctx)
+	if err != nil {
+		return nil, types.ErrInvalidZKProof
+	}
+	newCheckpointHeight, found, err := k.findHeaderByAccumulator(ctx, rtNew)
 	if err != nil || !found {
+		return nil, types.ErrInvalidZKProof
+	}
+	if uint64(count) != newCheckpointHeight-lastAnchoredHeight {
+		return nil, types.ErrInvalidZKProof
+	}
+
+	// 2b. Boundary-block binding (circuit/README.md's Scope section): the
+	// proof's claimed first/last real block and genesis validator set must
+	// match what this chain actually recorded -- ties the header-chain proof
+	// to real, >=2/3-signed CometBFT blocks rather than letting a self-
+	// consistent-but-fabricated chain and an unrelated real signed block
+	// pass as two independently-satisfiable proofs. Reads BlockHashByHeight
+	// at both boundary heights (its doc) rather than a single fixed
+	// "interval end" value -- any tracked height can be a rolling
+	// checkpoint, restoring the pre-boundary-binding design's rolling-proof
+	// generality (a proof no longer has to cover the whole remaining
+	// interval in one shot).
+	//
+	// first_height is lastAnchoredHeight+1 (headers[0]'s OWN height, the
+	// interval's first real WithdrawLocked block), not lastAnchoredHeight
+	// itself: lastAnchoredHeight is the pre-interval ANCHORED block, which
+	// never gets a BlockHashByHeight entry (only WithdrawLocked heights do
+	// -- BlockHashByHeight's doc).
+	if uint64(firstHeight) != lastAnchoredHeight+1 {
+		return nil, types.ErrInvalidZKProof
+	}
+	trackedFirstBlockHash, err := k.BlockHashByHeight.Get(ctx, uint64(firstHeight))
+	if err != nil || !bytes.Equal(firstBlockHash, types.ReduceToField(trackedFirstBlockHash)) {
+		return nil, types.ErrInvalidZKProof
+	}
+	trackedLastBlockHash, err := k.BlockHashByHeight.Get(ctx, newCheckpointHeight)
+	if err != nil || !bytes.Equal(lastBlockHash, types.ReduceToField(trackedLastBlockHash)) {
+		return nil, types.ErrInvalidZKProof
+	}
+	trackedValidatorSetHash, err := k.ValidatorSetHash.Get(ctx)
+	if err != nil || !bytes.Equal(validatorSetHash, types.ReduceToField(trackedValidatorSetHash)) {
 		return nil, types.ErrInvalidZKProof
 	}
 
@@ -82,7 +135,13 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	if err := k.LastAnchoredRoot.Set(ctx, rtNew); err != nil {
 		return nil, err
 	}
+	if err := k.LastAnchoredHeight.Set(ctx, newCheckpointHeight); err != nil {
+		return nil, err
+	}
 	if err := k.pruneHeaderHistoryUpTo(ctx, newCheckpointHeight); err != nil {
+		return nil, err
+	}
+	if err := k.pruneBlockHashesUpTo(ctx, newCheckpointHeight); err != nil {
 		return nil, err
 	}
 	if err := k.RealProofSubmittedHeight.Set(ctx, newCheckpointHeight); err != nil {
@@ -97,9 +156,12 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
 }
 
-// findHeaderByStateRoot returns the tracked header's height whose StateRoot
-// equals root, if any -- matches rt_new by content, not exact tip.
-func (k *Keeper) findHeaderByStateRoot(ctx context.Context, root []byte) (uint64, bool, error) {
+// findHeaderByAccumulator returns the tracked header's height whose
+// Accumulator equals root, if any -- matches rt_new by content, not exact
+// tip. Accumulator (not StateRoot) is what rt_new binds to: it's the value
+// only a real hash_header chain from LastAnchoredRoot could have produced
+// (circuit/reanchoring/src/main.nr's rt_new-binding doc).
+func (k *Keeper) findHeaderByAccumulator(ctx context.Context, root []byte) (uint64, bool, error) {
 	iter, err := k.HeaderHistory.Iterate(ctx, nil)
 	if err != nil {
 		return 0, false, err
@@ -110,7 +172,7 @@ func (k *Keeper) findHeaderByStateRoot(ctx context.Context, root []byte) (uint64
 		return 0, false, err
 	}
 	for _, kv := range kvs {
-		if bytes.Equal(kv.Value.StateRoot, root) {
+		if bytes.Equal(kv.Value.Accumulator, root) {
 			return kv.Key, true, nil
 		}
 	}
@@ -133,6 +195,30 @@ func (k *Keeper) pruneHeaderHistoryUpTo(ctx context.Context, height uint64) erro
 	for _, h := range heights {
 		if h <= height {
 			if err := k.HeaderHistory.Remove(ctx, h); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// pruneBlockHashesUpTo removes BlockHashByHeight entries at or below height
+// -- mirrors pruneHeaderHistoryUpTo; a height at or below the new checkpoint
+// can never be referenced by a future boundary-binding check again (both
+// firstHeight and newCheckpointHeight only ever move forward).
+func (k *Keeper) pruneBlockHashesUpTo(ctx context.Context, height uint64) error {
+	iter, err := k.BlockHashByHeight.Iterate(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	heights, err := iter.Keys()
+	if err != nil {
+		return err
+	}
+	for _, h := range heights {
+		if h <= height {
+			if err := k.BlockHashByHeight.Remove(ctx, h); err != nil {
 				return err
 			}
 		}

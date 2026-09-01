@@ -25,4 +25,29 @@ message PeripheralMetrics {
   uint64 peer_churn_rate = 9;
   uint64 avg_peer_tenure = 10;
   uint64 peer_latency = 11;
+
+  // Sensor-confirmed heights (RefreshMetrics), carried here so
+  // NewPrepareProposalHandler/NewProcessProposalHandler can advance
+  // h_btc_anchored/h_engram_verified from the quorum-certified median
+  // instead of a live per-validator sensor read -- see
+  // x/sovereignty/vote_extension.go's AggregateHealthCertificates. 0 means
+  // "no live Source wired" (see x/anchor.AnchorTracker.ConfirmedAnchorHeight
+  // / x/da.Publisher.VerifiedHeight's ok=false case), not "height zero
+  // confirmed" -- callers must still gate on it being > the committed floor.
+  uint64 confirmed_anchor_height = 12;
+  uint64 da_verified_height = 13;
+
+  // btc_current_height is this validator's own live BTC RPC read of the
+  // current regtest tip (x/sovereignty/sensors_refresh.go's btcGapMetric).
+  // Certified into AggregatedHealthCertificate's h_btc_current the same way
+  // as confirmed_anchor_height/da_verified_height above -- committing it
+  // directly from a live per-validator ExtendVote read (the pre-vote-
+  // extension design) is dead state: ExtendVote's context is a throwaway
+  // CacheMultiStore never written back to the committed multistore, so
+  // h_btc_current would otherwise stay frozen at its genesis value forever
+  // once no other path updates it, and every anchor.VerifyReceipt call
+  // would reject any real (growing) checkpoint height as "too far in the
+  // future" -- reproduced live (a real 7-node cluster round-skipped forever
+  // once ConfirmedAnchorHeight first exceeded the frozen h_btc_current=0).
+  uint64 btc_current_height = 14;
 }

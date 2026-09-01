@@ -53,9 +53,76 @@ type Keeper struct {
 	// witness headers; LastAnchoredRoot is the rolling rt_last; the latch
 	// stores the proven HEIGHT (not a bool) so a stale proof can't read as
 	// valid once newer headers are appended.
-	HeaderHistory            collections.Map[uint64, types.RecoveryHeader]
-	LastAnchoredRoot         collections.Item[[]byte]
+	HeaderHistory    collections.Map[uint64, types.RecoveryHeader]
+	LastAnchoredRoot collections.Item[[]byte]
+	// LastAnchoredHeight is the height LastAnchoredRoot's value corresponds
+	// to (the incoming-AppHash seed's height on first interval entry, or the
+	// checkpoint height of the most recently accepted recovery proof) --
+	// lets SubmitRecoveryProof enforce that a proof's `count` public input
+	// equals the REAL number of headers covered (newCheckpointHeight -
+	// LastAnchoredHeight), closing the fabricated-single-header gap (see
+	// circuit/reanchoring/src/main.nr's rt_new-binding doc).
+	LastAnchoredHeight       collections.Item[uint64]
 	RealProofSubmittedHeight collections.Item[uint64]
+	// HEngramVerifiedAtRecoveryEntry snapshots h_engram_verified once, the
+	// block RECOVERING is first entered -- the zk_proof_ref freshness gate
+	// (EngramTendermint.tla:268's "da_receipt.published_block_height >
+	// h_engram_verified") must compare against THIS fixed reference, not the
+	// previous block's committed h_engram_verified: the latter ratchets up
+	// every block regardless of whether a proof is attached, so requiring
+	// the DA receipt to exceed it demands DA verification advance on the
+	// EXACT same block the proposal is built -- a race real (non-abstract)
+	// DA publish/confirm latency essentially never wins once it falls behind
+	// block cadence, permanently deadlocking RECOVERING->ANCHORED (reproduced
+	// live: a 7-node cluster round-skipped forever once h_engram_verified's
+	// block-over-block advancement stopped keeping pace). A fixed per-episode
+	// reference gives every subsequent block a chance to satisfy the check,
+	// not just one.
+	HEngramVerifiedAtRecoveryEntry collections.Item[uint64]
+	// HeuristicProofLatched is true once THIS RECOVERING episode has already
+	// latched HBtcSubmitted/reset ReanchoringProofValid via a heuristic
+	// zk_proof_ref (CommitFSMTransition's Step 4) -- guards against re-
+	// latching on every subsequent block. Once SafeBlocks caps at
+	// HysteresisWait (NextSafeBlocks' doc), it stays capped for the rest of
+	// the episode, so PrepareProposal/ProcessProposal's check #5 require a
+	// non-empty zk_proof_ref on EVERY such block, not just the first --
+	// without this guard, Step 4 re-set HBtcSubmitted to the current (ever-
+	// climbing) h_btc_current every block, so hAnchored (BTC-confirmation-
+	// lagged) could never catch up and ReanchoringProofValid could never
+	// settle true, permanently stalling RECOVERING->ANCHORED (reproduced
+	// live: 226+ blocks in RECOVERING with zero progress toward ANCHORED,
+	// immediately after fixing the freshness-gate deadlock above). Reset to
+	// false on entering AND on leaving RECOVERING (preblock.go).
+	HeuristicProofLatched collections.Item[bool]
+	// BlockHashByHeight maps a real block height to that block's own real
+	// CometBFT hash -- populated from RequestFinalizeBlock.Hash ("the merkle
+	// root hash of the fields of the decided block") for every WithdrawLocked
+	// height (x/sovereignty/preblock.go's NewPreBlocker; CommitFSMTransition
+	// itself has no access to the ABCI request, so this write lives in the
+	// caller, not there). ctx.BlockHeader().LastBlockId is NOT usable for
+	// this: RequestFinalizeBlock carries no LastBlockId field at all, unlike
+	// AppHash (which BaseApp threads through from its own prior response) --
+	// an earlier version of this code wrongly assumed it did and silently
+	// stored empty hashes. Together with ValidatorSetHash, this is what
+	// circuit/reanchoring/src/main.nr's boundary-block binding proves >=2/3
+	// of the genesis validator set really precommitted for the interval's
+	// first and last real header -- see circuit/README.md's Scope section.
+	//
+	// Deliberately general (any tracked height, not just two fixed
+	// endpoints): an earlier version stored only the interval's start/end
+	// hashes, requiring SubmitRecoveryProof's newCheckpointHeight to equal a
+	// value (LastIntervalFinalHeight) that was itself only ever set AFTER a
+	// proof was accepted -- circular, so no proof could ever be first.
+	// Populated only while ext.FsmState is WithdrawLocked, bounding growth to
+	// roughly one interval's span; pruned below the checkpoint height on
+	// every accepted SubmitRecoveryProof (pruneBlockHashesUpTo), mirroring
+	// HeaderHistory's own pruning.
+	BlockHashByHeight collections.Map[uint64, []byte]
+	// ValidatorSetHash is cmttypes.ValidatorSet.Hash() for the genesis
+	// validator set, computed once at InitChain (app/app.go's
+	// newInitChainer) -- immutable for the network's lifetime (CLAUDE.md:
+	// "no staking-driven rotation").
+	ValidatorSetHash collections.Item[[]byte]
 
 	// Audit pointer: Celestia height where each accepted proof's witness
 	// chain was published (0 = not). Concrete-only, no spec line.
@@ -72,6 +139,13 @@ type Keeper struct {
 	// data, safe to commit).
 	DetectedEvidenceCount collections.Item[uint64]
 	LastDetectedEvidence  collections.Item[types.EvidenceRecord]
+
+	// Genesis validator address -> {pubkey, power}, captured once at
+	// InitChain (app/app.go's newInitChainer). Used only to verify ABCI++
+	// vote-extension signatures in ProcessProposal (see
+	// x/sovereignty/vote_extension.go) -- see types.ValidatorInfo's doc for
+	// why this can't be read from ABCI at that point.
+	ValidatorPubKeys collections.Map[string, types.ValidatorInfo]
 }
 
 func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
@@ -102,6 +176,12 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 		FailedRecoveryAttempts:   collections.NewItem(sb, collections.NewPrefix(19), "failed_recovery_attempts", collections.Uint64Value),
 		SuspiciousSafeBlocks:     collections.NewItem(sb, collections.NewPrefix(20), "suspicious_safe_blocks", collections.Uint64Value),
 		RecoveryProofDAHeights:   collections.NewMap(sb, collections.NewPrefix(21), "recovery_proof_da_heights", collections.Uint64Key, collections.Uint64Value),
+		ValidatorPubKeys:         collections.NewMap(sb, collections.NewPrefix(22), "validator_pub_keys", collections.StringKey, collections.NewJSONValueCodec[types.ValidatorInfo]()),
+		LastAnchoredHeight:         collections.NewItem(sb, collections.NewPrefix(23), "last_anchored_height", collections.Uint64Value),
+		ValidatorSetHash:  collections.NewItem(sb, collections.NewPrefix(26), "validator_set_hash", collections.BytesValue),
+		BlockHashByHeight: collections.NewMap(sb, collections.NewPrefix(27), "block_hash_by_height", collections.Uint64Key, collections.BytesValue),
+		HEngramVerifiedAtRecoveryEntry: collections.NewItem(sb, collections.NewPrefix(28), "h_engram_verified_at_recovery_entry", collections.Uint64Value),
+		HeuristicProofLatched: collections.NewItem(sb, collections.NewPrefix(29), "heuristic_proof_latched", collections.BoolValue),
 	}
 
 	schema, err := sb.Build()
