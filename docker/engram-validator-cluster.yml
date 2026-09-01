@@ -1,6 +1,6 @@
 name: engram-validator-cluster
 
-# Shared shape for all 4 validators -- per-node differences only
+# Shared shape for all 7 validators -- per-node differences only
 # (hostname/container_name, IPs, ports, volume, MONIKER, NODE_ID); the
 # rest lives here via the `<<: *engram-node-base` merge key.
 x-engram-node-base: &engram-node-base
@@ -11,8 +11,9 @@ x-engram-node-base: &engram-node-base
       - cometbft-fork=../../engram-consensus-core
   command: ["start"]
   restart: unless-stopped
-  # No depends_on celestia-lightNN: x/da talks to celestia-bridge directly,
-  # never a per-node light client (that scaffolding was removed as unused).
+  # No depends_on celestia-lightNN: x/da talks to each validator's own
+  # celestia-bridge-node01* directly, never a per-node light client (that
+  # scaffolding was removed as unused).
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
     interval: 30s
@@ -22,25 +23,27 @@ x-engram-node-base: &engram-node-base
   deploy:
     resources:
       limits:
-        cpus: '0.5'
-        memory: 768M
+        cpus: '0.3'
+        memory: 384M
       reservations:
-        cpus: '0.2'
-        memory: 256M
+        cpus: '0.1'
+        memory: 128M
 
-# Shared env wiring the live BTC/DA sensors: all 4 validators point at the
-# same bitcoin-node01 (2 bitcoind for 4 validators -- prototype
-# simplification) and the same celestia-bridge; AUTH_TOKEN is that bridge's
-# admin/write JWT. MONIKER/NODE_ID are per-node, set in each service below.
+# Shared env wiring the live BTC/DA sensors: all 7 validators point at the
+# same bitcoin-node01 (2 bitcoind for 7 validators -- prototype
+# simplification). CELESTIA_BRIDGE_URL/CELESTIA_BRIDGE_AUTH_TOKEN are
+# deliberately NOT here -- each validator below points at its OWN
+# independent celestia-bridge-node01* instance (docker/celestia-local-cluster.yml),
+# so DA availability is 7 separately-retrieved observations, not one shared
+# bridge's view. MONIKER/NODE_ID are also per-node, set in each service
+# below.
 x-engram-node-env: &engram-node-env
   MINIMUM_GAS_PRICES: 0uengram
   BITCOIN_HOST: bitcoin-node01
   BITCOIN_RPC_PORT: 18443
   BITCOIN_RPC_USER: ${BITCOIN_RPC_USER:-engram_admin}
   BITCOIN_RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD:-secure_password_123}
-  CELESTIA_BRIDGE_URL: http://celestia-bridge:26658
   CELESTIA_NAMESPACE_ID: engramda01
-  CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_AUTH_TOKEN}
   # E2's S2 fault-injection phase toggles this by touching/removing this path
   # inside each container -- see AnchorTracker.SetSubmissionPausedFile's doc.
   ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
@@ -71,16 +74,24 @@ services:
         ipv4_address: 172.40.1.2
       validator-link-01-04:
         ipv4_address: 172.40.2.2
+      validator-link-01-05:
+        ipv4_address: 172.40.3.2
+      validator-link-01-06:
+        ipv4_address: 172.40.4.2
+      validator-link-01-07:
+        ipv4_address: 172.40.5.2
     volumes:
       - ../testnet-data/engram-node01:/root/.engramd
     ports:
-      - "26657:26657"   # Tendermint RPC (exposed)
-      - "1317:1317"     # Cosmos REST API (exposed)
-      - "26660:26660"   # Prometheus Metrics (exposed)
+      - "26657:26657"
+      - "1317:1317"
+      - "26660:26660"
     environment:
       <<: *engram-node-env
       MONIKER: engram-node01
       NODE_ID: 0
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node01:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE01_AUTH_TOKEN}
 
   engram-node02:
     <<: *engram-node-base
@@ -96,12 +107,18 @@ services:
       validator-link-01-02:
         ipv4_address: 172.40.0.3
       validator-link-02-03:
-        ipv4_address: 172.40.3.2
+        ipv4_address: 172.40.6.2
       validator-link-02-04:
-        ipv4_address: 172.40.4.2
+        ipv4_address: 172.40.7.2
+      validator-link-02-05:
+        ipv4_address: 172.40.8.2
+      validator-link-02-06:
+        ipv4_address: 172.40.9.2
+      validator-link-02-07:
+        ipv4_address: 172.40.10.2
     volumes:
       - ../testnet-data/engram-node02:/root/.engramd
-    ports:                # offset +100 vs. node01, to avoid host collisions
+    ports:
       - "26757:26657"
       - "1417:1317"
       - "26760:26660"
@@ -109,6 +126,8 @@ services:
       <<: *engram-node-env
       MONIKER: engram-node02
       NODE_ID: 1
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node02:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE02_AUTH_TOKEN}
 
   engram-node03:
     <<: *engram-node-base
@@ -124,12 +143,18 @@ services:
       validator-link-01-03:
         ipv4_address: 172.40.1.3
       validator-link-02-03:
-        ipv4_address: 172.40.3.3
+        ipv4_address: 172.40.6.3
       validator-link-03-04:
-        ipv4_address: 172.40.5.2
+        ipv4_address: 172.40.11.2
+      validator-link-03-05:
+        ipv4_address: 172.40.12.2
+      validator-link-03-06:
+        ipv4_address: 172.40.13.2
+      validator-link-03-07:
+        ipv4_address: 172.40.14.2
     volumes:
       - ../testnet-data/engram-node03:/root/.engramd
-    ports:                # offset +200 vs. node01
+    ports:
       - "26857:26657"
       - "1517:1317"
       - "26860:26660"
@@ -137,6 +162,8 @@ services:
       <<: *engram-node-env
       MONIKER: engram-node03
       NODE_ID: 2
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node03:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE03_AUTH_TOKEN}
 
   engram-node04:
     <<: *engram-node-base
@@ -152,12 +179,18 @@ services:
       validator-link-01-04:
         ipv4_address: 172.40.2.3
       validator-link-02-04:
-        ipv4_address: 172.40.4.3
+        ipv4_address: 172.40.7.3
       validator-link-03-04:
-        ipv4_address: 172.40.5.3
+        ipv4_address: 172.40.11.3
+      validator-link-04-05:
+        ipv4_address: 172.40.15.2
+      validator-link-04-06:
+        ipv4_address: 172.40.16.2
+      validator-link-04-07:
+        ipv4_address: 172.40.17.2
     volumes:
       - ../testnet-data/engram-node04:/root/.engramd
-    ports:                # offset +300 vs. node01
+    ports:
       - "26957:26657"
       - "1617:1317"
       - "26960:26660"
@@ -165,6 +198,125 @@ services:
       <<: *engram-node-env
       MONIKER: engram-node04
       NODE_ID: 3
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node04:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE04_AUTH_TOKEN}
+
+  # node05-07: the "seven-node" profile (opt-in, not started by a bare
+  # `docker compose up`) -- node01-04 alone form a complete, always-on
+  # 4-validator testnet; pass `--profile seven-node` (or `make testnet-up
+  # N=7`) to also bring these three up. Genesis validator count
+  # (`testnet init-files --v N`) must match whichever set is actually
+  # started, or the missing validators' voting power is simply absent.
+  engram-node05:
+    <<: *engram-node-base
+    hostname: engram-node05
+    container_name: engram-node05
+    profiles: [seven-node]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.140
+      bitcoin-net:
+        ipv4_address: 172.21.0.140
+      celestia-net:
+        ipv4_address: 172.22.0.140
+      validator-link-01-05:
+        ipv4_address: 172.40.3.3
+      validator-link-02-05:
+        ipv4_address: 172.40.8.3
+      validator-link-03-05:
+        ipv4_address: 172.40.12.3
+      validator-link-04-05:
+        ipv4_address: 172.40.15.3
+      validator-link-05-06:
+        ipv4_address: 172.40.18.2
+      validator-link-05-07:
+        ipv4_address: 172.40.19.2
+    volumes:
+      - ../testnet-data/engram-node05:/root/.engramd
+    ports:
+      - "27057:26657"
+      - "1717:1317"
+      - "27060:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node05
+      NODE_ID: 4
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node05:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE05_AUTH_TOKEN}
+
+  engram-node06:
+    <<: *engram-node-base
+    hostname: engram-node06
+    container_name: engram-node06
+    profiles: [seven-node]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.150
+      bitcoin-net:
+        ipv4_address: 172.21.0.150
+      celestia-net:
+        ipv4_address: 172.22.0.150
+      validator-link-01-06:
+        ipv4_address: 172.40.4.3
+      validator-link-02-06:
+        ipv4_address: 172.40.9.3
+      validator-link-03-06:
+        ipv4_address: 172.40.13.3
+      validator-link-04-06:
+        ipv4_address: 172.40.16.3
+      validator-link-05-06:
+        ipv4_address: 172.40.18.3
+      validator-link-06-07:
+        ipv4_address: 172.40.20.2
+    volumes:
+      - ../testnet-data/engram-node06:/root/.engramd
+    ports:
+      - "27157:26657"
+      - "1817:1317"
+      - "27160:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node06
+      NODE_ID: 5
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node06:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE06_AUTH_TOKEN}
+
+  engram-node07:
+    <<: *engram-node-base
+    hostname: engram-node07
+    container_name: engram-node07
+    profiles: [seven-node]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.160
+      bitcoin-net:
+        ipv4_address: 172.21.0.160
+      celestia-net:
+        ipv4_address: 172.22.0.160
+      validator-link-01-07:
+        ipv4_address: 172.40.5.3
+      validator-link-02-07:
+        ipv4_address: 172.40.10.3
+      validator-link-03-07:
+        ipv4_address: 172.40.14.3
+      validator-link-04-07:
+        ipv4_address: 172.40.17.3
+      validator-link-05-07:
+        ipv4_address: 172.40.19.3
+      validator-link-06-07:
+        ipv4_address: 172.40.20.3
+    volumes:
+      - ../testnet-data/engram-node07:/root/.engramd
+    ports:
+      - "27257:26657"
+      - "1917:1317"
+      - "27260:26660"
+    environment:
+      <<: *engram-node-env
+      MONIKER: engram-node07
+      NODE_ID: 6
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node07:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE07_AUTH_TOKEN}
 
   # Non-validator observer for E2's "Vanilla comparison": `start --vanilla`
   # (NewEngramApp skips the ABCI++ hooks), syncing the SAME real chain and
@@ -178,18 +330,23 @@ services:
     command: ["start", "--vanilla"]
     networks:
       engram-net:
-        ipv4_address: 172.28.0.140
+        ipv4_address: 172.28.0.170
       bitcoin-net:
-        ipv4_address: 172.21.0.140
+        ipv4_address: 172.21.0.170
       celestia-net:
-        ipv4_address: 172.22.0.140
+        ipv4_address: 172.22.0.170
     volumes:
       - ../testnet-data/engram-node-vanilla:/root/.engramd
-    ports:                # offset +400 vs. node01
-      - "27057:26657"
-      - "1717:1317"
-      - "27060:26660"
+    ports:
+      - "27357:26657"
+      - "2017:1317"
+      - "27360:26660"
     environment:
       <<: *engram-node-env
       MONIKER: engram-node-vanilla
-      NODE_ID: 4
+      NODE_ID: 7
+      # --vanilla never wires ABCI++ hooks, so RefreshMetrics/MaybePublish
+      # never run here -- reusing celestia-bridge-node01 (node01's) is inert, just
+      # keeps parity with the other nodes having a real (if unused) DA source.
+      CELESTIA_BRIDGE_URL: http://celestia-bridge-node01:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_NODE01_AUTH_TOKEN}

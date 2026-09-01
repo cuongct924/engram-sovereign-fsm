@@ -15,7 +15,7 @@ services:
       - "${CELESTIA_APP_RPC_PORT:-27657}:26657"
       - "${CELESTIA_APP_GRPC_PORT:-9090}:9090"
     # No 26658 mapping here -- that's celestia-node's RPC port (used by
-    # celestia-bridge below), not celestia-appd's.
+    # celestia-bridge-node01 below), not celestia-appd's.
     environment:
       - CELESTIA_CHAIN_ID=private
     volumes:
@@ -56,10 +56,10 @@ services:
         fi
         celestia-appd start --rpc.laddr tcp://0.0.0.0:26657 --minimum-gas-prices 0.001utia --grpc.enable --grpc.address 0.0.0.0:9090
 
-  celestia-bridge:
+  celestia-bridge-node01:
     image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
-    container_name: celestia-bridge
-    hostname: celestia-bridge
+    container_name: celestia-bridge-node01
+    hostname: celestia-bridge-node01
     networks:
       celestia-net:
         ipv4_address: 172.22.0.51
@@ -67,7 +67,7 @@ services:
       - "${CELESTIA_BRIDGE_P2P_PORT:-2121}:2121"
       - "${CELESTIA_BRIDGE_RPC_PORT:-26658}:26658"
     volumes:
-      - ../data/celestia-bridge:/home/celestia
+      - ../data/celestia-bridge-node01:/home/celestia
     restart: unless-stopped
     healthcheck:
       # celestia-node's RPC is JSON-RPC 2.0 POST-only -- a plain GET always
@@ -111,16 +111,16 @@ services:
         fi
         celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
-  # celestia-bridge-2: a SECOND bridge against the same celestia-app chain
+  # celestia-bridge-prover: a SECOND bridge against the same celestia-app chain
   # with its OWN account -- so reanchoring-prover's witness-publish has a
-  # submitter separate from the validators' shared celestia-bridge. Five
-  # submitters on one account caused 3-4 sequence-mismatch races/sec
-  # (x/da's Submit retry mitigates but doesn't eliminate it); only the
-  # signing ACCOUNT must differ per contending submitter group.
-  celestia-bridge-2:
+  # submitter separate from the validators' own bridges. Sharing one account
+  # across submitters caused 3-4 sequence-mismatch races/sec (x/da's Submit
+  # retry mitigates but doesn't eliminate it); only the signing ACCOUNT must
+  # differ per contending submitter group.
+  celestia-bridge-prover:
     image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
-    container_name: celestia-bridge-2
-    hostname: celestia-bridge-2
+    container_name: celestia-bridge-prover
+    hostname: celestia-bridge-prover
     networks:
       celestia-net:
         ipv4_address: 172.22.0.52
@@ -128,7 +128,294 @@ services:
       - "${CELESTIA_BRIDGE2_P2P_PORT:-2122}:2121"
       - "${CELESTIA_BRIDGE2_RPC_PORT:-26668}:26658"
     volumes:
-      - ../data/celestia-bridge-2:/home/celestia
+      - ../data/celestia-bridge-prover:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  # celestia-bridge-node02/03/04: one independent bridge per validator
+  # (engram-node01 keeps using celestia-bridge-node01 above), each with its own P2P
+  # sync path and account against celestia-app -- so DA availability is each
+  # validator's own real, independently-retrieved observation instead of all
+  # 4 trusting one shared bridge's view. Real DAS (probabilistic light-node
+  # sampling) would be a further step; bridge mode already re-verifies full
+  # block data independently per instance, which is what removes the
+  # single-point-of-trust/failure this replaces.
+  celestia-bridge-node02:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node02
+    hostname: celestia-bridge-node02
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.53
+    ports:
+      - "${CELESTIA_BRIDGE_NODE02_P2P_PORT:-2123}:2121"
+      - "${CELESTIA_BRIDGE_NODE02_RPC_PORT:-26678}:26658"
+    volumes:
+      - ../data/celestia-bridge-node02:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  celestia-bridge-node03:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node03
+    hostname: celestia-bridge-node03
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.54
+    ports:
+      - "${CELESTIA_BRIDGE_NODE03_P2P_PORT:-2124}:2121"
+      - "${CELESTIA_BRIDGE_NODE03_RPC_PORT:-26688}:26658"
+    volumes:
+      - ../data/celestia-bridge-node03:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  celestia-bridge-node04:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node04
+    hostname: celestia-bridge-node04
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.55
+    ports:
+      - "${CELESTIA_BRIDGE_NODE04_P2P_PORT:-2125}:2121"
+      - "${CELESTIA_BRIDGE_NODE04_RPC_PORT:-26698}:26658"
+    volumes:
+      - ../data/celestia-bridge-node04:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  celestia-bridge-node05:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node05
+    hostname: celestia-bridge-node05
+    profiles: [seven-node]
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.56
+    ports:
+      - "${CELESTIA_BRIDGE_NODE05_P2P_PORT:-2126}:2121"
+      - "${CELESTIA_BRIDGE_NODE05_RPC_PORT:-26708}:26658"
+    volumes:
+      - ../data/celestia-bridge-node05:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  celestia-bridge-node06:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node06
+    hostname: celestia-bridge-node06
+    profiles: [seven-node]
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.57
+    ports:
+      - "${CELESTIA_BRIDGE_NODE06_P2P_PORT:-2127}:2121"
+      - "${CELESTIA_BRIDGE_NODE06_RPC_PORT:-26718}:26658"
+    volumes:
+      - ../data/celestia-bridge-node06:/home/celestia
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELESTIA_BRIDGE_CPU_LIMIT:-0.3}'
+          memory: ${CELESTIA_BRIDGE_MEM_LIMIT:-512M}
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  celestia-bridge-node07:
+    image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
+    container_name: celestia-bridge-node07
+    hostname: celestia-bridge-node07
+    profiles: [seven-node]
+    networks:
+      celestia-net:
+        ipv4_address: 172.22.0.58
+    ports:
+      - "${CELESTIA_BRIDGE_NODE07_P2P_PORT:-2128}:2121"
+      - "${CELESTIA_BRIDGE_NODE07_RPC_PORT:-26728}:26658"
+    volumes:
+      - ../data/celestia-bridge-node07:/home/celestia
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",

@@ -488,15 +488,19 @@ services:
   # actually disconnected CometBFT's MConnection, see that script's doc).
   #
   # Two attackers, not one: a single-target run (attacker-a3-01 -> node02
-  # only) showed a real, well-explained negative result live -- node02's
-  # PeerChurnRate genuinely exceeded MaxChurnRate, but DownHysteresisThreshold
-  # (default 2) needs 2 CONSECUTIVE unhealthy proposals, and with only 1 of
-  # 4 round-robin proposers degraded, the other 3 honest proposals reset
-  # that streak every time. attacker-a3-02 targets engram-node04, the REAL
-  # observed NEXT proposer after node02 in this cluster's rotation order
-  # (confirmed live via /dump_consensus_state: node02 -> node04 -> node01 ->
-  # node03) -- degrading two ADJACENT proposers gives the hysteresis streak
-  # an actual chance to accumulate 2 in a row.
+  # only, on the old 4-validator cluster) showed a real, well-explained
+  # negative result live -- node02's PeerChurnRate genuinely exceeded
+  # MaxChurnRate, but DownHysteresisThreshold (default 2) needs 2
+  # CONSECUTIVE unhealthy proposals, and with only 1 of N round-robin
+  # proposers degraded, the other honest proposals reset that streak every
+  # time. Targets engram-node03/engram-node04, ADJACENT proposers in this
+  # 7-validator cluster's REAL observed rotation order (confirmed live via
+  # real /block proposer_address across 15 consecutive heights: node06 ->
+  # node03 -> node04 -> node01 -> node02 -> node07 -> node05, period 7) --
+  # degrading two ADJACENT proposers gives the hysteresis streak an actual
+  # chance to accumulate 2 in a row. 2 of 7 (~28.6%) stays a clear minority
+  # (well under both the 1/3 Byzantine-fault bound and the 2/3 quorum
+  # threshold), matching the experiment's minority-attack design intent.
   # ===========================================================
   attacker-a3-01:
     <<: *attacker-common
@@ -510,7 +514,7 @@ services:
       - ../testnet-data/attacker-a3-01:/root/.engramd
       - ../testnet-data/engram-node01/config/genesis.json:/root/.engramd/config/genesis.json:ro
     environment:
-      - TARGET_PEER=engram-node02:26656
+      - TARGET_PEER=engram-node03:26656
     command:
       - |
         engramd init attacker-a3-01 --home /root/.engramd || true

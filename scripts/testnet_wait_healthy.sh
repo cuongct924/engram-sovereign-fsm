@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Waits for a container's Docker healthcheck to report "healthy" -- used
-# before starting the 4 validators so celestia-bridge is actually able to
+# before starting the 4 validators so celestia-bridge-node01 is actually able to
 # serve DA reads/submits, not just running. testnet_fetch_celestia_token.sh's
 # wait (bridge_auth.txt exists) fires within seconds of container start, long
 # before header.NetworkHead RPC calls succeed; validators starting on that

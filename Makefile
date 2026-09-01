@@ -25,10 +25,32 @@ VERSION=$(shell git describe --tags --always)
 	e10-reorg e10-figures
 
 ENV_FILE := .env
-CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge celestia-bridge-2 \
-	engram-node01 engram-node02 engram-node03 engram-node04 reanchoring-prover
-WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04
-WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04
+COMPOSE_FILE := docker-compose.yml
+# N=4 (just node01-04) or N=7 (the full cluster, default) selects
+# `testnet-up`'s validator-count topology -- see docker/engram-
+# validator-cluster.yml's "seven-node" profile comment for why node05-07
+# and their celestia bridges are Compose-profile-gated rather than always
+# started. Genesis (`testnet init-files --v N`) is generated to match.
+N ?= 7
+ifeq ($(N),7)
+	VALIDATOR_SERVICES_EXTRA := engram-node05 engram-node06 engram-node07
+	BRIDGE_SERVICES_EXTRA := celestia-bridge-node05 celestia-bridge-node06 celestia-bridge-node07
+	COMPOSE_PROFILE_FLAG := --profile seven-node
+else
+	VALIDATOR_SERVICES_EXTRA :=
+	BRIDGE_SERVICES_EXTRA :=
+	COMPOSE_PROFILE_FLAG :=
+endif
+# Stop/rm targets always name the full possible set regardless of which N a
+# given testnet-up used -- stopping an already-absent service is a no-op,
+# not an error, so this stays correct either way without tracking N here.
+CORE_SERVICES := bitcoin-node01 bitcoin-node02 bitcoin-miner-loop celestia-app celestia-bridge-node01 celestia-bridge-prover \
+	celestia-bridge-node02 celestia-bridge-node03 celestia-bridge-node04 celestia-bridge-node05 celestia-bridge-node06 celestia-bridge-node07 \
+	engram-node01 engram-node02 engram-node03 engram-node04 engram-node05 engram-node06 engram-node07
+WAN_LATENCY_SERVICES := pumba-wan-latency-01 pumba-wan-latency-02 pumba-wan-latency-03 pumba-wan-latency-04 \
+	pumba-wan-latency-05 pumba-wan-latency-06 pumba-wan-latency-07
+WAN_LOSS_SERVICES := pumba-wan-loss-01 pumba-wan-loss-02 pumba-wan-loss-03 pumba-wan-loss-04 \
+	pumba-wan-loss-05 pumba-wan-loss-06 pumba-wan-loss-07
 ATTACKER_A1_SERVICES := $(shell printf 'attacker-a1-%02d ' $$(seq 1 10))
 ATTACKER_A2_SERVICES := attacker-a2-a1 attacker-a2-a2 attacker-a2-a3 \
 	attacker-a2-b1 attacker-a2-b2 attacker-a2-b3 \
@@ -111,32 +133,48 @@ e1-server-liveness: e1-guard
 # Wraps docs/DEVELOPMENT.md §3's manual walkthrough. Requires $(ENV_FILE)
 # (cp .env.example .env, fill in BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD first).
 
+# N=4 or N=7 (default), e.g. `make testnet-up N=4` -- see the N variable's
+# own comment above CORE_SERVICES for what each brings up.
 testnet-up: build
 	@test -f $(ENV_FILE) || (echo "Missing $(ENV_FILE) -- cp .env.example $(ENV_FILE) and fill in BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD first" && exit 1)
-	@echo "--> Wiping testnet-data/ and regenerating genesis (a stale priv_validator_state.json blocks restarts)"
+	@echo "--> Wiping testnet-data/ and regenerating a $(N)-validator genesis (a stale priv_validator_state.json blocks restarts)"
 	rm -rf testnet-data/
-	set -a && . $(ENV_FILE) && set +a && ./$(BUILD_DIR)/$(BINARY_NAME) testnet init-files --v 4
+	set -a && . $(ENV_FILE) && set +a && ./$(BUILD_DIR)/$(BINARY_NAME) testnet init-files --v $(N)
 	@echo "--> Starting Bitcoin + Celestia (must be funded/mature BEFORE any engramd container)"
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-node01 bitcoin-node02
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d celestia-app celestia-bridge celestia-bridge-2
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d bitcoin-node01 bitcoin-node02
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) $(COMPOSE_PROFILE_FLAG) up -d celestia-app celestia-bridge-node01 celestia-bridge-prover celestia-bridge-node02 celestia-bridge-node03 celestia-bridge-node04 $(BRIDGE_SERVICES_EXTRA)
 	set -a && . $(ENV_FILE) && set +a && ./scripts/testnet_fund_wallet.sh
 	@echo "--> Starting the containerized miner loop (engramwallet must already be funded above)"
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d bitcoin-miner-loop
-	@echo "--> Fetching celestia-bridge/celestia-bridge-2 admin JWTs into $(ENV_FILE)"
-	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge CELESTIA_BRIDGE_AUTH_TOKEN
-	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-2 CELESTIA_BRIDGE2_AUTH_TOKEN
-	@echo "--> Waiting for celestia-bridge to actually serve DA requests (its auth-token file lands well before that -- starting validators too early reliably trips MaxSuspiciousTime and forces an unwanted SOVEREIGN escalation on every fresh deploy)"
-	./scripts/testnet_wait_healthy.sh celestia-bridge
-	@echo "--> Starting the 4 validators"
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
-	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; builds nargo+bb on first run, can take a few minutes)"
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --build reanchoring-prover
-	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d bitcoin-miner-loop
+	@echo "--> Fetching each validator's own celestia bridge admin JWT into $(ENV_FILE) (docker/engram-validator-cluster.yml: node01 uses celestia-bridge-node01, node02-0$(N) each get their own dedicated bridge)"
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node01 CELESTIA_BRIDGE_NODE01_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-prover CELESTIA_BRIDGE_PROVER_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node02 CELESTIA_BRIDGE_NODE02_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node03 CELESTIA_BRIDGE_NODE03_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node04 CELESTIA_BRIDGE_NODE04_AUTH_TOKEN
+ifeq ($(N),7)
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node05 CELESTIA_BRIDGE_NODE05_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node06 CELESTIA_BRIDGE_NODE06_AUTH_TOKEN
+	./scripts/testnet_fetch_celestia_token.sh $(ENV_FILE) celestia-bridge-node07 CELESTIA_BRIDGE_NODE07_AUTH_TOKEN
+endif
+	@echo "--> Waiting for every validator's own celestia bridge to actually serve DA requests (its auth-token file lands well before that -- starting validators too early reliably trips MaxSuspiciousTime and forces an unwanted SOVEREIGN escalation on every fresh deploy)"
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node01
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node02
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node03
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node04
+ifeq ($(N),7)
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node05
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node06
+	./scripts/testnet_wait_healthy.sh celestia-bridge-node07
+endif
+	@echo "--> Starting the $(N) validators"
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) $(COMPOSE_PROFILE_FLAG) up -d --build engram-node01 engram-node02 engram-node03 engram-node04 $(VALIDATOR_SERVICES_EXTRA)
+	@echo "--> Up (ZK re-anchoring prover is the host-side scripts/reanchoring_prover/watch_and_prove.sh pipeline now, not the reanchoring-prover container -- start it separately if RECOVERING needs to reach ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED). Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
 	@echo "--> Stopping core services by name (never a bare 'docker compose down' -- see docs/DEVELOPMENT.md's gotcha)"
-	docker compose --env-file $(ENV_FILE) stop $(CORE_SERVICES)
-	docker compose --env-file $(ENV_FILE) rm -f $(CORE_SERVICES)
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) --profile seven-node stop $(CORE_SERVICES)
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) --profile seven-node rm -f $(CORE_SERVICES)
 
 testnet-status:
 	docker compose ps
@@ -146,7 +184,7 @@ testnet-status:
 # (recognized values: x/sovereignty/proposal.go's applyByzantineBehavior)
 byzantine-on:
 	@test -n "$(BEHAVIOR)" || (echo "Usage: make byzantine-on BEHAVIOR=fake_fsm_state:SOVEREIGN|forge_btc_hash|false_da_attestation|censor_tx:<hex>" && exit 1)
-	ENGRAM_BYZANTINE_BEHAVIOR=$(BEHAVIOR) docker compose --env-file $(ENV_FILE) -f compose.yml -f docker/engram-node04-byzantine.yml up -d --no-deps engram-node04
+	ENGRAM_BYZANTINE_BEHAVIOR=$(BEHAVIOR) docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) -f docker/engram-node04-byzantine.yml up -d --no-deps engram-node04
 	@echo "--> node04 is byzantine: $(BEHAVIOR) -- never leave this set on a real validator"
 
 byzantine-off: node04-honest
@@ -162,16 +200,17 @@ double-sign-off:
 # INTERVAL_MS: how often node04 re-broadcasts a signed Timeout (default 50ms,
 # far faster than TIMEOUT_DURATION's real precommit-wait timer).
 timeout-flood-on:
-	ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS=$(or $(INTERVAL_MS),50) docker compose --env-file $(ENV_FILE) -f compose.yml -f docker/engram-node04-timeout-flood.yml up -d --no-deps engram-node04
+	ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS=$(or $(INTERVAL_MS),50) docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) -f docker/engram-node04-timeout-flood.yml up -d --no-deps engram-node04
 	@echo "--> node04 is flooding Timeout messages every $(or $(INTERVAL_MS),50)ms -- never leave this set on a real validator"
 
 timeout-flood-off: node04-honest
 
 # Shared by every harness that swaps node04's compose file (byzantine,
-# timeout-flood) -- reverting is the same "recreate from plain compose.yml"
-# regardless of which override put it into a non-honest state.
+# timeout-flood) -- reverting is the same "recreate from plain
+# docker-compose.yml" regardless of which override put it into a non-honest
+# state.
 node04-honest:
-	docker compose --env-file $(ENV_FILE) -f compose.yml up -d --no-deps engram-node04
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d --no-deps engram-node04
 	@echo "--> node04 reverted to honest"
 
 # --- Chaos profiles (Pumba, docs/DEVELOPMENT.md §5) --------------------------
@@ -185,7 +224,7 @@ chaos-stop:
 		python3 scripts/framework/injector.py stop $$p || true; \
 	done
 
-# --- WAN realism profiles (per-node distinct latency/loss, compose.yml) -----
+# --- WAN realism profiles (per-node distinct latency/loss, docker-compose.yml) --
 # One pumba-wan-* container per validator; scripts/framework/injector.py
 # has its own Python-side start/cleanup for these (used by live E5/E9), the
 # targets below are for manual `make chaos-wan-*` use.
@@ -342,7 +381,7 @@ help:
 	@echo "  e1-server-safety / e1-server-liveness     - Full refinement bridge (all layers)"
 	@echo ""
 	@echo "Local docker testnet:"
-	@echo "  testnet-up          - Fresh genesis + bring up bitcoin/celestia/4 validators"
+	@echo "  testnet-up [N=4|7]  - Fresh genesis + bring up bitcoin/celestia/N validators (default N=7)"
 	@echo "                        (honors ENGRAM_PARAM_* in .env -- see .env.example)"
 	@echo "  testnet-down        - Stop the miner loop + core services (not a bare down)"
 	@echo "  testnet-status      - docker compose ps"
