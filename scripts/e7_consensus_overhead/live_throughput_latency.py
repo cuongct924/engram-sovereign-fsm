@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """LIVE vanilla-vs-extended throughput/latency A/B under real load --
-docs/EXPERIMENT.md's E7. `vanilla_comparison.sh` already runs a real local
-2-process A/B (one normal `engramd`, one `--vanilla`) but only samples them
-IDLE -- its own output says block interval "does not meaningfully differ"
-because CometBFT's `timeout_commit` dominates both when there's no tx load.
-This script is the same real 2-process harness, but drives real
-MsgSubmitForcedTxRequest load at both nodes so throughput/latency actually
-measure something, not idle noise.
+docs/EXPERIMENT.md's E7.
+
+"Extended" is measured against the REAL 7-validator Docker cluster
+(engram-validator-cluster, already running -- the same deployment E2/E4/E5/E6
+collect their data against), not a throwaway local process: real multi-node
+BFT voting overhead is what this experiment is actually trying to capture,
+and a single-node process can't produce that. "Vanilla" stays a local
+single-process comparison (standing up a second full 7-node vanilla-flagged
+cluster is a separate, large infra undertaking this script doesn't attempt)
+-- this is a deliberate, documented simplification, not an oversight: it
+answers "does the extended payload's per-block byte/CPU overhead matter"
+without needing a second cluster, at the cost of not isolating cluster-size
+effects between the two arms. Treat the vanilla number as a lower bound on
+overhead-free throughput, not a strict apples-to-apples cluster comparison.
 
 Load mechanism: `engramd tx-submit-forced-tx --payload <label>-<i> --dry-run`
 (cmd/engramd/e8_cli.go) builds N distinct, deterministic tx byte strings
@@ -20,10 +27,24 @@ live_censorship_test.py already uses, just looped instead of one-shot.
 Latency/throughput: reuses scripts/e2_fault_injection/live_scenario_matrix.py's
 block_interval_stats() verbatim (imported, not reimplemented) for Mean/p50/p95
 seconds-between-height-increments, plus real blocks/sec and tx-accepted/sec
-(broadcast_tx_sync responses with code==0) -- neither existed anywhere before
-this script.
+(broadcast_tx_sync responses with code==0).
 
-Usage (no docker/testnet needed -- two local engramd processes only):
+blocks_per_sec vs. mean/p50/p95 interval are NOT directly comparable and must
+not be read as contradicting each other: blocks_per_sec is
+(height range)/(full elapsed wall time), so it includes any stretch of the
+window where height didn't advance at all (round-skips, mempool backpressure,
+sampling-boundary rounding); block_interval_stats only averages over the
+CONSECUTIVE samples where height DID increase, so it's blind to those gaps by
+construction. A run with real stalls can show mean interval ~= 1/target-rate
+(steady-state, when it's moving) while blocks_per_sec reads well below
+1/mean_interval (because part of the window wasn't moving). This script now
+reports both explicitly plus a `gap_fraction` diagnostic
+(1 - n_intervals*mean_s/elapsed) quantifying how much of the window that
+gap-blindness hid, instead of presenting the two numbers side by side with no
+explanation.
+
+Usage (extended = the real running Docker cluster; vanilla = one local
+process spun up by this script):
     python3 -u scripts/e7_consensus_overhead/live_throughput_latency.py
 """
 
@@ -43,14 +64,18 @@ from live_scenario_matrix import block_interval_stats  # noqa: E402
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 BIN = "/tmp/engramd-load-comparison"
-HOME_NORMAL = "/tmp/engramd-load-normal"
 HOME_VANILLA = "/tmp/engramd-load-vanilla"
-PORT_NORMAL = 26657
+# "extended" targets the real, already-running 7-validator Docker cluster
+# (engram-node01's host-mapped RPC port -- scripts/framework/logger.py's
+# NODE_RPC_PORTS) instead of a local process; this script never starts or
+# stops that cluster. "vanilla" stays a local single process this script
+# owns the lifecycle of (module doc: why these two arms aren't symmetric).
+PORT_EXTENDED_CLUSTER = 26657
 PORT_VANILLA = 36657
 
 MODES = {
-    "extended": {"home": HOME_NORMAL, "port": PORT_NORMAL, "vanilla_flag": False},
-    "vanilla": {"home": HOME_VANILLA, "port": PORT_VANILLA, "vanilla_flag": True},
+    "extended": {"port": PORT_EXTENDED_CLUSTER, "local": False},
+    "vanilla": {"home": HOME_VANILLA, "port": PORT_VANILLA, "local": True},
 }
 
 
@@ -151,10 +176,23 @@ def run_load_phase(mode: str, port: int, duration_s: float, rate_hz: float) -> d
     stats = block_interval_stats(samples) or {"mean_s": None, "p50_s": None, "p95_s": None, "n_intervals": 0}
     heights = [s.height for s in samples if s.height > 0]
     blocks_per_sec = (max(heights) - min(heights)) / elapsed if len(heights) >= 2 else None
+    # steady_blocks_per_sec: what throughput WOULD be if the whole window
+    # moved at the measured steady-state pace (1/mean_s) -- the module doc's
+    # blocks_per_sec-vs-interval reconciliation. gap_fraction: how much of
+    # elapsed isn't accounted for by n_intervals*mean_s (round-skips,
+    # backpressure, or just the sampling boundary) -- 0 means the two
+    # measures agree; a positive fraction quantifies the real stall.
+    steady_blocks_per_sec = 1.0 / stats["mean_s"] if stats["mean_s"] else None
+    gap_fraction = (
+        1.0 - (stats["n_intervals"] * stats["mean_s"]) / elapsed
+        if stats["mean_s"] and elapsed > 0
+        else None
+    )
 
     print(
         f"[{now()}] {mode}: sent={sent} accepted={accepted} elapsed={elapsed:.1f}s "
-        f"blocks/s={blocks_per_sec} tx-accepted/s={accepted / elapsed:.2f}"
+        f"blocks/s={blocks_per_sec} steady_blocks/s={steady_blocks_per_sec} "
+        f"gap_fraction={gap_fraction} tx-accepted/s={accepted / elapsed:.2f}"
     )
     return {
         "mode": mode,
@@ -162,6 +200,8 @@ def run_load_phase(mode: str, port: int, duration_s: float, rate_hz: float) -> d
         "accepted": accepted,
         "elapsed_s": elapsed,
         "blocks_per_sec": blocks_per_sec,
+        "steady_blocks_per_sec": steady_blocks_per_sec,
+        "gap_fraction": gap_fraction,
         "tx_accepted_per_sec": accepted / elapsed if elapsed > 0 else None,
         "mean_s": stats["mean_s"],
         "p50_s": stats["p50_s"],
@@ -170,36 +210,74 @@ def run_load_phase(mode: str, port: int, duration_s: float, rate_hz: float) -> d
     }
 
 
+def mean_stdev_ci95(values):
+    """(mean, stdev, 95% CI half-width) via a normal approximation --
+    adequate for the small repeat counts (5-20) this script targets, not a
+    claim of exact small-sample coverage."""
+    n = len(values)
+    if n == 0:
+        return None, None, None
+    m = sum(values) / n
+    if n < 2:
+        return m, 0.0, 0.0
+    var = sum((v - m) ** 2 for v in values) / (n - 1)
+    stdev = var ** 0.5
+    ci95 = 1.96 * stdev / (n ** 0.5)
+    return m, stdev, ci95
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--warmup-s", type=float, default=8.0)
     parser.add_argument("--duration-s", type=float, default=60.0)
-    parser.add_argument("--rate-hz", type=float, default=5.0)
+    parser.add_argument("--rate-hz", type=float, default=20.0)
+    parser.add_argument(
+        "--repeats", type=int, default=5,
+        help="independent load-phase repeats per mode (nodes stay up across repeats; "
+        "each repeat is its own timed window) -- reports mean/stdev/95%% CI across repeats, "
+        "not a single-run point estimate (the advisor's confidence-interval/effect-size ask).",
+    )
     args = parser.parse_args()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     build_binary()
-    init_home(HOME_NORMAL, "normal-node", shift_ports=False)
+
+    # extended: verify the real cluster is up and ANCHORED -- this script
+    # never starts/stops/redeploys it (module doc). vanilla: this script's
+    # own local process, same as before.
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT_EXTENDED_CLUSTER}/status", timeout=5) as resp:
+            cluster_status = json.loads(resp.read())
+        cluster_height = int(cluster_status["result"]["sync_info"]["latest_block_height"])
+        print(f"[{now()}] extended target: real cluster at height {cluster_height}, reachable.")
+    except Exception as e:
+        raise RuntimeError(
+            f"real cluster not reachable on port {PORT_EXTENDED_CLUSTER} -- this script targets the "
+            f"already-running engram-validator-cluster and does not start it itself: {e}"
+        ) from e
+
     init_home(HOME_VANILLA, "vanilla-node", shift_ports=True)
 
     procs = []
     try:
-        print(f"[{now()}] starting extended (normal) node...")
-        procs.append(start_node(HOME_NORMAL, False, "/tmp/engramd-load-normal.log"))
-        time.sleep(1)
         print(f"[{now()}] starting vanilla node...")
         procs.append(start_node(HOME_VANILLA, True, "/tmp/engramd-load-vanilla.log"))
 
         print(f"[{now()}] warming up ({args.warmup_s:.0f}s)...")
         time.sleep(args.warmup_s)
 
-        results = {}
-        for mode, cfg in MODES.items():
-            print(f"=== load phase: {mode} ({args.duration_s:.0f}s @ {args.rate_hz:.1f} tx/s) ===")
-            results[mode] = run_load_phase(mode, cfg["port"], args.duration_s, args.rate_hz)
+        # repeat_results[mode] = [run_load_phase() dict, ...], one per repeat.
+        repeat_results = {mode: [] for mode in MODES}
+        for rep in range(args.repeats):
+            for mode, cfg in MODES.items():
+                print(
+                    f"=== repeat {rep + 1}/{args.repeats}, load phase: {mode} "
+                    f"({args.duration_s:.0f}s @ {args.rate_hz:.1f} tx/s) ==="
+                )
+                repeat_results[mode].append(run_load_phase(mode, cfg["port"], args.duration_s, args.rate_hz))
     finally:
-        print(f"[{now()}] stopping both nodes...")
+        print(f"[{now()}] stopping vanilla node (extended target is the real cluster -- left running)...")
         for p in procs:
             p.terminate()
         for p in procs:
@@ -208,28 +286,83 @@ def main():
             except subprocess.TimeoutExpired:
                 p.kill()
 
+    # Per-mode aggregate stats across repeats (mean/stdev/95% CI), not just
+    # the last repeat's numbers.
+    aggregates = {}
+    for mode, runs in repeat_results.items():
+        blocks_per_sec = [r["blocks_per_sec"] for r in runs]
+        steady_bps = [r["steady_blocks_per_sec"] for r in runs if r["steady_blocks_per_sec"] is not None]
+        gap_fracs = [r["gap_fraction"] for r in runs if r["gap_fraction"] is not None]
+        tx_per_sec = [r["tx_accepted_per_sec"] for r in runs]
+        p95s = [r["p95_s"] for r in runs if r["p95_s"] is not None]
+        aggregates[mode] = {
+            "blocks_per_sec": mean_stdev_ci95(blocks_per_sec),
+            "steady_blocks_per_sec": mean_stdev_ci95(steady_bps),
+            "gap_fraction": mean_stdev_ci95(gap_fracs),
+            "tx_accepted_per_sec": mean_stdev_ci95(tx_per_sec),
+            "p95_s": mean_stdev_ci95(p95s),
+            "n": len(runs),
+        }
+
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     summary_path = os.path.join(RESULTS_DIR, f"throughput_latency_{ts_label}_summary.md")
     with open(summary_path, "w") as f:
         f.write("# LIVE E7 throughput/latency A/B under real load\n\n")
         f.write(
             f"Real MsgSubmitForcedTxRequest load, {args.rate_hz:.1f} tx/s target, "
-            f"{args.duration_s:.0f}s per mode, against two local real `engramd` processes "
-            "(extended vs. `--vanilla`), not the shared docker testnet.\n\n"
+            f"{args.duration_s:.0f}s x {args.repeats} repeats per mode. `extended` is measured "
+            "against the real 7-validator engram-validator-cluster (already running, the same "
+            "deployment E2/E4/E5/E6's data comes from); `vanilla` is a local single `engramd "
+            "--vanilla` process this script owns -- a deliberate simplification (a second full "
+            "7-node vanilla cluster is a separate infra undertaking), so treat `vanilla` as a "
+            "lower bound on overhead-free throughput, not a strict cluster-vs-cluster comparison. "
+            "`blocks_per_sec` and `mean/p50/p95 interval` measure different things (module "
+            "docstring) -- `steady_blocks_per_sec` (=1/mean interval) and `gap_fraction` "
+            "reconcile them explicitly below.\n\n"
         )
-        f.write("| Mode | Sent | Accepted | Blocks/s | Tx-accepted/s | Mean interval (s) | p50 (s) | p95 (s) |\n")
-        f.write("|---|---:|---:|---:|---:|---:|---:|---:|\n")
-        for mode, r in results.items():
+        f.write("## Aggregate across repeats (mean ± 95% CI)\n\n")
+        f.write("| Mode | n | Blocks/s | Steady blocks/s (1/mean interval) | Gap fraction | Tx-accepted/s | p95 interval (s) |\n")
+        f.write("|---|---:|---:|---:|---:|---:|---:|\n")
+        for mode, agg in aggregates.items():
+            bps_m, _, bps_ci = agg["blocks_per_sec"]
+            sbps_m, _, sbps_ci = agg["steady_blocks_per_sec"]
+            gap_m, _, gap_ci = agg["gap_fraction"]
+            tps_m, _, tps_ci = agg["tx_accepted_per_sec"]
+            p95_m, _, p95_ci = agg["p95_s"]
             f.write(
-                f"| {mode} | {r['sent']} | {r['accepted']} | "
-                f"{r['blocks_per_sec']:.3f} | {r['tx_accepted_per_sec']:.2f} | "
-                f"{r['mean_s']:.3f} | {r['p50_s']:.3f} | {r['p95_s']:.3f} |\n"
-                if r["mean_s"] is not None
-                else f"| {mode} | {r['sent']} | {r['accepted']} | n/a | n/a | n/a | n/a | n/a |\n"
+                f"| {mode} | {agg['n']} | {bps_m:.3f} ± {bps_ci:.3f} | "
+                + (f"{sbps_m:.3f} ± {sbps_ci:.3f}" if sbps_m is not None else "n/a")
+                + " | "
+                + (f"{gap_m:.3f} ± {gap_ci:.3f}" if gap_m is not None else "n/a")
+                + " | "
+                f"{tps_m:.2f} ± {tps_ci:.2f} | "
+                + (f"{p95_m:.3f} ± {p95_ci:.3f}" if p95_m is not None else "n/a")
+                + " |\n"
             )
+        f.write("\n## Per-repeat detail\n\n")
+        f.write(
+            "| Mode | Repeat | Sent | Accepted | Blocks/s | Steady blocks/s | Gap fraction | "
+            "Tx-accepted/s | Mean interval (s) | p50 (s) | p95 (s) |\n"
+        )
+        f.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+        for mode, runs in repeat_results.items():
+            for i, r in enumerate(runs):
+                f.write(
+                    f"| {mode} | {i + 1} | {r['sent']} | {r['accepted']} | "
+                    f"{r['blocks_per_sec']:.3f} | "
+                    + (f"{r['steady_blocks_per_sec']:.3f}" if r["steady_blocks_per_sec"] is not None else "n/a")
+                    + " | "
+                    + (f"{r['gap_fraction']:.3f}" if r["gap_fraction"] is not None else "n/a")
+                    + f" | {r['tx_accepted_per_sec']:.2f} | "
+                    + (
+                        f"{r['mean_s']:.3f} | {r['p50_s']:.3f} | {r['p95_s']:.3f} |\n"
+                        if r["mean_s"] is not None
+                        else "n/a | n/a | n/a |\n"
+                    )
+                )
 
     print(f"\nwrote summary to {summary_path}")
-    print(f"\nRESULTS: {results}")
+    print(f"\nAGGREGATES: {aggregates}")
 
 
 if __name__ == "__main__":
