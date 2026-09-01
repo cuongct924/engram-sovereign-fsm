@@ -2,7 +2,7 @@
 
 This document describes the REAL, currently-running Docker Compose network/container topology —
 validator/Bitcoin/Celestia networking and port allocation. Refreshed whenever the topology changes, verified against
-`docker/*.yml` and `compose.yml`.
+`docker/*.yml` and `docker-compose.yml`.
 
 ## 1. Network Topology
 
@@ -31,14 +31,11 @@ flowchart TB
         CApp["celestia-app<br/>.50"]
         CBridge["celestia-bridge-node01<br/>.51"]
     end
-    Prover["reanchoring-prover<br/>(engram-net + celestia-net, no fixed IP)"]
     N1 & N2 & N3 & N4 -.->|BITCOIN_HOST<br/>JSON-RPC| BTC1
     N1 & N2 & N3 & N4 -.->|CELESTIA_BRIDGE_URL<br/>JSON-RPC 2.0| CBridge
     N1 & N2 & N3 & N4 -.-> engramnet
     CBridge --> CApp
     Miner -.->|"-rpcconnect<br/>generatetoaddress every ~20s"| BTC1
-    Prover -.->|"NODE_URL<br/>query-recovery-headers / tx-submit-recovery-proof"| N1
-    Prover -.->|"publish-recovery-witness<br/>JSON-RPC 2.0"| CBridge
 
     style plinks fill:#eef5ff,stroke:#4a7fd6
     style engramnet fill:#f5f5f5,stroke:#999
@@ -49,9 +46,9 @@ flowchart TB
 | Network | CIDR | Gateway | Isolation | Members |
 |---|---|---|---|---|
 | `validator-link-NN-MM` (×6) | `172.40.<0-5>.0/29` | `.1` | one pair only | the 2 validators of that pair, `.2`/`.3` |
-| `engram-net` | `172.28.0.0/24` | `.1` | external clients | 4 validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
+| `engram-net` | `172.28.0.0/24` | `.1` | external clients | 4 validators `.100`/`.110`/`.120`/`.130` |
 | `bitcoin-net` | `172.21.0.0/24` | `.1` | isolated | `bitcoin-node01` `.10`, `bitcoin-node02` `.11`, `bitcoin-miner-loop` (no fixed IP), + validators `.100`/`.110`/`.120`/`.130` |
-| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge-node01` `.51`, + validators `.100`/`.110`/`.120`/`.130`, + `reanchoring-prover` (no fixed IP) |
+| `celestia-net` | `172.22.0.0/24` | `.1` | isolated | `celestia-app` `.50`, `celestia-bridge-node01` `.51`, + validators `.100`/`.110`/`.120`/`.130` |
 
 **Key facts:**
 
@@ -59,16 +56,16 @@ flowchart TB
   `pairwiseLinkPeerIP`), not an `engram-net` hostname -- this is why `SubnetDiversity`
   (`x/sovereignty/types/subnet.go`'s `SubnetOf`) reads 3 genuinely distinct `/29` subnets per
   validator, not 1.
-* `engram-net` carries everything that isn't P2P gossip: `reanchoring-prover`'s RPC client, the
-  attacker swarm (`docs/EXPERIMENT.md`'s §3); validators stay multi-homed onto it alongside their
-  pairwise links and `bitcoin-net`/`celestia-net`. It sits on `172.28.0.0/24` to avoid colliding
-  with a pre-existing `kind` network on the dev host (`CLAUDE.md`'s M6 notes).
-* `bitcoin-miner-loop`/`reanchoring-prover` are real, always-on containers (`make testnet-up`, not
-  profile-gated), replacing a host `nohup` process and a manual script invocation. Neither needs a
-  static IP -- both only make outbound RPC calls. `reanchoring-prover` also writes each accepted
-  proof's header-chain witness straight to `celestia-bridge-node01`, since `HeaderHistory` (the on-chain
-  copy) gets pruned once the proof lands -- an audit trail, never verified on-chain
-  (`x/sovereignty/keeper/msg_server.go`'s `RecoveryProofDAHeights`).
+* `engram-net` carries everything that isn't P2P gossip: the attacker swarm (`docs/EXPERIMENT.md`'s
+  §3); validators stay multi-homed onto it alongside their pairwise links and `bitcoin-net`/
+  `celestia-net`. It sits on `172.28.0.0/24` to avoid colliding with a pre-existing `kind` network
+  on the dev host (`CLAUDE.md`'s M6 notes).
+* `bitcoin-miner-loop` is a real, always-on container (`make testnet-up`, not profile-gated),
+  replacing a host `nohup` process. The ZK re-anchoring prover is NOT a container -- it's the
+  host-side `scripts/reanchoring_prover/watch_and_prove.sh` (`docs/DEVELOPMENT.md`'s §6), which
+  writes each accepted proof's header-chain witness to `celestia-bridge-node01` as an audit trail
+  (`HeaderHistory` gets pruned once the proof lands; never verified on-chain --
+  `x/sovereignty/keeper/msg_server.go`'s `RecoveryProofDAHeights`).
 * Profile-gated fault-injection services (attacker swarm, double-signing harness) get extra
   `engram-net` IPs plus their own isolated subnets, only while their Compose profile is active --
   see `docs/EXPERIMENT.md`'s §3 for which profiles exist and what each is used for.

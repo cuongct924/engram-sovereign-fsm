@@ -21,9 +21,9 @@ Three companion documents hold the parts this one doesn't:
 | §2 Prerequisites | What to install, including the CometBFT fork sibling |
 | §3 Build, test, lint | The command reference + two traps to avoid |
 | §4 Run a single local node | The 3-command smoke test, no Docker |
-| §5 Run the 4-node Docker testnet | The real cluster: one-command path, manual walkthrough, params, gotchas |
+| §5 Run the 4/7-node Docker testnet | The real cluster: one-command path, why the order matters, params, gotchas |
 | §6 ZK re-anchoring pipeline | How RECOVERING → ANCHORED actually happens |
-| §7 How consensus works | The sensor model, `Txs[0]` mechanism, the three ABCI++ hooks, wiring diagrams |
+| §7 How consensus works | The sensor model, the quorum-certificate mechanism, the four ABCI++ hooks, wiring diagrams |
 | §8 Experiments & fault injection | Chaos profiles, byzantine/attacker infra, experiment scripts |
 | §9 Debug Bitcoin regtest in isolation | Fork/reorg/double-spend walkthrough for `x/anchor` SPV |
 | §10 Troubleshooting quick reference | Symptom → where to look |
@@ -72,9 +72,9 @@ the way it is, and the two most common sources of consensus bugs when violated:
 |---|---|---|
 | Go toolchain + `make` | build / test / lint | |
 | **CometBFT fork sibling** — `../engram-consensus-core` | any build / test / lint here | see warning below |
-| Docker Compose v2 | the 4-node Docker testnet | |
+| Docker Compose v2 | the 4/7-node Docker testnet | |
 | `buf` + `protoc-gen-go` + `protoc-gen-go-grpc` on PATH | `make proto-gen` | |
-| `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; debugging the ZK pipeline | not needed for normal runs — the prover runs as a container |
+| `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; running the real ZK re-anchoring prover (§6) | not needed just to reach a baseline ANCHORED (the heuristic recovery path covers that) |
 | Python 3.11 or 3.12 | `scripts/` (experiments, plotting) | see §3 |
 
 ### This repo needs a sibling checkout of its CometBFT fork
@@ -129,8 +129,8 @@ first.
 ```bash
 go build -o build/engramd ./cmd/engramd
 ./build/engramd init my-node
-./build/engramd start              # real path: PrepareProposal/ProcessProposal/PreBlocker
-./build/engramd start --vanilla    # baseline comparison, skips the ExtendedProposal hooks
+./build/engramd start              # real path: ExtendVote/PrepareProposal/ProcessProposal/PreBlocker
+./build/engramd start --vanilla    # baseline comparison, skips all sovereignty ABCI++ hooks
 ```
 
 * `start` reads `config.toml` from disk (`loadConfig`, viper-based) — per-node settings (ports,
@@ -143,26 +143,30 @@ go build -o build/engramd ./cmd/engramd
 
 ---
 
-## 5. Run the real 4-node Docker testnet
+## 5. Run the real 4/7-node Docker testnet
 
 ### 5.1 What you get
 
-* 4 real validators (`engram-node01..04`) with real ABCI++ hooks.
+* `N` real validators (`engram-node01..0N`, `N=4` or `7` via `make testnet-up N=...`, default 7)
+  with real ABCI++ hooks.
 * Real `bitcoind` regtest (2 nodes) with a continuous miner loop (~1 block / 20s).
-* Real Celestia (`celestia-app` + `celestia-bridge-node01`, plus a second bridge backing the prover's
-  audit trail).
-* The ZK re-anchoring prover container.
+* Real Celestia (`celestia-app` + one independent `celestia-bridge-node0N` bridge per validator,
+  plus `celestia-bridge-prover` backing the ZK prover's audit trail).
 * Pairwise validator gossip links (topology/IPs: `docs/ARCHITECTURE.md`).
 
-This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`.
+This is the setup behind every E2–E9 live-data result in `docs/EXPERIMENT.md`. The ZK re-anchoring
+prover is a separate host-side process, not part of this cluster (§6).
 
 ### 5.2 The one-command path: `make testnet-up` / `make testnet-down`
 
-`make testnet-up` automates the whole manual walkthrough of §5.3 with the correct ordering: wipes
-`testnet-data/`, regenerates fresh genesis, funds a mature BTC wallet, starts the miner loop,
-fetches both Celestia bridges' admin JWTs into `.env`, waits for `celestia-bridge-node01` to actually be
-healthy (not just running), then starts the 4 validators and the re-anchoring prover. It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and requires `.env` to exist
-(`cp .env.example .env` and fill in `BITCOIN_RPC_USER`/`BITCOIN_RPC_PASSWORD` first).
+`make testnet-up N=4|7` (default 7) wipes `testnet-data/`, regenerates fresh genesis, starts
+Bitcoin + Celestia, funds a mature BTC wallet, starts the miner loop, fetches every bridge's admin
+JWT into `.env`, waits for each `celestia-bridge-node0N` to actually be healthy (not just running),
+then starts the `N` validators — see the target itself (`Makefile`) for the literal command
+sequence and load-bearing ordering (§5.3 explains *why* that order matters, not the commands
+verbatim, to avoid the two drifting apart). It honors `ENGRAM_PARAM_*` in `.env` (§5.4) and
+requires `.env` to exist (`cp .env.example .env`, fill in `BITCOIN_RPC_USER`/`BITCOIN_RPC_PASSWORD`
+first).
 
 `make testnet-down` stops the core services **by name** — never a bare `docker compose down`
 (see §5.5). `make testnet-status` is `docker compose ps`.
@@ -180,80 +184,46 @@ Operational targets (`make help` lists all):
 | `chaos-wan-latency` / `chaos-wan-loss` / `chaos-wan-stop` | per-validator WAN realism profiles (§8) |
 | `attacker-a1-up` / `-down`, `attacker-a2-up` / `-down` | E4/E8 attacker swarm (§8) |
 
-### 5.3 The manual walkthrough — the order is load-bearing, not a preference
+### 5.3 Why the order is load-bearing, not a preference
 
-Starting `engramd` before Bitcoin has a funded, mature wallet — or mining in bursts while `engramd`
-is already running — desyncs `h_btc_current` from `h_btc_anchored` past `anchor.VerifyReceipt`'s
-tolerance window and stalls consensus permanently.
+`make testnet-up` (§5.2, `Makefile`'s `testnet-up` target is the literal command sequence — not
+duplicated here, so this doc can't drift from it) follows this order for real reasons, not style:
 
 ```mermaid
 flowchart TD
-    A["Wipe testnet-data/\n+ engramd testnet init-files --v 4"] --> B["Start bitcoind + Celestia"]
+    A["Wipe testnet-data/\n+ engramd testnet init-files --v N"] --> B["Start bitcoind + Celestia"]
     B --> C["Create + fund BTC wallet\n(101+ blocks, name: engramwallet)"]
     C --> D["Start bitcoin-miner-loop container\n(steady ~1 block / 20s)"]
-    D --> W["Wait for celestia-bridge-node01 healthy\n(not just running)"]
-    W --> E["Start the 4 validators"]
-    E --> F["Start reanchoring-prover container\n(needed for RECOVERING -> ANCHORED)"]
-    F --> Ver["Verify: same AppHash\nat same height, all 4 nodes"]
+    D --> W["Wait for every celestia-bridge-node0N healthy\n(not just running)"]
+    W --> E["Start the N validators"]
+    E --> Ver["Verify: same AppHash\nat same height, all N nodes"]
 
     G["⚠ engramd started before wallet mature"] -.->|desyncs h_btc_current| H["Consensus stalls"]
     I["⚠ burst-mining while engramd runs"] -.->|same failure| H
-    J["⚠ validators started before celestia-bridge-node01 healthy"] -.->|DA reads fail, trips MaxSuspiciousTime| K["Unwanted SOVEREIGN escalation"]
+    J["⚠ validators started before every bridge healthy"] -.->|DA reads fail, trips MaxSuspiciousTime| K["Unwanted SOVEREIGN escalation"]
 ```
 
-```bash
-# 5.3.1 — fresh genesis (always start clean; see the gotcha below for why)
-cp .env.example .env    # fill in BITCOIN_RPC_USER/PASSWORD
-rm -rf testnet-data/
-make build-linux
-./build/engramd testnet init-files --v 4
-
-# 5.3.2 — Bitcoin + Celestia, wallet funded and mature, BEFORE any engramd container.
-# -f compose.yml, not a standalone -f docker/*.yml: bitcoin-net/engram-net are only
-# declared in compose.yml's own top-level networks:, and an explicit -f opts out of
-# Compose's default auto-discovery of compose.yml from cwd.
-docker compose --env-file .env -f compose.yml up -d bitcoin-node01 bitcoin-node02
-docker compose --env-file .env -f compose.yml up -d celestia-app celestia-bridge-node01
-  # (make testnet-up also starts celestia-bridge-prover here and fetches both bridges' admin JWTs)
-
-docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
-  -rpcpassword=$BITCOIN_RPC_PASSWORD createwallet "engramwallet"   # must be this name --
-                                                                      # bitcoin_miner_loop.sh
-                                                                      # hardcodes it
-addr=$(docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
-  -rpcpassword=$BITCOIN_RPC_PASSWORD -rpcwallet=engramwallet getnewaddress)
-docker exec -it bitcoin-node01 bitcoin-cli -regtest -rpcuser=$BITCOIN_RPC_USER \
-  -rpcpassword=$BITCOIN_RPC_PASSWORD -rpcwallet=engramwallet generatetoaddress 101 $addr
-  # 101: coinbase needs 100 confirmations before it's spendable
-
-docker compose --env-file .env -f compose.yml up -d bitcoin-miner-loop
-  # steady cadence from here on, never manual bursts -- containerized
-  # (docker/bitcoin-miner-loop.yml), no host process/PID file anymore
-
-./scripts/testnet_wait_healthy.sh celestia-bridge-node01
-  # its auth-token file (needed above) lands within seconds of container
-  # start, well before header.NetworkHead RPC calls actually succeed --
-  # starting validators on that weaker signal reliably trips
-  # MaxSuspiciousTime and forces an unwanted SOVEREIGN escalation on every
-  # fresh deploy (confirmed live: ~40-60s gap between the two)
-
-# 5.3.3 — the 4 validators
-docker compose --env-file .env -f compose.yml up -d --build engram-node01 engram-node02 engram-node03 engram-node04
-
-# 5.3.4 — the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED; without
-# it zk_proof_ref stays null forever and the FSM can never leave RECOVERING)
-docker compose --env-file .env -f compose.yml up -d --build reanchoring-prover
-```
+* Starting `engramd` before Bitcoin has a funded, mature wallet — or mining in bursts while
+  `engramd` is already running — desyncs `h_btc_current` from `h_btc_anchored` past
+  `anchor.VerifyReceipt`'s tolerance window and stalls consensus permanently.
+* The BTC wallet must be named `engramwallet` — `scripts/bitcoin_miner_loop.sh` hardcodes it. 101
+  blocks because a coinbase needs 100 confirmations before it's spendable.
+* Each bridge's auth-token file lands within seconds of container start, well before it can
+  actually answer `header.NetworkHead` RPC calls — starting validators on that weaker signal
+  reliably trips `MaxSuspiciousTime` and forces an unwanted SOVEREIGN escalation on every fresh
+  deploy (confirmed live: ~40-60s gap between the two). `scripts/testnet_wait_healthy.sh` waits
+  for the real signal.
 
 Verify: `curl -s http://localhost:26657/status | jq .result.sync_info`, and confirm the `AppHash`
-matches across all 4 nodes at the same height.
+matches across all `N` nodes at the same height. If RECOVERING never reaches ANCHORED via a real
+proof, start the ZK re-anchoring prover -- a host-side script, not a container (§6).
 
 ### 5.4 Changing `x/sovereignty.Params` (thresholds, hysteresis, peer limits, ...)
 
 `Params` (`x/sovereignty/types/params.go`) is a consensus-critical value — every validator must
 compute an identical `expectedState` from the same sensor reading, so it is **genesis-configured**,
 not read from each node's own `.env` at `start` time. (A per-process env var could silently diverge
-between validators; genesis is generated once and copied identically to all 4 nodes.)
+between validators; genesis is generated once and copied identically to all N nodes.)
 
 * Set `ENGRAM_PARAM_<FIELD>` in `.env` before `make testnet-up` (or before `engramd init` /
   `testnet init-files` run directly) — see `.env.example` for the full list of 19 fields and their
@@ -297,10 +267,8 @@ stopping a chaos-wan profile mid-run; see the Makefile's `chaos-wan-stop` target
 
 ## 6. ZK re-anchoring pipeline (RECOVERING → ANCHORED)
 
-Runs automatically as the `reanchoring-prover` container (`docker/reanchoring-prover/`, started by
-`make testnet-up`) — no host `nargo`/`bb` install needed for normal use. The manual, host-side path
-below is for debugging the pipeline in isolation; it needs `nargo` + `bb` (Barretenberg) on `PATH`,
-pinned to `1.0.0-beta.22`.
+Not a container: `scripts/reanchoring_prover/watch_and_prove.sh` is the real pipeline, run as a
+host-side process. Needs `nargo` + `bb` (Barretenberg) on `PATH`, pinned to `1.0.0-beta.22`.
 
 ```bash
 ./scripts/reanchoring_prover/prove_and_submit.sh    # one-shot: query -> witness -> prove -> submit
@@ -311,14 +279,15 @@ Manual steps, if not using the wrapper:
 
 ```bash
 ./build/engramd query-recovery-headers
+./build/engramd build-boundary-witness --out <file>  # boundary-signature binding fragment
 ./build/engramd tx-submit-recovery-proof --proof <file> --public-inputs <file>
 ```
 
-**Known limitation:** the circuit's `N` (chained headers per proof) is fixed at compile time
-(currently 4) — this only works when exactly `N` headers are tracked. Proving takes real time
-(tens–hundreds of ms, see E6), so a proof can go stale mid-flight while the interval keeps growing
-underneath it. That's the anti-replay check (`RealProofSubmittedHeight`) working correctly, not a
-bug — submit while the interval is stable, don't race a growing one.
+**Known limitation:** `count` (headers actually proved, 1..=`N_MAX`=256) is a public input, so one
+proof can cover a variable-length interval, not a fixed `N`. Proving still takes real time (see
+E6), so a proof can go stale mid-flight while the interval keeps growing underneath it. That's the
+anti-replay check (`RealProofSubmittedHeight`) working correctly, not a bug — submit while the
+interval is stable, don't race a growing one.
 
 ---
 
@@ -357,27 +326,38 @@ All sensors are real, live connections, not mocks:
   BTC-settlement checks (`spec/core/EngramTendermint.tla:290-298`) directly, called from
   `x/sovereignty/proposal.go`'s `ProcessProposal`.
 
-### 7.3 The proposal mechanism: a `Txs[0]` pseudo-transaction, not Vote Extensions
+### 7.3 The proposal mechanism: a signed quorum certificate in `Txs[0]`
 
-The leader computes the target FSM state, encodes it together with the DA/BTC receipts and a ZK
-proof reference as an `ExtendedProposal` (JSON), and prepends it as `Txs[0]` of the block — a
-leading pseudo-transaction. This was a deliberate simplification to avoid needing a full
-TxConfig/signing pipeline for leader-computed system data. See `x/sovereignty/proposal.go`'s
-package comment for the tradeoff and what would be needed to move to real Vote Extensions.
+`Txs[0]` is still a leading pseudo-transaction (no TxConfig/signing pipeline needed for
+leader-computed system data), but its content is no longer the leader's unverified claim. Every
+validator signs its own real sensor snapshot as an ABCI++ vote extension (`x/sovereignty/
+vote_extension.go`); the leader aggregates >=2f+1 voting power's worth of these into an
+`AggregatedHealthCertificate` and prepends it as `Txs[0]`. Every other validator re-derives the
+same aggregate from the certificate's embedded signed observations (a pure function, no RPC) and
+rejects the proposal if the leader's claimed FSM state doesn't match — this is what closed the
+AppHash-divergence risk from each validator previously re-reading its own live sensors.
 
-### 7.4 The three ABCI++ hooks
+### 7.4 The four ABCI++ hooks
 
-* **`PrepareProposal`** (leader only): computes `target_state` via `keeper.CalculateNextState`
-  (mirrors `ServerInsertProposal`, `spec/core/EngramServer.tla:52-102`), builds
-  `da_receipt`/`btc_receipt`/`zk_proof_ref`, JSON-encodes them as an `ExtendedProposal`, and
-  prepends it as `Txs[0]`. `zk_proof_ref` is a hash commitment (`rt_new`, the accepted proof's
-  attested state root), not a bare bool — it refines `spec/core/EngramTendermint.tla:150`'s
-  abstract `BOOLEAN`; see `spec/README.md` §6.1.
-* **`ProcessProposal`** (every validator): decodes `Txs[0]` and re-validates it against its own
-  local `CalculateNextState` + `x/da.VerifyReceipt` + `x/anchor.VerifyReceipt` + the withdrawal
+* **`ExtendVote`** (every validator, at height `H`): the ONLY hook allowed to touch live
+  sensors/RPC (`x/sovereignty/vote_extension.go`'s `NewExtendVoteHandler` calls `RefreshMetrics`).
+  Signs the resulting `PeripheralMetrics` as this validator's vote extension.
+  **`VerifyVoteExtension`**: only checks a peer's extension decodes as well-formed — never
+  re-verifies the sensor reading itself (that would reintroduce live-RPC non-determinism).
+* **`PrepareProposal`** (leader only, height `H+1`): vote extensions lag proposals by one height,
+  so `req.LocalLastCommit` carries height `H`'s signed extensions. `AggregateHealthCertificates`
+  (pure, deterministic, requires >=2f+1 power) turns them into a certified `PeripheralMetrics`;
+  `keeper.CalculateNextState` (mirrors `ServerInsertProposal`, `spec/core/EngramServer.tla:52-102`)
+  derives `target_state` from it. Builds an `AggregatedHealthCertificate` (the raw signed
+  certificates + `target_state`/`healthy`/`da_receipt`/`btc_receipt`/`zk_proof_ref`) and prepends
+  it as `Txs[0]`. `zk_proof_ref` is a hash commitment (`rt_new`), not a bare bool — refines
+  `spec/core/EngramTendermint.tla:150`'s abstract `BOOLEAN`; see `spec/README.md` §6.1.
+* **`ProcessProposal`** (every validator): decodes `Txs[0]`'s certificate, re-runs the SAME
+  `AggregateHealthCertificates` over its embedded certificates (a pure function over already-
+  committed vote data, no RPC) plus `x/da.VerifyReceipt`/`x/anchor.VerifyReceipt`/the withdrawal
   circuit breaker (mirrors `IsValidProposal`, `spec/core/EngramTendermint.tla:281-307`), rejecting
   the whole proposal on any mismatch. If `ENGRAM_BYZANTINE_BEHAVIOR` is set on a validator
-  (`docker/engram-node04-byzantine.yml` — never set on a real validator), `PrepareProposal`
+  (`docker/engram-node04-byzantine.yml` — never set on a real validator), its `PrepareProposal`
   deliberately corrupts its own claim (fake `fsm_state`, forged BTC hash, false DA attestation, or
   censored tx) to exercise this rejection path live, for `docs/EXPERIMENT.md`'s E8 attack rows.
 * **`PreBlocker`** (after the block is decided): the only place `FSMState`/`safe_blocks`/
@@ -417,7 +397,7 @@ flowchart TB
             direction TB
             wrapper["server.NewCometABCIWrapper<br/>adapts EngramApp to abci.Application"]
             ante["CircuitBreakerDecorator (ante.go)"]
-            hooks["PrepareProposal / ProcessProposal / PreBlocker<br/>(proposal.go, preblock.go)"]
+            hooks["ExtendVote / VerifyVoteExtension / PrepareProposal /<br/>ProcessProposal / PreBlocker<br/>(vote_extension.go, proposal.go, preblock.go)"]
             keeper["SovereigntyKeeper<br/>FSMState, SafeBlocks, Metrics"]
             sensors["Sensors bundle: BTC / DA / P2P<br/>(sensors_refresh.go)"]
         end
@@ -442,9 +422,10 @@ flowchart TB
     mainfn -.->|"wireP2PSensor / wireBTCSensor /<br/>wireDASensor / wirePeerFilter<br/>run AFTER node.NewNode(), BEFORE n.Start()"| sensors
 
     consensus -->|"1 InitChain -- once, at genesis"| hooks
-    consensus -->|"2 PrepareProposal -- leader only"| hooks
-    consensus -->|"3 ProcessProposal -- every validator"| hooks
-    consensus -->|"4 FinalizeBlock -> PreBlocker -> Commit"| hooks
+    consensus -->|"2 ExtendVote / VerifyVoteExtension -- every validator, height H"| hooks
+    consensus -->|"3 PrepareProposal -- leader only, height H+1 (reads H's vote extensions)"| hooks
+    consensus -->|"4 ProcessProposal -- every validator"| hooks
+    consensus -->|"5 FinalizeBlock -> PreBlocker -> Commit"| hooks
 
     hooks --> keeper
     hooks --> sensors
@@ -463,19 +444,24 @@ flowchart TB
 
 ### 7.6 Per-block ABCI++ message flow
 
+Spans two heights: every validator's own sensor reading is signed at height `H`'s `ExtendVote`;
+the leader only gets to use it when building height `H+1`'s proposal.
+
 ```mermaid
 sequenceDiagram
     participant Sensors as Real sensors<br/>(AnchorTracker / Publisher / p2p.Switch)
-    participant Leader as Leader: PrepareProposal
+    participant AllH as All validators, height H: ExtendVote
+    participant Leader as Leader, height H+1: PrepareProposal
     participant Others as Other validators: ProcessProposal
     participant All as All validators: PreBlocker
 
-    Sensors->>Leader: ConfirmedAnchorHeight, VerifiedHeight,<br/>SubnetDiversity/RTT/ChurnRate
-    Leader->>Leader: CalculateNextState (FSM)
-    Leader->>Others: ExtendedProposal in Txs[0]<br/>(fsm_state, da_receipt, btc_receipt, zk_proof_ref)
-    Others->>Sensors: refresh OWN local sensor readings
-    Others->>Others: recompute CalculateNextState locally +<br/>VerifyReceipt(BTC) + VerifyReceipt(DA) + withdrawal check
-    alt local computation matches proposal
+    Sensors->>AllH: ConfirmedAnchorHeight, VerifiedHeight,<br/>SubnetDiversity/RTT/ChurnRate
+    AllH->>AllH: sign own PeripheralMetrics as vote extension
+    AllH-->>Leader: LocalLastCommit carries height H's<br/>signed extensions (>=2f+1 needed)
+    Leader->>Leader: AggregateHealthCertificates (pure) +<br/>CalculateNextState (FSM)
+    Leader->>Others: AggregatedHealthCertificate in Txs[0]<br/>(raw signed certs + fsm_state, da_receipt, btc_receipt, zk_proof_ref)
+    Others->>Others: re-run AggregateHealthCertificates over<br/>ext.Certificates (pure, no RPC) + VerifyReceipt(BTC) +<br/>VerifyReceipt(DA) + withdrawal check
+    alt recomputed aggregate matches the leader's claim
         Others-->>All: ACCEPT (prevote)
     else mismatch
         Others-->>All: REJECT (nil prevote)
@@ -500,17 +486,17 @@ what each experiment measures and which numbers are real live-Docker data vs. in
 
 Network-level fault injection is real `tc netem` via [Pumba](https://github.com/alexei-led/pumba),
 not application-level delay. The `chaos-wan-*` pair is the main realism baseline: each validator
-gets its own real delay/loss value, simulating 4 distinct regions instead of one shared value.
+gets its own real delay/loss value, simulating 7 distinct regions instead of one shared value.
 
 | Profile | Real effect | Used by |
 |---|---|---|
-| `chaos-delay` | 100ms ±20ms jitter, all 4 validators, 5m | general baseline |
+| `chaos-delay` | 100ms ±20ms jitter, all `engram-node*` containers (any N), 5m | general baseline |
 | `chaos-loss` | 5% loss, node01+node02, 2m | E2 S4, E9 |
 | `chaos-eclipse` | 100% loss, node01 only, 3m | E2 S5 |
 | `chaos-crash` | SIGKILL node04 (one-shot) | crash-fault baseline |
 | `chaos-btc-delay` | 500ms ±100ms jitter, bitcoin-node01, 2m | E2 S2 (RPC realism only) |
-| `chaos-wan-latency` | per-validator delay: 15/70/140/45ms ±3/15/25/10ms, 10m | WAN baseline (E5, E9, others) |
-| `chaos-wan-loss` | per-validator loss: 1%/3%/6%/2%, 10m | WAN baseline (loss variant) |
+| `chaos-wan-latency` | per-validator delay: 15/70/140/45/100/30/180ms ±3/15/25/10/20/6/30ms, 10m | WAN baseline (E5, E9, others) |
+| `chaos-wan-loss` | per-validator loss: 1%/3%/6%/2%/4%/1%/5%, 10m | WAN baseline (loss variant) |
 
 Application/service-level fault injection, where network delay alone can't reproduce the real
 mechanism:
@@ -528,7 +514,7 @@ bare `docker compose down` (see §5.5):
 
 | File | Used for |
 |---|---|
-| `chaos-delay` / `-loss` / `-crash` / `-eclipse` / `-btc-delay` (in `compose.yml`) | Pumba fault injection |
+| `chaos-delay` / `-loss` / `-crash` / `-eclipse` / `-btc-delay` (in `docker-compose.yml`) | Pumba fault injection |
 | `docker/attacker-peer-swarm.yml` | E4/E8's A1 (slot exhaustion) / A2 (Sybil) attacker containers |
 | `docker/engram-node04-byzantine.yml` | E8's A3/A4/A6/A7 — swaps node04 for a byzantine build |
 | `docker/engram-node04-double-sign.yml` | E8's Double-signing test — a 2nd process on node04's key |
@@ -631,7 +617,7 @@ Symptom → where to look (details live in the section cited):
 |---|---|
 | Consensus stalls after a restart | leftover `priv_validator_state.json` — §5.5, wipe `testnet-data/` and regenerate genesis |
 | Whole cluster torn down accidentally | a bare `docker compose down` or `--profile X stop` with no service names — §5.5 |
-| FSM never leaves `RECOVERING` | `reanchoring-prover` not running, or proof never accepted — §6 |
+| FSM never leaves `RECOVERING` | `watch_and_prove.sh` not running, or proof never accepted — §6 |
 | BTC/DA sensors report stale or mocked values | `BITCOIN_HOST` / `CELESTIA_BRIDGE_URL` unset — §4 |
 | FSM transitions diverge across validators | a live sensor read leaked into committed state — §1, §7.1 |
 | A validator is misbehaving in production | `ENGRAM_BYZANTINE_BEHAVIOR` set on a real validator — §7.4, §8.3 |

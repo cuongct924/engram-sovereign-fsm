@@ -5,7 +5,6 @@ include:
   - ./docker/bitcoin-miner-loop.yml
   - ./docker/celestia-local-cluster.yml
   - ./docker/engram-validator-cluster.yml
-  - ./docker/reanchoring-prover.yml
   - ./docker/attacker-peer-swarm.yml
   - ./docker/engram-node04-double-sign.yml
 
@@ -270,8 +269,9 @@ services:
     command: ["netem", "--duration=10m", "loss", "--percent=5", "engram-node07"]
 
 networks:
-  # Main validator network: external clients (reanchoring-prover, attacker
-  # swarm) reach validators here. NOT for validator P2P gossip -- peers dial
+  # Main validator network: external clients (attacker swarm; the ZK re-
+  # anchoring prover is a host-side script, not a container) reach
+  # validators here. NOT for validator P2P gossip -- peers dial
   # each other over the pairwise-link networks below so SubnetDiversity
   # reads each peer from a genuinely distinct subnet.
   engram-net:

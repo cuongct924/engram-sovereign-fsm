@@ -395,7 +395,7 @@ func startCmd(homeFlag *string) *cobra.Command {
 			return runStart(*homeFlag, vanilla)
 		},
 	}
-	cmd.Flags().BoolVar(&vanilla, "vanilla", false, "run plain CometBFT/Cosmos SDK consensus with no ExtendedProposal (docs/EXPERIMENT.md's baseline)")
+	cmd.Flags().BoolVar(&vanilla, "vanilla", false, "run plain CometBFT/Cosmos SDK consensus with no sovereignty ABCI++ hooks (docs/EXPERIMENT.md's baseline)")
 	return cmd
 }
 
