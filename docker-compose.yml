@@ -179,6 +179,33 @@ services:
       - chaos-wan-latency
     command: ["netem", "--duration=10m", "delay", "--time=45", "--jitter=10", "engram-node04"]
 
+  pumba-wan-latency-05:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-05
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=100", "--jitter=20", "engram-node05"]
+
+  pumba-wan-latency-06:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-06
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=30", "--jitter=6", "engram-node06"]
+
+  pumba-wan-latency-07:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-latency-07
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-latency
+    command: ["netem", "--duration=10m", "delay", "--time=180", "--jitter=30", "engram-node07"]
+
   pumba-wan-loss-01:
     image: gaiaadm/pumba:latest
     container_name: pumba-wan-loss-01
@@ -215,6 +242,33 @@ services:
       - chaos-wan-loss
     command: ["netem", "--duration=10m", "loss", "--percent=2", "engram-node04"]
 
+  pumba-wan-loss-05:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-05
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=4", "engram-node05"]
+
+  pumba-wan-loss-06:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-06
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=1", "engram-node06"]
+
+  pumba-wan-loss-07:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-wan-loss-07
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles:
+      - chaos-wan-loss
+    command: ["netem", "--duration=10m", "loss", "--percent=5", "engram-node07"]
+
 networks:
   # Main validator network: external clients (reanchoring-prover, attacker
   # swarm) reach validators here. NOT for validator P2P gossip -- peers dial
@@ -232,9 +286,12 @@ networks:
           gateway: 172.28.0.1
 
   # Pairwise validator-to-validator P2P links -- one dedicated /29 per pair
-  # (6 for 4 validators' full mesh), statically addressed so
+  # (21 for 7 validators' full mesh), statically addressed so
   # cmd/engramd/main.go's pairwiseLinkPeerIP dials literal IPs. Index/IP
-  # scheme defined there; both sides must stay in sync.
+  # scheme defined there (pairwiseLinkIndex is a function of N -- changing
+  # validator count renumbers EVERY link, not just the new ones; both sides
+  # must stay in sync and testnet-data must be regenerated with the matching
+  # `--v N`, never mixed).
   #
   # In-container interface indices (ethN) aren't stable, so pumba
   # `netem --interface ethN` can silently hit the wrong network. Inject P2P
@@ -261,27 +318,132 @@ networks:
       config:
         - subnet: 172.40.2.0/29
           gateway: 172.40.2.1
-  validator-link-02-03:
-    name: validator-link-02-03
+  validator-link-01-05:
+    name: validator-link-01-05
     driver: bridge
     ipam:
       config:
         - subnet: 172.40.3.0/29
           gateway: 172.40.3.1
-  validator-link-02-04:
-    name: validator-link-02-04
+  validator-link-01-06:
+    name: validator-link-01-06
     driver: bridge
     ipam:
       config:
         - subnet: 172.40.4.0/29
           gateway: 172.40.4.1
-  validator-link-03-04:
-    name: validator-link-03-04
+  validator-link-01-07:
+    name: validator-link-01-07
     driver: bridge
     ipam:
       config:
         - subnet: 172.40.5.0/29
           gateway: 172.40.5.1
+  validator-link-02-03:
+    name: validator-link-02-03
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.6.0/29
+          gateway: 172.40.6.1
+  validator-link-02-04:
+    name: validator-link-02-04
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.7.0/29
+          gateway: 172.40.7.1
+  validator-link-02-05:
+    name: validator-link-02-05
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.8.0/29
+          gateway: 172.40.8.1
+  validator-link-02-06:
+    name: validator-link-02-06
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.9.0/29
+          gateway: 172.40.9.1
+  validator-link-02-07:
+    name: validator-link-02-07
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.10.0/29
+          gateway: 172.40.10.1
+  validator-link-03-04:
+    name: validator-link-03-04
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.11.0/29
+          gateway: 172.40.11.1
+  validator-link-03-05:
+    name: validator-link-03-05
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.12.0/29
+          gateway: 172.40.12.1
+  validator-link-03-06:
+    name: validator-link-03-06
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.13.0/29
+          gateway: 172.40.13.1
+  validator-link-03-07:
+    name: validator-link-03-07
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.14.0/29
+          gateway: 172.40.14.1
+  validator-link-04-05:
+    name: validator-link-04-05
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.15.0/29
+          gateway: 172.40.15.1
+  validator-link-04-06:
+    name: validator-link-04-06
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.16.0/29
+          gateway: 172.40.16.1
+  validator-link-04-07:
+    name: validator-link-04-07
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.17.0/29
+          gateway: 172.40.17.1
+  validator-link-05-06:
+    name: validator-link-05-06
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.18.0/29
+          gateway: 172.40.18.1
+  validator-link-05-07:
+    name: validator-link-05-07
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.19.0/29
+          gateway: 172.40.19.1
+  validator-link-06-07:
+    name: validator-link-06-07
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.40.20.0/29
+          gateway: 172.40.20.1
 
   # Bitcoin network: Isolated environment for the Bitcoin regtest RPC cluster
   bitcoin-net:
