@@ -512,12 +512,14 @@ apply, on another:
 
 **Live vs. in-process — the main finding, all three edges:**
 
-* Each parameter is swept twice: in-process (fixed seed) vs. live (real 4-node cluster).
+* Each parameter is swept twice: in-process (fixed seed) vs. live (real 7-node cluster, except 5a
+  below which is still 4-node data, not yet rerun at 7-node scale).
 * The in-process curve is always clean and monotonic; the live one never is — a fresh genesis +
   real network noise per live run can't cancel out the way a fixed seed does.
 * Figure 4 below renders this directly (solid line vs. diamond).
-* 5b/5c's live checks reuse 5a's single noise source (`celestia-bridge-node01` stop/start) and now share
-  its `stable`/no-noise control column.
+* 5b/5c's live checks stop/start all 7 validators' independent celestia bridges together
+  (`stop_all_da_bridges`/`start_all_da_bridges`) as their DA-outage noise source, and share a
+  `stable`/no-noise control column.
 
 ![Figure 4 — FSM hysteresis parameter sweeps and system trade-offs across fault environments](../scripts/e5_hysteresis_flapping/results/figure4_hysteresis_tradeoffs.png)
 
@@ -610,33 +612,38 @@ apply, on another:
   | AbsorbedEvents | 0 | 18 | 20 | 21 | 21 |
   | AbsorptionRate | 0.00% | 94.74% | 95.24% | 100.00% | 100.00% |
 
-  Live spot-check (5×2: DHT ∈ {1,2,4,6,8} × {stable, noisy_da}, 300s/run):
+  Live spot-check (5×2: DHT ∈ {1,2,4,6,8} × {stable, noisy_da}, 300s/run, real 7-node cluster):
 
   | DownHysteresisThreshold | Environment | Flapping (300s) | Transitions | Anchored uptime | Time Outside Anchored | Demotion Count |
   |---:|---|---:|---:|---:|---:|---:|
-  | 1 | stable | 9 | 10 | 73.68% | 20 | 5 |
-  | 1 | noisy_da | 6 | 14 | 13.48% | 77 | 5 |
-  | 2 | stable | 0 | 0 | 100.00% | 0 | 0 |
-  | 2 | noisy_da | 4 | 7 | 4.23% | 68 | 2 |
-  | 4 | stable | 0 | 0 | 100.00% | 0 | 0 |
-  | 4 | noisy_da | 12 | 13 | 30.00% | 63 | 7 |
+  | 1 | stable | 9 | 10 | 91.75% | 8 | 5 |
+  | 1 | noisy_da | 4 | 17 | 18.84% | 56 | 6 |
+  | 2 | stable | 9 | 10 | 94.74% | 5 | 5 |
+  | 2 | noisy_da | 3 | 21 | 10.96% | 65 | 5 |
+  | 4 | stable | 5 | 6 | 96.63% | 3 | 3 |
+  | 4 | noisy_da | 0 | 20 | 17.91% | 55 | 6 |
   | 6 | stable | 0 | 0 | 100.00% | 0 | 0 |
-  | 6 | noisy_da | 12 | 13 | 36.46% | 61 | 7 |
+  | 6 | noisy_da | 4 | 17 | 24.64% | 52 | 6 |
   | 8 | stable | 0 | 0 | 100.00% | 0 | 0 |
-  | 8 | noisy_da | 8 | 13 | 28.24% | 61 | 5 |
+  | 8 | noisy_da | 2 | 14 | 22.73% | 51 | 4 |
 
-  * 3-of-4 validators agree exactly everywhere; node04 differs by ±1 at threshold=1/2 (noisy_da
-    only) — a fixed-interval polling artifact, not a real disagreement. Table shows the 3-of-4 value.
-  * `stable` is clean at threshold≥2, but threshold=1 flaps even with zero injected noise: real WAN
-    jitter alone (the `chaos-wan-latency` baseline every live run holds) trips a 1-reading threshold.
+  * All 7 validators agree exactly at most values; a few noisy_da/stable rows split (e.g. 6/7 or
+    4/7 agreeing, one or two nodes off by ±1 transition/±1-2pp uptime) — the same fixed-interval
+    polling artifact the module doc already documents, not a real disagreement. Table shows the
+    majority value.
+  * `stable` is clean (0 flapping, 100% uptime) only at threshold≥6 — real WAN jitter alone (the
+    `chaos-wan-latency` baseline every live run holds, now with a wider 15-180ms per-validator
+    spread across all 7 nodes) trips flapping up through threshold=4, a stronger requirement than
+    an earlier 4-node measurement found.
 
 * *Conclusion:*
   * Clean, positive result in-process — tested against exactly the noise level it's meant to absorb.
-  * Live mostly confirms it: `stable` perfect at threshold≥2; `noisy_da` uptime lowest at the
-    production default (threshold=2, 4.23%), highest at threshold=6 (36.46%) — not monotonic, but
-    doesn't contradict the in-process trend.
-  * Live-only finding: threshold=1 flaps under real WAN jitter alone — a real argument against ever
-    using the floor value in production.
+  * Live: `noisy_da` uptime is lowest at threshold=2 (10.96%), highest at threshold=6 (24.64%) — not
+    monotonic, consistent with the in-process trend's general shape but not identical to it.
+  * Live-only finding, now stronger at 7-node scale: thresholds 1, 2, and even 4 all flap under real
+    WAN jitter alone with zero injected noise — only threshold≥6 is clean. A real argument for
+    running above `DefaultParams()`'s value (2) in this specific WAN-realism regime, not just above
+    the floor.
 
 #### 5c. Suspicious-exit hysteresis (SUSPICIOUS to ANCHORED)
 
@@ -667,26 +674,26 @@ apply, on another:
     SHW.
   * Only SHW=1 and SHW=2 stay under that cap and actually reach ANCHORED.
 
-  Live spot-check (5×2: SHW ∈ {1,2,4,6,8} × {Sustained Warning, 20% Healthy Blips}, 300s/run; each
-  run first stops `celestia-bridge-node01` to drive SUSPICIOUS. Environment names are 5c-specific, not
-  `stable`/`noisy_da`, since 5c's baseline is the opposite of 5a/5b's):
+  Live spot-check (5×2: SHW ∈ {1,2,4,6,8} × {Sustained Warning, 20% Healthy Blips}, 300s/run, real
+  7-node cluster; each run first stops all 7 celestia bridges to drive SUSPICIOUS. Environment
+  names are 5c-specific, not `stable`/`noisy_da`, since 5c's baseline is the opposite of 5a/5b's):
 
   | SHW | Environment | Flapping (300s) | Transitions | Anchored uptime | Exit Count | Max Suspicious Duration |
   |---:|---|---:|---:|---:|---:|---:|
   | 1 | Sustained Warning | 0 | 1 | 0.00% | 0 | 23 |
-  | 1 | 20% Healthy Blips | 8 | 13 | 18.75% | 3 | 24 |
+  | 1 | 20% Healthy Blips | 6 | 12 | 10.53% | 2 | 24 |
   | 2 | Sustained Warning | 0 | 1 | 0.00% | 0 | 24 |
-  | 2 | 20% Healthy Blips | 13 | 14 | 36.46% | 7 | 22 |
-  | 4 | Sustained Warning | 0 | 1 | 0.00% | 0 | 24 |
-  | 4 | 20% Healthy Blips | 6 | 16 | 12.50% | 1 | 24 |
+  | 2 | 20% Healthy Blips | 1 | 3 | 4.44% | 1 | 11 |
+  | 4 | Sustained Warning | 0 | 1 | 0.00% | 0 | 23 |
+  | 4 | 20% Healthy Blips | 1 | 9 | 4.55% | 0 | 24 |
   | 6 | Sustained Warning | 0 | 1 | 0.00% | 0 | 24 |
-  | 6 | 20% Healthy Blips | 2 | 12 | 15.79% | 1 | 23 |
+  | 6 | 20% Healthy Blips | 1 | 6 | 3.03% | 0 | 24 |
   | 8 | Sustained Warning | 0 | 1 | 0.00% | 0 | 23 |
-  | 8 | 20% Healthy Blips | 0 | 12 | 17.11% | 0 | 24 |
+  | 8 | 20% Healthy Blips | 2 | 4 | 0.00% | 0 | 23 |
 
-  * Same polling artifact as 5b: all 4 validators agree except SHW=2 (20% Healthy Blips only),
-    split evenly 2-2 on uptime (36.46% vs. 37.50%; exit_count/max_suspicious_duration still
-    agree). The table shows one side of that split.
+  * Same polling artifact as 5b: most rows have all 7 validators agree exactly; a few split 4-6 of
+    7 by ±1 transition or ±1 on `max_suspicious_duration` (SHW=1/4/8 stable, matching redeploys
+    that landed right at a state-transition boundary). Table shows the majority value.
   * `Sustained Warning` is flat across every SHW value — 1 transition (initial
     drive-to-SUSPICIOUS), 0 exits, `max_suspicious_duration` pinned at 23-24: with zero healthy
     blips to ever test the exit timer against, `MaxSuspiciousTime` alone decides the outcome — SHW
@@ -695,9 +702,11 @@ apply, on another:
 * *Conclusion:*
   * Real trade-off, in-process — absorbing more noise on this edge speeds up the very escalation
     absorption is supposed to delay.
-  * Live confirms half of this: flapping behaves exactly as designed, falling steadily 8→0 as SHW
-    grows. But uptime doesn't follow the in-process curve at all — it even reverses direction at
-    the 1→2 step.
+  * Live only partly confirms this at 7-node scale: flapping drops sharply from SHW=1 (6) to SHW=2
+    (1) and stays low (1-2) through SHW=8 — not the smooth monotonic 8→0 decline an earlier 4-node
+    measurement found, but the same overall direction. `exit_count=0` for every SHW≥4 run is a
+    cleaner confirmation than before that `MaxSuspiciousTime` caps the window before the exit timer
+    ever matters once SHW is at least 4.
 
 #### Open question: asymmetric hardening
 
