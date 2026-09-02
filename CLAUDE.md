@@ -61,10 +61,16 @@ only, 2-3 lines per comment unless a genuine divergence from the spec needs just
 
 ## Critical architecture constraints
 
-- **"Sensors propose, consensus decides" is not optional.** FSM state is written only by
-  `CommitFSMTransition` (`x/sovereignty/preblock.go`), from the already-agreed proposal — never
-  recomputed from a node's own live sensors inside committed state. (`x/sovereignty/abci.go`'s
-  `BeginBlocker` is a separate, simplified path used only by the in-process `tests/e2e` harness.)
+- **"Sensors observe, quorum certifies, the state machine decides" is not optional.** Each
+  validator signs its own sensor snapshot as a vote extension (`x/sovereignty/vote_extension.go`'s
+  `ExtendVote` — the only ABCI++ hook allowed to touch live sensors/RPC). `PrepareProposal`
+  aggregates ≥2f+1 voting power's worth of signed extensions into a `HealthCertificate`
+  (`AggregateHealthCertificates`, a pure deterministic function — no RPC) and prepends it as
+  `Txs[0]`; `ProcessProposal` only re-verifies and re-runs that same aggregation, never touches a
+  live sensor. FSM state is written only by `CommitFSMTransition` (`x/sovereignty/preblock.go`),
+  from that already-agreed certificate — never recomputed from a node's own live sensors inside
+  committed state. (`x/sovereignty/abci.go`'s `BeginBlocker` is a separate, simplified path used
+  only by the in-process `tests/e2e` harness.)
 - **Never write live local sensor reads into committed/hashed state.** A `PreBlocker` that calls
   `RefreshMetrics` makes each validator's local P2P/BTC view part of `AppHash`, and validators with
   even slightly different local readings diverge — this caused a real consensus failure. Only
