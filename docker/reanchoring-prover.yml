@@ -20,23 +20,20 @@ services:
     environment:
       - NODE_URL=http://engram-node01:26657
       - POLL_INTERVAL_S=3
-      # celestia-bridge-prover, NOT the validators' shared celestia-bridge-node01 --
-      # see docker/celestia-local-cluster.yml's celestia-bridge-prover doc.
       - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
     restart: unless-stopped
-    # tini (Docker's built-in --init) so SIGTERM reaches nargo/bb, not just
-    # bash PID 1 -- without it, `docker stop`/`compose down` waits out the
-    # full grace period then SIGKILLs mid-proof instead of exiting cleanly.
     init: true
     deploy:
       resources:
         limits:
-      # cpus: bb prove (UltraHonk) spawns one worker thread per CPU; 6.0
-      # leaves headroom for the validators + bitcoind + celestia.
-      # memory: sized for witness-execution only (~2.2-2.4GB measured
-      # live) now that circuit/README.md's circuits are compiled at
-      # `docker build` time, not per proof cycle -- see the Dockerfile.
-      # Docker Desktop's VM has 7.7GB total, not the host's 16GB.
+          # Still OOM-kills live on a real (non-padded) N=256 proof even at
+          # 8192M, with a 12GB Docker Desktop VM total -- bb's UltraHonk
+          # proving spawns one thread per visible CPU (8 here) over a
+          # ~6.7M-gate circuit, and per-thread FFT/MSM scratch buffers likely
+          # push the real peak past what fits alongside the live validator+
+          # bitcoind+celestia cluster on this machine's 16GB. Unresolved;
+          # scripts/reanchoring_prover/watch_and_prove.sh run host-side
+          # (unconstrained) is the reliable path until this is root-caused.
           cpus: '6.0'
-          memory: 4096M
+          memory: 8192M
