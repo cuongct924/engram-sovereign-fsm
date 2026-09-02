@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """E10 -- Bitcoin Reorg Fork-Choice Reaction, LIVE-docker figure
 (docs/EXPERIMENT.md's E10), built from live_reorg_test.py's real output
-against the real 4-node testnet.
+against the real 7-node testnet.
 
 One figure, 5 stacked panels -- FSM state timeline (engram-node01, real,
-one representative node; all 4 validators agree at every sample in every
+one representative node; all 7 validators agree at every sample in every
 trial) for each real live trial run so far:
     1. Shallow (depth=1, < KDeepFinality=2)
     2. Boundary (depth=2, = KDeepFinality)
@@ -13,10 +13,9 @@ trial) for each real live trial run so far:
     5. Deep (depth=15), trial 2 (repeat)
 
 Each panel's own CSV only covers that script run's own settle window --
-trial 5's run ended still SOVEREIGN at the CSV's last sample; manual
-follow-up polling (not in this CSV) found real recovery to ANCHORED at
-t~=676s after reconnect (see docs/EXPERIMENT.md's E10 section), noted in
-the panel title rather than plotted since it isn't sampled data.
+both deep trials end still SOVEREIGN at the CSV's last sample; the
+cluster recovered to ANCHORED afterward on its own, outside this CSV's
+sampled window (see docs/EXPERIMENT.md's E10 section).
 
 Panels are 5 independent trials at different depths, not one continuous run
 (unlike E2's live_single_timeline.py, which plots a single sequential
@@ -64,11 +63,11 @@ STATE_LEGEND = [
 ]
 
 TRIALS = [
-    ("Shallow (depth=1, < KDeepFinality)", "reorg_shallow_20260812T140516.csv"),
-    ("Boundary (depth=2, = KDeepFinality)", "reorg_deep_20260815T171706.csv"),
-    ("Boundary (depth=3, = KDeepFinality+1)", "reorg_deep_20260815T172002.csv"),
-    ("Deep (depth=15), trial 1", "reorg_deep_20260812T143632.csv"),
-    ("Deep (depth=15), trial 2 -- repeat (real recovery to ANCHORED at t~676s, past this CSV's own settle window)", "reorg_deep_20260815T173058.csv"),
+    ("Shallow (depth=1, < KDeepFinality)", "reorg_shallow_20260902T033024.csv"),
+    ("Boundary (depth=2, = KDeepFinality)", "reorg_deep_20260902T033221.csv"),
+    ("Boundary (depth=3, = KDeepFinality+1)", "reorg_deep_20260902T033417.csv"),
+    ("Deep (depth=15), trial 1", "reorg_deep_20260902T033614.csv"),
+    ("Deep (depth=15), trial 2 -- repeat", "reorg_deep_20260902T033810.csv"),
 ]
 
 
@@ -158,7 +157,7 @@ def main():
     fig.text(0.5, 0.99, "Figure 8 -- E10 FSM Reaction to Real Bitcoin Reorgs by Depth",
               ha="center", va="top", fontsize=12, fontweight="bold")
     fig.text(0.5, 0.965,
-              "(live 4-node Docker testnet, engram-node01, real -- all 4 validators agreed at every sample in every trial; "
+              "(live 7-node Docker testnet, engram-node01, real -- all 7 validators agreed at every sample in every trial; "
               "KDeepFinality = 2)",
               ha="center", va="top", fontsize=8.5)
     fig.legend(

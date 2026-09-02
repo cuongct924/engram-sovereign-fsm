@@ -1155,11 +1155,14 @@ depth.
 
 | Depth | Result |
 |---|---|
-| Shallow (depth=1, < `KDeepFinality`=2) | all 4 validators stay ANCHORED ([`results_live/reorg_shallow_20260812T140516.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260812T140516.csv)) |
-| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 4 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260815T171706.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T171706.csv)) |
-| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 4 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260815T172002.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T172002.csv)) |
-| Deep (depth=15, past the anchored checkpoint), trial 1 | all 4 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260812T143632.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260812T143632.csv)) |
-| Deep (depth=15), trial 2 (repeat) | same outcome reproduced — all 4 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260815T173058.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260815T173058.csv)) |
+| Shallow (depth=1, < `KDeepFinality`=2) | all 7 validators stay ANCHORED, 0 sample disagreements ([`results_live/reorg_shallow_20260902T033024.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260902T033024.csv)) |
+| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260902T033221.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033221.csv)) |
+| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260902T033417.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033417.csv)) |
+| Deep (depth=15, past the anchored checkpoint), trial 1 | all 7 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260902T033614.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033614.csv)) |
+| Deep (depth=15), trial 2 (repeat) | same outcome reproduced — all 7 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260902T033810.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033810.csv)) |
+
+Rerun at 7-node scale (previously 4-node); every trial above shows unanimous 7/7 agreement at
+every sample, 0 RPC errors across all 5 CSVs combined (1260 total samples).
 
 `AnchorTracker.VerifyAnchor` re-derives `BlockContainsTag` fresh via `getblockhash` on every call,
 so the deep reorg is caught on the next check, `is_btc_spv_failed` goes true,
