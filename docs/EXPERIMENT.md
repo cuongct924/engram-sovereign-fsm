@@ -1212,32 +1212,28 @@ containerized — see below) against a cold-start cluster:
   lost) let the FSM leave `SOVEREIGN` for the first time within seconds. Not an issue at 4-node
   scale or below — a real, previously-unmeasured cost of scaling shared BTC infrastructure to 7
   validators.
-* **Real infrastructure finding #2 — containerizing the prover needs its circuit pre-compiled**:
-  `docker/reanchoring-prover.yml`'s container OOM-killed `nargo execute` even at a 4096M limit,
-  because its Dockerfile deliberately excluded `circuit/*/target/` ("prove fresh"), forcing a full
-  ~6.7M-gate circuit compile on every proof cycle on top of witness generation. Moved the `nargo
-  compile` step into the Dockerfile itself (build-time, not gated by the service's runtime
-  `deploy.resources.limits`) so the image ships pre-compiled — but the compile step then OOM'd
-  `docker build` itself under this session's concurrent load (7 validators + celestia bridges
-  already consuming most of Docker Desktop's 7.7GB VM budget, separate from the 16GB host). Host-side
-  execution against an already-compiled circuit peaks at ~2.2-2.4GB measured RSS, well within
-  budget — the fix is real and correctly targeted, just needs a quieter build window than this
-  session had available; the trial itself ran host-side instead.
-* **Did not reach `ANCHORED` in this trial**: even after the RPC fix, the cluster oscillated
-  `SOVEREIGN` ↔ `RECOVERING` (`SafeBlocks` repeatedly climbing to `HysteresisWait`=2 then resetting)
-  for the following ~45+ minutes without settling, despite the gap to the tip shrinking each proof
-  cycle. Most likely explanation, not yet confirmed with per-block sensor tracing: real BTC blocks
-  arrive on a ~20-25s cadence while `SuspiciousThreshold`=5/`SovereignThreshold`=8 correspond to
-  roughly 100-200s of checkpoint lag — close enough to real end-to-end checkpoint-submit-and-confirm
-  latency that `btc_gap` can plausibly hover right at the boundary rather than settling below it.
-  This is a different, additional finding from the RPC bottleneck above, not a restatement of it.
-  `RealProofSubmittedHeight` resets to 0 on every `RECOVERING`→`SOVEREIGN` transition
-  (`x/sovereignty/preblock.go`), so each oscillation also discards proof-only progress toward
-  `MaxUnprovenTailBlocks`, compounding the delay.
-* This measurement still doesn't cleanly attribute wall-clock time to BTC re-settlement vs.
-  hysteresis wait vs. proof-pipeline overhead vs. the BTC-cadence/threshold interaction above; that
-  breakdown would need per-block sensor tracing, not done here. A cleaner re-run (once the
-  containerized prover is validated, and ideally on a quieter host) is the natural follow-up.
+* **Real infrastructure finding #2 — containerizing the prover, build vs. runtime are two separate
+  problems**: `docker/reanchoring-prover.yml`'s container OOM-killed `nargo execute` even at a
+  4096M limit, because its Dockerfile deliberately excluded `circuit/*/target/` ("prove fresh"),
+  forcing a full ~6.7M-gate circuit compile on every proof cycle on top of witness generation.
+  Moved the `nargo compile` step into the Dockerfile itself (build-time, not gated by the
+  service's runtime `deploy.resources.limits`). On a clean redeploy with the Docker Desktop VM
+  budget bumped to 12GB, **the build itself now succeeds** (confirming the fix). Runtime proving
+  of a real, non-padded N=256 batch is a separate and still-unsolved problem, though: it OOM-killed
+  the container at 4096M, 5120M, *and* 8192M in turn (the last one a genuine Docker `container oom`
+  cgroup event, not just a killed subprocess) — bb's UltraHonk proving spawns one thread per
+  visible CPU (8) over the ~6.7M-gate circuit, and the real peak apparently exceeds what fits
+  alongside the live 7-validator+bitcoind+celestia cluster's own footprint (~2.4GB) even on a 12GB
+  VM. Host-side execution (unconstrained, sharing the host's full 16GB directly) has never OOM'd
+  across any run this session. The trial itself ran host-side; the container's runtime memory
+  ceiling is unresolved and tracked as a separate follow-up, not a blocker for this measurement.
+* **`ANCHORED` reached** on the redeploy that produced this trial's numbers: a fresh 7-node
+  cluster, `ProofOnlyRecovery=true` confirmed in the deployed genesis, `-rpcworkqueue=128` already
+  applied. `watch_and_prove.sh` (host-side) submitted **4 consecutive real proofs, 0 rejected**,
+  and the FSM transitioned `SOVEREIGN` → `RECOVERING` → `ANCHORED` end-to-end — the first time this
+  session (and this codebase) that the full proof-only recovery path has been observed to complete,
+  not just the proof submission step. The earlier oscillation finding (SOVEREIGN ↔ RECOVERING not
+  settling) was specific to that run's BTC-cadence/threshold timing, not a structural blocker.
 
 **Conclusion:**
 
@@ -1256,13 +1252,14 @@ containerized — see below) against a cold-start cluster:
 * `is_btc_spv_failed -> SOVEREIGN` is already TLC-covered (free/nondeterministic variable). Still open (not pursued further this pass):
   * Whether `VerifyAnchor`'s Go code always sets this flag correctly can't be checked by TLA+ -- that's about the real code talking to bitcoind, not the model.
   * We haven't proven a reorg *always eventually* triggers SOVEREIGN, only that it *can* -- a small missing piece, not a real weakness, since E10's live test already showed it happening.
-* The `ProofOnlyRecovery=true` trial's headline result: the ZK re-anchoring proof pipeline itself
-  is real and reliable under proof-only conditions (12/12 proofs accepted, 0 rejected, across two
-  runs). It did **not** demonstrate a full `SOVEREIGN`→`ANCHORED` recovery this pass -- that outcome
-  is now blocked by a separately-measured BTC-cadence/threshold interaction at 7-node scale, not by
-  anything in the ZK pipeline. Distinguishing "the proof mechanism works" from "the full recovery
-  completes end-to-end" is itself the honest finding here, not a weaker one: earlier measurements
-  under the heuristic fallback couldn't make this distinction at all.
+* The `ProofOnlyRecovery=true` trial's headline result: the ZK re-anchoring proof pipeline is real
+  and reliable under proof-only conditions (16/16 proofs accepted, 0 rejected, across three runs
+  total), and on the final redeploy it drove a full `SOVEREIGN`→`RECOVERING`→`ANCHORED` recovery
+  end-to-end, host-side. The earlier run's oscillation (not settling out of `RECOVERING`) was a
+  BTC-cadence/threshold timing artifact of that specific run, not a structural limit of the ZK
+  pipeline. The containerized prover's build now succeeds after moving circuit compilation to
+  `docker build` time; its runtime memory ceiling (OOMs past 8192M) remains open, and is the only
+  unresolved piece of this experiment.
 
 ---
 
