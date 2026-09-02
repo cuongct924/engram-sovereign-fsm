@@ -85,6 +85,21 @@ only, 2-3 lines per comment unless a genuine divergence from the spec needs just
 - This app has no `x/auth`/`x/bank`/`x/staking` mounted: transactions are unsigned envelopes, and
   the validator set comes only from genesis (no staking-driven rotation).
 
+## Troubleshooting
+
+Full detail and fixes: `docs/DEVELOPMENT.md` §5.5 (gotchas) and §10 (quick reference). The
+non-obvious ones, found live while doing a from-scratch redeploy:
+
+- `data/bitcoin-node0N/` and `data/celestia-*/` persist across `testnet-up` redeploys, unlike
+  `testnet-data/`. A fresh genesis against old, far-advanced chain data desyncs `btc_gap`/`da_gap`
+  from their near-zero baseline — wipe both together for a genuinely clean trial, not just
+  `testnet-data/`.
+- Wiping `celestia-app` and its bridges in the same cycle races the bridge's one-time
+  `TrustedHash` fetch; a bridge that loses that race crash-loops permanently and needs its own data
+  dir wiped again (after `celestia-app` is stable) to re-fetch.
+- A celestia bridge's blob-submission account needs its own TIA funding — nothing does this
+  automatically, and a zero balance fails DA silently (`is_das_failed`, no log line).
+
 ## Current status
 
 The full E1-E10 experiment suite (`docs/EXPERIMENT.md`) are done, with real (not

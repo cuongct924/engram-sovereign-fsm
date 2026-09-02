@@ -263,6 +263,47 @@ what `up`'s bare defaults include, it does not narrow `stop`/`rm`'s scope. Hit t
 stopping a chaos-wan profile mid-run; see the Makefile's `chaos-wan-stop` target for the fix
 (always pass explicit service names).
 
+**BTC/Celestia data dirs persist across `testnet-up` redeploys — a fresh genesis against stale
+chain data desyncs the FSM's baseline, not just a slow catch-up.** `testnet-up` always wipes and
+regenerates `testnet-data/` (§5.5's first gotcha), but `data/bitcoin-node0N/` and
+`data/celestia-*/` are **not** wiped by default — they persist and keep growing indefinitely
+across redeploys (this is normally desirable: no wallet-maturity/chain-resync wait on every
+iteration). A fresh genesis assumes a near-zero starting anchored height; if the real BTC/Celestia
+chains have since mined thousands of blocks in earlier sessions, `btc_gap`/`da_gap` (computed as
+`currentHeight - lastAnchoredHeight`) start in the thousands and can keep the FSM pinned in
+`SOVEREIGN` for a very long time (confirmed live: `btc_gap` in the high 4000s from chain data alone
+outliving several redeploys). Fix: for a genuinely from-scratch/reproducible trial, wipe
+`data/bitcoin-node01`, `data/bitcoin-node02`, and every `data/celestia-*` dir too, not just
+`testnet-data/`.
+
+**Wiping `data/celestia-app` together with its bridges races the bridge's `TrustedHash` init.**
+Each bridge's first-ever start (`docker/celestia-local-cluster.yml`'s init script) fetches
+height-1's block hash from `celestia-app` over HTTP and bakes it into `config.toml` as
+`TrustedHash` — but only when the bridge's own data dir doesn't exist yet. If `celestia-app` isn't
+retrievable at height 1 fast enough (e.g., both were just wiped together), the fetch silently
+returns empty and `TrustedHash = ""` gets written permanently; every later `bridge start` then
+fails with `fetching block by hash: block not found, hash:` (empty) and crash-loops forever —
+restarting the container does **not** re-trigger the fetch, since the data dir now exists. Fix:
+wipe the affected bridge's data dir *again* (after confirming `celestia-app` has several blocks)
+and restart it — the re-init fetches a real hash this time.
+
+**A bridge's blob-submission account needs its own TIA funding — nothing does this
+automatically.** `celestia bridge init` creates a brand-new local key/account, but no script funds
+it. With a zero balance, every `blob.Submit` fails ("insufficient funds"), and `x/da/publisher.go`
+swallows that into `is_das_failed=true`/`da_gap` pinned at `Params.DAThreshold` with **no log
+line** (a soft DA-degrade, not a hard ABCI error) — `da_gap` stays maxed out forever, blocking
+`ANCHORED`. This works "by accident" in normal iterative dev because bridge data dirs (and their
+once-funded accounts) persist across redeploys — it only surfaces after a bridge's own data is
+wiped (fresh account, zero balance) without re-funding. Fix: query each bridge's address
+(`state.AccountAddress` over its JSON-RPC) and fund it from `celestia-app`'s own `validator`
+account:
+```bash
+docker exec celestia-app celestia-appd tx bank send validator <bridge-address> 10000000utia \
+  --keyring-backend test --chain-id private --fees 5000utia --yes --broadcast-mode block
+```
+Use `--broadcast-mode block` (or wait for each tx to commit) when funding several accounts back to
+back — firing them without waiting causes account-sequence-mismatch errors (`code: 32`).
+
 ---
 
 ## 6. ZK re-anchoring pipeline (RECOVERING → ANCHORED)
@@ -625,3 +666,6 @@ Symptom → where to look (details live in the section cited):
 | FSM transitions diverge across validators | a live sensor read leaked into committed state — §1, §7.1 |
 | A validator is misbehaving in production | `ENGRAM_BYZANTINE_BEHAVIOR` set on a real validator — §7.4, §8.3 |
 | BTC desync stalls consensus permanently | `engramd` started before the wallet was mature, or burst-mining — §5.3 |
+| FSM stuck in `SOVEREIGN` after a fresh genesis, `btc_gap`/`da_gap` huge | BTC/Celestia data not wiped to match the fresh genesis — §5.5 |
+| A celestia bridge crash-loops with `fetching block by hash: ... hash:` (empty) | `celestia-app` + its bridges wiped together, `TrustedHash` init race — §5.5 |
+| FSM stuck with `is_das_failed=true`, `da_gap` maxed, no log errors | bridge account has zero TIA balance, blob submits fail silently — §5.5 |
