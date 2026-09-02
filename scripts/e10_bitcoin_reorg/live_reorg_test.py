@@ -88,12 +88,16 @@ def pause_node01_mining(paused: bool):
 
 
 def ensure_node02_wallet() -> str:
-    """Returns a mining-destination address on node02, creating its wallet
-    if this is the first run (fresh regtest data dirs won't have one)."""
+    """Returns a mining-destination address on node02. node02's bitcoin data
+    dir persists across redeploys (unlike testnet-data/), so the wallet may
+    already exist on disk but unloaded -- try load before create."""
     try:
         return bitcoin_cli("-rpcwallet=reorgwallet", "getnewaddress", node=NODE02)
     except RuntimeError:
-        bitcoin_cli("createwallet", "reorgwallet", node=NODE02)
+        try:
+            bitcoin_cli("loadwallet", "reorgwallet", node=NODE02)
+        except RuntimeError:
+            bitcoin_cli("createwallet", "reorgwallet", node=NODE02)
         return bitcoin_cli("-rpcwallet=reorgwallet", "getnewaddress", node=NODE02)
 
 
