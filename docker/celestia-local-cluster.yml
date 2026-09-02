@@ -163,14 +163,8 @@ services:
         fi
         celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
-  # celestia-bridge-node02/03/04: one independent bridge per validator
-  # (engram-node01 keeps using celestia-bridge-node01 above), each with its own P2P
-  # sync path and account against celestia-app -- so DA availability is each
-  # validator's own real, independently-retrieved observation instead of all
-  # 4 trusting one shared bridge's view. Real DAS (probabilistic light-node
-  # sampling) would be a further step; bridge mode already re-verifies full
-  # block data independently per instance, which is what removes the
-  # single-point-of-trust/failure this replaces.
+  # One independent bridge per validator (not all sharing node01's) so DA
+  # availability is each validator's own real observation, not shared trust.
   celestia-bridge-node02:
     image: ghcr.io/celestiaorg/celestia-node:${CELESTIA_NODE_VERSION:-v0.14.1}
     container_name: celestia-bridge-node02
