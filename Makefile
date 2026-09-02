@@ -32,6 +32,14 @@ COMPOSE_FILE := docker-compose.yml
 # and their celestia bridges are Compose-profile-gated rather than always
 # started. Genesis (`testnet init-files --v N`) is generated to match.
 N ?= 7
+# PROVER=container (default) builds/runs docker/reanchoring-prover.yml's
+# service; PROVER=host launches scripts/reanchoring_prover/watch_and_prove.sh
+# in the background instead, logging to /tmp/watch_and_prove.log. The
+# container's own circuit-compile happens at `docker build` time, but real
+# N=256 proving still needs more RAM than reliably fits in Docker Desktop's
+# VM alongside the live cluster (see docker/reanchoring-prover.yml) -- host
+# mode shares the host's full RAM directly and has never OOM'd this session.
+PROVER ?= container
 ifeq ($(N),7)
 	VALIDATOR_SERVICES_EXTRA := engram-node05 engram-node06 engram-node07
 	BRIDGE_SERVICES_EXTRA := celestia-bridge-node05 celestia-bridge-node06 celestia-bridge-node07
@@ -169,8 +177,15 @@ ifeq ($(N),7)
 endif
 	@echo "--> Starting the $(N) validators"
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) $(COMPOSE_PROFILE_FLAG) up -d --build engram-node01 engram-node02 engram-node03 engram-node04 $(VALIDATOR_SERVICES_EXTRA)
-	@echo "--> Starting the ZK re-anchoring prover (needed for RECOVERING -> ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED)"
+ifeq ($(PROVER),host)
+	@echo "--> Starting the ZK re-anchoring prover host-side (PROVER=host) -- log: /tmp/watch_and_prove.log"
+	set -a && . $(ENV_FILE) && set +a && \
+		NODE_URL=http://127.0.0.1:26657 MAX_CHECKS=999999 \
+		nohup ./scripts/reanchoring_prover/watch_and_prove.sh > /tmp/watch_and_prove.log 2>&1 &
+else
+	@echo "--> Starting the ZK re-anchoring prover as a container (PROVER=container; needed for RECOVERING -> ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED)"
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d --build reanchoring-prover
+endif
 	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
@@ -383,7 +398,7 @@ help:
 	@echo "  e1-server-safety / e1-server-liveness     - Full refinement bridge (all layers)"
 	@echo ""
 	@echo "Local docker testnet:"
-	@echo "  testnet-up [N=4|7]  - Fresh genesis + bring up bitcoin/celestia/N validators (default N=7)"
+	@echo "  testnet-up [N=4|7] [PROVER=container|host]  - Fresh genesis + bring up bitcoin/celestia/N validators (default N=7, PROVER=container)"
 	@echo "                        (honors ENGRAM_PARAM_* in .env -- see .env.example)"
 	@echo "  testnet-down        - Stop the miner loop + core services (not a bare down)"
 	@echo "  testnet-status      - docker compose ps"
