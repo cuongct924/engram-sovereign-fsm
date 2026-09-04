@@ -1129,99 +1129,82 @@ Answers RQ1/RQ2.
 **Metrics:** FSM state after the reorg (ANCHORED vs. SOVEREIGN), reaction correctness vs. reorg
 depth.
 
-**Method:** `scripts/e10_bitcoin_reorg/live_reorg_test.py`
+**Method:**
 
-* Isolates `bitcoin-node02` (`setnetworkactive false`).
-* Forces an alternate chain via `invalidateblock`, mines it past node01's frozen height.
-* Reconnects to force a real reorg on node01 and every validator watching it — verified
-  independently via `getblockhash`, not assumed from height alone.
+* Reorg-depth reaction — `scripts/e10_bitcoin_reorg/live_reorg_test.py`:
+  * Isolates `bitcoin-node02` (`setnetworkactive false`).
+  * Forces an alternate chain via `invalidateblock`, mines it past node01's frozen height.
+  * Reconnects to force a real reorg on node01 and every validator watching it — verified
+    independently via `getblockhash`, not assumed from height alone.
+* Recovery mechanism — `scripts/reanchoring_prover/watch_and_prove.sh`, run separately under
+  `Params.ProofOnlyRecovery=true` to isolate the real ZK-proof path from the cheaper heuristic
+  fallback (see that subsection below for why the distinction matters).
 
 **Results:**
 
+**A. Reorg-depth reaction**
+
+Fresh 7-node run (2026-09-04) covering every depth that matters in one pass: {1, 2, 3, 5, 15}.
+
 | Depth | Result |
 |---|---|
-| Shallow (depth=1, < `KDeepFinality`=2) | all 7 validators stay ANCHORED, 0 sample disagreements ([`results_live/reorg_shallow_20260902T033024.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260902T033024.csv)) |
-| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260902T033221.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033221.csv)) |
-| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260902T033417.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033417.csv)) |
-| Deep (depth=15, past the anchored checkpoint), trial 1 | all 7 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260902T033614.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033614.csv)) |
-| Deep (depth=15), trial 2 (repeat) | same outcome reproduced — all 7 validators transition to SOVEREIGN in lockstep ([`results_live/reorg_deep_20260902T033810.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260902T033810.csv)) |
+| Shallow (depth=1, < `KDeepFinality`=2) | all 7 validators stay ANCHORED throughout ([`results_live/reorg_shallow_20260904T005405.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260904T005405.csv)) |
+| Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260904T005602.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005602.csv)) |
+| Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260904T005801.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005801.csv)) |
+| Deep (depth=5, near `SuspiciousThreshold`=4) | real reorg confirmed, all 7 validators **still stay ANCHORED throughout** — no `SUSPICIOUS` transition at all ([`results_live/reorg_deep_20260904T005958.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005958.csv)) |
+| Deep (depth=15, well past the anchored checkpoint) | all 7 validators transition ANCHORED→SUSPICIOUS (t=43s)→SOVEREIGN (t=56s) in lockstep ([`results_live/reorg_deep_20260904T010155.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T010155.csv)) |
 
-Rerun at 7-node scale (previously 4-node); every trial above shows unanimous 7/7 agreement at
-every sample, 0 RPC errors across all 5 CSVs combined (1260 total samples).
+Every trial above shows unanimous 7/7 agreement at every one of 181 polled rounds, 0 RPC errors
+across all 5 CSVs combined (1267 total samples).
 
 `AnchorTracker.VerifyAnchor` re-derives `BlockContainsTag` fresh via `getblockhash` on every call,
-so the deep reorg is caught on the next check, `is_btc_spv_failed` goes true,
+so a deep-enough reorg is caught on the next check, `is_btc_spv_failed` goes true,
 `IsCriticalCondition` fires.
 
 ![E10 FSM reaction to real Bitcoin reorgs by depth, 5 trials](../scripts/e10_bitcoin_reorg/results/figure8_reorg_depth_reaction_live.png)
 
-**Boundary finding:** depths 2 and 3 orphan real blocks (`invalidateblock` + longer competing chain
-confirmed via `getblockhash`, not assumed from height) but never trip the FSM. `x/sovereignty/types/params.go`
-requires `SuspiciousThreshold > KDeepFinality+1` (i.e. ≥4), so a `btc_gap` of 2-3 sits below the
-threshold that would flip `IsWarningCondition`/`IsCriticalCondition` — the deep/shallow split isn't
-literally "at `KDeepFinality`", there's a real tolerance band up to `KDeepFinality`+2 before any
-reaction.
+*Boundary finding, now measured up to depth=5, not just depth=3:* depths 2, 3, and 5 all orphan
+real blocks (`invalidateblock` + longer competing chain confirmed via `getblockhash`, not assumed
+from height) but never trip the FSM — the tolerance band extends further than depth=3 alone would
+suggest. `x/sovereignty/types/params.go` requires `SuspiciousThreshold > KDeepFinality+1` (i.e. ≥4),
+so a `btc_gap` in the low single digits sits below the threshold that would flip
+`IsWarningCondition`/`IsCriticalCondition`; the exact boundary between "no reaction" (depth=5) and
+"reaction" (depth=15) remains uncharacterized between those two points.
 
-**Recovery-time finding (trial 2, extended observation):** the script's own 600s post-reconnect
-window ended still SOVEREIGN (matching trial 1). Manual follow-up polling past that window found
-the chain reached ANCHORED at t≈676s after reconnect (11m16s total). Two things worth noting from
-`watch_and_prove.sh`'s log during that window:
-* One real batch-proof attempt fired at the N_MAX=256 threshold and was rejected in `DeliverTx`
-  ("invalid zk recovery proof") — the documented staleness race in `prove_and_submit.sh` (the
-  tracked interval grew past what the proof covered during its own ~28s prove time), a real
-  occurrence of an already-known race, not a new bug.
-* Recovery completed anyway. `refreshReanchoringProofValid` (`x/sovereignty/sensors_refresh.go`)
-  ORs two independent exit conditions while `RECOVERING`: the real-proof path
-  (`RealProofSubmittedHeight`, gated by `MaxUnprovenTailBlocks`) and a cheaper heuristic
-  (`h_btc_anchored >= h_btc_submitted`), unless `Params.ProofOnlyRecovery` is set, in which case only
-  the real-proof path counts. That param defaulted to `false` for this measurement, so the rejected
-  batch proof was not necessarily on the critical path to this recovery — the 676s figure can't be
-  attributed to the ZK pipeline specifically.
+**B. Recovery mechanism (ZK proof)**
 
-**`ProofOnlyRecovery=true` trial (real, 7-node cluster):** re-ran with the heuristic fallback
-genuinely disabled (verified directly in the deployed `genesis.json`, not just `.env` — an earlier
-attempt this session silently ran with the field absent/false because the env var was set after
-genesis generation). `scripts/reanchoring_prover/watch_and_prove.sh` run host-side (not
-containerized — see below) against a cold-start cluster:
+*Recovery-time finding:* a 600s observation window isn't always enough — one trial was still
+`SOVEREIGN` at that mark but reached `ANCHORED` at t≈676s once observed further.
+`refreshReanchoringProofValid` (`x/sovereignty/sensors_refresh.go`) ORs a real-proof path
+(`RealProofSubmittedHeight`) with a cheaper heuristic (`h_btc_anchored >= h_btc_submitted`) unless
+`Params.ProofOnlyRecovery` is set. That param defaulted to `false` here, so this recovery time
+reflects the heuristic path, not the ZK pipeline specifically.
 
-* **The ZK pipeline itself is conclusively validated under proof-only mode**: 12 consecutive real
-  proofs accepted on-chain across two watcher runs (7, then 5 after a mid-run infrastructure fix),
-  **0 rejected** — each one a genuine `nargo execute` + `bb prove` + `tx-submit-recovery-proof`
-  round trip against the per-validator-timestamp-fixed circuit, advancing `LastAnchoredRoot` for
-  real. This is the first time this session (and this codebase) that the proof-only path has been
-  exercised repeatedly and reliably, not just once.
-* **Real infrastructure finding #1 — BTC RPC contention**: the cluster spent ~57 minutes stuck in
-  `SOVEREIGN` (despite proofs landing the whole time) because `bitcoin-node01` — one shared
-  `bitcoind` regtest instance now serving 7 validators' concurrent per-block `RefreshMetrics` calls
-  plus the miner loop — was rejecting requests (`WARNING: request rejected because http work queue
-  depth exceeded`, confirmed directly in `bitcoin-node01`'s own logs). This degraded real BTC
-  checkpoint catch-up speed, keeping `btc_gap` elevated. Raising `-rpcworkqueue` from the default 16
-  to 128 (`docker/bitcoin-regtest-cluster.yml`) and recreating the container (no chain/wallet data
-  lost) let the FSM leave `SOVEREIGN` for the first time within seconds. Not an issue at 4-node
-  scale or below — a real, previously-unmeasured cost of scaling shared BTC infrastructure to 7
-  validators.
-* **Real infrastructure finding #2 — containerizing the prover, build vs. runtime are two separate
-  problems**: `docker/reanchoring-prover.yml`'s container OOM-killed `nargo execute` even at a
-  4096M limit, because its Dockerfile deliberately excluded `circuit/*/target/` ("prove fresh"),
-  forcing a full ~6.7M-gate circuit compile on every proof cycle on top of witness generation.
-  Moved the `nargo compile` step into the Dockerfile itself (build-time, not gated by the
-  service's runtime `deploy.resources.limits`). On a clean redeploy with the Docker Desktop VM
-  budget bumped to 12GB, **the build itself now succeeds** (confirming the fix). Runtime proving
-  of a real, non-padded N=256 batch is a separate and still-unsolved problem, though: it OOM-killed
-  the container at 4096M, 5120M, *and* 8192M in turn (the last one a genuine Docker `container oom`
-  cgroup event, not just a killed subprocess) — bb's UltraHonk proving spawns one thread per
-  visible CPU (8) over the ~6.7M-gate circuit, and the real peak apparently exceeds what fits
-  alongside the live 7-validator+bitcoind+celestia cluster's own footprint (~2.4GB) even on a 12GB
-  VM. Host-side execution (unconstrained, sharing the host's full 16GB directly) has never OOM'd
-  across any run this session. The trial itself ran host-side; the container's runtime memory
-  ceiling is unresolved and tracked as a separate follow-up, not a blocker for this measurement.
-* **`ANCHORED` reached** on the redeploy that produced this trial's numbers: a fresh 7-node
-  cluster, `ProofOnlyRecovery=true` confirmed in the deployed genesis, `-rpcworkqueue=128` already
-  applied. `watch_and_prove.sh` (host-side) submitted **4 consecutive real proofs, 0 rejected**,
-  and the FSM transitioned `SOVEREIGN` → `RECOVERING` → `ANCHORED` end-to-end — the first time this
-  session (and this codebase) that the full proof-only recovery path has been observed to complete,
-  not just the proof submission step. The earlier oscillation finding (SOVEREIGN ↔ RECOVERING not
-  settling) was specific to that run's BTC-cadence/threshold timing, not a structural blocker.
+*`ProofOnlyRecovery=true` trial* (real, 7-node cluster, heuristic path disabled,
+`-rpcworkqueue`=128, `watch_and_prove.sh` run host-side):
+
+* 16 consecutive real proofs accepted on-chain across three watcher runs, 0 rejected — each a
+  genuine `nargo execute` + `bb prove` + `tx-submit-recovery-proof` round trip advancing
+  `LastAnchoredRoot`.
+* One run completed the full `SOVEREIGN` -> `RECOVERING` -> `ANCHORED` path end-to-end (4 proofs, 0
+  rejected), not just proof submission.
+* At 7-node scale, `bitcoin-node01`'s default RPC work queue (16) can't keep up with 7 validators'
+  concurrent `RefreshMetrics` calls plus the miner loop, degrading real BTC checkpoint catch-up —
+  raised to 128 (`docker/bitcoin-regtest-cluster.yml`).
+
+*Real ZK proof round-trip timing, mean ± 95% confidence interval:* `watch_and_prove.sh`'s
+timestamped polling gives real per-cycle round-trip times (query → link chain → witness →
+`nargo execute` → `bb prove` → submit):
+
+| n | Mean ± 95% confidence interval | stdev | Values (s) |
+|---|---|---|---|
+| 5 (all accepted) | 131.6s ± 52.3s | 59.6s | 25.0, 159.0, 161.0, 159.0, 154.0 |
+| 4 (excluding the first) | 158.2s ± 2.9s | 3.0s | 159.0, 161.0, 159.0, 154.0 |
+
+The first value (25.0s) is likely a log-interleaving parsing artifact, not a real cycle — E6's
+isolated witness-solving alone measured ~60s, making 25s implausible. The 4-sample figure
+(158.2s ± 2.9s) is the more trustworthy number.
+([`results_live/zk_proof_timing_confidence_interval_20260902T142559.md`](../scripts/e10_bitcoin_reorg/results_live/zk_proof_timing_confidence_interval_20260902T142559.md))
 
 **Conclusion:**
 

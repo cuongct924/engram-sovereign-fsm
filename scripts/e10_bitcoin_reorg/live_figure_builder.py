@@ -5,17 +5,17 @@ against the real 7-node testnet.
 
 One figure, 5 stacked panels -- FSM state timeline (engram-node01, real,
 one representative node; all 7 validators agree at every sample in every
-trial) for each real live trial run so far:
+trial) for one consolidated fresh run covering every depth that matters:
     1. Shallow (depth=1, < KDeepFinality=2)
     2. Boundary (depth=2, = KDeepFinality)
     3. Boundary (depth=3, = KDeepFinality+1)
-    4. Deep (depth=15), trial 1
-    5. Deep (depth=15), trial 2 (repeat)
+    4. Deep (depth=5, near SuspiciousThreshold=4)
+    5. Deep (depth=15), well past the anchored checkpoint
 
-Each panel's own CSV only covers that script run's own settle window --
-both deep trials end still SOVEREIGN at the CSV's last sample; the
-cluster recovered to ANCHORED afterward on its own, outside this CSV's
-sampled window (see docs/EXPERIMENT.md's E10 section).
+Each panel's own CSV only covers that script run's own settle window; the
+depth=15 trial ends still SOVEREIGN at the CSV's last sample -- the cluster
+recovered to ANCHORED afterward on its own, outside this CSV's sampled
+window (see docs/EXPERIMENT.md's E10 section).
 
 Panels are 5 independent trials at different depths, not one continuous run
 (unlike E2's live_single_timeline.py, which plots a single sequential
@@ -63,11 +63,11 @@ STATE_LEGEND = [
 ]
 
 TRIALS = [
-    ("Shallow (depth=1, < KDeepFinality)", "reorg_shallow_20260902T033024.csv"),
-    ("Boundary (depth=2, = KDeepFinality)", "reorg_deep_20260902T033221.csv"),
-    ("Boundary (depth=3, = KDeepFinality+1)", "reorg_deep_20260902T033417.csv"),
-    ("Deep (depth=15), trial 1", "reorg_deep_20260902T033614.csv"),
-    ("Deep (depth=15), trial 2 -- repeat", "reorg_deep_20260902T033810.csv"),
+    ("Shallow (depth=1, < KDeepFinality)", "reorg_shallow_20260904T005405.csv"),
+    ("Boundary (depth=2, = KDeepFinality)", "reorg_deep_20260904T005602.csv"),
+    ("Boundary (depth=3, = KDeepFinality+1)", "reorg_deep_20260904T005801.csv"),
+    ("Deep (depth=5, near SuspiciousThreshold=4)", "reorg_deep_20260904T005958.csv"),
+    ("Deep (depth=15), well past the anchored checkpoint", "reorg_deep_20260904T010155.csv"),
 ]
 
 
