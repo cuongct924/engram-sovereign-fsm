@@ -1,0 +1,47 @@
+[package]
+name = "engram-plonky3-full-statement"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Path deps into .plonky3_checkout (this crate's OWN pinned clone -- see
+# benchmark_plonky3_full_statement.sh; PLONKY3_FULL_STATEMENT_DIR env var
+# overrides the location). A separate checkout from the sibling
+# benchmark_plonky3.sh's .plonky3_checkout (pinned to an older commit) is
+# required: this crate needs p3-poseidon2-air (header hashing) at a commit
+# recent enough to also carry p3-sha256-air, which this crate depended on
+# before its header hash switched from SHA-256 to Poseidon2 -- kept on the
+# same newer pin (3152b14a89067c83775a8076cc262ffc48a1fd7c, 2026-08-31)
+# rather than repinning, since nothing here needs the older commit back.
+[dependencies]
+p3-air = { path = ".plonky3_checkout/air" }
+p3-field = { path = ".plonky3_checkout/field" }
+p3-matrix = { path = ".plonky3_checkout/matrix" }
+p3-maybe-rayon = { path = ".plonky3_checkout/maybe-rayon" }
+p3-uni-stark = { path = ".plonky3_checkout/uni-stark" }
+p3-poseidon2 = { path = ".plonky3_checkout/poseidon2" }
+p3-poseidon2-air = { path = ".plonky3_checkout/poseidon2-air" }
+p3-baby-bear = { path = ".plonky3_checkout/baby-bear" }
+p3-challenger = { path = ".plonky3_checkout/challenger" }
+p3-commit = { path = ".plonky3_checkout/commit" }
+p3-dft = { path = ".plonky3_checkout/dft" }
+p3-fri = { path = ".plonky3_checkout/fri" }
+p3-keccak = { path = ".plonky3_checkout/keccak" }
+p3-merkle-tree = { path = ".plonky3_checkout/merkle-tree" }
+p3-symmetric = { path = ".plonky3_checkout/symmetric" }
+p3-examples = { path = ".plonky3_checkout/examples" }
+
+# 0.10.1 to match this checkout's own workspace-pinned rand (p3-poseidon2-air's
+# RoundConstants::from_rng needs a same-major-version Rng).
+rand = "0.10.1"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["std", "env-filter"] }
+tracing-forest = { version = "0.1", features = ["ansi", "smallvec"] }
+
+[[bin]]
+name = "prove_full_statement"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3

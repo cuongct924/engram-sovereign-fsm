@@ -57,6 +57,10 @@ proofs/
 
 # Plonky3 checkout cloned by benchmark_plonky3.sh (E6 Table 6C, external toolchain, not vendored)
 scripts/e6_zk_reanchoring_benchmark/.plonky3_checkout/
+# Ditto for benchmark_plonky3_full_statement.sh -- a separate, newer-pinned checkout
+# (needs p3-sha256-air, absent at the Table 6C commit).
+scripts/e6_zk_reanchoring_benchmark/plonky3_full_statement/.plonky3_checkout/
+scripts/e6_zk_reanchoring_benchmark/plonky3_full_statement/Cargo.lock
 
 
 # Private inputs
