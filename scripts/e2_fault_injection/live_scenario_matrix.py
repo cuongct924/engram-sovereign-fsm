@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""LIVE E2 fault-injection scenario matrix against the real 4-node testnet --
+"""LIVE E2 fault-injection scenario matrix against the real testnet (topology-count-aware,
+ENGRAM_VALIDATOR_COUNT-derived -- 4- or 7-node) --
 docs/EXPERIMENT.md's S1-S7, driven by REAL docker fault injection (not
 tests/e2e's in-process mock harness).
 
@@ -324,7 +325,7 @@ def plot_latency_whiskers(throughput_stats, out_dir):
     ax.set_ylim(0, max(p95s) * 1.15)
     ax.set_title(
         "E2 Block-Interval Latency by Scenario\n"
-        "(bar = p50, whisker = p95 tail, diamond = mean; live 4-node Docker testnet)",
+        "(bar = p50, whisker = p95 tail, diamond = mean; live 7-node Docker testnet)",
         fontsize=10,
     )
     ax.legend(loc="upper left", fontsize=8, frameon=False)

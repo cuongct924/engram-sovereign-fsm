@@ -233,18 +233,40 @@ def disable_byzantine() -> None:
     )
 
 
-def scan_logs_for_reject(container: str, since: str) -> int:
+def scan_logs_for_reject(container: str, since: str, until: str) -> int:
     """Best-effort count of round-skip/reject activity in a node's own logs
-    since a given timestamp -- a real observable side effect of IsCensoring
-    tripping (nil prevote -> round timeout -> f+1 quorum round-skip, per
-    root CLAUDE.md's M0b), not a proxy for anything unobservable.
+    during the censoring window [since, until) -- a real observable side
+    effect of IsCensoring tripping (nil prevote -> round timeout -> f+1
+    quorum round-skip, per root CLAUDE.md's M0b), not a proxy for anything
+    unobservable.
+
+    Returns -1 (not an exception) on timeout: this is diagnostic-only
+    signal layered on top of the real verdicts (censorship_observed,
+    safety_held, liveness_held), computed and printed before this function
+    ever runs. `docker logs` on a live 7-node cluster at debug-log volume
+    (~700 lines/sec/node) has been observed to exceed even a 120s budget
+    for a single ~90s-wide window -- letting that propagate as an
+    uncaught exception previously discarded an entire run's already-good
+    results (CSV/summary never got written) over a best-effort extra.
     """
-    proc = subprocess.run(
-        ["docker", "logs", "--since", since, container],
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
+    try:
+        proc = subprocess.run(
+            ["docker", "logs", "--since", since, "--until", until, container],
+            capture_output=True,
+            text=True,
+            # `until` bounds this to just the censoring window (~90s), not an
+            # open-ended "since X to whenever this call happens to run" -- an
+            # earlier version omitted --until and the window kept growing as
+            # phase 5's revert+30s recovery poll ran first. Even bounded,
+            # this has been observed to exceed 60s live at 7-node scale, so
+            # budget generously -- see the -1 fallback above for when even
+            # this isn't enough.
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"    [scan_logs_for_reject] {container}: docker logs timed out after 120s, "
+              f"skipping (diagnostic-only, doesn't affect the real verdicts above)")
+        return -1
     text = proc.stdout + proc.stderr
     return len(
         re.findall(
@@ -350,6 +372,7 @@ def main():
     register_forced_tx(target_hex)
     broadcast_target_tx(target_hex)
     tr.poll_for(90.0, 3.0, "censoring")
+    attack_end_ts = time.strftime("%Y-%m-%dT%H:%M:%S")
     window_end_height = _rpc_get_status_height(HONEST_NODES[0])
 
     node04_turns = blocks_proposed_by(
@@ -369,7 +392,9 @@ def main():
     disable_byzantine()
     tr.poll_for(30.0, 3.0, "recovery")
 
-    reject_signals = {c: scan_logs_for_reject(c, attack_start_ts) for c in HONEST_NODES}
+    reject_signals = {
+        c: scan_logs_for_reject(c, attack_start_ts, attack_end_ts) for c in HONEST_NODES
+    }
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     csv_path = os.path.join(RESULTS_DIR, f"censorship_a7_{ts_label}.csv")

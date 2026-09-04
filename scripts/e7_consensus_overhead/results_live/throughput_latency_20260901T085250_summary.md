@@ -23,3 +23,16 @@ Real MsgSubmitForcedTxRequest load, 20.0 tx/s target, 60s x 5 repeats per mode. 
 | vanilla | 3 | 1200 | 1200 | 0.950 | 1.000 | 0.050 | 20.00 | 1.000 | 1.000 | 1.019 |
 | vanilla | 4 | 1200 | 1200 | 0.950 | 1.000 | 0.050 | 20.00 | 1.000 | 0.999 | 1.016 |
 | vanilla | 5 | 1200 | 1200 | 0.950 | 0.999 | 0.050 | 20.00 | 1.001 | 1.001 | 1.016 |
+
+## Effect size (Cohen's d, extended vs. vanilla, pooled stdev)
+
+Only meaningful between two repeat groups of matching n -- the one place E7 has a real paired
+comparison; not computed for any other metric.
+
+| Rate (tx/s) | Blocks/s, d | Gap fraction, d |
+|---:|---:|---:|
+| 20.0 | -25.3 | 14.6 |
+
+Both far exceed conventional "large" (|d|=0.8) -- consistent with the tight per-repeat CI already
+shown above (extended's blocks/s range 0.733-0.750 across all 5 repeats never overlaps vanilla's
+0.950-0.966), so the gap is a stable, repeatable effect, not sampling noise.

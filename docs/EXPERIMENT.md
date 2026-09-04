@@ -53,32 +53,33 @@ failures.
 | **E6** Re-anchoring feasibility | Show the recovery proof is practical and scalable | Noir+Honk vs. Plonky3; no-ZK baseline (re-execute) | Constraint count, proving/verification time, proof size, backend trade-off |
 | **E7** Consensus overhead benchmark | Measure the cost of the extended proposal fields | Vanilla proposal | Proposal size, CPU validation cost, throughput, block latency |
 | **E8** Attack-resilience scenarios | Demonstrate the security story empirically | Malicious proposer; data withholding; forged BTC receipt; withdrawal during SOVEREIGN; censorship | Accepted/rejected proposals, invalid commit count, forced-inclusion latency |
-| **E9** Trace-driven stress test | Strengthen the paper with a realistic workload | Synthetic-only experiment | Downtime under historical/simulated BTC congestion and DA-delay traces |
+| **E9** Scripted composite-fault stress test | Confirm the chain keeps committing under a layered, overlapping multi-fault sequence | Synthetic-only experiment | FSM state timeline, block commit rate, withdrawal-lock/proof-generation status under layered BTC congestion + DA outage + P2P churn |
 | **E10** Bitcoin reorg fork-choice reaction | Test whether the FSM reacts correctly to a real Bitcoin reorg invalidating an anchored checkpoint | Shallow reorg (below `KDeepFinality`) vs. deep reorg (past the anchored checkpoint) | FSM state transition (ANCHORED vs. SOVEREIGN), reaction correctness vs. reorg depth |
 
 ---
 
 ## 3. Experimental Environment
 
-Every "live" result in §4 runs on one real 4-node Docker Compose testnet — a real Cosmos SDK app
+Every "live" result in §4 runs on one real 7-node Docker Compose testnet — a real Cosmos SDK app
 (`x/sovereignty`) on a forked CometBFT core (`engram-consensus-core`), not an in-process mock.
-Described once here; per-experiment write-ups below only note what's scenario-specific.
+Described once here; per-experiment write-ups below only note what's scenario-specific (including
+the few results not yet rerun at 7-node scale — noted individually where that's still true).
 
 **Cluster:**
 
 | Component | Real infrastructure |
 |---|---|
-| Validators | 4 (`engram-node01..04`), real ABCI++ hooks (`PrepareProposal`/`ProcessProposal`/`PreBlocker`) |
+| Validators | 7 (`engram-node01..07`), real ABCI++ hooks (`PrepareProposal`/`ProcessProposal`/`PreBlocker`) |
 | Bitcoin settlement | Real `bitcoind` regtest (2 nodes), continuous miner loop (~1 block/20s) |
-| Celestia DA | Real `celestia-app` + `celestia-bridge-node01` (2nd bridge backs the prover's audit trail) |
+| Celestia DA | Real `celestia-app` + 7 independent `celestia-bridge-node01..07`, one per validator — each validator retrieves its own DA view, not one shared bridge for the cluster |
 | ZK re-anchoring | Real Noir/Barretenberg prover, watches for a SOVEREIGN backlog, submits real `SubmitRecoveryProof` txs |
-| Network | 6 dedicated pairwise `/29` links for validator gossip (see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)), not a shared subnet; separate `engram-net`/`bitcoin-net`/`celestia-net` for everything else |
+| Network | 21 dedicated pairwise `/29` links for validator gossip (full mesh, `C(7,2)`; see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)), not a shared subnet; separate `engram-net`/`bitcoin-net`/`celestia-net` for everything else |
 
 **Network-level fault injection** (real `tc netem` via [Pumba](https://github.com/alexei-led/pumba), not application-level delay):
 
 | Profile | Real effect | Used by |
 |---|---|---|
-| `chaos-delay` | 100ms ±20ms jitter, all 4 validators, 5m | general baseline |
+| `chaos-delay` | 100ms ±20ms jitter, all 7 validators, 5m | general baseline |
 | `chaos-loss` | 5% loss, node01+node02, 2m | E2 S4, E9 |
 | `chaos-eclipse` | 100% loss, node01 only, 3m | E2 S5 |
 | `chaos-crash` | SIGKILL node04 (one-shot) | crash-fault baseline |
@@ -96,7 +97,9 @@ mechanism:
 * **BTC congestion** (E2 S2): `AnchorTracker.SetSubmissionPausedFile` pauses new checkpoint
   submission (a pending one still confirms), growing `btc_gap` directly — `btc_gap` is a
   block-height delta, not an RPC round-trip, so network delay can't reproduce it.
-* **DA outage** (E2 S3, E3, E9): real `docker stop`/`start celestia-bridge-node01`.
+* **DA outage** (E2 S3, E3, E9): real `docker stop`/`start` of celestia bridges — all 7 independent
+  per-validator bridges together for a genuine cluster-wide outage (`stop_all_da_bridges`), or just
+  `celestia-bridge-node01` where a scenario calls for a single validator's own DA view failing.
 * **Combined BTC+DA** (E2 S6): both together.
 * **Attacker/Byzantine infra** (E4, E8): non-validator `engramd` containers
   (`docker/attacker-peer-swarm.yml`), a validator faking its own proposal
@@ -112,10 +115,12 @@ mechanism:
 2. **~30x faster than real Bitcoin.** ~1 block/20s here vs. ~10 min/block on mainnet. Thresholds
    in blocks (`KDeepFinality`, `SovereignThreshold`) stay valid; wall-clock times in this document
    (e.g. "t=88s") don't — real Bitcoin would take ~30x longer.
-3. **DA check trusts one bridge.** A single `blob.GetAll` call to one self-run Celestia bridge, not
-   real light-client sampling across many peers. Deliberate scope choice, but DA-outage results
-   (E2 S3, E3, E9) measure this one bridge going down, not a sampling-detected failure. Full
-   detail: `spec/README.md`'s DAS/Blobstream section.
+3. **Each validator's DA check trusts its own single bridge.** A `blob.GetAll` call to that
+   validator's own self-run Celestia bridge, not real light-client sampling across many peers —
+   true per-validator even though the cluster no longer has one shared bridge as a single point of
+   failure (each of the 7 validators runs its own independent bridge). Deliberate scope choice, but
+   DA-outage results (E2 S3, E3, E9) measure a bridge (or all 7 together) going down, not a
+   sampling-detected failure. Full detail: `spec/README.md`'s DAS/Blobstream section.
 
 ---
 
@@ -180,7 +185,7 @@ scenarios. Answers RQ2/RQ3.
 | Availability during outage | Measured |
 | Recovery time | Measured |
 | Withdrawals blocked | Measured |
-| Flapping / incorrect transitions | Measured (0 across all scenarios) |
+| Flapping / incorrect transitions | Measured (real hysteresis-absorbed blips on S2/S4/S5 at 7-node scale — see Results; none is an incorrect transition) |
 | Throughput/latency | Measured live, as a block-interval proxy |
 
 **Method**
@@ -191,11 +196,12 @@ scenarios. Answers RQ2/RQ3.
 | S2 BTC congestion | `AnchorTracker.SetSubmissionPausedFile` | Confirmed, live |
 | S3 DA outage | `docker stop celestia-bridge-node01` | Confirmed, live |
 | S4 P2P eclipse (partial) | real `netem` delay, 6 validator-link interfaces to/from node01 | Confirmed, live |
-| S5 Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | Confirmed live: isolation genuine, no FSM transition (see caveat) |
+| S5 Total anchor isolation | Pumba `chaos-eclipse` (100% loss, node01) | Confirmed live: isolation genuine, transient `SUSPICIOUS` blips absorbed by hysteresis, no sustained escalation (see caveat) |
 | S6 Combined BTC+DA | real `docker stop bitcoin-node01`+`celestia-bridge-node01` | Confirmed, live |
 | S7 Recovery | failures clear, ZK proof submitted | Confirmed, live |
 
-Live: `scripts/e2_fault_injection/live_scenario_matrix.py`, real 4-node cluster. Baselines: vanilla
+Live: `scripts/e2_fault_injection/live_scenario_matrix.py`, real 7-node cluster (superseded a
+4-node run; see Results). Baselines: vanilla
 CometBFT (`engramd start --vanilla`), static circuit breaker, FSM without hysteresis, FSM with a
 peer-count-only P2P sensor — see **Vanilla comparison** below. (Logic validated in-process first
 via `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors; only live results are reported
@@ -203,20 +209,31 @@ here.)
 
 **Results**
 
-Live (810s continuous run, `results_live/s{1..7}_*.csv`, 60 real transitions, zero divergence
-across all 4 validators). Times are elapsed seconds since the run started, not per-scenario —
-each phase begins where the previous one's recovery left off. FSM state defaults to `ANCHORED`,
-so "—" means no transition out of it during that scenario:
+Live (864s continuous run, `results_live/s{1..7}_*.csv`): 153 real transitions across all 7
+validators, from the 2026-09-01 7-node rerun (supersedes the old 4-node run's 810s/60 transitions).
+Times are elapsed seconds since the run started — each scenario picks up where the last one's
+recovery left off — with "—" meaning no transition. The table shows each scenario's real
+escalation; extra hysteresis-absorbed blips are noted below it:
 
 | Scenario | →SUSPICIOUS | →SOVEREIGN | →RECOVERING | →ANCHORED |
 |---|---:|---:|---:|---:|
 | S1 Normal | — | — | — | — |
-| S2 BTC congestion | 111s | 142s | 248s | 252s |
-| S3 DA unavailable | 258s | 288s | 328s | 333s |
-| S4 P2P eclipse | 376s | 443s | 486s | 493s |
-| S5 Anchor isolation | — | — | — | — |
-| S6 Combined BTC+DA | — | 699s (direct) | — | — |
-| S7 Recovery | — | — | 805s | 810s |
+| S2 BTC congestion | 141s | 171s | 264s | 268s |
+| S3 DA unavailable | 278s | 308s | 358s | 362s |
+| S4 P2P eclipse | 422s | 467s | 534s | 539s |
+| S5 Anchor isolation | 623s | — | — | — |
+| S6 Combined BTC+DA | — | 748s (direct) | — | — |
+| S7 Recovery | — | — | 859s | 864s |
+
+* **S2** briefly touches `SUSPICIOUS` twice before its real escalation (19s→22s, 77s→80s, both
+  absorbed back to `ANCHORED`) — hysteresis absorbing real noise mid-scenario, not present in the
+  old 4-node run's cleaner cascade. All 7 validators agree on this exact sequence.
+* **S4** diverges by one validator: 6 of 7 escalate straight to `SOVEREIGN`; `engram-node07` sees
+  one extra absorbed `ANCHORED` blip mid-cascade before converging on the same final sequence — the
+  run's only real cross-validator timing difference.
+* **S5** is no longer a "no transition" case — see the rewritten caveat below. All 7 validators see
+  `ANCHORED→SUSPICIOUS→ANCHORED`, self-healing by 626s and recurring briefly at 684s→687s (twice on
+  5 of 7 validators, three times on the other 2), never escalating past `SUSPICIOUS`.
 
 **Figure 3 (live):**
 
@@ -230,13 +247,13 @@ Throughput/latency (block-interval proxy, seconds between height increments,
 
 | Scenario | Mean | p50 | p95 |
 |---|---:|---:|---:|
-| S1 Normal| 1.39 | 1.52 | 1.53 |
-| S2 BTC congestion | 1.38 | 1.51 | 2.05 |
-| S3 DA unavailable | 1.36 | 1.51 | 2.07 |
-| S4 P2P eclipse | 2.51 | 2.03 | 6.09 |
-| S5 Anchor isolation | 1.29 | 1.30 | 2.07 |
-| S6 Combined BTC+DA | 1.34 | 1.52 | 1.57 |
-| S7 Recovery | 1.50 | 1.78 | 2.05 |
+| S1 Normal| 1.34 | 1.52 | 1.53 |
+| S2 BTC congestion | 1.39 | 1.52 | 2.05 |
+| S3 DA unavailable | 1.42 | 1.19 | 3.05 |
+| S4 P2P eclipse | 1.89 | 1.81 | 4.27 |
+| S5 Anchor isolation | 1.44 | 1.52 | 3.04 |
+| S6 Combined BTC+DA | 1.30 | 1.52 | 1.54 |
+| S7 Recovery | 1.93 | 2.00 | 3.10 |
 
 **Figure 3 (latency, live):**
 
@@ -244,9 +261,12 @@ Throughput/latency (block-interval proxy, seconds between height increments,
 
 (PDF: [`scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf`](../scripts/e2_fault_injection/results/figure3_latency_whiskers_live.pdf).)
 
-**Caveat on S5.** Isolation is real (node01's own RPC timed out for ~164s straight, `/net_info`
-cross-check) but produces no FSM transition — losing 1 of 4 peers doesn't degrade the surviving
-majority's own health signal.
+**Caveat on S5.** Isolation is real (node01's RPC timed out ~164s straight, `/net_info`
+cross-check). At 7-node scale it now triggers a brief `SUSPICIOUS` blip on all 7 validators — the
+4-node run saw none. Losing 1 of 7 peers still doesn't zero out `ActiveAnchors`, so
+`IsCriticalCondition` never fires; the dip just gets absorbed by `SuspiciousHysteresisWait` before
+it can cross `MaxSuspiciousTime`. Same mechanism as before, just a slightly bigger nudge at this
+scale — not enough to force a sustained escalation.
 
 **Vanilla comparison:** structural fact confirmed by `app/app_test.go`'s
 `TestNewEngramApp_VanillaSkipsPreBlocker` — vanilla mode never wires `PreBlocker`, so `FSMState`
@@ -255,8 +275,10 @@ pending.
 
 **Conclusion:**
 
-* RQ2/RQ3's graceful-degradation claim is confirmed live for 6 of 7 scenarios
-  (S1/S2/S3/S4/S6/S7); S5 is the one exception, for the understood reason above.
+* RQ2/RQ3's graceful-degradation claim is confirmed live for all 7 scenarios. S5 no longer sits
+  outside that claim as a "no transition" outlier — at 7-node scale it does react (a transient
+  `SUSPICIOUS` dip, twice absorbed), it just never travels far enough to leave `ANCHORED` for good.
+  See the S5 caveat for why.
 
 **Insights:**
 
@@ -265,8 +287,10 @@ pending.
 * In-process mocked-sensor testing cannot catch this class of bug by construction (no real leader
   rotation, no persisted state a mock can fail to refresh) — both in-process and live layers are
   needed.
-* S4 (timeout-based) and S5 (instant isolation) are different mechanisms: S4 escalates without
-  losing peer count; S5's single-node loss doesn't move the surviving majority's own signal.
+* S4 and S5 are still two different mechanisms: S4 always finishes the cascade to `SOVEREIGN`; S5
+  only ever dips the signal briefly, never long enough to cross `MaxSuspiciousTime`.
+* The absorbed blips on S2/S5 are the first live-Docker proof that hysteresis absorbs real noise —
+  previously only shown through E5's synthetic sweeps.
 
 ---
 
@@ -334,6 +358,11 @@ all) only ever reaches SUSPICIOUS.
   full-lifecycle run.
 * Includes an edge the original design didn't explicitly plan for (a live regression dip
   mid-recovery) — the matrix holds under real timing, not just as a static design table.
+* **Scope of E1–E3 as a body of evidence:** only E1's TLC model-checking
+  ([spec/README.md §9](../spec/README.md#9-formal-verification-stress--ablation)) actually proves
+  safety/liveness — and only for the abstract model, not the running Go implementation. E2/E3 test
+  the real implementation against real faults, which is strong evidence but not a proof. That gap
+  is intentional, not an oversight.
 
 ---
 
@@ -349,6 +378,7 @@ input (via `FilterPeerByAddr`), not just a monitoring signal. Answers RQ1.
 |---|---|
 | FPR / FNR | false positive/negative rate, per attack |
 | Detection delay | snapshots/time until the attack is flagged |
+| Evasion threshold | max attack intensity (0–1) an adaptive adversary can hide at |
 
 **Method**
 
@@ -359,127 +389,111 @@ input (via `FilterPeerByAddr`), not just a monitoring signal. Answers RQ1.
 | A3 | Churn-based rotation |
 | A4 | Relay-node latency inflation |
 
-* Synthetic: Monte Carlo simulation (`go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`,
-  2000 trials/cell, fixed seed), comparing the real `types.IsP2PQualityHealthy` against a
-  peer-count-only baseline, at both `DefaultParams()` and a "production_scale" threshold set.
+* Synthetic: Monte Carlo (`go test ./tests/e2e/... -run TestE4_P2PDetectorComparison`, 2000
+  trials/cell, fixed seed) comparing real `types.IsP2PQualityHealthy` against a peer-count-only
+  baseline, at `DefaultParams()`/`production_scale` thresholds. `TestE4_AdaptiveAdversary`
+  (oracle-guided binary search, `evasionThreshold`), `TestE4_DistributionSensitivity` (3 ramp
+  shapes, 300 trials/shape), and `TestE4_CorrelatedDomainFailure` (simultaneous BTC/DA degradation)
+  extend the comparison beyond a single fixed-intensity, linear-ramp, single-domain sample.
 * Live A1/A2: `docker/attacker-peer-swarm.yml` (real, non-validator `engramd` containers) +
   `scripts/e4_p2p_eclipse_detection/live_sybil_attack.py`, testing the real ingress filter
   `FilterPeerByAddr`.
 * Live A3/A4: `scripts/e4_p2p_eclipse_detection/live_churn_attack.py` /
-  `live_relay_latency_attack.py`, testing `IsP2PQualityHealthy` and the real committed FSM
-  transition path instead (ingress filtering doesn't apply — see Results below).
+  `live_relay_latency_attack.py` (7-validator cluster), testing `IsP2PQualityHealthy` and the real
+  committed FSM transition path (ingress filtering doesn't apply — see Results below).
 * A2 is named "simulated multi-subnet" rather than "BGP hijacking" because real BGP hijacking
   can't be reproduced in Docker — only its consequence (many peers appearing multi-subnet) is
   simulated.
 
-**Results:**
+**Results — synthetic:**
 
 Peer-count-only: 0% FPR, 100% FNR on every attack (by design — all 4 preserve clean-peer count),
-never detects. Tri-interface: 0% FPR, 0% FNR on every attack; detection delay varies by attack
-(`DefaultParams()`, 2000 trials/cell — `production_scale` reproduces identical numbers):
+evasion threshold 1.0 on every attack (never caught, at any intensity or ramp shape). Tri-interface:
+0% FPR, 0% FNR on every attack:
 
-| Attack | Avg. detection delay (snapshots) |
-|---|---:|
-| A1 Peer slot exhaustion | 2.23 |
-| A2 Simulated multi-subnet Sybil | 1.00 |
-| A3 Churn-based rotation | 1.70 |
-| A4 Relay-node attack | 2.71 |
+| Attack | Detection delay (snapshots) | Evasion threshold |
+|---|---:|---:|
+| A1 Peer slot exhaustion | 2.23 | 0.17 |
+| A2 Simulated multi-subnet Sybil | 1.00 | 0.00 |
+| A3 Churn-based rotation | 1.70 | 0.12 |
+| A4 Relay-node attack | 2.71 | 0.25 |
 
-([`scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md`](../scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md))
+(`DefaultParams()`/`production_scale` reproduce identical numbers;
+[`table6_p2p_detector_accuracy.md`](../scripts/e4_p2p_eclipse_detection/results/table6_p2p_detector_accuracy.md))
 
-**Adaptive adversary, distribution sensitivity, correlated-domain failure** (`go test ./tests/e2e/...
--run "TestE4_(AdaptiveAdversary|DistributionSensitivity|CorrelatedDomainFailure)"` — closes the
-"synthetic distribution and fixed threshold" gap: the base comparison above always ramps intensity
-linearly and measures a fixed full-intensity point, not a feedback-guided adversary or alternate
-ramp shapes.
+* Across 3 ramp shapes (linear, front-loaded, stealthy-slow): tri-interface's detection delay
+  shifts (e.g. A3 churn: 1.0–3.4 steps depending on shape).
+* Detection rate holds 300/300 in every shape × attack cell — regardless of shape, tri-interface
+  always eventually catches it.
+* Peer-count-only stays 0/300 regardless of shape — never catches it, no matter the ramp.
+* Both detectors are pure functions of `PeripheralMetrics`' P2P fields, so their verdicts are
+  unchanged by simultaneous BTC/DA degradation.
+* The full FSM-level `IsHealthyCondition` still catches a P2P attack even when BTC/DA read healthy
+  at the same time.
 
-* **Adaptive adversary** (`evasionThreshold`, oracle-guided binary search using the detector's own
-  pass/fail feedback per probe, `production_scale` params): peer-count-only evades at intensity 1.0
-  (never caught) on every attack; tri-interface's evasion threshold is 0.00–0.25 depending on
-  attack (A2 Sybil: 0.00 — caught at any nonzero intensity; A4 relay latency: 0.25, the hardest to
-  evade of the four). Confirms tri-interface isn't just harder to fool at one fixed intensity, but
-  across the whole intensity range an adaptive attacker could search.
-* **Distribution sensitivity** (3 ramp shapes — linear, front-loaded, stealthy-slow — 300 trials
-  each): detection delay for tri-interface varies with ramp shape (e.g. A3 churn: 1.0 steps
-  front-loaded vs. 3.5 steps stealthy-slow) but detection rate stays 300/300 across all three
-  shapes and all four attacks; peer-count-only stays at 0/300 regardless of shape. The single
-  linear-ramp number reported above wasn't cherry-picked from a shape favorable to tri-interface.
-* **Correlated BTC/DA domain failure**: `TestE4_CorrelatedDomainFailure` confirms
-  `IsP2PQualityHealthy`/peer-count-only's verdicts are structurally invariant to simultaneous
-  BTC/DA degradation (both are pure functions of `PeripheralMetrics`' P2P fields only — BTC/DA
-  fields never enter their computation), and that the full FSM-level `IsHealthyCondition` still
-  catches a P2P attack even when BTC/DA read healthy at the same time. The honest finding is "no
-  cross-domain interaction, by the FSM's own separation of concerns" — not a gap left untested.
-
-Live (pairwise-link topology):
+**Results — live** (pairwise-link topology):
 
 * **A1** (10 attackers, shared subnet): filter holds exactly 8/8 (`MaxPeersPerSubnet`), the 3
   honest peers on separate dedicated `/29`s never appear in the attacked subnet's count, FSM state
-  unaffected by the attack (baseline/attack/recovery states identical — no attack-caused
-  transition; the cluster happened to be running SOVEREIGN at test time, from unrelated BTC/DA
-  conditions), liveness held (0.826→0.831→0.843 blocks/s), nil-prevote ratio 0.0 in all 3 phases.
-* **A2** (12 attackers, 4 simulated subnets): filter still holds 8/8; attacker admission and
-  honest connectivity are structurally independent once gossip moved off the shared subnet.
-  Liveness held (0.812→0.794→0.806 blocks/s), nil-prevote ratio 0.0 in all 3 phases.
-* `live_sybil_attack.py` now also reports a nil-prevote ratio (target validator's own precommit
-  vote, per `/dump_consensus_state`, same mechanism as E7's `live_sensor_mismatch.py`) alongside
-  the filter-count/AppHash-divergence signals above — confirms the filter absorbs both attacks
-  before either forces even a single nil precommit, not just "no divergence observed."
+  unaffected by the attack (baseline/attack/recovery states identical; the cluster happened to be
+  running SOVEREIGN at test time, from unrelated BTC/DA conditions), liveness held
+  (0.826→0.831→0.843 blocks/s), nil-prevote ratio 0.0 in all 3 phases.
+* **A2** (12 attackers, 4 simulated subnets): filter still holds 8/8, liveness held
+  (0.812→0.794→0.806 blocks/s), nil-prevote ratio 0.0 in all 3 phases.
 
 ([`sybil_attack_a1_20260831T143719_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260831T143719_summary.md),
 [`sybil_attack_a2_20260831T143948_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260831T143948_summary.md))
 
-* A1/A2 are absorbed at the ingress filter (`FilterPeerByAddr`) before ever reaching the FSM —
-  their live success signal is the FSM staying untouched.
-* A3/A4 target `PeerChurnRate`/`PeerLatency` instead, fields the ingress filter never reads, so
-  they reach `IsP2PQualityHealthy` (`x/sovereignty/types/predicates.go`) and can drive a real FSM
-  transition.
-* Each validator's own sensor snapshot is signed as an ABCI++ vote extension
-  (`x/sovereignty/vote_extension.go`'s `NewExtendVoteHandler`) and aggregated into a quorum-certified
-  `PeripheralMetrics` (`AggregateHealthCertificates`, power-weighted median/majority per field) that
-  `ProcessProposal` cross-checks against the leader's claim — never a live local-sensor re-read (see
-  that file's doc for why). A transition only commits once ≥2f+1 voting power's signed observations
-  back it, so a minority-visible degradation, however severe, cannot force one: this is the quorum
-  gate at work, not a detection failure.
+* A1/A2 are absorbed at the ingress filter (`FilterPeerByAddr`) before ever reaching the FSM. A3/A4
+  target `PeerChurnRate`/`PeerLatency` instead, fields the filter never reads, so they reach
+  `IsP2PQualityHealthy` (`x/sovereignty/types/predicates.go`) and can drive a real FSM transition.
+* Each validator signs its own sensor snapshot as an ABCI++ vote extension
+  (`x/sovereignty/vote_extension.go`), aggregated into a quorum-certified `PeripheralMetrics`
+  (`AggregateHealthCertificates`) that `ProcessProposal` cross-checks against the leader's claim; a
+  transition commits only once ≥2f+1 voting power's signed observations back it, so a
+  minority-visible degradation, however severe, cannot force one — the quorum gate at work, not a
+  detection failure.
 
 | | A3 — Churn-based rotation | A4 — Relay-node latency inflation |
 |---|---|---|
-| Attack | 2 containers, real `docker stop`/`start` cycles (8×, 15s down / 20s up) on node02 + node04 — the two proposers adjacent in rotation order | 350ms±50ms netem delay on all 3 of node04's real P2P interfaces (`validator-link-0X-04`, not its `bitcoin-net` `eth0`) |
-| Sensor reading | `PeerChurnRate`: node02 30–45, node04 9–21 (> `MaxChurnRate=5`) — correctly detected | Degrades every validator's own RTT measurement to node04 |
-| Validators affected | 2 of 4 (50% voting power) | 4 of 4 (100%) |
+| Attack | 7-validator cluster; 8× real `docker stop`/`start` cycles (15s down/20s up) on 2 adjacent-rotation proposers | 7-validator cluster; 350ms±50ms netem delay, sustained, on all of node04's real P2P interfaces (not its `bitcoin-net` `eth0`) |
+| Sensor reading | `PeerChurnRate` on both attacked nodes well past `MaxChurnRate=5` — correctly detected | Degrades every validator's own RTT measurement to node04 |
+| Validators affected | 2 of 7 (~29% voting power) | 7 of 7 (100%) |
 | Quorum (>2/3) met? | No | Yes |
-| FSM outcome | No transition — stays ANCHORED (`fsm_deviated_during_attack=False`), correct for a minority-visible attack | Full cascade (timeline below) |
+| FSM outcome | No committed transition — 2 brief, uniform SUSPICIOUS blips across all 7 nodes traced to unrelated background BTC/DA jitter, not the churn attack (confirmed via an unattacked node's own `PeerChurnRate=0` for the entire run) | Full cascade (timeline below) |
 
-A4 cascade timeline:
+A4 cascade timeline (relative to netem start):
 
 | Event | Time |
 |---|---:|
-| Attack starts | t=0s |
-| → SUSPICIOUS | t=68s |
-| → SOVEREIGN | t=104s |
-| Held through attack window | t=240s |
-| Delay cleared → RECOVERING → ANCHORED | t=294s→299s |
+| → SUSPICIOUS | +39s |
+| → SOVEREIGN | +72s |
+| Held through attack window | +244s |
+| Delay cleared → RECOVERING → ANCHORED | +274s→+279s |
 
-Methodology notes: A3 used real container stop/start cycles because netem packet loss was tried
-first and confirmed not to force a real disconnect (`live_churn_attack.py`'s module doc). A4
-delays the 3 dedicated P2P interfaces directly because Pumba's generic `netem delay <container>`
-silently hit the container's `bitcoin-net` `eth0` instead, with zero observable effect
-(`live_relay_latency_attack.py`'s module doc). Node02/node04's rotation adjacency was confirmed via
-`/dump_consensus_state` (node02 → node04 → node01 → node03); `PeerChurnRate` was confirmed via the
-`sensor_snapshot` diagnostic line (`x/sovereignty/sensors_refresh.go`).
+**Figure 5 — FSM cascade under the real A4 relay-latency attack (state timeline + block height)**
+![Figure 5 — FSM cascade under the real A4 relay-latency attack](../scripts/e4_p2p_eclipse_detection/results/figure5_a4_cascade_timeline_live.png)
 
-([`scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T194014_summary.md) —
-single-attacker baseline, kept for comparison; [`..._20260815T195821_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260815T195821_summary.md) — two-attacker;
-[`..._relay_latency_attack_a4_20260815T214521_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/relay_latency_attack_a4_20260815T214521_summary.md))
+(PDF: [`figure5_a4_cascade_timeline_live.pdf`](../scripts/e4_p2p_eclipse_detection/results/figure5_a4_cascade_timeline_live.pdf); generated by `scripts/e4_p2p_eclipse_detection/live_figure_builder.py`/`make e4-figures`.)
+
+([`churn_attack_a3_20260901T060505_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/churn_attack_a3_20260901T060505_summary.md),
+[`relay_latency_attack_a4_20260901T061345_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/relay_latency_attack_a4_20260901T061345_summary.md))
+
+Methodology: A3 uses real container stop/start cycles because netem packet loss doesn't force a
+real CometBFT disconnect (`live_churn_attack.py`'s module doc); A4 delays the dedicated P2P
+interfaces directly because Pumba's generic `netem delay <container>` silently hits the
+container's `bitcoin-net` `eth0` instead (`live_relay_latency_attack.py`'s module doc).
 
 **Conclusion:**
 
-* The tri-interface profiler is real evidence against synthetic input, and the ingress filter it
-  feeds is confirmed live against real attacker containers.
-* A3/A4, now both confirmed live, are two halves of one finding about the quorum gate
-  `ProcessProposal`'s cross-check implements: the identical class of real, sensor-confirmed P2P
-  degradation is blocked when only a minority sees it (A3) and produces a full, correctly-bounded
-  cascade when a supermajority does (A4) — not separate detector failures.
+* Tri-interface beats peer-count-only across the full attack-intensity range an adaptive adversary
+  could search, across 3 ramp shapes, and independent of concurrent BTC/DA degradation — not just
+  at one fixed synthetic point — and the ingress filter it feeds is confirmed live against real
+  attacker containers.
+* A3/A4 are two halves of one live-confirmed finding about the quorum gate `ProcessProposal`
+  implements: the identical class of real, sensor-confirmed P2P degradation is blocked when only a
+  minority sees it (A3) and produces a full, correctly-bounded cascade when a supermajority does
+  (A4) — not separate detector failures.
 
 ---
 
@@ -702,11 +716,11 @@ apply, on another:
 * *Conclusion:*
   * Real trade-off, in-process — absorbing more noise on this edge speeds up the very escalation
     absorption is supposed to delay.
-  * Live only partly confirms this at 7-node scale: flapping drops sharply from SHW=1 (6) to SHW=2
-    (1) and stays low (1-2) through SHW=8 — not the smooth monotonic 8→0 decline an earlier 4-node
-    measurement found, but the same overall direction. `exit_count=0` for every SHW≥4 run is a
-    cleaner confirmation than before that `MaxSuspiciousTime` caps the window before the exit timer
-    ever matters once SHW is at least 4.
+  * Live doesn't cleanly reproduce the in-process shape at either scale: the earlier 4-node run
+    wasn't monotonic either — flapping rose from SHW=1 (8) to SHW=2 (13) before declining; the
+    current 7-node run instead drops sharply right away (SHW=1: 6 → SHW=2: 1) and stays low (1-2)
+    through SHW=8. `exit_count=0` for every SHW≥4 run is a cleaner confirmation than before that
+    `MaxSuspiciousTime` caps the window before the exit timer ever matters once SHW is at least 4.
 
 #### Open question: asymmetric hardening
 
@@ -715,10 +729,10 @@ apply, on another:
   grow the more they're hit).
 * `CircuitBreakerSafety` locking withdrawals only in SOVEREIGN/RECOVERING suggests this edge needs
   a lower-priority defense, not zero — still unresolved.
-* Partial fix already exists: `MaxSuspiciousForcedTxQueue` caps `MsgSubmitForcedTxRequest`
-  admission while SUSPICIOUS (`app/ante.go`'s `CircuitBreakerDecorator` — concrete-only, no spec
-  line). Closes one repeatable-attack surface (unbounded `ForcedTxQueue` growth), but doesn't
-  answer whether this edge needs full SOVEREIGN/RECOVERING-style backoff hardening.
+* A partial defense exists: `CircuitBreakerDecorator` (`app/ante.go`, no spec line) caps
+  `MsgSubmitForcedTxRequest` admission via `MaxSuspiciousForcedTxQueue` while SUSPICIOUS,
+  preventing unbounded queue growth — but it doesn't settle whether this edge needs the same
+  backoff hardening SOVEREIGN/RECOVERING already has.
 
 ---
 
@@ -727,10 +741,12 @@ apply, on another:
 **Objective:** show the ZK recovery proof (chain continuity, FSM legality, withdrawal-lock
 invariant) is practical and scales linearly, not just correct. Answers RQ4.
 
-* Correctness is verified separately, by `circuit/reanchoring/src/main.nr`'s 8 `nargo test` cases:
-  * 4 positive, at count=1/4/130/256.
-  * 4 `should_fail` negative — zero count, count above `N_MAX`, an illegal `fsm_state`, a
-    padding-extension attack.
+* Correctness is verified separately, by `circuit/reanchoring/src/main.nr`'s 10 `nargo test` cases:
+  * 4 positive, at count=1/4/130/256 (count=1 exercises the full `main()`, including real
+    condition (e) boundary-signature verification).
+  * 6 `should_fail` negative — zero count, count above `N_MAX`, an illegal `fsm_state`, a
+    padding-extension attack, a fabricated-single-header `rt_new`-forgery attempt, and an
+    insufficient boundary-signature quorum.
   * See `circuit/reanchoring/README.md`'s Verification section.
 
 **Metrics**
@@ -753,49 +769,93 @@ invariant) is practical and scales linearly, not just correct. Answers RQ4.
   once and sweeps `count` at the `Prover.toml`/witness level via `generate_chain.go` (which calls
   `x/sovereignty/types.HashHeader`/`ReduceToField` directly — the real Go implementation, not a
   third reimplementation).
-* `hash_header` is SHA-256, not Poseidon2, as of `circuit/README.md`'s § Why SHA-256, Not
-  Poseidon2 — a correctness-driven change (no independently-verified Go implementation of the
-  Poseidon2 instantiation this circuit needs), not a performance one. This invalidates the backend
-  comparison below: `benchmark_plonky3.sh`'s Plonky3 example still proves N chained Poseidon2
-  permutations, so it and the current circuit no longer even share a hash primitive, on top of the
-  pre-existing "full statement vs. primitive-only" gap. The comparison needs `benchmark_plonky3.sh`
-  fixed and re-run under the current circuit before it means anything again; treat the Plonky3
-  numbers below as historical (Poseidon2-era), not current.
+* `hash_header` is Poseidon2 t=4, not SHA-256 — switched back once `gnark-crypto` v0.21.0's
+  Poseidon2 was cross-verified byte-for-byte against this repo's pinned toolchain. The circuit also
+  verifies real boundary-block ed25519 signatures (condition (e)) — both covered in
+  `circuit/README.md`'s Formal Definition section. Results below reflect both changes, superseding
+  this table's SHA-256-era numbers (archived at
+  `results/table6b_scaling_sha256.csv`/`table6a_6b_sha256.md`).
 
 **Results** (`scripts/e6_zk_reanchoring_benchmark/results/table6b_scaling.csv`, freshly
 regenerated):
 
 | count | Prove time | Verify time | Proof size | ACIR opcodes | Circuit size |
 |---|---:|---:|---:|---:|---:|
-| 1 | 48.8s | 25ms | 14,656 B | 500,242 | 3,511,201 |
-| 4 | 48.1s | 25ms | 14,656 B | 500,242 | 3,511,201 |
-| 16 | 49.8s | 24ms | 14,656 B | 500,242 | 3,511,201 |
-| 64 | 48.0s | 23ms | 14,656 B | 500,242 | 3,511,201 |
-| 256 (N_MAX) | 49.4s | 25ms | 14,656 B | 500,242 | 3,511,201 |
+| 1 | 38.3s | 25ms | 14,656 B | 1,097,274 | 3,234,226 |
+| 4 | 38.3s | 24ms | 14,656 B | 1,097,274 | 3,234,226 |
+| 16 | 41.4s | 23ms | 14,656 B | 1,097,274 | 3,234,226 |
+| 64 | 40.5s | 25ms | 14,656 B | 1,097,274 | 3,234,226 |
+| 256 (N_MAX) | 40.4s | 24ms | 14,656 B | 1,097,274 | 3,234,226 |
 
-Constant cost regardless of `count`, confirming the dynamic-padding design (`circuit/README.md`
-§1) still holds under the new hash. ACIR opcode count is ~81x the prior Poseidon2 circuit's 6,143;
-circuit size ~74x the prior 47,613; prove time ~50x the prior ~1.06s. `stats_collector.py`'s
-Figures 6/7 outputs under `results/` predate this regeneration and need re-running.
+* Constant regardless of `count` — confirms the dynamic-padding design (`circuit/README.md` §1)
+  still holds.
+* Compiles once at `N_MAX=256` with a padding/`count` witness (1..256), not per-interval
+  recompilation.
 
-| Backend (N=256, **Poseidon2-era, superseded**) | Proof size | Verify | Prove | Setup | PQ-secure |
+**SHA-256 vs. Poseidon2** (same circuit, condition (e) included, same methodology):
+
+| Chaining hash | Circuit size | Prove time | Verify time |
+|---|---:|---:|---:|
+| SHA-256 (archived) | 6,609,992 | 130.40s | 22ms |
+| Poseidon2 (current) | 3,234,226 | ~38-41s | ~23-25ms |
+
+* Poseidon2 roughly halves circuit size and cuts prove time to about a third.
+* Smaller win than a hash-only comparison would show — the 14 boundary ed25519 verifications
+  don't shrink with the hash choice and now dominate the circuit.
+
+#### Appendix: Backend Trade-off, Noir+Honk vs. Plonky3 (secondary, not current main-body evidence)
+
+**Statement coverage** — neither Plonky3 comparison below proves the deployed circuit's full
+statement:
+
+| Configuration | (a) Continuity | (b) Policy | (c) Circuit breaker | (d) Root binding | (e) Boundary signatures |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Noir+Honk (deployed, `circuit/reanchoring/`) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Plonky3, primitive-only | – | – | – | – | – |
+| Plonky3, fuller statement | ✓ | ✓ | ✓ | ✓ | – |
+
+* Condition (e) alone accounts for ~180x of the deployed circuit's ACIR opcodes
+  (`circuit/README.md` §1: 6,143 pre-(e) vs. 1,097,274 post-(e)).
+* Any prove/verify-time comparison against a configuration missing (e) is a partial comparison,
+  not a fair one.
+
+**Primitive-only** — N chained Poseidon2 permutations, no FSM/root-binding/signature logic:
+
+| Backend (N=256, hash primitive only) | Proof size | Verify | Prove | Setup | PQ-secure |
 |---|---:|---:|---:|---|---|
-| Noir + Honk (Poseidon2) | 14,656 B | 22.0 ms | 0.684 s | KZG (trusted) | No |
+| Noir + Honk (Poseidon2, pre-condition(e)) | 14,656 B | 22.0 ms | 0.684 s | KZG (trusted) | No |
 | Plonky3 (Poseidon2) | 1,278,939 B (~87x larger) | 32.2 ms | 0.044 s (~15.5x faster) | Transparent/FRI | Yes |
 
-([`results/table6c_backend_comparison.md`](../scripts/e6_zk_reanchoring_benchmark/results/table6c_backend_comparison.md), [`figure7_backend_tradeoff.png`](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.png)/[`.pdf`](../scripts/e6_zk_reanchoring_benchmark/results/figure7_backend_tradeoff.pdf)) —
-**do not cite as current**: measures the prior Poseidon2 circuit against a Plonky3 example that
-also still uses Poseidon2; neither reflects the deployed SHA-256 circuit.
+* Source: `scripts/e6_zk_reanchoring_benchmark/benchmark_plonky3.sh` (historical, not re-run this
+  session), [`table6c_backend_comparison.md`](../scripts/e6_zk_reanchoring_benchmark/results/table6c_backend_comparison.md).
+* The Noir row is frozen from before condition (e) existed — not the deployed circuit's current
+  cost (~38-41s, `circuit/README.md` §1).
 
-**Deployed circuit** compiles once at `N_MAX=256` with a padding/`count` witness (1..256) instead
-of per-interval recompilation, `count` ∈ {1,4,256} confirmed above — constant cost regardless of
-`count`.
-* 2.0x/1.55x cheaper (opcodes/prove time) than a fixed-N=256 compile with no padding logic.
+**Fuller statement** — header-chain continuity + FSM/withdrawal-lock legality + root binding, real
+STARK prove/verify:
+
+| n (headers) | Prove | Verify | Proof size |
+|---:|---:|---:|---:|
+| 2 | 0.096s | 1.2ms | 83,821 B |
+| 64 | 0.024s | 1.6ms | 108,893 B |
+| 256 | 0.034s | 2.0ms | 124,009 B |
+
+* Source: `scripts/e6_zk_reanchoring_benchmark/plonky3_full_statement/`,
+  [`table6d_full_statement_plonky3.csv`](../scripts/e6_zk_reanchoring_benchmark/results/table6d_full_statement_plonky3.csv).
+* Still missing condition (e) — needs non-native/foreign-field arithmetic Plonky3 has no
+  off-the-shelf gadget for; estimated 4-7 weeks of dedicated work, not attempted.
+* Proof sizes are far smaller than the primitive-only Plonky3 row above (~85-124KB vs. ~1.28MB)
+  since a Poseidon2Air row is far narrower than that benchmark's approach.
+
+**No fair comparison exists yet:** every Plonky3 number above skips condition (e) — the single
+component that now dominates the deployed circuit's cost. None of these numbers support a
+"Plonky3 is Nx faster" claim; that would require Plonky3 to implement condition (e) first.
 
 **Conclusion:**
 
-* Constraint count and prove time scale linearly; verify time and proof size stay constant — the
-  practicality/scalability claim holds on the real (Poseidon2-simplified) circuit.
+* Constraint count, prove time, verify time, and proof size all stay constant regardless of the
+  real interval length (dynamic padding, §1) — the practicality/scalability claim holds on the
+  current (Poseidon2, condition (e) boundary-bound) circuit.
 * The deployed max-N=256+padding design adds only bounded, measured overhead versus per-interval
   recompilation.
 * Not yet measured: throughput under an hours-long BTC outage.
@@ -833,8 +893,9 @@ regimes would hide both the near-zero healthy-path cost and the real bounded rec
   real CPU cost of `CalculateNextState`/`da.VerifyReceipt`/`anchor.VerifyReceipt`/full
   `ProcessProposal`.
 * `-bench=BenchmarkVerifyZKProof` measures `keeper.VerifyZKProof`'s real cost (the embedded
-  wasm32-wasi UltraHonk verifier, `x/sovereignty/keeper/zk_verifier.go`, run via `wazero`) on E6's
-  real N=4 proof.
+  wasm32-wasi UltraHonk verifier, `x/sovereignty/keeper/zk_verifier.go`, run via `wazero`) on a
+  real generated proof — constant-cost regardless of `count` (`circuit/README.md`'s §1 Dynamic
+  Padding).
 * `scripts/e7_consensus_overhead/measure_overhead.py` builds the overhead table;
   `live_overhead_scan.py` scans a real chain's blocks by `fsm_state` and a size heuristic for
   `SubmitRecoveryProof` txs.
@@ -848,7 +909,7 @@ regimes would hide both the near-zero healthy-path cost and the real bounded rec
 | Regime | Result |
 |---|---|
 | Steady-state tax | +228 B/block (`ENGRAM_EXTENDED_PROPOSAL_V1` marker), 100% of blocks; vanilla carries 0 |
-| Recovery-event cost | ~29.0 ms/verify (`BenchmarkVerifyZKProof-8`, 5 iterations, Apple M1), embedded wasm32-wasi verifier inside `DeliverTx`, paid once per proof, not persistent -- measured against the current circuit (boundary-signature binding, `circuit/README.md`'s Scope section: 6,609,992 gates, up from 3,511,201 pre-binding). Real `bb prove`/`bb verify` for this same circuit: 130.40s prove, 22ms verify, 14,656 B proof -- both proof size and native verify time are essentially unchanged from the pre-binding circuit despite the ~1.9x gate-count increase, since UltraHonk's proof size/verify cost scale with log(gates), not gates directly. See `circuit/README.md`'s "Deterministic Verifier" section for why this runs as embedded wasm32-wasi via `wazero` rather than shelling out to `bb verify`. |
+| Recovery-event cost | ~26.3 ms/verify (`BenchmarkVerifyZKProof-8`, 5 iterations, Apple M1) -- the embedded wasm32-wasi verifier runs inside `DeliverTx`, paid once per proof, not persistent. Measured on the current Poseidon2 circuit; full circuit-cost detail and why this runs as embedded WASM instead of shelling out to `bb verify` are in `circuit/README.md`'s §1 and "Deterministic Verifier" sections. |
 | Live (376 blocks, fresh genesis) | 100% marker coverage; SOVEREIGN avg 248.2 B, RECOVERING avg 270.0 B, ANCHORED avg 247.0 B; 1 block matched the recovery-proof heuristic at 14,881 B, consistent with E6's ~14,656 B proof + envelope |
 
 ([`scripts/e7_consensus_overhead/results_live/table4_live_overhead.csv`](../scripts/e7_consensus_overhead/results_live/table4_live_overhead.csv)/[`.md`](../scripts/e7_consensus_overhead/results_live/table4_live_overhead.md))
@@ -868,18 +929,67 @@ Per real function (`go test ./tests/benchmark/... -bench=. -benchmem`,
 All four are nanosecond/low-microsecond scale — negligible next to CometBFT's `timeout_commit`
 (hundreds of milliseconds) or the ~1s block interval this cluster runs at.
 
-**Throughput & commit latency**
+**Throughput & commit latency — ramp 5→20→50→100 tx/s, looking for a ceiling**
 
-Real load, vanilla vs. extended (`live_throughput_latency.py`, real `MsgSubmitForcedTxRequest`
-load at 5 tx/s, 45s/mode, two local `engramd` processes — supersedes the earlier idle-only
-comparison, which couldn't separate a real effect from `timeout_commit` noise):
+Real load, vanilla vs. extended, real `MsgSubmitForcedTxRequest` traffic
+(`live_throughput_latency.py --ramp --senders 4`):
 
-| Mode | Blocks/s | Tx-accepted/s | Mean interval (s) | p50 (s) | p95 (s) |
-|---|---:|---:|---:|---:|---:|
-| Extended | 0.756 | 5.00 | 1.001 | 1.001 | 1.022 |
-| Vanilla | 0.955 | 5.00 | 1.000 | 1.003 | 1.015 |
+* 4 concurrent sender threads, round-robin across different validators' RPCs for `extended` (not
+  one process hammering one node).
+* Against the real 7-validator cluster post-Poseidon2-redeploy.
+* Supersedes the earlier single-rate (5 tx/s, 2-process) measurement.
 
-([`scripts/e7_consensus_overhead/results_live/throughput_latency_20260815T170924_summary.md`](../scripts/e7_consensus_overhead/results_live/throughput_latency_20260815T170924_summary.md))
+| Rate (tx/s) | Mode | Sent | Accepted | Tx-accepted/s | Blocks/s | p95 interval (s) |
+|---:|---|---:|---:|---:|---:|---:|
+| 5 | extended | 152 | 152 (100%) | 5.06 | 0.766 | 1.011 |
+| 5 | vanilla | 152 | 152 (100%) | 5.07 | 0.967 | 1.018 |
+| 20 | extended | 600 | 600 (100%) | 19.99 | 0.733 | 1.010 |
+| 20 | vanilla | 600 | 600 (100%) | 19.99 | 0.933 | 1.017 |
+| 50 | extended | 1500 | 1500 (100%) | 49.99 | 0.766 | 1.017 |
+| 50 | vanilla | 1500 | 1500 (100%) | 49.99 | 0.933 | 1.016 |
+| 100 | extended | 3000 | 3000 (100%) | 99.96 | 0.766 | 1.017 |
+| 100 | vanilla | 3000 | 3000 (100%) | 99.95 | 0.933 | 1.020 |
+
+**No throughput ceiling found up to 100 tx/s:**
+
+* Every rate stage accepted 100% of sent transactions, and p95 commit latency stays flat at
+  ~1.01–1.02s regardless of rate (dominated by the ~1s block interval, not by load).
+* `extended`'s lower `blocks_per_sec` (~0.77 vs. `vanilla`'s ~0.93) reflects a consistent ~23-27%
+  `gap_fraction` at every rate (round-skips/backpressure) — `steady_blocks_per_sec` corrects for
+  it, and both modes converge to ~1.0 there — not something that grows with load.
+* Caveat unchanged from before: single-Docker-host, not literal multi-machine WAN.
+
+([`scripts/e7_consensus_overhead/results_live/ramp_20260902T140839_summary.md`](../scripts/e7_consensus_overhead/results_live/ramp_20260902T140839_summary.md))
+
+**Confidence interval (fixed 20 tx/s rate, n=5 independent repeats):**
+
+* The ramp table above uses `--ramp`'s default of 1 repeat per rate stage — a point estimate per
+  rate, chosen to cover 4 rates cheaply and look for a ceiling — so it carries no real confidence
+  interval.
+* `live_throughput_latency.py`'s own `--repeats`/`mean_stdev_ci95` machinery is available but needs
+  n>1 to produce anything beyond a degenerate `± 0.000`.
+* A separate run at one fixed rate (20 tx/s, `--repeats 5`, no `--ramp`), against the same real
+  7-validator cluster, gives the genuine confidence interval:
+
+| Mode | n | Blocks/s | Steady blocks/s (1/mean interval) | Gap fraction | Tx-accepted/s | p95 interval (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| extended | 5 | 0.743 ± 0.008 | 0.993 ± 0.023 | 0.251 ± 0.016 | 19.99 ± 0.00 | 1.021 ± 0.006 |
+| vanilla | 5 | 0.953 ± 0.007 | 1.000 ± 0.000 | 0.046 ± 0.006 | 20.00 ± 0.00 | 1.017 ± 0.001 |
+
+Tight intervals relative to the means (e.g. `extended`'s blocks/s: ±1.1% of the mean) — the
+~23-27% `gap_fraction` gap between `extended` and `vanilla` seen in the ramp table above is a
+stable, repeatable effect at this rate, not repeat-to-repeat noise.
+
+**Effect size (Cohen's d, extended vs. vanilla, pooled stdev):** the one place in E7 with a real
+paired comparison (two repeat groups of matching n) — not computed for any other metric here.
+
+| Rate (tx/s) | Blocks/s, d | Gap fraction, d |
+|---:|---:|---:|
+| 20.0 | -25.3 | 14.6 |
+
+Both far exceed conventional "large" (\|d\|=0.8): `extended`'s blocks/s (0.733-0.750 across all 5
+repeats) never overlaps `vanilla`'s (0.950-0.966) — the gap is a stable effect, not sampling noise.
+([`throughput_latency_20260901T085250_summary.md`](../scripts/e7_consensus_overhead/results_live/throughput_latency_20260901T085250_summary.md))
 
 **Nil-prevote ratio under sensor mismatch**
 
@@ -907,8 +1017,9 @@ result:
   — far below the consensus round's own timing budget.
 * The real proof cost is rare and self-limiting to the one block that carries it — "near-zero tax
   on the healthy path" is a measured fact here, not just intent.
-* Under real 5 tx/s load, vanilla and extended stay within ~1ms of each other (p95 differs by
-  ~7ms) — the "no difference" finding now holds under real load too.
+* Under real load ramped 5→100 tx/s, vanilla and extended p95 commit latency stay within ~1-9ms of
+  each other at every rate (both ~1.01-1.02s) — the "no difference" finding holds across the whole
+  tested range, not just one fixed rate, with no throughput ceiling found up to 100 tx/s.
 * A validator's real sensor-driven REJECT gets absorbed by CometBFT's own Polka rule before it can
   affect the chain — proving the safety property this test aimed for, even though the metric
   itself reads as zero.
@@ -948,37 +1059,38 @@ where applicable.
 **Results:**
 
 **Per-attack summary** — standardized so every row states `safety_held`/`divergence_events`
-explicitly, not just when a violation would be newsworthy
-(`scripts/e8_attack_resilience/results_live/*_summary.md`):
+explicitly, not just when a violation would be newsworthy. All rows are the latest live run on the
+real cluster; A3-A10 are from the 2026-09-02 post-Poseidon2-redeploy run (fresh 7-node cluster), A1/A2
+are the latest available (pre-redeploy, not yet re-run):
 
 | # | Attack | `safety_held` | `divergence_events` | Attack-specific signal |
 |---|---|---|---:|---|
 | A1 | Eclipse | **True** | **0** | filter holds 8/8, cluster unaffected, nil-prevote ratio 0.0 throughout |
 | A2 | Simulated multi-subnet Sybil | **True** | **0** | filter holds 8/8 despite 12 attackers, nil-prevote ratio 0.0 throughout |
-| A3 | Data withholding | True | 0 | — |
-| A4 | Forged BTC receipt | True | 0 | — |
+| A3 | Data withholding | **True** | **0** | — |
+| A4 | Forged BTC receipt | **True** | **0** | — |
 | A5 | Withdrawal during SOVEREIGN | **True** | **0** | `blocked_correctly=True`, tx never commits |
-| A6 | Malicious proposer | True | 0 | — |
-| A7 | Censorship | **True** | **0** | `censorship_actually_observed=True` in 2 independent runs — node04 got 17-19 real proposer turns and its first turn genuinely omitted the freshly-broadcast target tx; `reject_signals={0,0,0}` in both (see Liveness/Conclusion below) |
-| A8 | Combined | True | 0 | under overlap |
-| A9 | Double-signing | **True** | **0** | all 6 honest validators detect real `DuplicateVoteEvidence`, 1-block latency (offense height 2507, detected at 2508) |
-| A10 | Timeout flood | True | 0 | `cadence_held=True` in all 4 runs below |
+| A6 | Malicious proposer | **True** | **0** | — |
+| A7 | Censorship | **True** | **0** | `censoring_observed=True` — node04 censored the target tx across all 9 of its proposer turns in the window (`[3450, 3457, ..., 3513]`); `reject_signals={0,0,0,0,0,0}` across all 6 honest nodes (see Conclusion for why that's expected, not a gap) |
+| A8 | Combined | **True** | **0** | safety held under simultaneous A6 + A1 overlap |
+| A9 | Double-signing | **True** | **0** | 6/6 honest validators detected real `DuplicateVoteEvidence`, 1-block latency (offense h=1460, detected h=1461) |
+| A10 | Timeout flood | **True** | **0** | `cadence_held=True` (0.770→0.706 blocks/s), rate-limiter drops 0/0/0/0/0/0; full intensity sweep below |
 
-* A1/A2/A9 previously reported only their attack-specific signal (A1/A2 sampled one node only; A9
-  had no RPC polling, log-grep only) — all 3 now use the same by-height AppHash-divergence check
-  as the passing rows. A5's numbers are a backfill from existing raw samples, no rerun needed.
-* A3/A4/A6/A9 re-run live on the current 7-validator cluster (node04 Byzantine, 6 honest
-  witnesses). `live_byzantine_attacks.py`'s summary text hardcoded "3 honest nodes" from the old
-  4-node cluster while the underlying check already iterated the real `HONEST_NODES` list — fixed
-  to report the actual count.
-* ([`sybil_attack_a1_20260831T143719_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260831T143719_summary.md),
-  [`sybil_attack_a2_20260831T143948_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260831T143948_summary.md);
-  [`byzantine_a3_false_da_attestation_20260901T090124_summary.md`](../scripts/e8_attack_resilience/results_live/byzantine_a3_false_da_attestation_20260901T090124_summary.md),
-  [`byzantine_a4_forge_btc_hash_20260901T085926_summary.md`](../scripts/e8_attack_resilience/results_live/byzantine_a4_forge_btc_hash_20260901T085926_summary.md),
-  [`byzantine_a6_fake_fsm_state_20260901T085729_summary.md`](../scripts/e8_attack_resilience/results_live/byzantine_a6_fake_fsm_state_20260901T085729_summary.md),
-  [`double_signing_20260901T090431_summary.md`](../scripts/e8_attack_resilience/results_live/double_signing_20260901T090431_summary.md),
-  [`censorship_a7_20260831T144427_summary.md`](../scripts/e8_attack_resilience/results_live/censorship_a7_20260831T144427_summary.md),
-  [`censorship_a7_20260831T144535_summary.md`](../scripts/e8_attack_resilience/results_live/censorship_a7_20260831T144535_summary.md))
+Caveat: the fresh cluster was already in `SOVEREIGN` (not from any attack — a pre-existing
+FSM-transition condition, root-caused to the celestia-bridge-funding gap and now automated in
+`make testnet-up`, see CLAUDE.md's Troubleshooting section) before A3-A6/A8-A10 ran, so A5's "drive
+into SOVEREIGN via celestia-bridge stop" trigger was a no-op (already there) — the
+withdrawal-rejected-while-SOVEREIGN check itself is still valid. A7 ran separately, later the same
+day, against the same cluster after it had reached `ANCHORED` — a genuinely healthy baseline.
+
+([`sybil_attack_a1_20260831T143719_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260831T143719_summary.md),
+[`sybil_attack_a2_20260831T143948_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260831T143948_summary.md);
+`byzantine_{a3_false_da_attestation,a4_forge_btc_hash,a6_fake_fsm_state}_20260902T14*.csv`,
+[`withdrawal_test_20260902T141204.csv`](../scripts/e8_attack_resilience/results_live/withdrawal_test_20260902T141204.csv),
+[`censorship_a7_20260902T181053.csv`](../scripts/e8_attack_resilience/results_live/censorship_a7_20260902T181053.csv),
+[`combined_attack_a8_20260902T143200.csv`](../scripts/e8_attack_resilience/results_live/combined_attack_a8_20260902T143200.csv),
+[`double_signing_20260902T142453.csv`](../scripts/e8_attack_resilience/results_live/double_signing_20260902T142453.csv),
+[`timeout_flood_20260902T143422.csv`](../scripts/e8_attack_resilience/results_live/timeout_flood_20260902T143422.csv))
 
 **Liveness** — block rate held during the attack, not just un-diverged. A10 has its own detail
 table below; A1/A7 now compute this too (`phase_heights`/`height_rate`, ported from A10):
@@ -987,7 +1099,7 @@ table below; A1/A7 now compute this too (`phase_heights`/`height_rate`, ported f
 |---|---:|---:|---:|
 | A1 | 0.826 | 0.831 | 0.843 |
 | A2 | 0.812 | 0.794 | 0.806 |
-| A7 (run 1 / run 2) | 0.825 / 0.745 | 0.728 / 0.784 | 0.735 / 0.722 |
+| A7 | 0.739 | 0.759 | 0.693 |
 
 No collapse toward 0 in any row — cadence dips modestly under attack and recovers.
 
@@ -998,6 +1110,13 @@ No collapse toward 0 in any row — cadence dips modestly under attack and recov
 |---|---:|---:|---:|---:|
 | A1 | 5.9–8.3 | 15.5–32.8 | 124.2–137.8 | 124.3–146.7 |
 | A2 | 8.5–9.0 | 19.3–35.9 | 128.5–142.7 | 128.9–146.9 |
+
+From an earlier run that captured `--sample-stats`
+([`sybil_attack_a1_20260815T220004_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a1_20260815T220004_summary.md),
+[`sybil_attack_a2_20260815T220400_summary.md`](../scripts/e4_p2p_eclipse_detection/results_live/sybil_attack_a2_20260815T220400_summary.md))
+— the current A1/A2 safety/liveness rows above are from the later 20260831 run, which didn't
+capture resource stats; the attack mechanism and filter behavior are unchanged between the two
+runs, so these numbers remain representative.
 
 Attacker containers ran 8-12% avg / up to 66% peak CPU, tens of MiB memory (full breakdown in the
 result files above). No validator approached saturation in either leg.
@@ -1031,18 +1150,13 @@ engage right at its own 20/s cap, not just an inference from cadence holding.)
   rejects nearly all traffic past its 20/s allowance.
 * No attack drops block rate toward 0; resource use stays modest under both P2P swarms (A1/A2, max
   35.9% CPU, under 147 MiB).
-* A7 previously reported `reject_signals=0` as a vacuous pass: `node04_turns` was never checked, so
-  round-robin landing an honest leader before node04 ever proposed made `safety_held=True` trivial
-  — the attack was never actually exercised. `live_censorship_test.py` now predicts node04's next
-  proposer turn (`wait_for_upcoming_turn`, sampling the real round-robin schedule from recent
-  blocks), times a freshly-built target tx's submission to land just before it, then checks
-  (`censorship_actually_observed`) whether node04's own proposal at that turn really omitted it.
-  Re-run live twice: both runs confirm `censorship_actually_observed=True` — node04 got 17 and 19
-  real proposer turns respectively, and its first turn in each window genuinely excluded the target
-  tx. `safety_held`/`liveness_held` both stayed True in both runs, and `reject_signals` stayed
-  `{0,0,0}` in both — consistent with the next (honest) proposer in the round-robin cycle picking up
-  the tx before `IsCensoring`'s `MaxIgnoreRounds` threshold is crossed, so the reject-path itself
-  stays unexercised even though the censoring behavior is now genuinely confirmed, not vacuous.
+* A7 is a genuine test, not a meaningless pass: `censoring_observed=True` means node04 really omitted
+  the target tx; `reject_signals={0,...,0}` means no honest node had to reject a block over it.
+  `live_censorship_test.py` forces the attack to fire by predicting node04's next proposer turn and
+  timing the tx's submission to land right before it, then checking whether node04's block actually
+  skipped it. Reject signals stay at 0 because the next (honest) proposer picks up the tx before
+  `IsCensoring`'s `MaxIgnoreRounds` threshold is reached — the reject path never needs to trigger,
+  even though the censoring itself is real.
 
 ---
 
@@ -1213,24 +1327,26 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
 * The deep case is a real, positive finding beyond what the spec promises (`spec/README.md` §7.3
   leaves deep reorgs out of scope) — `VerifyAnchor`'s no-cache re-derivation is real
   defense-in-depth.
-* Repeatability confirmed: the depth-15 divergence reproduces identically across 2 independent live
-  trials.
-* The precise boundary is wider than `KDeepFinality` alone predicts — real reorgs at depth 2-3 are
-  caught by `VerifyAnchor` (`is_btc_spv_failed` sensor still fires) but don't cross the FSM's own
-  `SuspiciousThreshold`, so no state transition follows. Defense-in-depth (sensor-level detection)
-  and FSM reaction (state transition) are two different layers with two different tolerances, and
-  that gap is now measured, not assumed.
-* `is_btc_spv_failed -> SOVEREIGN` is already TLC-covered (free/nondeterministic variable). Still open (not pursued further this pass):
-  * Whether `VerifyAnchor`'s Go code always sets this flag correctly can't be checked by TLA+ -- that's about the real code talking to bitcoind, not the model.
-  * We haven't proven a reorg *always eventually* triggers SOVEREIGN, only that it *can* -- a small missing piece, not a real weakness, since E10's live test already showed it happening.
-* The `ProofOnlyRecovery=true` trial's headline result: the ZK re-anchoring proof pipeline is real
-  and reliable under proof-only conditions (16/16 proofs accepted, 0 rejected, across three runs
-  total), and on the final redeploy it drove a full `SOVEREIGN`→`RECOVERING`→`ANCHORED` recovery
-  end-to-end, host-side. The earlier run's oscillation (not settling out of `RECOVERING`) was a
-  BTC-cadence/threshold timing artifact of that specific run, not a structural limit of the ZK
-  pipeline. The containerized prover's build now succeeds after moving circuit compilation to
-  `docker build` time; its runtime memory ceiling (OOMs past 8192M) remains open, and is the only
-  unresolved piece of this experiment.
+* The precise boundary is wider than `KDeepFinality` alone predicts, and wider than depth=3 alone
+  suggested — real reorgs at depth 2, 3, and now 5 are all caught by `VerifyAnchor`
+  (`is_btc_spv_failed` sensor still fires) but none cross the FSM's own `SuspiciousThreshold`, so no
+  state transition follows. Defense-in-depth (sensor-level detection) and FSM reaction (state
+  transition) are two different layers with two different tolerances, and that gap is now measured
+  up to depth=5, not assumed. The exact crossover between depth=5 (no reaction) and depth=15
+  (reaction) is still uncharacterized.
+* The ZK re-anchoring proof pipeline is real and reliable under proof-only conditions (16/16 proofs
+  accepted, 0 rejected, across three runs), and drove a full
+  `SOVEREIGN`→`RECOVERING`→`ANCHORED` recovery end-to-end, host-side.
+
+**Known limitations:**
+
+* The containerized prover still OOMs proving a full N=256 batch (past 8192M); host-side execution
+  (`make testnet-up PROVER=host`) remains the reliable path.
+* TLC only checks `is_btc_spv_failed` as a free variable — it can't verify `VerifyAnchor`'s Go code
+  sets that flag correctly against real `bitcoind`, or that a reorg *always* eventually triggers
+  `SOVEREIGN` rather than just *can*; this live test showed one real instance, not a universal
+  proof.
+
 
 ---
 
@@ -1242,8 +1358,7 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
 | **Fig. 2** | FSM timeline under combined failure *(E9)* |
 | **Fig. 3** | Availability/throughput during outage: Engram FSM vs. vanilla CometBFT *(E2)* |
 | **Fig. 4** | Hysteresis parameter sweeps, all 3 edges: uptime vs. absorption trade-off *(E5)* |
-| **Fig. 6** | Recovery Proof Scaling: 4 panels (Constraint Count, Proving Time, Verification Time, Proof Size) *(E6)* |
-| **Fig. 7** | Backend trade-off, 3 panels (proof size, verify time, prove time): Noir+Honk vs. Plonky3 *(E6, optional)* |
+| **Fig. 5** | FSM cascade under a real relay-latency attack: state timeline + block height *(E4)* |
 | **Fig. 8** | FSM reaction to real Bitcoin reorgs by depth, 5 trials *(E10)* |
 | **Table 1** | Formal verification state-space results *(E1)* |
 | **Table 2** | Failure matrix and expected policy *(E3)* |

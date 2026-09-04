@@ -413,7 +413,7 @@ def main():
 
     fig.suptitle(
         "Figure 3 -- Continuous FSM-State Timeline, S1..S7\n"
-        "(live 4-node Docker testnet; equal-width phases, true block ranges)",
+        "(live 7-node Docker testnet; equal-width phases, true block ranges)",
         y=0.99,
         fontsize=16,
         fontweight="bold",

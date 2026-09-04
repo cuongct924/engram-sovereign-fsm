@@ -91,7 +91,7 @@ def plot_state_timelines(scenarios):
         ax.set_xlabel("Elapsed time (s)")
 
     fig.suptitle(
-        "Figure 3 -- FSM State Timeline under Fault Injection\n(live 4-node Docker testnet)",
+        "Figure 3 -- FSM State Timeline under Fault Injection\n(live 7-node Docker testnet)",
         y=1.0,
     )
     fig.tight_layout()
@@ -159,7 +159,7 @@ def plot_summary_bars(scenarios):
         if i == 0:
             ax.invert_yaxis()
 
-    fig.suptitle("E2 Summary Metrics (live 4-node Docker testnet, real data)", fontsize=10)
+    fig.suptitle("E2 Summary Metrics (live 7-node Docker testnet, real data)", fontsize=10)
     fig.tight_layout()
     savefig_academic(fig, OUT_DIR, "figure3_summary_bars_live")
 
