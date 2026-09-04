@@ -16,7 +16,7 @@ VERSION=$(shell git describe --tags --always)
 	prover-watch \
 	e2 e2-figures e2-timeline \
 	e3-lifecycle e3-p2p-lifecycle e3-recovery e3-latency \
-	e4-sybil e4-churn e4-relay-latency \
+	e4-sybil e4-churn e4-relay-latency e4-figures \
 	e5-spot-check e5-absorb-sweep \
 	e6-prover-bench e6-plonky3-bench e6-stats e6-table6c \
 	e7-overhead-scan e7-throughput e7-sensor-mismatch e7-vanilla-comparison \
@@ -175,6 +175,17 @@ ifeq ($(N),7)
 	./scripts/testnet_wait_healthy.sh celestia-bridge-node06
 	./scripts/testnet_wait_healthy.sh celestia-bridge-node07
 endif
+	@echo "--> Funding each celestia bridge's blob-submission account (unfunded = every blob.Submit fails 'account not found', which feeds is_das_failed/is_attestation_failed=true into the real DA health sensor every block -- keeps the FSM stuck in SOVEREIGN forever, not just a broken audit-trail publish; see CLAUDE.md's Troubleshooting)"
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node01
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-prover
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node02
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node03
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node04
+ifeq ($(N),7)
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node05
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node06
+	./scripts/testnet_fund_celestia_bridge.sh celestia-bridge-node07
+endif
 	@echo "--> Starting the $(N) validators"
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) $(COMPOSE_PROFILE_FLAG) up -d --build engram-node01 engram-node02 engram-node03 engram-node04 $(VALIDATOR_SERVICES_EXTRA)
 ifeq ($(PROVER),host)
@@ -186,6 +197,8 @@ else
 	@echo "--> Starting the ZK re-anchoring prover as a container (PROVER=container; needed for RECOVERING -> ANCHORED via a real submitted proof; the heuristic path alone is enough to reach a baseline ANCHORED)"
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d --build reanchoring-prover
 endif
+	@echo "--> Confirming BTC/DA sensors are actually healthy, not just containers (a fresh deploy can look 'up' while stuck in SOVEREIGN forever -- see CLAUDE.md's Troubleshooting)"
+	./scripts/testnet_wait_fsm_healthy.sh engram-node01
 	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
 
 testnet-down:
@@ -315,6 +328,9 @@ e4-churn:
 e4-relay-latency:
 	python3 -u scripts/e4_p2p_eclipse_detection/live_relay_latency_attack.py
 
+e4-figures:
+	python3 scripts/e4_p2p_eclipse_detection/live_figure_builder.py
+
 e5-spot-check:
 	@test -n "$(HYSTERESIS_WAIT)" && test -n "$(ENV)" || (echo "Usage: make e5-spot-check HYSTERESIS_WAIT=... ENV=stable|noisy_da -- set ENGRAM_PARAM_HYSTERESIS_WAIT and redeploy first, see README.md" && exit 1)
 	python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait $(HYSTERESIS_WAIT) --env $(ENV)
@@ -417,7 +433,7 @@ help:
 	@echo "  prover-watch        - Run the ZK re-anchoring prover loop (needed for RECOVERING -> ANCHORED legs)"
 	@echo "  e2 / e2-figures / e2-timeline       - Fault-injection scenario matrix (S1-S7)"
 	@echo "  e3-lifecycle / e3-p2p-lifecycle / e3-recovery / e3-latency - Full-lifecycle failure matrix"
-	@echo "  e4-sybil LEG=a1|a2 / e4-churn / e4-relay-latency - P2P eclipse-detection attacks"
+	@echo "  e4-sybil LEG=a1|a2 / e4-churn / e4-relay-latency / e4-figures - P2P eclipse-detection attacks"
 	@echo "  e5-spot-check HYSTERESIS_WAIT=... ENV=... / e5-absorb-sweep - Hysteresis flapping"
 	@echo "  e6-prover-bench / e6-plonky3-bench / e6-stats / e6-table6c - ZK re-anchoring benchmark"
 	@echo "  e7-overhead-scan / e7-throughput / e7-sensor-mismatch / e7-vanilla-comparison - Consensus overhead"

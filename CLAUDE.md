@@ -34,6 +34,10 @@ docs/EXPERIMENT.md   -- the experiment design this codebase satisfies (E1-E9); r
 docs/DEVELOPMENT.md  -- full build/test/deploy workflow, including the Docker multi-node sequence
 ```
 
+`x/sovereignty/keeper/zk_assets/barretenberg.wasm.gz` (the embedded ZK verifier) is built by the
+sibling [engram-barretenberg-wasm](https://github.com/cuongct924/engram-barretenberg-wasm) repo —
+provenance only, unlike the required `engram-consensus-core` checkout below.
+
 ## Build, test, lint
 
 ```bash
@@ -103,8 +107,13 @@ non-obvious ones, found live while doing a from-scratch redeploy:
 - Wiping `celestia-app` and its bridges in the same cycle races the bridge's one-time
   `TrustedHash` fetch; a bridge that loses that race crash-loops permanently and needs its own data
   dir wiped again (after `celestia-app` is stable) to re-fetch.
-- A celestia bridge's blob-submission account needs its own TIA funding — nothing does this
-  automatically, and a zero balance fails DA silently (`is_das_failed`, no log line).
+- A celestia bridge's blob-submission account needs its own TIA funding, or every `blob.Submit`
+  fails with "account ... not found" — `make testnet-up` now runs
+  `scripts/testnet_fund_celestia_bridge.sh` for each bridge automatically, so a normal deploy
+  shouldn't hit this. If it's ever unfunded anyway: this isn't just a silent audit-trail gap — it
+  feeds `is_das_failed`/`is_attestation_failed=true` into the real per-block DA sensor, which keeps
+  the FSM stuck in `SOVEREIGN` forever (`IsHealthyCondition` requires `IsDAHealthy`), with no log
+  line at the FSM layer pointing back to the cause.
 
 ## Current status
 
