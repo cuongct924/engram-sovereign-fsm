@@ -366,10 +366,10 @@ e8-withdrawal:
 	python3 -u scripts/e8_attack_resilience/live_withdrawal_test.py
 
 e9-trace:
-	python3 -u scripts/e9_trace_driven/live_combined_trace.py
+	python3 -u scripts/e9_composite_fault/live_combined_trace.py
 
 e9-figures:
-	python3 scripts/e9_trace_driven/live_figure_builder.py
+	python3 scripts/e9_composite_fault/live_figure_builder.py
 
 e10-reorg:
 	@test -n "$(DEPTH)" || (echo "Usage: make e10-reorg DEPTH=shallow|deep [REORG_DEPTH=N]" && exit 1)
