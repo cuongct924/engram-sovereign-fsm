@@ -31,6 +31,17 @@ is authoritative; re-grep before relying on a row here if the function may have 
 | `VerifySPVProof` | `EngramTendermint.tla:271-275` | `VerifySPVProof` | `x/anchor/verify.go` |
 | `IsValidProposal`'s BTC-settlement check | `EngramTendermint.tla:296-298` | `VerifyReceipt` | `x/anchor/verify.go` |
 
+## Mechanisms with no single operator to cite
+
+Not every load-bearing file in this list ports one named operator 1:1 — some implement a *real
+BFT mechanism* for something the spec deliberately abstracts as a single global value, with no
+per-validator/signature/quorum structure at that abstraction level. These files cite the spec
+assumption they realize, not an operator they port; don't add a fake operator-name row for them.
+
+| Go file | Spec assumption it realizes | Spec location |
+|---|---|---|
+| `x/sovereignty/vote_extension.go` (`NewExtendVoteHandler`, `AggregateHealthCertificates`) | `UpdateSensors`/`networkSensorVars`: sensor health as one value every validator's `CalculateNextFSMState` reads identically | `EngramFSM.tla:343-346`, `EngramVars.tla:156-187` |
+
 ## Regenerating this table
 
 ```bash

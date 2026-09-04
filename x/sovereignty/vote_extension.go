@@ -14,6 +14,29 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
+// This file does not port a named spec/core/*.tla operator -- there isn't
+// one to port. EngramFSM.tla's UpdateSensors (EngramFSM.tla:343-346) and the
+// networkSensorVars it mutates (EngramVars.tla:156-187) model Bitcoin/DA/P2P
+// health as a SINGLE global truth every validator's CalculateNextFSMState
+// call reads identically; the spec never models a validator's local RPC
+// view as distinct from any other's; that gap is exactly what this app's
+// original ProcessProposal-reads-live-sensors implementation had gotten
+// wrong (see root CLAUDE.md's "Never write live local sensor reads into
+// committed/hashed state" and "Sensors observe, quorum certifies, the state
+// machine decides"). This file is the concrete BFT mechanism that makes
+// networkSensorVars' single-global-truth assumption actually true across
+// independently-observing validators, rather than leaving it an unenforced
+// hope: ExtendVote signs each validator's own local reading (never entering
+// consensus state directly), AggregateHealthCertificates then derives one
+// byte-identical PeripheralMetrics from >=2f+1 signed weight, which
+// downstream CalculateNextFSMState callers (proposal.go) read exactly as
+// EngramFSM.tla's UpdateSensors output. No spec/core/*.tla change is needed
+// for this: the state-transition layer's abstraction (a single agreed
+// sensor value) was already input-agnostic about how that value is
+// produced -- this file is the missing real-world proof-of-mechanism for
+// an assumption the spec always made, not a new protocol layer needing its
+// own operators/invariants.
+
 // NewExtendVoteHandler is the ONLY ABCI++ hook still allowed to read this
 // validator's own live sensors or RPC (see NewProcessProposalHandler's doc
 // for the AppHash-divergence risk this avoids). The resulting metrics
@@ -92,7 +115,9 @@ func validatorTotalPower(ctx sdk.Context, k *keeper.Keeper) (int64, error) {
 // majority (booleans) over every cert that verifies -- exact equality
 // across independently-sampled sensors isn't expected even among honest
 // validators. Returns ok=false below >=2f+1 verified power; callers must
-// fall back to previously committed state, never invent a value.
+// fall back to previously committed state, never invent a value. Its output
+// is what EngramFSM.tla:343-346's UpdateSensors is the spec-level
+// abstraction of -- see this file's top-of-file comment.
 func AggregateHealthCertificates(ctx sdk.Context, k *keeper.Keeper, chainID string, height int64, certs []*types.SignedHealthCertificate) (*types.PeripheralMetrics, bool) {
 	totalPower, err := validatorTotalPower(ctx, k)
 	if err != nil || totalPower == 0 {
