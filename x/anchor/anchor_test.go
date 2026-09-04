@@ -213,6 +213,26 @@ func TestAnchorTracker_VerifyAnchor_RejectsBelowKDeepFinality(t *testing.T) {
 	require.False(t, ok, "current-height=101 - claimed=100 = 1 < kDeepFinality=2, and must short-circuit before even reading the block")
 }
 
+func TestAnchorTracker_IsAnchorDeepEnough_TrueOnceKDeepReached(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	h.on("getblockcount", func() (any, error) { return 105, nil })
+	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2) // 105-100=5 >= 2
+
+	deep, err := tracker.IsAnchorDeepEnough(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, deep)
+}
+
+func TestAnchorTracker_IsAnchorDeepEnough_FalseWhilePending(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	h.on("getblockcount", func() (any, error) { return 101, nil }) // only 1 block ahead
+	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+
+	deep, err := tracker.IsAnchorDeepEnough(context.Background(), 100)
+	require.NoError(t, err)
+	require.False(t, deep, "a freshly-mined anchor short of kDeepFinality confirmations is pending, not failed")
+}
+
 func TestAnchorTracker_VerifyAnchor_RejectsBlockWithoutOurTag(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.on("getblockcount", func() (any, error) { return 105, nil })

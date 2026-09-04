@@ -177,8 +177,18 @@ func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anc
 		// A verification-RPC error is treated as failed, not swallowed like
 		// MaybeSubmit's RPC errors: trusting an unverifiable anchor is the
 		// exploitation window this check closes.
-		ok, verr := anchorTracker.VerifyAnchor(ctx, hAnchored)
-		spvFailed = verr != nil || !ok
+		//
+		// Check depth first: a freshly-submitted anchor that hasn't reached
+		// kDeepFinality confirmations yet is pending, not failed -- without
+		// this split, spvFailed would go true transiently right after every
+		// submission (a false positive in committed sensor state).
+		deepEnough, derr := anchorTracker.IsAnchorDeepEnough(ctx, hAnchored)
+		if derr != nil {
+			spvFailed = true
+		} else if deepEnough {
+			ok, verr := anchorTracker.VerifyAnchor(ctx, hAnchored)
+			spvFailed = verr != nil || !ok
+		}
 	}
 
 	if hCurrent <= hAnchored {

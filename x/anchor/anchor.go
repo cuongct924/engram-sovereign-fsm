@@ -133,17 +133,29 @@ func (a *AnchorTracker) ConfirmedAnchorHeight() (height uint64, ok bool) {
 	return a.lastConfirmedHeight, a.hasConfirmed
 }
 
+// IsAnchorDeepEnough reports whether height has reached kDeepFinality
+// confirmations yet. Split out of VerifyAnchor so callers can distinguish
+// "not deep enough yet" (normal, transient) from a real tag-verification
+// failure -- see VerifyAnchor's doc.
+func (a *AnchorTracker) IsAnchorDeepEnough(ctx context.Context, height uint64) (bool, error) {
+	current, err := a.client.CurrentHeight(ctx)
+	if err != nil {
+		return false, err
+	}
+	return current >= height && current-height >= a.kDeepFinality, nil
+}
+
 // VerifyAnchor independently confirms that height carries a real,
 // kDeepFinality-confirmed Bitcoin transaction tagged with our AnchorTag --
 // used to check a PEER's (e.g. the leader's) claimed anchor height without
 // trusting them, unlike ConfirmedAnchorHeight which only reports on our OWN
 // submissions.
 func (a *AnchorTracker) VerifyAnchor(ctx context.Context, height uint64) (bool, error) {
-	current, err := a.client.CurrentHeight(ctx)
+	deepEnough, err := a.IsAnchorDeepEnough(ctx, height)
 	if err != nil {
 		return false, err
 	}
-	if current < height || current-height < a.kDeepFinality {
+	if !deepEnough {
 		return false, nil
 	}
 	return a.client.BlockContainsTag(ctx, height, a.tag)
