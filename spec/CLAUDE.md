@@ -54,7 +54,7 @@ core/EngramFSM.tla       core/EngramTendermint.tla   (Layer 3 - Concrete Impleme
         \___________________________/
                     |
 core/EngramServer.tla            (Layer 2 - Refinement Bridge: EXTENDS EngramFSM, EngramTendermint;
-                                   intercepts Tendermint events via 4 server hooks and builds the
+                                   intercepts Tendermint events via 5 server hooks and builds the
                                    abstract LiDO certificate tree)
 core/EngramServerRefinement.tla  (EXTENDS EngramServer; defines `AbstractConsensus == INSTANCE
                                    EngramConsensus WITH ...` mapping concrete state to abstract
@@ -64,7 +64,7 @@ core/EngramServerRefinement.tla  (EXTENDS EngramServer; defines `AbstractConsens
 
 Key implication for editing: **`EngramConsensus.tla` is never `EXTENDS`-ed directly by the concrete layers** — it is pulled in only via the `INSTANCE ... WITH` mapping in `EngramServerRefinement.tla`. If you change a variable name or operator signature in `EngramConsensus.tla`, the fix-up point is the `WITH` substitution list in `EngramServerRefinement.tla`, not `EngramServer.tla`.
 
-The four server hooks in `EngramServer.tla` are the translation points between the concrete Tendermint pipeline and abstract LiDO operations — `Server_InsertProposal` → Pull (E_QC), `Server_ProposerVotes` → Invoke (M_QC), `Server_UponProposalInPrecommitNoDecision` → Push (C_QC, and this is also where FSM state sync happens: `CalculateNextFSMState` is proposed pre-commit, `ExecuteFSMTransition` writes it after commit), `Server_UponTimeoutCert` → Timeout (T_QC).
+The five server hooks in `EngramServer.tla` are the translation points between the concrete Tendermint pipeline and abstract LiDO operations — `Server_InsertProposal` → Pull (E_QC, and this is also where the pre-consensus health certificate is built: `AggregateHealthCertificate` over a >=2f+1-weighted quorum of `sensor_view`), `Server_ProposerVotes` → Invoke (M_QC), `Server_UponProposalInPrecommitNoDecision` → Push (C_QC, and this is also where FSM state sync happens: `CalculateNextFSMState` is proposed pre-commit, `ExecuteFSMTransition` writes it after commit), `Server_UponTimeoutCert` → Timeout (T_QC). The fifth, `Server_ExtendVote`, has no abstract LiDO counterpart — it models the real ABCI++ `ExtendVote` hook (each validator signing its own sensor observation) that the pre-consensus certificate is built from.
 
 ## Working within the FSM layer (`core/EngramFSM.tla`)
 

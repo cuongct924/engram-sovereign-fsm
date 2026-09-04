@@ -43,11 +43,26 @@ Termination ==
 \* EngramServer's ServerInit. Since this driver tests EngramTendermint in
 \* isolation (no EngramServer), mock them closed/empty here so TLC's Init
 \* produces a legal state for every declared VARIABLE.
+\*
+\* health_certs is different: IsValidProposal (EngramTendermint.tla) now
+\* requires a well-formed health certificate to exist for a proposal's
+\* round. This isolated driver has no ServerExtendVote/ServerInsertProposal
+\* pipeline to build one live, and fsmVars/networkSensorVars stay frozen
+\* for the whole trace here (every MC_TendermintNext branch below asserts
+\* them UNCHANGED) -- so pre-seeding one certificate per round, matching
+\* the frozen IsHealthyCondition/IsWarningCondition/IsCriticalCondition
+\* exactly, adds no new constraint beyond the pre-existing
+\* prop.healthy = IsHealthyCondition check: this certificate can never
+\* disagree with the live oracle, since neither ever changes.
 MC_TendermintInit ==
     /\ TendermintInit
     /\ FSMInit
     /\ quorum_certs = {}
     /\ timeout_certs = {}
+    /\ sensor_view = [p \in HonestNodes \union ByzantineNodes |-> TrueSensorReading]
+    /\ health_certs = { [type |-> "H_QC", round |-> r, is_healthy |-> IsHealthyCondition,
+                          is_warning |-> IsWarningCondition, is_critical |-> IsCriticalCondition,
+                          quorum_weight |-> N] : r \in Rounds }
 
 \* TendermintNext's own actions (e.g. AdvanceRealTime) don't mention
 \* fsmVars/networkSensorVars/certificateVars at all -- in the composed spec
@@ -66,13 +81,13 @@ MC_TendermintInit ==
 \* networkSensorVars need adding for that branch -- repeating certificateVars
 \* here would be a redundant (Apalache: "spurious") second assignment.
 MC_TendermintNext ==
-    \/ (AdvanceRealTime /\ UNCHANGED <<fsmVars, networkSensorVars>>)
+    \/ (AdvanceRealTime /\ UNCHANGED <<fsmVars, networkSensorVars, sensorAggVars>>)
     \/ /\ SynchronizedLocalClocks
        /\ \E p \in HonestNodes : MessageProcessing(p)
-       /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars>>
-    \/ (ByzantineDataWithholding /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars>>)
-    \/ (SubmitToCelestiaDA /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars>>)
+       /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars, sensorAggVars>>
+    \/ (ByzantineDataWithholding /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars, sensorAggVars>>)
+    \/ (SubmitToCelestiaDA /\ UNCHANGED <<fsmVars, networkSensorVars, certificateVars, sensorAggVars>>)
     \* Termination itself already carries UNCHANGED <<..., fsmVars>> -- only
-    \* networkSensorVars/certificateVars need adding here.
-    \/ (Termination /\ UNCHANGED <<networkSensorVars, certificateVars>>)
+    \* networkSensorVars/certificateVars/sensorAggVars need adding here.
+    \/ (Termination /\ UNCHANGED <<networkSensorVars, certificateVars, sensorAggVars>>)
 =============================================================================

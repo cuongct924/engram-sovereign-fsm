@@ -8,6 +8,7 @@ MC_MockInit ==
     /\ begin_round = 0 /\ end_consensus = 0 /\ last_begin_round = 0 /\ proposal_time = 0 /\ proposal_received_time = 0
     /\ forced_tx_queue = 0 /\ tx_ignored_rounds = 0
     /\ quorum_certs = {} /\ timeout_certs = {}
+    /\ sensor_view = 0 /\ health_certs = {}
 
 MC_FSMInit ==
     /\ FSMInit
@@ -15,7 +16,7 @@ MC_FSMInit ==
 
 \* Alias covering every EngramVars tuple untouched by the FSM-only liveness harness
 MC_AllVars == <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars,
-                networkSensorVars, fsmVars, censorshipVars, certificateVars>>
+                networkSensorVars, fsmVars, censorshipVars, certificateVars, sensorAggVars>>
 
 MC_FSMTransition ==
     /\ state' = CalculateNextFSMState
@@ -34,6 +35,7 @@ MC_FSMTransition ==
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, networkSensorVars>>
     /\ UNCHANGED <<bookkeepingVars, invariantVars, censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
 
 MC_FSMUpdateSensors ==
     /\ h_btc_current' \in {0, 5}
@@ -59,6 +61,7 @@ MC_FSMUpdateSensors ==
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
 
 MC_GenerateZKProof ==
     /\ state = "RECOVERING"
@@ -68,6 +71,7 @@ MC_GenerateZKProof ==
     /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts>>
     /\ UNCHANGED <<btcGapSensorVars, daGapSensorVars, p2pHealthSensorVars>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars, censorshipVars, certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
 
 MC_FSMLivenessNext ==
     \/ MC_FSMTransition

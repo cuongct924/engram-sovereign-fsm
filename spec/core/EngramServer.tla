@@ -27,8 +27,9 @@ CONSTANTS
 
 \* Aggregate tuple for EngramServer
 serverVars ==
-    <<tendermintCoreVars, temporalVars, invariantVars, 
-        bookkeepingVars, certificateVars, fsmVars, networkSensorVars, censorshipVars>>
+    <<tendermintCoreVars, temporalVars, invariantVars,
+        bookkeepingVars, certificateVars, fsmVars, networkSensorVars, censorshipVars,
+        sensorAggVars>>
 
 
 (* ======================== HELPERS ========================================= *)
@@ -65,7 +66,7 @@ ServerInsertProposal(p) ==
 
                btc_receipt == [
                     checkpoint_block_height |-> h_btc_anchored,
-                    checkpoint_block_hash   |-> ExpectedBlockHash(h_btc_anchored)  
+                    checkpoint_block_hash   |-> ExpectedBlockHash(h_btc_anchored)
                ]
 
                \* ZK proof search space: only open the TRUE branch once
@@ -76,24 +77,53 @@ ServerInsertProposal(p) ==
                    ELSE {FALSE}
            IN
            \E proof_found \in proof_search_space :
-               LET prop ==
-                       IF valid_value[p] /= NilProposal
-                       THEN valid_value[p]
-                       ELSE Proposal(v, local_clock[p], round[p], target_state,
-                                     da_receipt, btc_receipt, proof_found,
-                                     IsHealthyCondition)
-               IN
-               \* Inject the concrete proposal into Tendermint
-               /\ InsertProposal(p, prop)
-
-               \* Emit E_QC for the LiDO abstract pacemaker
-               /\ LET new_EQC == [
-                          type          |-> "E_QC",
+           \* Pre-consensus sensor-aggregation phase (x/sovereignty/
+           \* vote_extension.go's PrepareProposal/AggregateHealthCertificates):
+           \* the proposer picks a real >=2f+1 quorum of already-signed
+           \* sensor_view observations (ServerExtendVote) and aggregates
+           \* them BEFORE building the proposal -- prop.healthy is set from
+           \* the certificate, not IsHealthyCondition directly, so
+           \* IsValidProposal's new certificate cross-check
+           \* (EngramTendermint.tla) is satisfied exactly when the
+           \* certificate's aggregate agrees with the live oracle (always
+           \* true once every correct process's sensor_view has caught up
+           \* via ServerExtendVote -- weak fairness on
+           \* ServerMessageProcessing(p) guarantees this eventually, see
+           \* MC_ServerRefinementLiveness.tla's MC_ServerFairness).
+           \E members \in SUBSET (HonestNodes \union ByzantineNodes) :
+               /\ Cardinality(members) >= THRESHOLD2
+               /\ LET
+                      cert == AggregateHealthCertificate(members, sensor_view)
+                      new_HQC == [
+                          type          |-> "H_QC",
                           round         |-> round[p],
-                          caller        |-> p,
-                          method        |-> "None",
-                          btc_anchored  |-> h_btc_current ]
-                  IN quorum_certs' = quorum_certs \cup {new_EQC}
+                          is_healthy    |-> cert.is_healthy,
+                          is_warning    |-> cert.is_warning,
+                          is_critical   |-> cert.is_critical,
+                          quorum_weight |-> cert.quorum_weight ]
+                      prop ==
+                          IF valid_value[p] /= NilProposal
+                          THEN valid_value[p]
+                          ELSE Proposal(v, local_clock[p], round[p], target_state,
+                                        da_receipt, btc_receipt, proof_found,
+                                        cert.is_healthy)
+                  IN
+                  \* Inject the concrete proposal into Tendermint
+                  /\ InsertProposal(p, prop)
+
+                  \* Emit E_QC for the LiDO abstract pacemaker
+                  /\ LET new_EQC == [
+                             type          |-> "E_QC",
+                             round         |-> round[p],
+                             caller        |-> p,
+                             method        |-> "None",
+                             btc_anchored  |-> h_btc_current ]
+                     IN quorum_certs' = quorum_certs \cup {new_EQC}
+
+                  \* Emit H_QC: the health certificate this round's proposal
+                  \* was built from, re-verifiable (never recomputed) by
+                  \* every validator's own IsValidProposal check.
+                  /\ health_certs' = health_certs \cup {new_HQC}
     \* Apalache note: InsertProposal (EngramTendermint.tla) already asserts
     \* UNCHANGED for tendermintCoreVars/temporalVars/propAuditVars/
     \* censorshipVars/msgs_prevote/msgs_precommit/msgs_timeout/evidence
@@ -101,6 +131,9 @@ ServerInsertProposal(p) ==
     \* know about it) and fsmVars/networkSensorVars are genuinely new here.
     /\ UNCHANGED <<timeout_certs>>
     /\ UNCHANGED <<fsmVars, networkSensorVars>>
+    \* sensor_view itself doesn't change here -- only the aggregate
+    \* (health_certs, asserted above) is derived from it.
+    /\ UNCHANGED <<sensor_view>>
 
 
 \* Hook 2: Proposer votes for its own proposal -> emits M_QC (maps to Abstract Invoke).
@@ -182,6 +215,8 @@ ServerUponProposalInPrecommitNoDecision(p) ==
     \* already covered by UponProposalInPrecommitNoDecision's own UNCHANGED
     \* -- see the Apalache note on ServerUpdateEnvironment above).
     /\ UNCHANGED <<certificateVars>>
+    \* No signing/aggregation happens at commit time.
+    /\ UNCHANGED <<sensorAggVars>>
 
 \* Hook 4: 2f+1 timeout votes -> emit T_QC (maps to Abstract Timeout)
 \* @type: (Str) => Bool;
@@ -199,6 +234,25 @@ ServerUponTimeoutCert(p) ==
         IN timeout_certs' = timeout_certs \cup {new_TQC}
     /\ UNCHANGED <<quorum_certs, fsmVars, networkSensorVars, censorshipVars>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
+    /\ UNCHANGED <<sensorAggVars>>
+
+
+\* Hook 5: validator signs its own health observation as an ABCI++ vote
+\* extension (ExtendVote analogue, x/sovereignty/vote_extension.go) -- the
+\* pre-consensus phase spec/README.md SS7.4 flags as "implemented, not
+\* modeled" until now. A correct process reports the true global predicates
+\* (this spec keeps btc_gap/da_gap/P2P health as global variables -- see
+\* EngramVars.tla's sensorAggVars comment on that modeling simplification,
+\* carried over unchanged from the base spec); a Byzantine process may sign
+\* any observation, modeling a forged vote extension.
+\* @type: (Str) => Bool;
+ServerExtendVote(p) ==
+    /\ IF p \in HonestNodes
+       THEN sensor_view' = [sensor_view EXCEPT ![p] = TrueSensorReading]
+       ELSE \E fake \in [is_healthy: BOOLEAN, is_warning: BOOLEAN, is_critical: BOOLEAN] :
+                sensor_view' = [sensor_view EXCEPT ![p] = fake]
+    /\ UNCHANGED <<health_certs>>
+    /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
 
 
 (* ======================== ACTION AGGREGATION ============================== *)
@@ -213,19 +267,19 @@ ServerUponTimeoutCert(p) ==
 \* @type: (Str) => Bool;
 ServerMessageProcessing(p) ==
     \* 1. Pass-through actions (formerly ServerPassThrough(p))
-    \/ ReceiveProposal(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ UponProposalInPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ UponProposalInProposeAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ UponQuorumOfPrevotesAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ UponProposalInPrevoteOrCommitAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
+    \/ ReceiveProposal(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ UponProposalInPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ UponProposalInProposeAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ UponQuorumOfPrevotesAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ UponProposalInPrevoteOrCommitAndPrevote(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
     \/ /\ UponQuorumOfPrecommitsAny(p)
        /\ ~GlobalDecisionExists
-       /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ OnTimeoutPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ OnQuorumOfNilPrevotes(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ OnRoundCatchup(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ UponfPlusOneTimeoutsAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
-    \/ OnLocalTimerExpire(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
+       /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ OnTimeoutPropose(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ OnQuorumOfNilPrevotes(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ OnRoundCatchup(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ UponfPlusOneTimeoutsAny(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
+    \/ OnLocalTimerExpire(p) /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, sensorAggVars>>
 
     \* 2. Hook 1: leader creates block (emits E_QC). ServerInsertProposal
     \* already asserts UNCHANGED <<fsmVars, networkSensorVars>> itself --
@@ -235,7 +289,7 @@ ServerMessageProcessing(p) ==
 
     \* 3. Hook 2: leader votes for itself (emits M_QC)
     \/ /\ ServerProposerVotes(p)
-       /\ UNCHANGED <<fsmVars, networkSensorVars>>
+       /\ UNCHANGED <<fsmVars, networkSensorVars, sensorAggVars>>
 
     \* 4. Hook 3: block decision (emits C_QC, syncs FSM)
     \/ ServerUponProposalInPrecommitNoDecision(p)
@@ -243,14 +297,25 @@ ServerMessageProcessing(p) ==
     \* 5. Hook 4: timeout (emits T_QC)
     \/ ServerUponTimeoutCert(p)
 
+    \* 6. Hook 5: validator signs its own health observation as an ABCI++
+    \* vote extension (ExtendVote analogue, x/sovereignty/vote_extension.go)
+    \* -- the pre-consensus phase spec/README.md SS7.4 flags as
+    \* "implemented, not modeled" until now.
+    \/ ServerExtendVote(p)
+
 
 (* ======================== SPECIFICATION (INIT & NEXT) ===================== *)
 \* @type: Bool;
 ServerInit ==
     /\ TendermintInit
     /\ FSMInit
-    /\ quorum_certs = {} 
+    /\ quorum_certs = {}
     /\ timeout_certs = {}
+    \* Genesis: no observation signed yet -- an all-healthy placeholder
+    \* matches FSMInit's own genesis state (ANCHORED, every sensor green).
+    /\ sensor_view = [p \in HonestNodes \union ByzantineNodes |->
+                          [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE]]
+    /\ health_certs = {}
 
 \* Pure clock tick: advances real_time/local_clock/local_rem_time only,
 \* leaving every sensor/FSM variable untouched -- split from
@@ -270,7 +335,7 @@ ServerAdvanceRealTime ==
     /\ AdvanceRealTime
     /\ LET current_max_round == Max({round[p] : p \in HonestNodes}) IN
        ~\E qc \in quorum_certs : qc.type \in {"E_QC", "M_QC"} /\ qc.round = current_max_round
-    /\ UNCHANGED <<fsmVars, networkSensorVars>>
+    /\ UNCHANGED <<fsmVars, networkSensorVars, sensorAggVars>>
 
 \* Pure environment/sensor update: leaves the clock (and everything else
 \* AdvanceRealTime would touch) unchanged. See note above ServerAdvanceRealTime.
@@ -285,6 +350,12 @@ ServerUpdateEnvironment ==
     /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
     /\ UNCHANGED <<msgsBroadcastVars, propAuditVars, evidence>>
     /\ UNCHANGED <<invariantVars, certificateVars>>
+    \* sensor_view is only refreshed by ServerExtendVote, not automatically
+    \* here -- true readings can move ahead of the last-signed observation
+    \* for up to one round, mirroring the real vote-extension pipeline's
+    \* own latency (a certificate always reflects the PREVIOUS round's
+    \* signed snapshots, never the current block's still-in-flight sensors).
+    /\ UNCHANGED <<sensorAggVars>>
     /\ action' = "UpdateEnvironment"
 
 \* Apalache note: quorum_certs is a single Set, so every member (E_QC and
@@ -314,7 +385,7 @@ ServerByzantinePull ==
            IN quorum_certs' = quorum_certs \cup {new_EQC}
         /\ UNCHANGED <<tendermintCoreVars, timeout_certs>>
         /\ UNCHANGED <<temporalVars, bookkeepingVars, invariantVars>>
-        /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars>>
+        /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars, sensorAggVars>>
 
 \* Bootstrap-deadlock fix, split into two steps mirroring the abstract
 \* model's own two-step structure (Timeout(n), then a separate
@@ -347,7 +418,7 @@ ServerHonestTimeout ==
                IN timeout_certs' = timeout_certs \cup {new_TQC}
         /\ UNCHANGED <<tendermintCoreVars, quorum_certs>>
         /\ UNCHANGED <<temporalVars, bookkeepingVars, invariantVars>>
-        /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars>>
+        /\ UNCHANGED <<fsmVars, networkSensorVars, censorshipVars, sensorAggVars>>
 
 \* Step 2/2 -- ServerHonestRoundSkip(p): given a T_QC ALREADY exists for
 \* the round p is stuck at (created by ServerHonestTimeout in a prior,
@@ -389,7 +460,7 @@ ServerHonestRoundSkip(p) ==
     /\ UNCHANGED <<decision, locked_value, locked_round, valid_value, valid_round>>
     /\ UNCHANGED <<forced_tx_queue>>
     /\ UNCHANGED <<quorum_certs, timeout_certs>>
-    /\ UNCHANGED <<fsmVars, networkSensorVars>>
+    /\ UNCHANGED <<fsmVars, networkSensorVars, sensorAggVars>>
 
 
 \* @type: Bool;
@@ -417,8 +488,8 @@ ServerByzantineDataWithholding ==
                 btc_anchored |-> h_btc_current 
             ]
           IN quorum_certs' = quorum_certs \cup {new_MQC}
-    /\ UNCHANGED <<timeout_certs>> 
-    /\ UNCHANGED <<fsmVars, networkSensorVars>>
+    /\ UNCHANGED <<timeout_certs>>
+    /\ UNCHANGED <<fsmVars, networkSensorVars, sensorAggVars>>
 
 
 \* @type: Bool;

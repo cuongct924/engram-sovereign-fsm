@@ -458,8 +458,9 @@ Proposal := {
 
 A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(proposal)` holds. This predicate enforces:
 
-- `fsm_state` matches `CalculateNextFSMState` at the validator's own sensor readings.
+- `fsm_state` matches `CalculateNextFSMState`.
 - `healthy` matches `IsHealthyCondition` -- an independent check, since `fsm_state` alone can't distinguish genuinely healthy from hysteresis-absorbed-warning.
+- A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`EngramTendermint.tla`'s `IsWellFormedHealthCertificate`, checked alongside the `healthy` condition above, not in place of it). This formalizes the real pre-consensus sensor-aggregation mechanism (`x/sovereignty/vote_extension.go`): each validator signs its own sensor observation as an ABCI++ vote extension (`EngramServer.tla`'s `ServerExtendVote` hook, the model's `sensor_view`), the round's proposer aggregates a >=2f+1-weighted quorum of those signed observations into a certificate via weighted-majority-per-field (`EngramFSM.tla`'s `AggregateHealthCertificate`, mirroring the real `AggregateHealthCertificates`), and every validator re-verifies that certificate -- never recomputing `fsm_state`/`healthy` from its own live sensors. This replaces an earlier "each validator recomputes from its own sensors and rejects on mismatch" design, which made `ProcessProposal`'s ACCEPT/REJECT depend on live, per-validator RPC state rather than only the proposal and committed state -- see SS7.4's "Fourth precondition for Theorem 7.1".
 - The DA receipt is valid and within `DATolerance(r)`'s round-adaptive gap, whenever `fsm_state \in {ANCHORED, RECOVERING}` or `IsDAHealthy`.
 - `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
 - Withdrawals are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (same scope as §7.1's `CircuitBreakerSafety`).
@@ -694,7 +695,7 @@ Third standing precondition for Theorem 7.1 (with partial synchrony and the $f$-
 - `EngramFSM.tla` models `btc_gap`/`da_gap`/P2P health as single global variables -- validators are assumed to see a near-identical peripheral view. Sound under partial synchrony, but doesn't model *persistently, adversarially heterogeneous* local views -- enough disagreement forces repeated round-skips.
 - **Exposure isn't uniform:** BTC/DA gaps come from a shared external chain, consistent across validators up to propagation delay. P2P health (`IsP2PQualityHealthy`) is the one genuinely node-local, subjective signal -- the real attack surface here.
 - **What bounds it today:** a liveness lock needs *every* proposer's `fsm_state` rejected for enough rounds that GST is never reached -- leans on the existing partial-synchrony precondition, not a new failure mode. But since the proposer schedule is public, an adversary only needs to eclipse whichever single node is about to propose and rotate each round -- materially cheaper than a simultaneous majority eclipse, though still GST-bounded.
-- **Fourth precondition for Theorem 7.1:** safety/liveness hold given sensor views converge within GST to reach quorum on one `fsm_state`, not that every view is identical. The pre-consensus sensor-aggregation phase this precondition calls for is implemented, not modeled here: each validator signs its own sensor snapshot as an ABCI++ vote extension, and `ProcessProposal` verifies a >=2f+1-weighted certificate over those signed snapshots rather than recomputing `fsm_state` from its own live sensors (`x/sovereignty/vote_extension.go`'s `AggregateHealthCertificates`) -- replacing the earlier "each validator recomputes from its own sensors and rejects on mismatch" design, which made `ProcessProposal`'s ACCEPT/REJECT depend on live, per-validator RPC state rather than only the proposal and committed state. This closes the ABCI++ determinism requirement the earlier design violated; formalizing the certificate/quorum-aggregation step in `EngramTendermint.tla` itself remains open (Future Work).
+- **Fourth precondition for Theorem 7.1:** safety/liveness hold given sensor views converge within GST to reach quorum on one `fsm_state`, not that every view is identical. The pre-consensus sensor-aggregation phase this precondition calls for is both implemented (`x/sovereignty/vote_extension.go`) and formalized (`EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal`) -- see SS6.2 for the mechanism and SS9's Future Work note on the modeling simplification involved.
 
 ## 8. Liveness Analysis and Autonomous Recovery
 
@@ -813,8 +814,8 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 
 | Layer | Config | Key Parameters | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2 | 3,686,425 | 523,833 | 25 | 3m46s | 0 |
-| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2 | 1,022,325,986 | 3,386,761 | 22 | 23m12s | 0 |
+| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2 | 3,573,347 | 509,883 | 25 | 2m58s | 0 |
+| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2 | 1,022,325,986 | 3,386,761 | 22 | 27m33s | 0 |
 | FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above | 10,321,121 | 17,857 | 22 | 2m44s | 0 |
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety is proven only via `RefinementSafety` in `MC_ServerRefinementSafety`, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
@@ -1069,10 +1070,9 @@ The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending t
 
 ### Sensor Aggregation Pre-Consensus Phase
 
-- §7.4's sensor-view-homogeneity boundary is closed only informally today.
-- Idea: validators exchange and vote on local `btc_gap`/`da_gap`/P2P readings before `CalculateNextState` runs, instead of each computing `fsm_state` unilaterally.
-- Would let `EngramFSM.tla` model per-validator (not global) sensor variables and formally re-establish `FSMStateConsistency` under adversarially heterogeneous views.
-- Left for future work -- the current global-sensor abstraction is adequate under §7.4's stated convergence precondition.
+Formalized: `EngramVars.tla`'s `sensor_view` (per-validator signed observation) and `health_certs` (aggregated certificate), `EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, and `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal` -- see SS6.2.
+
+**Modeling simplification, still open:** heterogeneity is modeled at the three-predicate boundary (`is_healthy`/`is_warning`/`is_critical`) rather than by giving each raw sensor field (`btc_gap`, `da_gap`, individual P2P counters) an independent per-validator value -- the latter would multiply TLC's state space by that field count per validator for little additional insight, since `btc_gap`/`da_gap` already come from a shared external chain (SS7.4: consistent across validators up to propagation delay) and P2P health is already the one flagged genuinely-subjective signal. A correct, non-eclipsed validator's `sensor_view` always equals the true global predicates in this model; only Byzantine forgery of `sensor_view` is modeled as a source of divergence today, not genuine per-validator P2P eclipse. Extending `sensor_view` to diverge for correct-but-eclipsed validators too remains open.
 
 
 ## How to Run the Verification

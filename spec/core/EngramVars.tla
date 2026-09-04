@@ -239,4 +239,47 @@ VARIABLES
 \* Tuple of consensus certificates (LiDO Certificates)
 certificateVars == <<quorum_certs, timeout_certs>>
 
+
+(* ======================== SENSOR AGGREGATION / HEALTH CERTIFICATE VARIABLES ======= *)
+\* Models the real pre-consensus sensor-aggregation phase (x/sovereignty/
+\* vote_extension.go): each validator signs its own local health observation
+\* as an ABCI++ vote extension (ExtendVote), and the round's proposer
+\* aggregates a >=2f+1-weighted quorum of those into a health certificate
+\* embedded pre-consensus, which every validator re-verifies (never
+\* recomputes from its own live sensors). See EngramFSM.tla's
+\* AggregateHealthCertificate and EngramServer.tla's ServerExtendVote/
+\* ServerInsertProposal.
+\*
+\* Modeling simplification (spec/README.md's Future Work "Sensor Aggregation
+\* Pre-Consensus Phase" scoped this as an open item): heterogeneity is
+\* modeled at the three-predicate boundary (is_healthy/is_warning/
+\* is_critical) that CLAUDE.md's own architecture note identifies as "the
+\* only integration surface between sensors and the FSM transition
+\* function" -- not by giving each of the ~14 raw sensor fields (btc_gap,
+\* da_gap, individual P2P counters, ...) independent per-validator values.
+\* Modeling raw-field heterogeneity would multiply TLC's state space by that
+\* field count per validator with no additional insight: btc_gap/da_gap
+\* already come from a shared external chain (README.md SS7.4: "consistent
+\* across validators up to propagation delay"), and P2P health is already
+\* the one flagged genuinely-subjective signal -- exactly what the boolean
+\* triple below captures.
+VARIABLES
+    \* @type: Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool };
+    sensor_view,        \* Each validator's own signed observation this round
+                         \* (ExtendVote analogue) -- equals the true global
+                         \* IsHealthyCondition/IsWarningCondition/
+                         \* IsCriticalCondition for a correct, non-eclipsed
+                         \* validator; may diverge under P2P eclipse or
+                         \* Byzantine forgery.
+    \* @type: Set({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int });
+    health_certs        \* Aggregated health certificates (one per round,
+                         \* built by the proposer from a >=2f+1-weighted
+                         \* subset of sensor_view) -- mirrors quorum_certs/
+                         \* timeout_certs's existing shape rather than
+                         \* growing the Proposal record, keeping every
+                         \* existing message-record type annotation
+                         \* untouched.
+
+sensorAggVars == <<sensor_view, health_certs>>
+
 =========================================================================

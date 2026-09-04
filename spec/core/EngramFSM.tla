@@ -171,6 +171,31 @@ IsHealthyCondition ==
     /\ IsP2PQualityHealthy
 
 
+(* ======================== SENSOR AGGREGATION / HEALTH CERTIFICATE ========= *)
+\* AggregateHealthCertificate -- weighted-majority-per-field aggregation over
+\* `members` (mirrors x/sovereignty/vote_extension.go's
+\* AggregateHealthCertificates + weightedMajorityBool: a field is TRUE in the
+\* aggregate iff strictly more than half of `members` reported TRUE for it).
+\* `members` is the caller-selected quorum subset (EngramServer.tla decides
+\* whether Cardinality(members) clears the real 2f+1 threshold via
+\* EngramTendermint.tla's THRESHOLD2) -- this operator itself is pure and
+\* knows nothing about quorum sizing, matching EngramFSM.tla's role as the
+\* lowest layer (see spec/CLAUDE.md's four-layer refinement hierarchy).
+\* @type: (Set(Str), Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool }) => { is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int };
+AggregateHealthCertificate(members, view) ==
+    [ is_healthy    |-> 2 * Cardinality({ m \in members : view[m].is_healthy })  > Cardinality(members),
+      is_warning    |-> 2 * Cardinality({ m \in members : view[m].is_warning })  > Cardinality(members),
+      is_critical   |-> 2 * Cardinality({ m \in members : view[m].is_critical }) > Cardinality(members),
+      quorum_weight |-> Cardinality(members) ]
+
+\* The signed observation a correct, non-eclipsed validator reports for
+\* itself (ServerExtendVote's honest branch, EngramServer.tla) -- equal to
+\* the true global predicates it can currently see.
+\* @type: { is_healthy: Bool, is_warning: Bool, is_critical: Bool };
+TrueSensorReading ==
+    [ is_healthy |-> IsHealthyCondition, is_warning |-> IsWarningCondition, is_critical |-> IsCriticalCondition ]
+
+
 (* ======================== TYPE INVARIANT & SANITY CHECK ================================== *)
 FSMTypeOK == 
     /\ state \in {"ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"}

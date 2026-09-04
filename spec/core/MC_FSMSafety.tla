@@ -51,6 +51,10 @@ MC_MockInit ==
     /\ proposal_received_time = [r \in NoRounds |-> 0]
     /\ forced_tx_queue = {} /\ tx_ignored_rounds = [p \in NoProcs |-> [tx \in NoProcs |-> 0]]
     /\ quorum_certs = {} /\ timeout_certs = {}
+    \* sensor_view/health_certs: Tendermint/Server-layer bookkeeping the FSM
+    \* layer never touches, same treatment as quorum_certs/timeout_certs above.
+    /\ sensor_view = [p \in NoProcs |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE]]
+    /\ health_certs = {}
 
 MC_FSMInit ==
     /\ FSMInit
@@ -61,6 +65,7 @@ MC_FSMNext ==
     /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
     /\ UNCHANGED <<bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
 
 StateSpaceLimit == 
     /\ h_btc_current < 10 

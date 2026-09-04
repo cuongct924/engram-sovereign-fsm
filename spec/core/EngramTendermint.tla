@@ -189,6 +189,16 @@ THRESHOLD1 == T + 1       \* f+1: at least one honest node
 \* @type: Int;
 THRESHOLD2 == 2 * T + 1   \* 2f+1: quorum (requires N > 3T)
 
+\* Health-certificate well-formedness (real ProcessProposal's certificate
+\* re-verification, x/sovereignty/vote_extension.go's AggregateHealthCertificates):
+\* the aggregated weight must clear the real 2f+1 threshold. Signature
+\* validity is out of scope -- no cryptography is modeled anywhere in this
+\* spec; membership in HonestNodes \union ByzantineNodes is implicit since
+\* ServerExtendVote (EngramServer.tla) only ever writes sensor_view for
+\* processes in that set.
+\* @type: ({ is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int }) => Bool;
+IsWellFormedHealthCertificate(cert) == cert.quorum_weight >= THRESHOLD2
+
 (* ======================== BASIC MATH HELPERS ============================= *)
 \* a value hash is modeled as identity
 \* @type: (t) => t;
@@ -303,6 +313,23 @@ IsValidProposal(prop) ==
         \* this, honest validators could silently diverge on unhealthy_streak
         \* while still agreeing on fsm_state.
         /\ prop.healthy = IsHealthyCondition
+
+        \* Sensor-aggregation certificate check (formalizes spec/README.md
+        \* SS7.4's "Fourth precondition for Theorem 7.1", previously closed
+        \* only informally): a well-formed health certificate (>=2f+1-weight
+        \* quorum of signed sensor_view observations, EngramFSM.tla's
+        \* AggregateHealthCertificate) must exist for this round and agree
+        \* with the proposal's healthy claim -- the real mechanism's
+        \* ProcessProposal re-verifies exactly this certificate, never a
+        \* validator's own live sensors. Additive: does not replace the
+        \* prop.healthy = IsHealthyCondition check above, so every
+        \* previously-verified invariant is unaffected whenever sensor_view
+        \* matches the true reading (always true for a correct,
+        \* non-eclipsed validator -- see ServerExtendVote, EngramServer.tla).
+        /\ \E cert \in health_certs :
+               /\ cert.round = prop.round
+               /\ IsWellFormedHealthCertificate(cert)
+               /\ cert.is_healthy = prop.healthy
 
         \* DA Pipeline Check: Data must be available and within the allowed gap
         /\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsDAHealthy) => 
