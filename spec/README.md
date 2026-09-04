@@ -816,7 +816,7 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
 | Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2 | 3,573,347 | 509,883 | 25 | 2m58s | 0 |
 | FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2 | 1,022,325,986 | 3,386,761 | 22 | 27m33s | 0 |
-| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above | 10,321,121 | 17,857 | 22 | 2m44s | 0 |
+| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above | 10,321,121 | 17,857 | 22 | 2m54s | 0 |
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety is proven only via `RefinementSafety` in `MC_ServerRefinementSafety`, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
 
