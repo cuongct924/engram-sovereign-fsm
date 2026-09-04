@@ -293,7 +293,6 @@ $$\text{IsAvailable}(B) \triangleq \bigwedge_{i=1}^{N} s_i \qquad \text{Failed}(
 
 The boolean `is_das_failed` is set to TRUE if any sampling check fails within the current epoch. Real Blobstream attestation (an EVM-side, Merkle-verifiable relay of Celestia's data root) backs `is_attestation_failed`, independent of the sampling result.
 
-**Implemented (current prototype), not the above.** `x/da/rpc.go`'s `Available` calls `blob.GetAll` once against this validator's own `celestia-bridge-node01` instance -- a single retrieval check, not $N=16$ probabilistic samples, and no Blobstream integration. `is_das_failed` and `is_attestation_failed` both derive from this one `Failed()`/`ProbeHealthy` signal. `EngramFSM.tla` treats both as free booleans (`is_das_failed \in BOOLEAN`), so this simplification doesn't affect spec fidelity -- the gap is between this README's target design and the prototype, not between the formal model and the prototype.
 
 ### 4.3 P2P Health Sensor (Tri-Interface Profiler)
 

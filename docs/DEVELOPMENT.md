@@ -76,6 +76,7 @@ the way it is, and the two most common sources of consensus bugs when violated:
 | `buf` + `protoc-gen-go` + `protoc-gen-go-grpc` on PATH | `make proto-gen` | |
 | `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; debugging the ZK pipeline outside its container | not needed for normal runs -- the prover runs as a container that builds its own copy (§6) |
 | Python 3.11 or 3.12 | `scripts/` (experiments, plotting) | see §3 |
+| [`engram-barretenberg-wasm`](https://github.com/cuongct924/engram-barretenberg-wasm) sibling | nothing -- not a build dependency | provenance only: the repo that built the already-committed `x/sovereignty/keeper/zk_assets/barretenberg.wasm.gz`; only needed to rebuild that asset against a new `bb` release |
 
 ### This repo needs a sibling checkout of its CometBFT fork
 
@@ -352,9 +353,9 @@ All sensors are real, live connections, not mocks:
   submits real OP_RETURN checkpoint transactions, tracks real confirmation depth. No separate
   Submitter/Reporter container exists (this app has no staking module to source a real
   Babylon-style BLS-aggregated checkpoint from).
-* **DA** (`x/da.Publisher`, linked in via `wireDASensor`): talks to a real `celestia-bridge-node01` over
-  JSON-RPC 2.0 (`x/da/rpc.go`) — submits real blobs, confirms real retrievability via
-  `blob.GetAll`.
+* **DA** (`x/da.Publisher`, linked in via `wireDASensor`): talks to a real `celestia-bridge-node0N` —
+  each validator its own, not a shared bridge — over JSON-RPC 2.0 (`x/da/rpc.go`) — submits real
+  blobs, confirms real retrievability via `blob.GetAll`.
 * **P2P** (`vanillaP2PHealthAdapter`): reads real, live data from the running `*p2p.Switch`
   (`SubnetDiversity`, `ActiveAnchors`, `CleanPeers`, `ChurnRate`, `AvgTenure`) plus real per-peer
   RTT, piggybacked on `MConnection`'s existing `PacketPing`/`PacketPong` keep-alive exchange
@@ -456,7 +457,7 @@ flowchart TB
 
     peer1["Other validator nodes<br/>(pairwise validator-links, docs/ARCHITECTURE.md's §1)"]
     btc["bitcoin-node01 (regtest)<br/>x/anchor.AnchorTracker"]
-    celestia["celestia-bridge-node01<br/>x/da.Publisher"]
+    celestia["celestia-bridge-node0N<br/>(own bridge)<br/>x/da.Publisher"]
 
     genfile --> mainfn
     mainfn -->|"NewEngramApp(...)"| APP
@@ -548,7 +549,9 @@ mechanism:
 * **BTC congestion** (E2 S2): `AnchorTracker.SetSubmissionPausedFile` pauses new checkpoint
   submission (a pending one still confirms), growing `btc_gap` directly — `btc_gap` is a
   block-height delta, not an RPC round-trip, so network delay can't reproduce it.
-* **DA outage** (E2 S3, E3, E9): real `docker stop` / `start celestia-bridge-node01`.
+* **DA outage** (E2 S3, E3, E9): real `docker stop`/`start` of celestia bridges — all N independent
+  per-validator bridges together for a cluster-wide outage, or just `celestia-bridge-node01` for a
+  single validator's own DA view failing.
 * **Combined BTC+DA** (E2 S6): both together.
 
 ### 8.3 Attack / byzantine infrastructure
