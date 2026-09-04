@@ -5,7 +5,6 @@ authors = ["CuongCT <cuongct0902@gmail.com>"]
 compiler_version = ">=0.31.0"
 
 [dependencies]
-sha256 = { tag = "v0.3.0", git = "https://github.com/noir-lang/sha256" }
 
 [bin]
 name = "reanchoring_witness"

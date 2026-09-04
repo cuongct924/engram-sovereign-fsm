@@ -36,14 +36,16 @@ func TestReduceToField(t *testing.T) {
 
 // TestHashHeader_MatchesCircuitFixture cross-checks against circuit/
 // reanchoring/src/main.nr's own fixture (Header{111,2,1,1000}) -- a failure
-// here means Go and the circuit have drifted.
+// here means Go and the circuit have drifted. Expected value from running
+// std::hash::poseidon2_permutation([111,2,1,1000])[0] on this repo's pinned
+// nargo 1.0.0-beta.22 toolchain, matching gnark-crypto's output exactly.
 func TestHashHeader_MatchesCircuitFixture(t *testing.T) {
 	prevHash := ReduceToField(big.NewInt(111).Bytes())
 	stateRoot := ReduceToField(big.NewInt(1000).Bytes())
 	got := HashHeader(prevHash, StateSovereign, true, stateRoot)
 
 	want, ok := new(big.Int).SetString(
-		"60e309975f992b137193db39633a65bf0c12ff9582767b9f1b50d7aedd202cc", 16)
+		"1d480f47dfb5f6045ee6b8393646287ac84f230ee5faa8a8d77547383b275f95", 16)
 	require.True(t, ok)
 	require.Equal(t, want.Bytes(), new(big.Int).SetBytes(got).Bytes())
 }

@@ -17,23 +17,8 @@ struct Header {
 fn hash_header(h: Header) -> Field {
     // Byte-identical, hand-kept copy of the real circuit's hash_header;
     // N_MAX must stay in sync too.
-    let mut bytes: [u8; 128] = [0; 128];
-    let b0 = h.prev_hash.to_be_bytes::<32>();
-    let b1 = h.fsm_state.to_be_bytes::<32>();
-    let b2 = h.withdrawal_locked.to_be_bytes::<32>();
-    let b3 = h.state_root.to_be_bytes::<32>();
-    for i in 0..32 {
-        bytes[i] = b0[i];
-        bytes[32 + i] = b1[i];
-        bytes[64 + i] = b2[i];
-        bytes[96 + i] = b3[i];
-    }
-    let digest = sha256::digest(bytes);
-    let mut acc: Field = 0;
-    for i in 0..32 {
-        acc = acc * 256 + digest[i] as Field;
-    }
-    acc
+    let state = [h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root];
+    std::hash::poseidon2_permutation(state)[0]
 }
 
 // raw_* are the per-header values tracked by types.RecoveryHeader, without
@@ -68,5 +53,5 @@ fn hash_header_matches_main_circuit_fixture() {
     // Cross-checks against the real circuit's fixture -- a failure here
     // means the two hand-kept copies have drifted.
     let h0 = Header { prev_hash: 111, fsm_state: 2, withdrawal_locked: 1, state_root: 1000 };
-    assert(hash_header(h0) == 0x060e309975f992b137193db39633a65bf0c12ff9582767b9f1b50d7aedd202cc);
+    assert(hash_header(h0) == 0x1d480f47dfb5f6045ee6b8393646287ac84f230ee5faa8a8d77547383b275f95);
 }

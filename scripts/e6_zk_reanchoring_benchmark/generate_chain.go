@@ -238,9 +238,17 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 		fmt.Fprintln(os.Stderr, "timestamp content exceeds BoundedVec<u8,16>'s max")
 		os.Exit(1)
 	}
-	b = append(b, []byte(fmt.Sprintf("\n[%s.timestamp_content]\n", tableName))...)
-	b = append(b, []byte(fmt.Sprintf("storage = [%s]\n", byteArrayToml(storage)))...)
-	b = append(b, []byte(fmt.Sprintf("len = \"%d\"\n", len(tsContent)))...)
+	// main.nr's BoundaryBlockWitness.timestamp_content is [BoundedVec<u8,16>; 7], one
+	// per validator (added by the later boundary-signature-binding change; this
+	// generator predates it and needs the same [[array-of-tables]] shape [[headers]]
+	// already uses below). All 7 share this one computed tsContent, matching
+	// main.nr's own test_boundary_fixture()'s documented "same fixed message"
+	// simplification -- signBytes above is one shared vote, not per-validator.
+	for i := 0; i < numValidators; i++ {
+		b = append(b, []byte(fmt.Sprintf("\n[[%s.timestamp_content]]\n", tableName))...)
+		b = append(b, []byte(fmt.Sprintf("storage = [%s]\n", byteArrayToml(storage)))...)
+		b = append(b, []byte(fmt.Sprintf("len = \"%d\"\n", len(tsContent)))...)
+	}
 
 	return string(b)
 }

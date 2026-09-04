@@ -1,10 +1,17 @@
 # Example witness for circuit/reanchoring_recursion_spike/src/main.nr (N=4,
-# unmodified copy of circuit/reanchoring/src/main.nr's pre-padding design).
+# a fixed-size, pre-padding-redesign snapshot of the header-chain logic, kept
+# frozen for this recursion feasibility spike's own measurements -- NOT kept
+# in sync with circuit/reanchoring/src/main.nr's later changes).
 #
 # This is the SAME fixture as this circuit's own valid_chain_satisfies_circuit
-# test (src/main.nr) and matches the first 4 (real) headers of
-# circuit/reanchoring/Prover.toml.example one-for-one -- same rt_last=111
-# hash chain, same real Poseidon2 sponge (std::hash::poseidon2_permutation).
+# test (src/main.nr); verified via a real `nargo test` + `nargo execute` pass
+# this session. Its hash_header is a 2-round Poseidon2 SPONGE (absorbs 4
+# inputs, IV encodes length) -- an EARLIER design than the deployed
+# circuit/reanchoring/src/main.nr, which now uses the raw single-call
+# std::hash::poseidon2_permutation (see that circuit's own Prover.toml.example
+# and circuit/README.md's "Poseidon2 Verification History"). The two crates'
+# hash_header outputs do NOT match for the same header anymore -- don't copy
+# values between the two examples.
 #
 # To use: cp Prover.toml.example Prover.toml, then
 # `bb prove --verifier_target noir-recursive` (this leaf is proven with the

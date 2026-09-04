@@ -12,6 +12,7 @@ use edwards_bignum::ScalarField;
 use ed25519::ed25519_verify;
 use ed25519::compress;
 use sha256::digest;
+use std::hash::poseidon2_permutation;
 
 global N_MAX: u32 = 256;
 global NUM_VALIDATORS: u32 = 7;
@@ -26,23 +27,16 @@ struct Header {
     state_root: Field,
 }
 
-// hash_header chains via SHA-256, not Poseidon2: Poseidon2 t=4 over BN254
-// has no independently-verified Go implementation -- an unacceptable
-// correctness risk for a value x/sovereignty/types.HashHeader must
-// reproduce bit-for-bit every block. Costs more per header; deliberate trade.
+// hash_header chains via the raw Poseidon2 t=4 permutation (std::hash::poseidon2_permutation,
+// Barretenberg's own primitive -- not the variable-length sponge/IV wrapper, unneeded since this
+// is always exactly 4 fixed fields), taking output[0] as the digest. Previously SHA-256: switched
+// back once x/sovereignty/types.HashHeader's Go port was cross-verified byte-for-byte against
+// this exact primitive on this toolchain (gnark-crypto v0.21.0's poseidon2.NewPermutation(4,8,56)
+// vs. nargo 1.0.0-beta.22's std::hash::poseidon2_permutation, 6 test vectors, exact match) --
+// circuit/README.md's "Poseidon2 Verification History" has the detail.
 fn hash_header(h: Header) -> Field {
-    let mut bytes: [u8; 128] = [0; 128];
-    let b0 = h.prev_hash.to_be_bytes::<32>();
-    let b1 = h.fsm_state.to_be_bytes::<32>();
-    let b2 = h.withdrawal_locked.to_be_bytes::<32>();
-    let b3 = h.state_root.to_be_bytes::<32>();
-    for i in 0..32 {
-        bytes[i] = b0[i];
-        bytes[32 + i] = b1[i];
-        bytes[64 + i] = b2[i];
-        bytes[96 + i] = b3[i];
-    }
-    reduce_to_field(digest(bytes))
+    let state = [h.prev_hash, h.fsm_state, h.withdrawal_locked, h.state_root];
+    poseidon2_permutation(state)[0]
 }
 
 // reduce_to_field is the big-endian byte-to-Field fold shared by

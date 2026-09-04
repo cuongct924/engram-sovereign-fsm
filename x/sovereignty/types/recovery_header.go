@@ -1,8 +1,10 @@
 package types
 
 import (
-	"crypto/sha256"
 	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
 )
 
 // RecoveryHeader mirrors the ZK re-anchoring circuit's Header witness field
@@ -54,29 +56,21 @@ func BoolToField(b bool) int64 {
 	return 0
 }
 
-// HashHeader ports circuit/reanchoring/src/main.nr's hash_header exactly:
-// concatenates the 4 fields as 32-byte big-endian field elements, SHA-256s
-// the 128-byte result, then reduces the digest to field. prevHash/stateRoot
-// must already be field-reduced (see ReduceToField).
+// HashHeader ports circuit/reanchoring/src/main.nr's hash_header exactly: the raw Poseidon2 t=4
+// permutation (gnark-crypto's poseidon2.NewPermutation(4, 8, 56), matching Barretenberg/Noir's
+// std::hash::poseidon2_permutation -- cross-verified byte-for-byte across 6 test vectors against
+// this repo's pinned nargo 1.0.0-beta.22 toolchain before this switch) over the 4 fields, taking
+// output[0] as the digest. prevHash/stateRoot must already be field-reduced (see ReduceToField).
 func HashHeader(prevHash []byte, fsmState string, withdrawalLocked bool, stateRoot []byte) []byte {
-	var buf [128]byte
-	copy(buf[0:32], leftPad32(prevHash))
-	copy(buf[32:64], leftPad32(big.NewInt(FSMStateToField(fsmState)).Bytes()))
-	copy(buf[64:96], leftPad32(big.NewInt(BoolToField(withdrawalLocked)).Bytes()))
-	copy(buf[96:128], leftPad32(stateRoot))
+	var state [4]fr.Element
+	state[0].SetBytes(prevHash)
+	state[1].SetInt64(FSMStateToField(fsmState))
+	state[2].SetInt64(BoolToField(withdrawalLocked))
+	state[3].SetBytes(stateRoot)
 
-	digest := sha256.Sum256(buf[:])
-	return ReduceToField(digest[:])
-}
-
-// leftPad32 zero-pads b on the left to exactly 32 bytes (big-endian),
-// matching Noir's Field.to_be_bytes::<32>() -- panics if b is already longer,
-// which would mean a caller passed a non-field-reduced value.
-func leftPad32(b []byte) []byte {
-	if len(b) > 32 {
-		panic("leftPad32: input longer than 32 bytes")
+	if err := poseidon2.NewPermutation(4, 8, 56).Permutation(state[:]); err != nil {
+		panic(err)
 	}
-	out := make([]byte, 32)
-	copy(out[32-len(b):], b)
-	return out
+	out := state[0].Bytes()
+	return out[:]
 }
