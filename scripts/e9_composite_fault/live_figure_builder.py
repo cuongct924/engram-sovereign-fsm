@@ -140,9 +140,9 @@ def fault_windows(markers):
             windows["BTC congestion"][0] = t
         elif "chaos-btc-delay cleaned up" in event:
             windows["BTC congestion"][1] = t
-        elif "celestia-bridge stopped" in event:
+        elif "celestia bridges stopped" in event:
             windows["DA outage"][0] = t
-        elif "celestia-bridge restarted" in event:
+        elif "celestia bridges restarted" in event:
             windows["DA outage"][1] = t
         elif "churn burst starting" in event:
             windows["P2P churn"][0] = t

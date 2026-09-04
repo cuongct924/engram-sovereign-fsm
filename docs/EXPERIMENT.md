@@ -1080,57 +1080,42 @@ structurally can't see BTC/DA gap or P2P health.
 
 **Results:**
 
-**Live**
+**Live** ([`e9_combined_trace_20260904T081116.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260904T081116.csv), real 7-node cluster, 341s, 742 samples, 100% AppHash
+agreement across 126 ticks, 0 divergent heights, 0 RPC errors):
 
-* Single 352s run, all 6 phases pass: height progressed continuously, no stalled round, all 7
-  nodes height-synced at every sample.
-* All 7 validators transitioned together — ANCHORED→SOVEREIGN at t=48-51s (already during the
-  BTC-pressure-building phase, before DA outage or the P2P churn overlay even started — BTC
-  congestion alone was enough to trip the transition this run), SOVEREIGN→RECOVERING at
-  t=326-329s→ANCHORED at t=333s — zero divergence at any transition (every node lands on the same
-  state within a 3-5s window each time).
-* Withdrawals locked for the entire SOVEREIGN/RECOVERING window (t=48s→333s, from the same real
-  `fsm_state` samples).
-* `ReanchoringProofValid` flips true at t=321s, ahead of the t=326s SOVEREIGN→RECOVERING transition,
-  confirming the real proof landed before recovery started.
-* Diagnostic `sensor_snapshot` scrape (187 rows, `engram-node04`'s own LOCAL read, never committed
-  state):
-  * BTC gap: oscillates 2-9 through the BTC-congestion window, occasionally touching
-    `SovereignThreshold`=8 -- consistent with that fault alone driving the early SOVEREIGN
-    transition.
-  * DA gap: ramps smoothly ~8→147 across the whole DA-outage window (t≈97-314s), drops back to
-    single digits within a few samples of the bridges restarting.
-  * Active-anchors: flat at 6 throughout, including through P2P churn -- this validator's anchor
-    peer set (all 6 other validators) wasn't disrupted by the 5% packet-loss injection used here.
-  * Peer latency: near 0-9ms for most of the run, with two distinct spikes -- ~41-108ms around
-    t≈59-139s (BTC-pressure/early-DA-outage overlap) and ~46-49ms narrower bands later -- before
-    dropping back after healing.
-* ([`scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913.csv), 693 samples;
-  [`..._sensors.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260901T091913_sensors.csv), 187 diagnostic rows)
+* All 7 phases pass: height progressed continuously the entire 341s run (905→1093+), no stalled
+  round.
+* A real `SOVEREIGN` -> `RECOVERING` -> `ANCHORED` transition under a layered composite fault, all 7
+  validators in lockstep — `RECOVERING` at t=321s, `ANCHORED` at t=324s.
+* Withdrawals locked for the entire SOVEREIGN/RECOVERING window and unlocked only after the
+  transition, matching spec. `ReanchoringProofValid` flips true at t=319s, confirming the real proof
+  landed ahead of recovery.
 
-**Figure 2 (live, 4 panels by signal kind; drops to 2 without the `sensor_snapshot` scrape):**
+**Sensor breakdown** (each validator's own local read, never committed state — this run's own
+[`e9_combined_trace_20260904T081116_sensors.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260904T081116_sensors.csv),
+1390 rows scraped from live `sensor_snapshot` log lines, node01 shown):
 
-* System State & Actions — FSM state, withdrawal-lock shading, SafeBlocks, AppHash agreement
-* Sensor Health — BTC/DA gap (labeled DIAGNOSTIC/LOCAL: per-validator reads, never committed state)
-* P2P Network — active anchors, peer latency (same DIAGNOSTIC/LOCAL caveat)
-* Consensus Liveness — block height
+* BTC gap: oscillates 2-9 across the BTC-congestion window, consistent with BTC congestion alone
+  driving the SOVEREIGN transition at t=48-53s.
+* DA gap: ramps 2→156 across the DA-outage window (bridges stopped at t=92s), drops back to single
+  digits within a few samples of all 7 bridges restarting at t=306s.
+* Active-anchors: flat at 6 throughout — the P2P churn burst (t=159-266s) didn't disrupt this
+  validator's anchor peer set.
+* Peer latency: 0-16ms across the whole run, including through the triple-overlap window
+  (BTC + DA + P2P churn simultaneously, t=159-266s).
 
-Fault-injection windows are shaded across all 4 panels, so a reader can trace one moment through
-every signal at once.
+**Figure 2** — full 4 panels (System State & Actions, Sensor Health, P2P Network, Consensus
+Liveness), rebuilt from this run's own paired CSV/`_sensors.csv` — no borrowed data from an earlier
+run.
 
-![E9 live 4-panel trace timeline](../scripts/e9_composite_fault/results/figure2_trace_timeline_live.png)
+![E9 live trace timeline](../scripts/e9_composite_fault/results/figure2_trace_timeline_live.png)
 
 **Conclusion:**
 
-* The chain survives a realistic layered multi-failure trace live, with all validators staying in
-  lockstep through the layered fault peak and full recovery — a stronger claim than any
-  single-fault scenario alone.
-* Withdrawal-lock and proof-generation status are real, measured claims: locked for the whole
-  SOVEREIGN/RECOVERING window, and the recovery proof lands before the chain returns to ANCHORED.
-* The live figure's System State & Actions and Consensus Liveness panels omit BTC/DA/P2P gap by
-  necessity (raw sensor reads, never committed state). The Sensor Health and P2P Network panels
-  close that gap without violating it — each validator's own local sensor view, explicitly marked
-  non-committed/non-agreed.
+* The chain survives a realistic layered multi-failure trace live, staying in lockstep through the
+  fault peak and a full, real recovery, with 100% AppHash agreement throughout.
+* Withdrawal-lock and proof-generation status are real, measured claims, not just intent.
+* All 4 planned figure panels are populated from this run's own data.
 
 ---
 
