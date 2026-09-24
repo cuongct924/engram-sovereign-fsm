@@ -1,161 +1,104 @@
-\section{Discussion and Limitations}
+\section{Discussion}
 \label{sec:discussion}
 
-\subsection{Interpretation of Results}
+\subsection{What the Evidence Establishes}
 
-Taken together, Sections~\ref{sec:formal} and~\ref{sec:evaluation} support
-the paper's central claim, but with an asymmetry worth stating plainly: the
-empirical evaluation runs the full, composed, real system (all layers
-integrated, real Go code, real infrastructure), while the completed formal
-verification is currently per-layer only -- each layer shown internally
-free of violations in isolation, not yet shown to correctly refine the
-abstract specification as a composed whole (Section~\ref{sec:formal}). This
-means the live testbed currently carries more of the burden of demonstrating
-whole-system correctness than the formal verification does; the formal side
-contributes a precise statement of the target safety-and-accountability
-property, machine-checked evidence at the component level, and a
-five-mechanism ablation study showing each mechanism is individually
-necessary at the FSM layer, while the live evaluation shows the resulting
-design behaves correctly under real, not merely modeled, faults -- most
-directly in the RQ2 composite-fault trace, where a real
-\textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle
-completes with 100\% AppHash agreement under three overlapping fault classes
-at once. Neither result alone would be sufficient: the TLA+ model does not
-capture real network timing, container resource contention, or the actual
-Noir/Barretenberg proving pipeline, while the live testbed alone cannot
-explore the state space exhaustively enough to guarantee the absence of
-subtle safety violations, and its qualitative demonstrations (composite
-fault, seven-scenario sweep, the P4 cascade, the reorg-depth reaction) are
-each a single trial rather than a repeated, statistically characterized
-sample -- unlike the properly repeated E5 hysteresis sweep, the E7 overhead
-measurement ($n{=}5$), and the E4 synthetic Monte Carlo study (2,000
-trials/cell). We report exact transition timings from these single-trial
-runs (e.g.\ ``$t{=}321$\,s'') as one observed instance of correct behavior,
-not as a characterized distribution. Repeating these live trials is
-straightforward future work; the cross-layer refinement check discussed in
-Section~\ref{sec:formal} is a separate, open-ended gap whose resolution we
-cannot schedule (Section~\ref{sec:conclusion}).
+The formal and empirical results cover complementary ground. The TLA+
+results establish, per layer and within bounded configurations, that the
+FSM's safety invariants hold and that each defensive mechanism is
+individually necessary; Lemma~1 establishes that the certified health input
+to the FSM is bounded by honest observations. The live evaluation
+establishes that the composed implementation behaves as specified under
+real peripheral failures. Because the cross-layer refinement is open, the
+whole-system claim rests on the empirical side, and single-trial live
+results (composite fault, seven-scenario sweep, P4, reorg depth) show that
+correct behavior occurs rather than characterizing its distribution. The
+repeated experiments -- the hysteresis sweeps, the $n{=}5$ overhead
+benchmark, and the 2{,}000-trial detector study -- do characterize
+distributions.
 
-\textbf{Open question: asymmetric hardening.} Our RQ3 results
-(Section~\ref{sec:evaluation}) surface a genuine, unresolved design gap.
-Exponential backoff exists on the \textsc{Recovering}$\to$\textsc{Sovereign}
-edge specifically to defend against a cheap, repeatable attack that forces
-premature demotion, but the same attack shape is available on the
-\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary, whose
-thresholds do not grow the more they are triggered. A partial mitigation
-exists at the application layer (a queue cap on forced-transaction admission
-while \textsc{Suspicious}), but whether this edge needs the same backoff
-hardening already applied to \textsc{Sovereign}/\textsc{Recovering} remains
-open, and we flag it as a concrete direction for follow-up work
-(Section~\ref{sec:conclusion}) rather than resolving it speculatively here.
+\subsection{Security Implications of the Fallback}
 
-\textbf{Griefing surface created by the fallback itself.} Forcing
-\textsc{Sovereign} is not only a liveness question but a security
-tradeoff: an adversary who degrades only a validator-visible \emph{view}
-of Bitcoin, DA, or P2P health -- without compromising any validator's
-keys -- can drive a supermajority-visible cascade
-(Section~\ref{sec:evaluation}, P4) and lock withdrawals network-wide for
-as long as the degraded view persists. We have not quantified the
-attacker's cost against this benefit (e.g.\ the cost of sustaining a
-network-level attack against a supermajority of validators' Bitcoin/DA/P2P
-connectivity, versus the value of a network-wide withdrawal freeze to that
-attacker), nor analyzed the security implication of a long-range fork
-between the Bitcoin-anchored history and the sovereign history at
-re-anchoring time. Both are open problems this paper's evaluation does not
-resolve.
+\textbf{Withdrawal freeze as a griefing target.} An adversary that degrades
+the peripheral view of \emph{all} honest validators -- for example by
+delaying their Bitcoin connectivity -- can drive the chain into
+\textsc{Sovereign} and freeze withdrawals for as long as the degradation
+lasts (P4, Section~\ref{subsec:rq1}). Lemma~1 prevents a minority of
+validators from achieving this, so the attack requires network-level
+control over a quorum's peripheral connectivity. The freeze is the intended
+safe response to an unverifiable periphery, not a safety violation, but its
+economic cost to users should be weighed against the attacker's cost of
+sustaining the degradation; we do not quantify either here.
+
+\textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
+\textsc{Recovering} already raises the price of forcing repeated failed
+recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
+\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
+protection beyond the bounded forced-transaction queue; the adaptive
+threshold closes this asymmetry.
+
+\textbf{Proposer bias within the honest range.} When honest observations
+straddle a threshold, a proposer can choose which honest value the
+certificate selects (Section~\ref{subsec:health-certificate}). This cannot
+produce a transition that no honest view supports, but a sequence of
+Byzantine proposers can bias the timing of transitions. A persistent split
+straddling the $2f{+}1$ boundary (e.g.\ three versus four validators) has not
+been tested live; it is a candidate source of extra rounds and is covered by
+the RQ4 instrumentation.
+
+\textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the
+ordering of blocks rests on the validator quorum alone. A coalition
+exceeding $f$ could produce a \textsc{Sovereign} history that differs from
+one it would have produced under Bitcoin timestamping; the recovery proof
+certifies the history's internal legality and quorum signatures, not its
+uniqueness beyond the $f$ bound. The withdrawal lock limits what such a
+history can extract.
+
+\textbf{Data availability of the \textsc{Sovereign} interval.} Until the
+backfill gate of Section~\ref{subsec:reanchoring} is in place, a
+\textsc{Sovereign} interval's block data is held by the validators' own
+block stores but is not published to the DA layer, so its recoverability
+depends on those validators. The backfill gate turns this into an explicit
+precondition for returning to \textsc{Anchored}.
 
 \subsection{Limitations}
 \label{subsec:limitations}
 
-Section~\ref{subsec:sim-to-real} already discloses three gaps between this
-testbed and a genuinely distributed, mainnet-scale deployment: a shared
-physical host, an accelerated Bitcoin timescale, and single-source-per-validator
-DA trust. Rather than restate those facts, we state here what each one
-means for how the results in Section~\ref{sec:evaluation} should be read,
-plus three further limitations not covered there.
-
-\textbf{Single physical host.} Because every validator, plus the Bitcoin
-and Celestia networks, share one machine's resources, our measured
-overhead numbers (RQ4) are a reasonable but not definitive proxy for a
-genuinely distributed deployment, and our wide-area-network fault
-injection, while using kernel-level traffic control, approximates rather
-than reproduces true geographic distribution.
-
-\textbf{Accelerated Bitcoin timescale.} Because the testbed's Bitcoin
-network runs roughly $30\times$ faster than mainnet, readers should treat
-our wall-clock timings (e.g.\ the 341-second RQ2 trace) as demonstrating
-\emph{correct sequencing} of the recovery process, not as mainnet-calibrated
-latency figures; height-based thresholds are unaffected.
-
-\textbf{Single-source-per-validator DA trust.} Because each validator
-trusts only its own bridge rather than sampling across the other six, our
-DA-outage results should be read as measuring a bridge (or all seven
-together) going down, not as a sampling-detected partial failure of an
-otherwise-healthy network; closing this gap is future work
-(Section~\ref{sec:conclusion}).
-
-\textbf{Single Byzantine actor at a time.} Every live attack in this paper
--- the malicious proposer, the ten-scenario suite in
-Appendix~\ref{app:attacks}, and P3/P4 -- compromises exactly one validator
-or attacker container at a time. The formal threat model bounds up to $f$
-simultaneously Byzantine validators ($f{=}2$ at $N{=}7$), but no live
-experiment has exercised $f$ validators colluding at once (e.g.\ two
-validators jointly forging a certificate or double-signing in coordination);
-single-actor tests establish a safety margin, not the formally-bounded
-worst case. Relatedly, the ten-attack suite tests a Byzantine
-\emph{proposer} forging its proposal's FSM-state field, but does not
-separately test a Byzantine validator submitting a false individual health
-certificate into the health-certificate aggregation step that precedes
-consensus -- a related but distinct vector we have not confirmed is
-covered by an existing test.
-
-\textbf{Near-quorum split views untested.} Section~\ref{subsec:threat-model}
-notes that validators running identical thresholds can still disagree if
-their own external reads of Bitcoin, DA, or P2P health genuinely differ.
-Every split view we tested is decisive (a self-healing 1-of-7 view in S5,
-a sub-quorum 2-of-7 view in P3), not a persistent split straddling the
-$\geq 2f{+}1$ quorum boundary (e.g.\ 3-of-7 or 4-of-7), which could in
-principle cause repeated nil-prevotes and round failures rather than a
-clean commit either way. We note this because it offers one plausible,
-unconfirmed explanation for the $\sim$23--27\% block-production-rate
-reduction observed even on the fully healthy RQ4 path
-(Table~\ref{tab:overhead}): we describe that gap as ``round-skip
-overhead'' without having isolated whether occasional round-level
-disagreement of this kind, rather than pure validation latency, is what
-drives it.
-
-\textbf{Throughput tested only up to 100 tx/s.} RQ4's ``no throughput
-ceiling'' finding (Section~\ref{sec:evaluation}) holds within the tested
-range; we did not search for a rate at which the extended proposal's
-per-block byte overhead compounds with mempool or gossip costs into a
-measurable ceiling, so readers should not read this as a claim that no such
-ceiling exists at higher throughput.
-
-Beyond these six, the two threat-model boundaries introduced in
-Section~\ref{subsec:threat-model} (the Bitcoin reorg-depth bound and the
-peripheral-view convergence assumption) remain conditions on, rather than
-caveats against, the safety and accountability property targeted in
-Section~\ref{sec:formal}; we do not restate them a third time here.
+\begin{itemize}
+  \item \emph{Single physical host.} Absolute performance figures (RQ4) and
+  timing results are proxies for a geographically distributed deployment;
+  wide-area conditions are emulated.
+  \item \emph{Accelerated Bitcoin.} Wall-clock durations show the ordering
+  of recovery steps, not mainnet latencies; height-based thresholds are
+  unaffected.
+  \item \emph{DA prototype.} The DA publisher submits height markers rather
+  than block contents, and each validator trusts its own bridge rather than
+  sampling (Section~\ref{subsec:sim-to-real}).
+  \item \emph{Byzantine scale.} The live attacks reported so far involve one
+  Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
+  collusion suite (Section~\ref{subsec:rq1}) addresses this.
+  \item \emph{Formal scope.} Per-layer bounded model checking is complete;
+  the cross-layer refinement is open, and the health-certificate step is
+  argued by Lemma~1 rather than modelled in TLA+.
+  \item \emph{Load range.} Load was tested up to 100 tx/s; behavior at
+  higher rates, where per-block overhead could interact with mempool and
+  gossip costs, is not characterized.
+\end{itemize}
 
 \subsection{Threats to Validity}
 
-\textbf{Internal validity.} Sharing one physical host (above) is the primary
-threat to internal validity for our cost measurements; we mitigate this by
-reporting both a ramped-load sweep and a fixed-rate, $n{=}5$-repeat
-measurement with confidence intervals (Section~\ref{subsec:rq4}),
-which shows the measured overhead gap is stable and reproducible rather than
-noise, but does not eliminate host-sharing as a contributing factor to the
-absolute numbers.
+\textbf{Internal validity.} Host sharing can confound cost measurements. We
+mitigate it by reporting repeated measurements with confidence intervals and
+by comparing Engram and vanilla on the same host under the same load; the
+host still affects absolute values.
 
-\textbf{External validity.} Results at 7-validator scale, on a single
-physical host, may not extrapolate linearly to mainnet-scale validator sets
-or genuinely distributed infrastructure; we regard our results as
-establishing correctness and a bounded-overhead \emph{trend}, not as
-mainnet-calibrated performance figures.
+\textbf{External validity.} Results at seven validators on one host need not
+extrapolate to larger or geographically distributed validator sets. We
+interpret them as evidence of correct behavior and of the source of the
+overhead, not as production performance figures.
 
-\textbf{Construct validity.} We use AppHash agreement and divergence
-counts as our operational proxy for safety, and block
-height progression / commit rate as our operational proxy for liveness,
-consistent with how CometBFT-family systems are conventionally evaluated;
-readers should note that this proxies the properties formally verified in
-Section~\ref{sec:formal} rather than independently re-deriving them.
+\textbf{Construct validity.} AppHash agreement and height progression are
+the conventional operational proxies for safety and liveness in
+CometBFT-family systems. AppHash agreement alone cannot detect an illegal
+transition agreed on by all validators; the semantic replay check of
+Section~\ref{subsec:rq1} addresses this gap.

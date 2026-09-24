@@ -1,40 +1,39 @@
 Modular blockchains decompose execution, settlement, and data availability (DA)
-across separate layers, but existing consensus protocols treat the liveness of
-these peripheral layers as a hard precondition: when Bitcoin settlement or a
-DA layer stalls, the chain halts rather than degrades. We present the
-\emph{Engram Hybrid Adaptive Consensus}, a CometBFT-based protocol that folds
-peripheral network health into the consensus object itself. A four-state
-finite state machine (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
-\textsc{Recovering}) is agreed upon by quorum alongside every block proposal,
-degrading monotonically into a local fallback that keeps producing blocks
-without external corroboration from Bitcoin or Celestia, instead of
-stalling, and re-anchoring to Bitcoin autonomously via a constant-cost,
-dynamic-padding zero-knowledge proof once peripherals recover. We bound-model-check each
-protocol layer's safety and liveness properties in isolation with TLA+
-(zero violations across 3.39 million distinct states, $1.02\times10^{9}$ generated, at each
-layer's own checked-in scale, $N{\le}4$) and run a five-mechanism ablation
-study at the FSM layer, each ablation reproducing a distinct, previously
-predicted failure mode; the cross-layer refinement check that would extend
-these per-layer guarantees to the full composed system at production scale
-($N{=}7$) is specified but not yet run to completion, which we report
-explicitly rather than presenting per-layer results as a substitute. We
-evaluate the reference implementation on a real 7-validator Cosmos SDK
-testnet against a live Bitcoin regtest network and a live Celestia DA
-network, using Docker-level and application-level fault injection. Under a
-layered composite fault (Bitcoin congestion, DA outage, and P2P churn
-overlapping), the chain sustains continuous block production and completes a
-full \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} recovery
-cycle with 100\% AppHash agreement across all validators. Hysteresis on all
-three state-transition edges is shown to trade uptime against flapping
-resistance in a quantifiable, tunable way. Under a representative Byzantine
-attack (a malicious proposer, tested at 4-node scale), safety holds with
-zero AppHash divergence. The extended consensus object adds a measured,
-near-constant steady-state overhead of +228 bytes per block, negligible
-validation cost ($\sim$18.25\,$\mu$s per proposal), and a
-$\sim$23--27\% reduction in block-production rate attributable to
-round-skip overhead, with no throughput
-ceiling found within the tested range (up to 100 tx/s). These results
-indicate that treating peripheral-layer health as a first-class,
-component-level-verified, and empirically validated consensus variable is a
-practical way to trade a small, bounded overhead for substantially stronger
-liveness guarantees in modular blockchain systems.
+across separate layers. A chain whose block validity is gated on Bitcoin
+settlement receipts and DA receipts inherits the liveness of those layers:
+when either stalls, no proposal satisfies the validity predicate and the chain
+halts. We present \emph{Engram Hybrid Adaptive Consensus}, a protocol layer
+that runs on top of a CometBFT agreement core and
+extends its consensus object, proposal-validation predicate, and
+state-transition logic so that peripheral-layer health is decided by the same
+quorum that orders transactions. Engram does not replace BFT agreement:
+proposer selection, voting, quorum intersection, and deterministic finality
+remain CometBFT's. What it adds is (i) a \emph{health certificate} -- a
+deterministic aggregate of $\geq 2f{+}1$ voting power's height-bound, signed
+peripheral observations carried as vote extensions -- whose aggregate provably
+stays within the range of honest observations, and (ii) a four-state finite
+state machine (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
+\textsc{Recovering}) evaluated deterministically on that certificate. When
+Bitcoin or DA degrades, or the peripheral P2P view degrades while the core
+consensus network retains quorum connectivity, the chain continues producing
+blocks in \textsc{Sovereign} mode with cross-chain withdrawals locked, and
+returns to \textsc{Anchored} once a validator-verified zero-knowledge recovery
+proof (Noir/UltraHonk, fixed capacity of 256 headers per proof, chained
+sequentially for longer intervals) attests to header continuity,
+FSM-transition legality, and withdrawal-lock adherence over the
+\textsc{Sovereign} interval. We give a layered TLA+ specification and
+bounded-model-check each layer in isolation (zero violations across 3.39
+million distinct states at $N{\le}4$) with a five-mechanism ablation study
+in which each removed mechanism reproduces a distinct predicted failure; the
+cross-layer refinement obligation remains open. On a 7-validator Cosmos SDK
+testnet with live Bitcoin regtest and Celestia networks, under a layered
+composite fault the chain keeps committing blocks and completes a full
+\textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
+100\% AppHash agreement. The extended consensus object adds +228 bytes per
+proposal and 18.25\,$\mu$s of validation per block, yet lowers the
+block-production rate by 22\% relative to vanilla CometBFT; the loss comes
+from heights that take longer at an unchanged steady interval, pointing to
+additional consensus rounds rather than proposal size or validation
+time.
+\pending{confirm the round-level attribution with the RQ4 consensus-round
+instrumentation, and add the hard-gated-baseline stall result.}

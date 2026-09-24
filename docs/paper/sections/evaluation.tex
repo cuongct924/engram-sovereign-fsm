@@ -1,46 +1,51 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-To keep the main-body evaluation focused,
-we report the load-bearing live experiments for each research question --
-the malicious-proposer attack and the P2P quorum-gate result for RQ1, the
-composite-fault stress test and the seven-scenario fault-injection sweep
-for RQ2, the hysteresis parameter sweep for RQ3, and the extended-proposal
-overhead benchmark for RQ4 -- out of a ten-experiment suite. The remaining
-attack scenarios and a secondary ZK-backend comparison are reported in
-Appendix~\ref{app:attacks} and Appendix~\ref{app:backend}; a Bitcoin-reorg
-boundary test is reported in Appendix~\ref{app:reorg}. Unless noted
-otherwise, every number below is a live measurement on the real 7-validator
-testbed (Section~\ref{sec:setup}), not an in-process simulation; the
-malicious-proposer test below is the one exception, run at 4-node scale as
-disclosed in Section~\ref{sec:setup}.
+Each research question is answered by the live experiments that bear on it
+most directly; the remaining attack scenarios, the prover-backend
+comparison, and the Bitcoin-reorg boundary test appear in
+Appendices~\ref{app:attacks}--\ref{app:reorg}. Unless stated otherwise, all
+numbers are live measurements on the seven-validator testbed of
+Section~\ref{sec:setup}.
 
+\subsection{RQ1: Safety Under Byzantine Behavior}
 \label{subsec:rq1}
 
-\textbf{Malicious proposer.} We selected the malicious-proposer scenario as
-our first representative attack because it directly exercises the extended
-proposal's core safety property: a Byzantine leader that fabricates its
-FSM-state claim. In this scenario, a compromised validator (25\% of voting
-power at 4-node scale) is configured to broadcast a proposal whose FSM-state
-field does not match its own honest sensor readings. Across
-the live run, \textbf{safety held with zero AppHash divergence}: every
-honest validator's independent re-evaluation of the FSM's own transition
-function rejected the forged claim at the
-proposal-validation step, consistent with the \emph{Strict FSM Transition
-Safety} and \emph{Accountability} properties verified in
-Section~\ref{sec:formal}. This result is one row of a broader ten-scenario
-attack suite covering eclipse, Sybil, data withholding, forged Bitcoin
-receipts, withdrawal-during-\textsc{Sovereign}, censorship, a combined
-attack, double-signing, and timeout flooding, all of which held safety with
-zero divergence; the full per-attack results are reported in
-Appendix~\ref{app:attacks}.
+\textbf{Single Byzantine proposer.} The most direct attack on the extended
+consensus object is a proposer that claims an FSM state not implied by the
+certificate. A validator holding 25\% of the voting power in a
+four-validator cluster was configured to do so. Every honest validator
+recomputed $\delta(s^{h-1}, \mathsf{Agg}(C^{h}))$, rejected the forged claim
+in \texttt{ProcessProposal}, and the chain committed only honest proposals,
+with zero AppHash divergence. The same outcome held for the nine further
+single-actor attacks of Appendix~\ref{app:attacks} (eclipse, Sybil, data
+withholding, forged Bitcoin receipt, withdrawal in \textsc{Sovereign},
+censorship, a combined attack, double-signing, and timeout flooding).
 
-\textbf{P2P quorum gate.} Our second RQ1 result addresses a different
-safety property: does the tri-interface P2P profiler (Section~\ref{subsec:sensors})
-translate into a real consensus safeguard, or only a monitoring signal? We
-compare it against a peer-count-only baseline across four synthetic attacks
-via a 2{,}000-trial-per-cell Monte Carlo study, then confirm the two most
-diagnostic attacks live on the real cluster.
+\textbf{Colluding Byzantine validators ($f{=}2$).} The threat model allows
+$f{=}2$ colluding validators at $n{=}7$. We therefore define a collusion
+suite in which two validators act jointly: (B1) both report coordinated
+false health observations; (B2) one reports false observations while the
+other, as proposer, builds its certificate to favor them; (B3) the proposer
+omits honest observations, both down to exactly $2f{+}1$ voting power and
+below it; (B4) both double-sign at the same height; (B5) both attempt to
+include a withdrawal while in \textsc{Sovereign}; and (B6) the proposer
+attaches a stale or forged Bitcoin or DA receipt. AppHash agreement is
+necessary but not sufficient evidence of safety, since honest validators
+could agree on an illegal transition. For every committed height we
+therefore also replay $\delta(s^{h-1}, \mathsf{Agg}(C^{h}))$ offline from
+the committed certificate and check that it equals the committed $s^{h}$,
+that the aggregate lies within the honest range of Lemma~1, and that no
+withdrawal commits while $s^{h} \in \{\textsc{Sovereign},
+\textsc{Recovering}\}$.
+\pending{run B1--B6 at $n{=}7$ and report per-case AppHash agreement,
+semantic-replay violations, and the honest-range check.}
+
+\textbf{P2P quorum gate.} A P2P detector is useful for safety only if its
+signal cannot be abused by a minority. We first compare the six-bound
+profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
+Monte Carlo study (2{,}000 trials per cell), then run the two most
+diagnostic attacks live.
 
 \begin{table}[h]
 \caption{P2P Detector Accuracy: Tri-Interface vs.\ Peer-Count-Only (Synthetic, 2{,}000 trials/cell)}
@@ -58,36 +63,27 @@ P4 Relay-node latency & 2.71 & 0.25 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
-\footnotesize Peer-count-only baseline: 100\% false-negative rate and an
-evasion threshold of 1.0 (never caught, at any intensity) on all four
-attacks, by construction -- all four preserve clean-peer count. The
-tri-interface profiler holds 0\% false positives and 0\% false negatives on
-every attack.
+\footnotesize The peer-count-only detector has a 100\% false-negative
+rate and an evasion threshold of 1.0 on all four attacks, since each
+attack preserves the clean-peer count. The six-bound profiler has 0\% false
+positives and 0\% false negatives on every attack.
 \end{table}
 
-Table~\ref{tab:p2p-detector} shows the tri-interface profiler catches every
-attack a peer-count-only detector is structurally blind to, across the full
-range of intensities an adaptive adversary could search (evasion threshold
-$\leq 0.25$ in every case), and this advantage is stable across three
-different attack-ramp shapes (linear, front-loaded, stealthy-slow; 300/300
-trials caught in every shape$\times$attack cell) and independent of
-concurrent Bitcoin/DA degradation. Live confirmation isolates a subtler
-finding than raw detection accuracy: a real quorum gate on top of that
-detection. Attack P3 (churn-based rotation, eight repeated container
-restart cycles on 2 of 7 proposers, $\sim$29\% of voting power)
-is correctly \emph{sensed} -- the peer-churn-rate metric on both attacked nodes
-crosses the detection threshold -- yet produces \textbf{no committed FSM
-transition}, because a transition requires $\geq 2f{+}1$ voting
-power's signed observations before it commits, and a
-minority-visible degradation cannot supply that quorum. Attack P4
-(sustained 350$\pm$50\,ms delay on all of one validator's real P2P
-interfaces, visible to 7 of 7 validators, i.e.\ full quorum) produces the
-opposite outcome: a full, correctly-bounded
-\textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} cascade
-(+39\,s, +72\,s relative to the attack start) that holds for the entire
-244-second attack window and recovers
-(\textsc{Recovering}$\to$\textsc{Anchored}) within 5 seconds of the delay
-clearing, as shown in Fig.~\ref{fig:a4-cascade}.
+Table~\ref{tab:p2p-detector} shows that the profiler detects every attack
+at every intensity an adaptive adversary could choose (evasion threshold
+$\leq 0.25$), under three ramp shapes (linear, front-loaded, slow; 300/300
+trials detected per cell) and regardless of concurrent Bitcoin or DA
+degradation. The live runs show what happens after detection. In P3
+(churn-based rotation: eight restart cycles on two of seven validators,
+29\% of voting power), the churn metric on both attacked validators crossed
+its threshold, yet no FSM transition was committed: two validators' signed
+observations cannot move a certified aggregate backed by $\geq 2f{+}1$
+voting power. In P4 (a sustained 350$\pm$50\,ms delay on all of one
+validator's P2P interfaces, observed by all seven validators), the chain
+moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} at
++39\,s and +72\,s, held \textsc{Sovereign} for the 244-second attack, and
+returned to \textsc{Anchored} within 5\,s of the delay clearing
+(Fig.~\ref{fig:a4-cascade}).
 
 \begin{figure}[h]
 \centering
@@ -99,28 +95,35 @@ stalls through the cascade or the recovery.}
 \label{fig:a4-cascade}
 \end{figure}
 
-Together, P3 and P4 are two outcomes of one mechanism, not two separate
-detector results: the identical class of real, sensor-confirmed P2P
-degradation is correctly blocked from committing when only a minority of
-validators observes it, and correctly drives a bounded, liveness-preserving
-state cascade when a supermajority does. This is a specific instance of the
-safety property RQ1 asks for -- resistance to a Byzantine-influenced
-minority forcing an unwarranted state transition -- though we note it
-exercises the quorum-threshold mechanism under adversarial network
-conditions rather than the forged-receipt or data-withholding vectors RQ1
-also names; those are addressed separately by the malicious-proposer result
-above and by Appendix~\ref{app:attacks}'s broader attack suite.
+P3 and P4 are two outcomes of one mechanism. The same kind of
+sensor-confirmed degradation is ignored when a minority observes it and
+drives a bounded cascade when all validators do, as Lemma~1 predicts: a
+minority cannot move the certified aggregate, whereas a degradation seen by
+every honest validator must move it.
 
+\subsection{RQ2: Liveness Under Peripheral Degradation}
 \label{subsec:rq2}
 
-\textbf{Composite fault.} To answer RQ2 we first ran a single, continuous,
-scripted composite-fault sequence rather than isolated single-fault
-scenarios: growing Bitcoin congestion, layered onto a full Celestia DA
-outage (all seven independent bridges stopped together), layered onto three
-cycles of packet loss on the validator P2P network, all three overlapping
-at their peak, followed by a sequential, real recovery -- run under a
-standing wide-area-network latency baseline. Fig.~\ref{fig:fsm-timeline}
-plots the resulting FSM state timeline.
+\textbf{Engram versus a hard-gated modular chain.} The hard-gated baseline
+(Section~\ref{subsec:baselines}) enforces Bitcoin and DA receipts at every
+height. Under a DA outage, no proposal after the last retrievable height can
+carry a valid DA receipt; under checkpoint suspension, the Bitcoin receipt
+falls outside tolerance once the gap exceeds it. In both cases every
+proposal fails the validity predicate and the baseline commits no further
+blocks until the layer returns, while Engram moves to \textsc{Sovereign} and
+continues. We run both systems through the same fault schedule and report
+blocks committed during each outage window and time to first commit after
+recovery.
+\pending{hard-gated vs.\ Engram: blocks committed per outage window (BTC
+suspension, DA outage, both), stall duration, and time to resume.}
+
+\textbf{Composite fault.} Engram was then run through a continuous, scripted
+composite-fault sequence under a standing wide-area latency profile:
+growing Bitcoin congestion, then a full DA outage (all seven bridges
+stopped), then three cycles of packet loss on the validator P2P network,
+with all three overlapping at their peak before being healed in turn. The
+packet loss degrades peer quality without removing quorum connectivity.
+Fig.~\ref{fig:fsm-timeline} shows the resulting timeline.
 
 \begin{figure}[h]
 \centering
@@ -131,28 +134,26 @@ outage + P2P churn, overlapping at their peak).}
 \label{fig:fsm-timeline}
 \end{figure}
 
-Over a 341-second run (742 samples, 126 polling ticks), the chain height
-progressed continuously from 905 to over 1093 with \textbf{no stalled
-round}, and all seven validators reached \textbf{100\% AppHash agreement}
-across every tick, with zero divergent heights and zero RPC errors. The
-chain reached \textsc{Sovereign} under the combined fault, then completed a
-real recovery cycle -- \textsc{Recovering} at $t{=}321$\,s,
-\textsc{Anchored} at $t{=}324$\,s -- once the injected faults were healed.
-Withdrawals were locked for the entire \textsc{Sovereign}/\textsc{Recovering}
-window and unlocked only after the transition back to \textsc{Anchored},
-matching the circuit-breaker invariant of Section~\ref{sec:formal}; the
-re-anchoring proof (Section~\ref{subsec:reanchoring}) was confirmed valid at
-$t{=}319$\,s, ahead of the state transition it gates.
+Over the 341-second run (742 samples, 126 polling ticks), the height
+advanced continuously from 905 to 1093 with no stalled height, and all seven
+validators agreed on the AppHash at every tick (zero divergent heights, zero
+RPC errors). The chain entered \textsc{Sovereign} under the combined fault
+and, after the faults were healed, the recovery proof was verified at
+$t{=}319$\,s, the chain entered \textsc{Recovering} at $t{=}321$\,s and
+\textsc{Anchored} at $t{=}324$\,s. Withdrawals stayed locked throughout
+\textsc{Sovereign} and \textsc{Recovering}, as the circuit-breaker invariant
+requires. These timings come from a single trial.
+\pending{repeat the composite and seven-scenario runs ($\geq 5$ trials) and
+report recovery time as mean $\pm$ 95\% CI.}
 
-\textbf{Seven-scenario fault-injection sweep.} The composite trace shows
-the mechanism survives worst-case overlap, but does not isolate which
-failure mode drives which behavior. We complement it with a longer,
-864-second live run walking the chain through seven sequential scenarios --
-S1 normal baseline, S2 Bitcoin congestion, S3 DA outage, S4 partial P2P
-eclipse, S5 total anchor isolation, S6 combined Bitcoin+DA failure, and S7
-recovery -- each building on the last, with 153 real FSM transitions logged
-across all 7 validators. Fig.~\ref{fig:s1-s7} plots the full continuous
-timeline.
+\textbf{Seven-scenario sweep.} The composite trace does not isolate which
+failure mode drives which behavior. A second run therefore walks the chain
+through seven sequential scenarios in one 864-second run: S1 healthy
+baseline, S2 Bitcoin congestion, S3 DA outage, S4 partial P2P eclipse, S5
+anchor-peer isolation of one validator, S6 combined Bitcoin and DA failure,
+and S7 recovery. Each scenario starts from the state the previous one left;
+153 FSM transitions were logged across the seven validators
+(Fig.~\ref{fig:s1-s7}).
 
 \begin{figure}[h]
 \centering
@@ -164,48 +165,35 @@ recovery ended.}
 \label{fig:s1-s7}
 \end{figure}
 
-Every scenario shows the correct qualitative response: S2 (Bitcoin
-congestion) and S3 (DA outage) each independently escalate through
-\textsc{Suspicious} to \textsc{Sovereign} and recover; S4 (partial P2P
-eclipse) escalates fully to \textsc{Sovereign}, while S5 (total anchor
-isolation on one of seven validators) only ever produces a transient,
-hysteresis-absorbed \textsc{Suspicious} dip that self-heals, because losing
-1 of 7 anchor peers does not zero out the active-anchor-peer count and therefore
-never satisfies the immediate-escalation condition -- a direct, live
-confirmation that S4 and S5 are qualitatively different failure classes, not
-two instances of the same detector saturating; S6 (Bitcoin and DA failing
-together) escalates directly to \textsc{Sovereign}; and S7 (recovery) closes
-the loop back to \textsc{Anchored} via a real submitted re-anchoring proof.
-Two results from this run are worth highlighting beyond the qualitative
-pattern. First, S2 itself shows two brief, real \textsc{Suspicious} blips
-(19--22\,s and 77--80\,s into the scenario) that hysteresis absorbs back to
-\textsc{Anchored} before the scenario's real escalation at 141\,s -- the
-first confirmation on physical infrastructure that hysteresis absorbs
-genuine noise, a
-property previously shown only in E5's synthetic sweeps
-(Section~\ref{subsec:rq3}). Second, per-scenario throughput held
-close to baseline throughout: block-interval means ranged 1.30--1.93\,s
-across all seven scenarios (vs.\ 1.34\,s at the S1 healthy baseline), with
-the two heaviest scenarios (S4 partial eclipse and S7 recovery) showing the
-largest, but still bounded, tail latency (p95 4.27\,s and 3.10\,s
-respectively). Together with the composite-fault result above, this
-answers RQ2 affirmatively from two complementary angles: the chain keeps
-committing blocks under both an overlapping worst-case fault and under each
-individual failure mode in isolation, and recovers correctly in every case,
-rather than halting.
+Each scenario produced the expected response. S2 and S3 each escalated
+through \textsc{Suspicious} to \textsc{Sovereign} and recovered. S4 escalated
+to \textsc{Sovereign}, whereas S5 produced only a transient
+\textsc{Suspicious} excursion absorbed by hysteresis: isolating one of seven
+validators from its anchor peers leaves the certified active-anchor-peer
+count above zero, so the critical condition never holds. S4 and S5 are
+therefore distinct failure classes rather than two intensities of one
+signal. S6 escalated directly to \textsc{Sovereign}, and S7 returned to
+\textsc{Anchored} through a submitted and verified recovery proof.
+Two further observations stand out. First, S2 contains two brief
+\textsc{Suspicious} excursions (19--22\,s and 77--80\,s) that return to
+\textsc{Anchored} before the real escalation at 141\,s, showing hysteresis
+absorbing genuine rather than synthetic noise. Second, block production
+stayed close to baseline: block-interval means ranged 1.30--1.93\,s
+across all seven scenarios (vs.\ 1.34\,s at the S1 healthy baseline), and the
+largest p95 intervals occurred in S4 (4.27\,s) and S7 (3.10\,s). Engram therefore keeps committing blocks both under overlapping faults
+and under each failure mode in isolation, and returns to \textsc{Anchored}
+in every case.
 
+\subsection{RQ3: Recovery and Flapping}
 \label{subsec:rq3}
 
-RQ3 asks whether hysteresis prevents oscillation (``flapping'') once
-peripherals recover, without unduly delaying recovery. We swept the
-governing threshold on each of the three hysteresis-gated edges --
-\textsc{Recovering}$\to$\textsc{Anchored},
+Hysteresis should suppress oscillation (``flapping'') without unduly
+delaying legitimate transitions. We swept the threshold on each of the
+three gated edges -- \textsc{Recovering}$\to$\textsc{Anchored},
 \textsc{Anchored}$\to$\textsc{Suspicious}, and
-\textsc{Suspicious}$\to$\textsc{Anchored} -- both in-process (fixed-seed
-synthetic noise, for a clean monotonic baseline) and live on the real
-7-validator cluster (real network noise, which does not cancel out the way
-a fixed seed does). Fig.~\ref{fig:hysteresis} plots the resulting
-uptime/absorption trade-off for all three edges.
+\textsc{Suspicious}$\to$\textsc{Anchored} -- in-process under fixed-seed
+synthetic noise and live on the seven-validator cluster under real network
+noise (Fig.~\ref{fig:hysteresis}).
 
 \begin{figure}[h]
 \centering
@@ -235,87 +223,109 @@ Absorption rate (\%) & 0.00 & 94.74 & 95.24 & 100.00 & 100.00 \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:hysteresis-down} shows the clearest single result: on the
-\textsc{Anchored}$\to$\textsc{Suspicious} edge, raising the down-hysteresis
+On the \textsc{Anchored}$\to$\textsc{Suspicious} edge
+(Table~\ref{tab:hysteresis-down}), raising the down-hysteresis
 threshold from 1 to 4 collapses flapping from 31 events to 1 and raises
 anchored uptime from 61.4\% to 98.0\%, and the absorption rate saturates
-near 100\% by threshold 4--6. The live spot-check on the real cluster
-confirms this is not merely a synthetic artifact but shows a stronger,
-practically important finding: under real wide-area-network jitter alone
-(with \emph{no} injected fault), thresholds 1, 2, and even 4 still produced
-spurious flapping, and only threshold $\geq 6$ was clean (0 flapping, 100\%
-uptime) -- a materially stronger requirement than the protocol's own default
-value of 2, and a concrete, actionable recommendation for deployment in a
-WAN-realism regime. We flag an apparent tension we have not resolved: the
-composite-fault, seven-scenario, and P4 experiments above all ran at this
-same default threshold of 2 under the same WAN-jitter baseline, yet report
-no comparable flapping. This is not necessarily a contradiction --
-this dedicated sweep is the only experiment that explicitly counts
-flapping events in isolation from any other injected fault; the other
-experiments track qualitative correctness (AppHash agreement, block
-production) rather than a flapping count, so an occasional spurious flap
-not large enough to affect those outcomes would not have been visible in
-their results either way. We report this as a difference in measurement
-scope, not as evidence that the other experiments were in fact flap-free.
-The symmetric edges show consistent trade-offs in the
-opposite direction: on the \textsc{Recovering}$\to$\textsc{Anchored} edge, a
-larger hysteresis-wait threshold strictly reduces anchored uptime under
-sustained critical-level noise (59.8\%$\to$0.0\% as the threshold goes from
-0 to 20) -- a designed, expected negative result, since critical-level
-conditions bypass hysteresis by construction rather than being absorbed by
-it. On the \textsc{Suspicious}$\to$\textsc{Anchored} edge, absorption rate
-rises from 0\% to 100\% as the threshold goes from 1 to 4, but this is a
-genuine trade-off, not a free improvement: the same accumulating
-suspicious-state duration timer that a longer threshold is meant to
-outlast can independently force escalation to \textsc{Sovereign} once it
-hits its own cap, so only the smallest threshold values in our sweep
-(1--2) actually reached \textsc{Anchored} within the timeout window. We
-discuss the resulting open design question -- asymmetric hardening across
-edges -- in Section~\ref{sec:discussion}. Appendix~\ref{app:reorg} reports a
-complementary recovery-boundary result: how far a real Bitcoin
-reorganization can go before the same FSM reacts at all.
+near 100\% by threshold 4--6. The live spot-check changes the conclusion. Under wide-area jitter alone,
+with no injected fault, thresholds 1, 2, and 4 still flapped, and only
+thresholds $\geq 6$ were clean (0 flaps, 100\% uptime). The default of 2
+used in the other experiments is therefore too low for WAN conditions; the
+other experiments did not count flaps and cannot be taken as evidence to
+the contrary. A static default must trade reaction time (low $k$) against
+noise immunity (high $k$), and the right point depends on network
+conditions that change over time.
 
+The other two edges show the opposite side of the trade-off. On the \textsc{Recovering}$\to$\textsc{Anchored} edge, a
+larger hysteresis wait strictly reduces anchored uptime under sustained
+critical-level noise (59.8\%$\to$0.0\% as the threshold goes from 0 to 20),
+as designed: critical conditions bypass hysteresis and reset the wait. On the \textsc{Suspicious}$\to$\textsc{Anchored} edge, absorption rate
+rises from 0\% to 100\% as the threshold goes from 1 to 4, at a cost: the \textsc{Suspicious} timeout keeps running while the
+counter accumulates, so only thresholds 1--2 reached \textsc{Anchored}
+before the timeout forced \textsc{Sovereign}. Any adaptive threshold
+must therefore stay below the \textsc{Suspicious} timeout, which bounds
+$k_{\max}$. 
+
+\textbf{Adaptive hysteresis.} We therefore extend the backoff already used on
+\textsc{Recovering} to the \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious}
+boundary. The effective threshold is
+$k_{\text{eff}} = \min(k_{\max},\, k_0 \cdot 2^{c})$, where the flap counter $c$ is
+incremented at every \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Anchored}
+round trip and decremented after every $W$ consecutive flap-free blocks. $k_{\text{eff}}$ depends
+only on committed state, so it remains deterministic across validators. It
+starts at the responsive value $k_0$ and rises only when the network
+proves noisy, which also raises the cost of the repeated-trigger attack
+discussed in Section~\ref{sec:discussion}.
+\pending{implement $k_{\text{eff}}$ (TLA+ and Go), re-run the live down-edge
+sweep, and compare flaps, uptime, and detection delay against static
+$k\in\{2,6\}$.}
+
+Appendix~\ref{app:reorg} complements these results by measuring how deep a
+real Bitcoin reorganization must be before the FSM reacts.
+
+\subsection{RQ4: Cost}
 \label{subsec:rq4}
 
 \begin{table}[h]
-\caption{Extended Proposal Overhead vs.\ Vanilla CometBFT}
+\caption{Overhead of the Extended Consensus Object vs.\ Vanilla CometBFT
+(20 tx/s, $n{=}5$ repeats, mean $\pm$ 95\% CI)}
 \label{tab:overhead}
 \centering
 \footnotesize
 \begin{tabular}{@{}lrr@{}}
 \toprule
-\textbf{Metric} & \textbf{Vanilla} & \textbf{Engram (extended)} \\
+\textbf{Metric} & \textbf{Vanilla} & \textbf{Engram} \\
 \midrule
-Steady-state proposal tax & 0 B/block & +228 B/block \\
-Full proposal-validation CPU & --- & 18{,}252 ns \\
-p95 commit latency @ 20 tx/s & 1.017 s & 1.021 s \\
-Blocks/s @ 20 tx/s ($n{=}5$) & 0.953 $\pm$ 0.007 & 0.743 $\pm$ 0.008 \\
-Tx-accepted/s @ 20 tx/s & 20.00 $\pm$ 0.00 & 19.99 $\pm$ 0.00 \\
+Proposal overhead (steady state) & 0 B & +228 B \\
+Proposal validation CPU & --- & 18.25\,$\mu$s \\
+Blocks/s & 0.953 $\pm$ 0.007 & 0.743 $\pm$ 0.008 \\
+Steady blocks/s (1/mean interval) & 1.000 $\pm$ 0.000 & 0.993 $\pm$ 0.023 \\
+Gap fraction & 0.046 $\pm$ 0.006 & 0.251 $\pm$ 0.016 \\
+p95 block interval & 1.017 s & 1.021 s \\
+Tx accepted to mempool/s & 20.00 $\pm$ 0.00 & 19.99 $\pm$ 0.00 \\
+\midrule
+Rounds per height & \pending{} & \pending{} \\
+Proposals rejected / height & \pending{} & \pending{} \\
+Nil prevotes / nil precommits per height & \pending{} & \pending{} \\
+Committed tx/s & \pending{} & \pending{} \\
+Tx commit latency (p50 / p95) & \pending{} & \pending{} \\
+Mempool backlog (mean / max) & \pending{} & \pending{} \\
+Tx per block (mean) & \pending{} & \pending{} \\
 \bottomrule
 \end{tabular}
+\\[2pt]
+\footnotesize Gap fraction: share of elapsed time not accounted for by the
+steady block interval, i.e.\ time spent in heights that took longer than
+one interval.
 \end{table}
 
-Table~\ref{tab:overhead} answers RQ4 directly. On the healthy path, the
-extended proposal adds a small, near-constant \textbf{+228 bytes per block}
-(100\% of blocks carry the marker) versus zero for vanilla CometBFT; a live
-376-block sample confirms 100\% marker coverage with per-state average
-proposal sizes of 247--270 bytes, and the one recovery-proof-carrying block
-observed matched the expected $\sim$14.7\,KB proof-plus-envelope size from
-Section~\ref{subsec:reanchoring}. Validation CPU cost is negligible: the
-full proposal-validation path costs 18{,}252\,ns (18.25\,$\mu$s) on a
-steady-state, non-recovery block -- several orders of magnitude below both
-CometBFT's own commit-timeout parameter (hundreds of milliseconds) and this
-cluster's $\sim$1-second block interval. Under load ramped from 5 to 100
-tx/s, we found \textbf{no throughput ceiling within the tested range}:
-every rate stage accepted
-100\% of submitted transactions in both modes, and p95 commit latency
-stayed essentially flat ($\sim$1.01--1.02\,s) regardless of rate, dominated
-by the block interval rather than load. At a fixed rate of 20 tx/s with
-$n{=}5$ independent repeats, the extended mode's block-production rate
-(0.743 $\pm$ 0.008 blocks/s) was consistently, but modestly, lower than
-vanilla's (0.953 $\pm$ 0.007 blocks/s) -- a stable $\sim$23--27\% gap in
-per-round overhead (Cohen's $d{=}$--25.3, a very large but tightly
-reproducible effect) that a throughput-corrected metric shows converges
-between the two modes, indicating the gap is round-skip overhead rather than
-a growing backlog. We regard this as an acceptable, bounded cost given the
-liveness and safety guarantees demonstrated under RQ1--RQ3.
+\textbf{Where the cost is not.} The extended object adds a near-constant
++228 bytes per proposal (live: 247--270 bytes across states, 100\% of 376
+sampled blocks), and the one proof-carrying block observed was 14.9\,KB,
+consistent with the 14.7\,KB proof. Full proposal validation costs
+18.25\,$\mu$s per steady-state block. Neither the byte overhead nor the
+validation time is large enough to explain a lower block rate at a
+$\sim$1\,s block interval.
+
+\textbf{Where the cost is.} Engram's block rate is 22\% lower than
+vanilla's (0.743 vs.\ 0.953 blocks/s; Cohen's $d = -25.3$, with no overlap
+across repeats), yet its steady block interval is essentially identical
+(0.993 vs.\ 1.000 blocks/s). The difference lies entirely in the gap
+fraction: 25.1\% of Engram's elapsed time falls in heights that took more
+than one interval, against 4.6\% for vanilla. A longer height at an
+unchanged steady interval is the signature of an additional consensus
+round rather than of slower proposals or slower validation. The candidate
+causes are (i) \texttt{ProcessProposal} rejections, e.g.\ a certificate or
+receipt that falls outside tolerance at one validator; (ii) the extra
+vote-extension round trip before a proposer has a quorum of extensions;
+and (iii) nil votes near threshold boundaries. The lower rows of
+Table~\ref{tab:overhead} separate these causes.
+\pending{instrument rounds per height, rejection reasons, and nil votes
+from CometBFT logs; measure committed tx/s and per-tx commit latency from
+block inclusion; confirm or revise the round-level attribution.}
+
+\textbf{Load.} Between 5 and 100 tx/s, both modes accepted every submitted
+transaction into the mempool and the p95 block interval stayed at
+1.01--1.02\,s. Mempool acceptance is not throughput; committed throughput
+and its ceiling are measured separately (Table~\ref{tab:overhead}, lower
+rows).

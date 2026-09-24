@@ -3,76 +3,87 @@
 
 \subsection{Testbed}
 
-Most live results reported in Section~\ref{sec:evaluation} run on one
-7-validator testbed: a genuine Cosmos SDK application on a forked CometBFT
-core, deployed as a set of interconnected containers rather than an
-in-process simulation. Two experiments are an explicit exception, carried
-over from an earlier 4-validator cluster and not yet re-run at 7-validator
-scale: the RQ1 malicious-proposer test (Section~\ref{sec:evaluation}) and
-the eclipse/Sybil rows of Appendix~\ref{app:attacks}; we flag this
-inconsistency rather than let the blanket ``7-validator'' framing elsewhere
-in this section imply otherwise. The 7-validator testbed includes a
-Bitcoin regtest network (two nodes, with a continuous mining loop producing
-a block roughly every 20 seconds), a Celestia data-availability network
-with seven independent bridge nodes -- one per validator, so each
-validator retrieves its own DA view rather than the network sharing a
-single bridge -- and a zero-knowledge prover (Noir, proved with
-Barretenberg) that monitors for a \textsc{Sovereign}-mode backlog and
-submits recovery-proof transactions once one accumulates. Validator gossip
-runs over a dedicated full mesh of pairwise links, separate from the
-network carrying Bitcoin, Celestia, and RPC traffic.
+The testbed runs the reference implementation -- a Cosmos SDK application on
+a forked CometBFT core -- as seven validators with equal voting power
+($n{=}7$, $f{=}2$), each in its own container. Validator gossip uses a
+dedicated full mesh of pairwise links, separate from the network that
+carries Bitcoin, Celestia, and RPC traffic; this separation lets us degrade
+peripheral connectivity without partitioning the core consensus network.
+The peripheral layers are real software, not simulators: a two-node Bitcoin
+regtest network mined continuously at roughly one block per 20\,s, and a
+Celestia network with seven bridge nodes, one per validator, so that each
+validator forms its own DA view. A prover process (Noir/Barretenberg)
+watches for a \textsc{Sovereign} backlog and submits recovery proofs. Two
+experiments predate the move to seven validators and ran on a four-validator
+cluster ($f{=}1$): the single-proposer attack (A6) and the eclipse/Sybil rows
+(A1/A2) of Appendix~\ref{app:attacks}.
+\pending{re-run A6 and A1/A2 at $n{=}7$, and run the $f{=}2$ collusion
+suite of Section~\ref{subsec:rq1}.}
 
 \subsection{Fault Injection}
 
-Two classes of fault injection are used. Network-level faults are induced
-through kernel-level traffic control, covering profiles for uniform
-delay/jitter, packet loss, single-node isolation (an eclipse-style
-partition), and heterogeneous per-validator wide-area-network delay/loss
-intended to approximate seven geographically distinct regions.
-Application-level faults are used where network delay alone cannot
-reproduce the failure mechanism of interest: Bitcoin congestion is induced
-by suspending new checkpoint submission at the application layer, so the
-finality gap grows directly rather than through added RPC latency; DA
-outages are induced by taking one or all seven Celestia bridge nodes
-offline; and Byzantine behavior is induced either through dedicated
-non-validator attacker processes or by configuring a validator instance to
-misreport its proposals, double-sign, or flood the network with timeout
-messages.
+Network-level faults use kernel traffic control (\texttt{tc netem} via
+Pumba): uniform delay and jitter, packet loss, single-node isolation, and a
+heterogeneous per-validator wide-area profile approximating seven regions.
+Application-level faults reproduce mechanisms that delay alone cannot:
+Bitcoin congestion suspends checkpoint submission so the finality gap grows
+directly; DA outages stop one or all seven Celestia bridges; and Byzantine
+behavior is injected through attacker processes or through a validator
+configured to forge proposal fields, omit transactions, double-sign, or
+flood timeout messages. Every fault targets a peripheral layer or a
+minority of validators; none partitions the core consensus network below
+$2f{+}1$, consistent with the scope defined in Section~\ref{sec:intro}.
+
+\subsection{Baselines}
+\label{subsec:baselines}
+
+\textbf{Hard-gated modular baseline (primary, RQ2).} The same binary with the
+FSM pinned to \textsc{Anchored}: condition (3) of the validity predicate
+(Section~\ref{subsec:proposal}) is enforced at every height, so a proposal
+is valid only if it carries a Bitcoin receipt and a DA receipt within
+tolerance. This is the behavior of a chain that makes settlement and DA
+inclusion part of block validity, and it isolates the effect of Engram's
+adaptive relaxation.
+\pending{implement the pinned-\textsc{Anchored} mode and run the RQ2 fault
+schedule against it.}
+
+\textbf{Vanilla CometBFT (control, RQ4).} The same application with the
+health-aware ABCI++ hooks disabled. It does not depend on Bitcoin or
+Celestia and therefore never stalls when they fail; it serves as the
+cost reference for RQ4 and as a control showing that measured stalls or
+fallbacks are not artifacts of the harness.
+
+\textbf{Ablation baselines.} A peer-count-only P2P detector isolates the
+contribution of the six-bound profiler (RQ1), and each hysteresis edge with
+its threshold set to its floor isolates the contribution of hysteresis
+(RQ3).
 
 \subsection{Sim-to-Real Gap}
 \label{subsec:sim-to-real}
 
-This testbed approximates a real decentralized deployment; it is not one,
-and we state the gap explicitly rather than leave it implicit. First, all
-containers share a single physical machine's CPU and memory, so a
-resource-contention condition can affect every validator simultaneously in
-a way that geographically separate hardware would not; during evaluation
-this manifested once as a contention-induced delay in the anchor
-verification path, which we identified and corrected before the
-measurements reported here were collected. Second, the testbed's Bitcoin
-network produces blocks roughly 30$\times$ faster than Bitcoin mainnet;
-height-based thresholds remain valid at any timescale, but the wall-clock
-timings reported in Section~\ref{sec:evaluation} would be proportionally
-longer in a mainnet deployment. Third, while the network runs seven
-independent bridge nodes (one per validator, not a single shared bridge),
-each validator's data-availability check currently trusts only its own
-bridge rather than cross-validating against the other validators' bridges
-through genuine light-client sampling; this is a deliberate scope choice
-for the current prototype, and it means our DA-outage results measure a
-bridge -- or all seven, taken offline together -- going down, not a
-sampling-detected partial failure of an otherwise-healthy network. We
-return to the implications of all three points in
-Section~\ref{sec:discussion}.
-
-\subsection{Baselines}
-
-Three baselines are used across the experiments in
-Section~\ref{sec:evaluation} and Appendix~\ref{app:attacks}: a vanilla
-CometBFT deployment that never activates the FSM's health-aware hook and
-therefore cannot leave its genesis \textsc{Anchored} state regardless of
-real peripheral health, used to establish that the fallback behavior is
-not an artifact of measurement; a peer-count-only P2P detector, used to
-isolate the marginal benefit of the tri-interface profiler
-(Section~\ref{subsec:sensors}); and each hysteresis edge's own floor
-parameter value (a threshold of zero, disabling that edge's hysteresis),
-used to isolate the marginal benefit of hysteresis itself.
+Four properties of the testbed limit how its results transfer to a
+production deployment.
+\begin{itemize}
+  \item \emph{Single physical host.} All containers share one machine's CPU
+  and memory, so resource contention can affect every validator at once;
+  wide-area conditions are emulated with \texttt{tc netem} rather than real
+  geographic distribution.
+  \pending{repeat the composite-fault experiment on seven hosts in at least
+  three regions, $\geq 3$ trials.}
+  \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
+  faster than on mainnet. Height-based thresholds are unaffected, but
+  wall-clock durations scale accordingly.
+  \item \emph{DA payload.} The prototype's DA publisher submits a fixed
+  height marker (a tag and the Engram height) per confirmed submission,
+  with at most one submission in flight, rather than the block's
+  transaction data. The DA sensor therefore measures the liveness and
+  retrievability path of Celestia faithfully, but DA-layer availability of
+  Engram block \emph{contents} -- including backfill of the
+  \textsc{Sovereign} interval (Section~\ref{subsec:reanchoring}) -- is not
+  yet exercised.
+  \pending{publish block data and implement the backfill gate.}
+  \item \emph{Single-bridge trust.} Each validator trusts its own bridge
+  node, which downloads and verifies full Celestia blocks, rather than
+  sampling across independent peers; our DA-outage results measure bridge
+  failures, not sampling-detected partial withholding.
+\end{itemize}

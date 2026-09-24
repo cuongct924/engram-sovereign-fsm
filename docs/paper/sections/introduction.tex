@@ -5,122 +5,122 @@ Modular blockchain architectures separate execution, settlement, and data
 availability into distinct layers, each maintained by a different network. A
 rollup or sovereign chain typically settles finality claims on a base layer
 such as Bitcoin and publishes transaction data to a dedicated DA network such
-as Celestia~\cite{albassam2019lazyledger}. This separation of concerns
-improves scalability and specialization, but it introduces a structural
-liveness risk that is largely unaddressed by existing Byzantine
-fault-tolerant (BFT) consensus protocols: when a peripheral layer -- Bitcoin
-settlement, the DA layer, or even the local peer-to-peer (P2P) network --
-becomes unavailable, congested, or partitioned, the consensus layer built on
-top of CometBFT-style BFT
-consensus~\cite{buchman2016tendermint} treats that unavailability as a hard
-external precondition. The chain does not degrade; it halts.
+as Celestia~\cite{albassam2019lazyledger}. When such a chain makes its block
+validity depend on those layers -- a block is valid only if it carries a
+fresh settlement checkpoint and a DA inclusion receipt -- it inherits their
+liveness. If Bitcoin settlement is congested or censored, or the DA network
+is unavailable, no proposal can satisfy the validity predicate, and the BFT
+consensus layer~\cite{buchman2016tendermint,buchman2018gossip} built on top
+of them stalls even though the validator set itself is fully connected and
+correct. Dropping the dependency altogether avoids the stall but gives up the
+settlement and availability guarantees that motivated the modular design.
 
-This is the missing dimension we address: no widely deployed
-\emph{consensus-layer} protocol treats peripheral network health as a
-first-class variable that the validator set's own BFT quorum agrees on
-alongside transaction validity, in the same block, as part of the same
-vote. Health is either ignored (the chain assumes the periphery is always
-available), handled out-of-band (an operator manually intervenes), or --
-in the closely related case of L2 rollups -- resolved through a separate,
-asynchronous fallback path anchored to a different chain and triggered
-only once the primary path has already stalled (escape hatches and forced
-inclusion, Section~\ref{sec:related}). None of these embed the health
-decision into the same consensus vote that orders transactions.
+\textbf{The gap.} Existing designs resolve this tension outside the
+validator set's own agreement. Health is either ignored (the chain assumes
+the periphery is always available), handled out-of-band (operators intervene
+manually), or -- for L2 rollups -- delegated to an asynchronous fallback path
+on another chain that users trigger once the primary path has already
+stalled (escape hatches and forced inclusion,
+Section~\ref{sec:related}). Protocols that trade finality for availability
+inside consensus~\cite{neu2021ebbflow,buterin2020gasper} do so in response to
+\emph{internal} participation, not to the health of \emph{external}
+infrastructure. No design we are aware of lets the validator quorum agree on
+external-layer health as part of the same vote that orders transactions, and
+then change the chain's validity rules and withdrawal policy on the basis of
+that agreement.
 
-Existing approaches address pieces of this problem in isolation. DA-centric
-designs such as LazyLedger/Celestia~\cite{albassam2019lazyledger} assume the
-DA layer itself is continuously available and do not specify a consensus-level
-fallback for when it is not. Bitcoin-anchored security models such as
-Babylon~\cite{tas2022babylon} provide a settlement anchor but likewise assume
-that anchor is reachable. General BFT consensus
-research~\cite{buchman2016tendermint,honore2024adob,honore2022adore} focuses
-on safety and liveness \emph{within} a single, closed validator network, not
-on a validator network whose own security posture depends on the health of
-external, independently operated infrastructure. (This paper's design formalizes and rigorously
-evaluates a four-bullet-point sketch of an adaptive fallback mechanism from
-an internal organizational whitepaper~\cite{engram2026whitepaper}; that
-whitepaper's broader system -- a token-incentivized physical storage
-network -- is separate work by other members of the authors' organization
-and is out of scope here, as detailed in
-Section~\ref{sec:related}.)
+\textbf{What Engram is -- and is not.} Engram is not a new BFT agreement
+algorithm. Proposer selection, the prevote/precommit protocol, quorum
+intersection, and deterministic finality are provided unchanged by a
+CometBFT core, and Engram inherits their safety and liveness conditions.
+Engram's contribution sits one level above: it extends (i) the
+\emph{consensus object} with a quorum-certified health certificate and an FSM
+state, (ii) the \emph{proposal-validation predicate} so that a proposal is
+valid only if that state follows deterministically from the certificate, and
+(iii) the \emph{state-transition logic} so that the chain's validity
+requirements (Bitcoin and DA receipts) and its withdrawal policy change with
+that state. We use ``Hybrid Adaptive Consensus'' in this sense: an adaptive
+layer integrated into the consensus pipeline, not a replacement for it.
 
-\textbf{Contributions.} This paper makes the following contributions:
+\textbf{Scope of ``degradation''.} We distinguish two kinds of network.
+The \emph{core consensus network} carries CometBFT's own votes; like any
+BFT protocol, Engram requires that at least $2f{+}1$ validators remain able
+to communicate after global stabilization time, and no state machine can
+restore liveness if that fails. The \emph{peripheral networks} are Bitcoin,
+Celestia, and the P2P interfaces validators use to reach them, together with
+peer-quality signals (churn, latency, subnet diversity) on the Engram P2P
+interface that fall short of breaking core quorum connectivity. Engram
+handles degradation of the latter while the former holds. Throughout the
+paper, ``P2P degradation'' refers to this peripheral or partial degradation,
+never to a partition of the core quorum.
+
+\textbf{Contributions.}
 \begin{itemize}
-    \item \textbf{Design.} The Engram Hybrid Adaptive Consensus: a
-    four-state finite state machine (\textsc{Anchored}, \textsc{Suspicious},
-    \textsc{Sovereign}, \textsc{Recovering}) embedded directly into the
-    CometBFT proposal object, together with a hysteresis mechanism, an
-    economic circuit breaker~\cite{mendonca2020resiliency} on cross-chain withdrawals, and three
-    deterministic network sensors (Bitcoin finality gap, DA gap, and a
-    tri-interface P2P health profiler) (Section~\ref{sec:design}).
-    \item \textbf{Formal verification.} A refinement-mapping-based proof
-    strategy targeting a safety-and-accountability property for the hybrid
-    consensus protocol, which reduces liveness verification to a safety
-    obligation on a linking invariant. Each protocol layer's own safety and
-    liveness properties are bound-model-checked in isolation with TLA+/TLC
-    and Apalache (zero violations across 3.39 million distinct explored
-    states, $1.02\times10^{9}$ generated, at $N{\le}4$), and a five-mechanism ablation study at the FSM
-    layer shows that removing any one safety mechanism reproduces a
-    distinct, predicted failure mode; the cross-layer refinement check that
-    would extend these guarantees to the full composed system at $N{=}7$ is
-    specified but not yet run to completion (Section~\ref{sec:formal}).
-    \item \textbf{Empirical evaluation.} An evaluation of the reference
-    implementation on a real 7-validator Cosmos SDK testnet running a forked
-    CometBFT core, against a live Bitcoin regtest network and a live
-    Celestia DA network, using both Docker-network-level (\texttt{tc netem}
-    via Pumba) and application-level fault injection. We organize the
-    evaluation around four research questions and report the load-bearing,
-    live experiments for each in the main body, out of a ten-experiment
-    suite; the remaining experiments are documented in the Appendix
-    (Section~\ref{sec:evaluation}).
-    \item \textbf{Re-anchoring recovery proof.} A dynamic-padding
-    zero-knowledge circuit (Noir/Barretenberg, UltraHonk) that proves up to
-    256 headers of a \textsc{Sovereign}-mode interval at constant cost per
-    proof -- a ``Proof of Recovery'' that avoids re-execution of sovereign
-    blocks, chaining multiple proofs for longer intervals rather than using
-    one proof per interval (Section~\ref{subsec:reanchoring}).
+    \item \textbf{Quorum-certified peripheral health.} A health-certificate
+    object built from $\geq 2f{+}1$ voting power's signed, height-bound
+    observations carried in CometBFT vote extensions, aggregated by a
+    deterministic weighted-median/majority function whose output is bounded by
+    honest observations regardless of which observations a Byzantine
+    proposer includes or omits
+    (Section~\ref{subsec:health-certificate}).
+    \item \textbf{Adaptive fallback state machine.} A four-state FSM
+    (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
+    \textsc{Recovering}) evaluated on the certificate, with asymmetric
+    hysteresis, exponential backoff on repeated failed recovery, and an
+    economic circuit breaker~\cite{mendonca2020resiliency} that locks
+    cross-chain withdrawals while the chain runs without external
+    corroboration (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}).
+    \item \textbf{Validator-verified recovery proof.} A Noir/UltraHonk circuit
+    that proves header-chain continuity, FSM-transition legality,
+    withdrawal-lock adherence, and boundary-validator signatures for up to
+    256 \textsc{Sovereign}-interval headers at constant proving and
+    verification cost; longer intervals are covered by a sequence of proofs
+    linked through an on-chain committed root. Validators verify each proof
+    inside block execution; Bitcoin timestamps the resulting checkpoint but
+    does not verify the proof (Section~\ref{subsec:reanchoring}).
+    \item \textbf{Layered formal specification.} A four-layer TLA+
+    specification with bounded model checking of each layer's safety and
+    liveness properties (zero violations across 3.39 million distinct states
+    at $N{\le}4$) and a five-mechanism ablation study in which each removed
+    mechanism reproduces a distinct predicted counterexample. The
+    cross-layer refinement obligation is specified but open
+    (Section~\ref{sec:formal}).
+    \item \textbf{Live evaluation.} A 7-validator Cosmos SDK testnet against
+    live Bitcoin regtest and Celestia networks with network- and
+    application-level fault injection, comparing Engram against a
+    hard-gated modular baseline and a vanilla CometBFT control
+    (Sections~\ref{sec:setup}--\ref{sec:evaluation}).
 \end{itemize}
-
-Our evaluation shows that, under a layered composite fault combining Bitcoin
-congestion, a DA outage, and P2P churn, the chain sustains continuous block
-production and completes a real
-\textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} recovery
-cycle with 100\% AppHash agreement across all validators, while the extended
-consensus object adds a measured overhead of only +228~bytes per block on the
-healthy path.
-
-Four research questions drive the evaluation, turning the design from a
-proposed fallback mechanism into a claim backed by evidence gathered under
-real Bitcoin-settlement, DA-layer, and P2P failures.
 
 \begin{table}[h]
 \caption{Research Questions}
 \label{tab:rq}
 \centering
-\begin{tabular}{@{}p{0.06\linewidth}p{0.38\linewidth}@{}}
+\small
+\begin{tabular}{@{}p{0.07\linewidth}p{0.85\linewidth}@{}}
 \toprule
 \textbf{RQ} & \textbf{Question} \\
 \midrule
-RQ1 & \textbf{Safety.} Does folding peripheral state into the consensus
-proposal prevent block/FSM-state conflicts, forged receipts, data
-withholding, and withdrawal leakage under Byzantine behavior? \\
-RQ2 & \textbf{Liveness.} Under Bitcoin, DA, and P2P failure, does the system
-keep committing blocks rather than halting? \\
+RQ1 & \textbf{Safety.} Under up to $f$ colluding Byzantine validators, does
+certifying peripheral health by quorum prevent conflicting FSM states,
+forged or stale receipts, false health claims, and withdrawal leakage? \\
+RQ2 & \textbf{Liveness.} When Bitcoin or DA becomes unavailable, or the
+peripheral P2P view degrades while core quorum connectivity holds, does
+Engram keep committing blocks where a hard-gated modular baseline stalls? \\
 RQ3 & \textbf{Recovery.} Once peripherals recover, do hysteresis and the
-re-anchoring proof bring the chain back to a stable \textsc{Anchored} state
-without oscillation (``flapping'')? \\
-RQ4 & \textbf{Cost.} What overhead does the extended proposal, sensor
-validation, circuit breaker, and ZK re-anchoring add relative to a vanilla
-CometBFT/Cosmos SDK baseline? \\
+recovery proof return the chain to a stable \textsc{Anchored} state without
+oscillation? \\
+RQ4 & \textbf{Cost.} What overhead do the extended consensus object,
+certificate validation, and recovery proof add, and where does it come
+from: proposal size, validation time, or additional consensus rounds? \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 The remainder of this paper is organized as follows. Section~\ref{sec:related}
-situates Engram against BFT consensus, modular DA, and Bitcoin-anchored
-settlement research. Section~\ref{sec:design} presents the protocol design.
-Section~\ref{sec:formal} presents the formal verification methodology and
-results. Section~\ref{sec:setup} describes the experimental testbed.
-Section~\ref{sec:evaluation} answers RQ1--RQ4 with load-bearing live
-experiments for each. Section~\ref{sec:discussion} discusses limitations and
-threats to validity, and Section~\ref{sec:conclusion} concludes.
+situates Engram in the literature. Section~\ref{sec:design} presents the
+protocol, including the health certificate and the recovery proof.
+Section~\ref{sec:formal} presents the formal specification and model-checking
+results. Section~\ref{sec:setup} describes the testbed and baselines,
+Section~\ref{sec:evaluation} answers RQ1--RQ4, Section~\ref{sec:discussion}
+discusses limitations, and Section~\ref{sec:conclusion} concludes.

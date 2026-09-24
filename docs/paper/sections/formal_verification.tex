@@ -1,79 +1,99 @@
-\section{Formal Verification}
+\section{Formal Specification and Bounded Model Checking}
 \label{sec:formal}
 
-\subsection{Methodology: Refinement Mapping}
+\subsection{Layered Specification}
 
-Directly model-checking the full system -- consensus, FSM, and network
-sensors together -- is intractable at any useful scale. We instead specify a
-layered hierarchy in TLA+~\cite{lamport2002specifying}: an abstract
-consensus layer, a Tendermint-style consensus layer, an FSM layer, and a
-server layer that composes them, and state that each concrete layer refines
-the one above it. Liveness verification is reduced to a safety obligation on
-a single linking invariant, \emph{QuorumOverlap} -- any two valid quorums
-share at least one honest node -- following the LiDO framework's technique
-for linearizable Byzantine distributed objects~\cite{qiu2024lido}, which
-also requires the standard weak-fairness assumption on message delivery
-after the partial-synchrony bound -- QuorumOverlap alone is a safety
-invariant and does not by itself establish liveness without that fairness
-assumption. The property this methodology targets is: under partial synchrony and an
-$f$-bounded adversary, no two honest nodes ever decide conflicting blocks or
-conflicting FSM states, and any safety violation implies the existence of
-cryptographic double-signing evidence, provided (i) the health-aggregation
-step is well-formed and quorum-certified, (ii) Bitcoin reorganizations are
-no deeper than a configurable finality depth $K_{\text{DEEP\_FINALITY}}$,
-and (iii) validators' peripheral-health views converge within the
-partial-synchrony bound rather than being identical at every instant.
-\textbf{We distinguish two levels of computer-checked evidence for this
-property.} First, each layer's own local safety/liveness properties are
-model-checked in isolation (Table~\ref{tab:formal-verification}); this
-confirms each layer is internally free of the violations checked for,
-within its own bounded configuration. Second, the refinement obligation
-itself -- that the concrete, composed four-layer system actually simulates
-the abstract layer above it, which is what would let the property transfer
-from the abstract model to the concrete implementation -- is specified as
-three configurations of increasing scale (C1: $N{=}4,f{=}1$; C2: deeper
-consensus rounds at the same scale; C3: $N{=}7,f{=}2$) but \textbf{has not
-reached convergence at any of the three scales, including the smallest
-(C1), after a substantial run}. We do not report a completion estimate:
-explicit-state model checking of a four-layer composition is subject to
-combinatorial state-space growth, and an in-process run of this class of
-check has continued well past $10^{8}$ generated states with no
-discernible trend toward closure, on hardware modest enough that we cannot
-responsibly project whether more compute would converge it in hours, days,
-or not at all. We treat this as an open verification problem rather than a
-pending task with a known cost, and return to it in
-Section~\ref{sec:conclusion}. Table~\ref{tab:formal-verification}'s
-per-layer results are therefore necessary but not yet sufficient evidence
-for the property as stated; we report this distinction explicitly rather
-than let the per-layer numbers stand in for the refinement result.
+Model-checking consensus, FSM, and sensors together is intractable at useful
+scale. We therefore specify the protocol in TLA+~\cite{lamport2002specifying}
+as four layers -- an abstract consensus object, a Tendermint-style consensus
+layer, the FSM layer, and a server layer composing them -- and check each
+layer with TLC and, for bounded safety searches, Apalache~\cite{konnov2019apalache}.
+The target property is: under partial synchrony and an $f$-bounded
+adversary, no two honest validators commit conflicting blocks or conflicting
+FSM states, and any such conflict implies double-signing evidence.
+
+\textbf{What is checked, and what is not.} Two levels of evidence must be
+kept apart.
+\begin{itemize}
+  \item \emph{Per-layer bounded model checking (complete).} Each layer's own
+  safety invariants and liveness properties are checked in isolation at its
+  own bounded configuration (Table~\ref{tab:formal-verification}), together
+  with the ablation study (Table~\ref{tab:ablation}).
+  \item \emph{Cross-layer refinement (open).} The obligation that the
+  composed server layer refines the abstract consensus object -- which is
+  what would transfer the target property to the composed system -- is
+  specified at three scales (C1: $N{=}4, f{=}1$; C2: deeper rounds; C3:
+  $N{=}7, f{=}2$) but has not converged at any of them. The composed system
+  is therefore \emph{not} formally verified end-to-end; its whole-system
+  evidence in this paper is empirical (Section~\ref{sec:evaluation}).
+\end{itemize}
+The route we take to make C1 tractable is to decompose the refinement into
+per-action obligations (each server action maps to an abstract action or a stutter step,
+checked as an inductive invariant with Apalache), with symmetry reduction
+over validator identities and a bounded round horizon.
+\pending{report C1 result of the decomposed refinement check, or state
+that it did not complete.}
+
+\textbf{Safety versus liveness.} The linking invariant \emph{QuorumOverlap}
+-- any two valid quorums share at least one honest validator -- is a
+\emph{safety} premise: together with honest validators' refusal to sign
+conflicting votes, it prevents two conflicting decisions. It does not
+establish liveness. Following LiDO~\cite{qiu2024lido}, liveness is argued
+separately, and in our specification it rests on explicit fairness
+assumptions that the model checker takes as hypotheses:
+\begin{itemize}
+  \item \emph{Partial synchrony:} GST is reached infinitely often
+  (\texttt{[]<>GSTReached}), and after GST messages between honest
+  validators are delivered (weak fairness on each node's \texttt{Push} and
+  \texttt{Pull}).
+  \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
+  on the $f{+}1$ round-skip (fast-forward) action.
+  \item \emph{Proposer progress:} weak fairness on each honest node's
+  invocation step, so every honest proposer whose round is reached after
+  GST eventually proposes.
+  \item \emph{FSM progress:} weak fairness on the FSM transition and on
+  environment updates, so a persistently healthy (or unhealthy)
+  certificate eventually drives the corresponding transition.
+\end{itemize}
+Under these hypotheses TLC checks \texttt{EventualDecisionUnderGSTLiveness}
+and the FSM liveness properties directly. The ablation that removes the
+$f{+}1$ fast-forward shows the timeout-progress assumption is load-bearing:
+without it TLC finds a lasso in which Byzantine timeout manipulation
+prevents any decision.
+
+\textbf{Health certificates in the model.} The FSM layer abstracts
+certificate aggregation as a single \texttt{UpdateSensors} action that
+yields one metric vector per height. Lemma~1
+(Section~\ref{subsec:health-certificate}) is the argument that justifies
+this abstraction: a well-formed certificate yields exactly one
+deterministic vector, bounded by honest observations. Modelling individual
+signed observations, proposer omission, and quorum formation explicitly in
+TLA+ is future work.
 
 \subsection{Safety Invariants and Attack Resilience Lemmas}
 \label{subsec:formal-invariants}
 
-Five state invariants are specified and model-checked: \emph{Circuit Breaker
-Isolation} (withdrawals are locked if and only if the FSM is in
-\textsc{Sovereign} or \textsc{Recovering}); \emph{Hysteresis Integrity} (an
-exit from \textsc{Recovering} to \textsc{Anchored} requires both the full
-hysteresis wait and a valid re-anchoring proof); \emph{Suspicious-Exit
-Hysteresis Integrity} (the symmetric guard on the
-\textsc{Suspicious}$\to$\textsc{Anchored} edge); \emph{Strict FSM Transition
-Safety} (only adjacent-state transitions are ever legal); and
-\emph{Monotonicity Safety} (chain heights and time never move backward).
-Beyond these state invariants, five attack-specific lemmas are enforced at
-the proposal-validation layer: resistance to data withholding, resistance to
-long-range/forged-anchor attacks via strict SPV verification, a
-deterministic bound on Byzantine message flooding, resilience to eclipse
-attacks via the six-bound P2P health check
-(Section~\ref{subsec:sensors}), and accountability -- any safety violation
-is designed to imply the existence of cryptographic double-signing evidence,
-matching CometBFT's own equivocation evidence pool rather than requiring
-custom slashing cryptography -- an accountability property inherited from
-that evidence pool, not independently re-proven here.
-
-Two threat-model boundaries -- restated here because they are direct
-preconditions of the invariants above, not new assumptions -- are the
-Bitcoin reorg-depth bound and the peripheral-view convergence assumption
-introduced in Section~\ref{subsec:threat-model}.
+Five state invariants are specified and model-checked.
+\begin{itemize}
+  \item \emph{Circuit Breaker Isolation:} withdrawals are locked if and only
+  if the state is \textsc{Sovereign} or \textsc{Recovering}.
+  \item \emph{Hysteresis Integrity:} \textsc{Recovering}$\to$\textsc{Anchored}
+  requires the full hysteresis wait and a valid recovery proof.
+  \item \emph{Suspicious-Exit Hysteresis Integrity:} the corresponding guard
+  on \textsc{Suspicious}$\to$\textsc{Anchored}.
+  \item \emph{Strict FSM Transition Safety:} only transitions drawn in
+  Fig.~\ref{fig:fsm} occur.
+  \item \emph{Monotonicity Safety:} heights and time never decrease.
+\end{itemize}
+Five attack-specific properties are enforced by the validity predicate:
+resistance to data withholding; resistance to forged or reorganized anchors
+through anchor re-verification; a deterministic bound on Byzantine
+timeout flooding; resistance to eclipse-driven recovery through the
+six-bound P2P gate; and accountability, i.e.\ any safety violation implies
+double-signing evidence. Accountability is inherited from CometBFT's
+equivocation evidence pool rather than proved anew. All of these properties
+are conditional on the Bitcoin reorg-depth bound of
+Section~\ref{subsec:threat-model}.
 
 \subsection{Verification Stress Test and Ablation Study}
 
@@ -93,33 +113,20 @@ FSM (liveness) & 10{,}321{,}121 & 17{,}857 & 22 & 0 \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:formal-verification} reports \emph{per-layer} model-checking
-results -- each layer's own safety/liveness driver
-run standalone, independent of the cross-layer refinement obligation
-discussed above -- using each layer's own checked-in configuration
+Table~\ref{tab:formal-verification} reports the per-layer results, each
+obtained by running that layer's own model-checking driver standalone at its
+checked-in configuration
 ($N{=}4$, $f{=}1$ for Tendermint; a suspicious-state threshold of 2,
 a sovereign-state threshold of 4, a hysteresis wait of 2 blocks, and a
 down-hysteresis threshold of 2 for the FSM layer). All three runs
-found zero violations across their explored, bounded state space. We note
-this covers two of the four architectural layers described above (the
-Tendermint-style and FSM layers); the abstract consensus layer and the
-composing server layer do not have independent per-layer results of their
-own outside the still-open refinement obligation below. As stated
-above, this is evidence that each layer is individually well-behaved in
-isolation; it does not by itself establish that the composed system
-refines the abstract specification, which is what the still-open C1/C2/C3
-sweep would show, for the reasons -- and with the same uncertainty about
-cost and timeline -- discussed above; we report this honestly as an open
-problem (Section~\ref{sec:conclusion}) rather than presenting the per-layer
-numbers as a substitute.
+found zero violations in their bounded state spaces. These results cover
+the Tendermint-style and FSM layers; the abstract and server layers are
+exercised only through the open refinement obligation above.
 
-The ablation study below spans two layers, not one: the circuit breaker,
-hysteresis, and P2P health gate are FSM-layer mechanisms (the same scope
-as the FSM rows in Table~\ref{tab:formal-verification}), while DA
-consistency and the $f{+}1$ fast-forward are proposal-validation/consensus-layer
-mechanisms. We state this explicitly because a mechanism's necessity is
-shown only within its own layer's bounded configuration, not against the
-full, composed system, until the refinement sweep above completes.
+The ablation study spans two layers: the circuit breaker, hysteresis, and
+P2P health gate belong to the FSM layer, whereas DA consistency and the
+$f{+}1$ fast-forward belong to the consensus layer. Each mechanism's necessity is therefore shown within its own
+layer's bounded configuration.
 
 \begin{table}[h]
 \caption{Ablation Study: Removing One Mechanism at a Time}
@@ -139,23 +146,16 @@ $f{+}1$ fast-forward & Liveness deadlock & 4 & \texttt{EventualDecision} \texttt
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:ablation} reports the ablation study: each row removes
-exactly one defensive mechanism from the specification and re-runs
-verification, expecting -- and finding -- a violation of a corresponding
-sanity property. Four of five ablations were checked with Apalache's bounded
-SMT search (each violation found within 25--120 seconds at a shallow depth
-of 2--6), which explores depth-by-depth and is markedly faster than TLC's
-breadth-first search for finding a shallow counterexample; the $f{+}1$
-fast-forward ablation is liveness-only and was checked with TLC. Every
-ablation reproduced a distinct, previously predicted failure mode with no
-false negatives, which is the central evidence that each mechanism is
-individually necessary to prevent the specific attack that motivated it
--- though single-factor ablation does not test interaction effects between
-two or more mechanisms removed jointly, so this is evidence of individual
-necessity, not evidence of joint sufficiency: removing the circuit
-breaker permits exactly the withdrawal-leakage attack it exists to prevent;
-removing hysteresis permits premature re-anchoring; removing the P2P health
-gate permits an eclipsed node to force an illegal recovery; removing DA
-consistency permits a data-withholding proposal to be accepted; and removing
-the $f{+}1$ timeout fast-forward reintroduces a liveness deadlock under
-Byzantine timeout manipulation.
+Table~\ref{tab:ablation} reports the ablation study. Each row removes one
+mechanism and re-runs verification against the sanity property that
+mechanism protects. Four ablations were checked with Apalache's bounded SMT
+search, which found each counterexample in 25--120\,s at depth 2--6, far
+faster than TLC's breadth-first search for shallow counterexamples; the
+liveness-only $f{+}1$ fast-forward ablation was checked with TLC. Every
+ablation produced the predicted violation: without the circuit breaker a
+withdrawal leaks; without hysteresis the chain re-anchors prematurely;
+without the P2P gate an eclipsed validator forces an illegal recovery;
+without DA consistency a withholding proposal is accepted; and without the
+fast-forward, Byzantine timeout manipulation deadlocks the protocol. Each
+mechanism is therefore individually necessary. Single-factor ablation does
+not test joint removal, so it does not establish joint sufficiency.

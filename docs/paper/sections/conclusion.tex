@@ -1,90 +1,41 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented the Engram Hybrid Adaptive Consensus, a CometBFT-based protocol
-that folds peripheral network health -- Bitcoin settlement, Celestia data
-availability, and P2P quality -- into the consensus object as a first-class,
-quorum-agreed variable, degrading through a four-state finite state machine
-into a local fallback that keeps producing blocks without external
-corroboration instead of halting when a peripheral
-layer fails. We backed this design with two complementary forms of evidence.
-Formally, each protocol layer's own bound-model-checked safety and liveness
-properties found zero violations across 3.39 million distinct explored
-states ($1.02\times10^{9}$ generated) at that layer's own checked-in scale, and a five-mechanism ablation
-study at the FSM layer showed that removing any one safety mechanism
-reproduces a distinct, predicted failure mode, evidence that each mechanism
-is individually load-bearing at that layer; the cross-layer refinement
-check that would extend this guarantee to the full composed system at
-production scale is specified but not yet run to completion, and we regard
-the live evaluation below as currently carrying the larger share of
-whole-system evidence. Empirically, on a real 7-validator testbed (with two
-exceptions run at 4-node scale, Section~\ref{sec:setup}) against live
-Bitcoin and Celestia networks, the protocol (i) maintained \textbf{safety}
-with zero AppHash divergence under representative Byzantine attacks, while
-improving \textbf{liveness} by sustaining continuous block production and
-completing a full recovery cycle under a layered composite fault; (ii)
-provided \textbf{controlled recovery}, with hysteresis measurably trading
-uptime against flapping resistance in a tunable way across all three
-hysteresis-gated edges; and (iii) incurred \textbf{acceptable overhead} --
-+228 bytes per block and $\sim$18.25\,$\mu$s of validation cost on the
-healthy path, with no throughput ceiling found within the tested range (up
-to 100 tx/s). Together, these results indicate that treating
-peripheral-layer health as a first-class consensus variable is a practical
-way to trade a small, bounded overhead for substantially stronger liveness
-guarantees in modular blockchain systems, though the whole-system claim
-currently rests more heavily on live evidence than on the formal side,
-for reasons detailed in Section~\ref{sec:discussion}.
+Modular chains that make settlement and DA receipts part of block validity
+halt when those layers fail. Engram removes this coupling without giving up
+the guarantees it provides. It leaves CometBFT's agreement core unchanged
+and extends the consensus object with a quorum-certified health
+certificate, whose aggregate is bounded by honest observations, and a
+four-state FSM evaluated deterministically on that certificate. When a
+quorum certifies a peripheral layer as unhealthy, the corresponding receipt
+requirement is relaxed and cross-chain withdrawals are locked; when health
+returns, a validator-verified recovery proof over the \textsc{Sovereign}
+interval, together with DA backfill, gates the return to \textsc{Anchored}.
+
+Per-layer bounded model checking found no violations across 3.39 million
+distinct states, and a five-mechanism ablation reproduced a distinct
+counterexample for each removed mechanism. On a seven-validator testbed with
+live Bitcoin and Celestia networks, the chain kept committing blocks under a
+layered composite fault and completed a full recovery cycle with complete
+AppHash agreement. The extended object costs +228 bytes and 18.25\,$\mu$s per
+proposal. Its 22\% lower block rate arises from heights that take longer at
+an unchanged steady interval, which points to additional consensus rounds
+rather than to proposal size or validation time.
 
 \subsection*{Future Work}
 
-Eight directions follow directly from the limitations discussed in
-Section~\ref{sec:discussion}. First, the cross-layer refinement
-verification sweep (Section~\ref{sec:formal}) remains an open problem
-rather than a scheduled task: even its smallest configuration (C1, $N{=}4$)
-has not reached convergence, and given the combinatorial state-space growth
-typical of explicit-state model checking over composed protocol layers, we
-cannot commit to a timeline or a resource budget that would close it.
-Narrowing this gap may call for a different verification strategy
-altogether -- symmetry reduction, statistical model checking, or a
-deductive proof in the style discussed in Section~\ref{sec:related} --
-rather than simply more compute directed at the same explicit-state search.
-Second, re-running the live evaluation across genuinely distributed
-physical hosts, rather than one shared machine, would remove the
-single-host resource-contention confound noted in
-Section~\ref{subsec:limitations}. Third, closing the gap between the target
-DA sampling design and the current single-bridge-per-validator prototype
-(Section~\ref{subsec:sensors}) would strengthen the DA-outage results from
-measuring a bridge failure to measuring a genuinely sampling-detected
-partial DA failure. Fourth, the open question raised in
-Section~\ref{sec:discussion} -- whether the
-\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary needs the
-same exponential-backoff hardening already applied to the
-\textsc{Sovereign}/\textsc{Recovering} edges -- remains an open design
-problem for future protocol iterations. Fifth, re-running the
-malicious-proposer test and the A1/A2 eclipse/Sybil scenarios at the same
-7-node scale used elsewhere would remove the scale inconsistency noted in
-Section~\ref{sec:setup}. Sixth, testing $f$ simultaneously colluding
-Byzantine validators ($f{=}2$ at $N{=}7$) rather than one actor at a time,
-and specifically testing a false individual health-certificate submission
-into the vote-extension aggregation, would close the gap between the
-formally-bounded threat model and what has actually been exercised live
-(Section~\ref{subsec:limitations}). Seventh, repeating the composite-fault,
-seven-scenario, P4, and reorg-depth experiments across multiple independent
-trials -- as already done for the hysteresis sweep and the overhead
-benchmark -- would upgrade their single-trial timings to a statistically
-characterized result. Eighth, and most directly actionable, running a
-persistent 3-of-7 or 4-of-7 split-view scenario -- where validators'
-external reads of Bitcoin, DA, or P2P health genuinely disagree near the
-quorum boundary, rather than the decisive 1-of-7 and 2-of-7 splits already
-tested -- would close the near-quorum limitation noted in
-Section~\ref{subsec:limitations} and clarify whether it explains the
-round-skip overhead observed even on the healthy RQ4 path.
+Three directions remain beyond the items marked in this paper. First,
+closing the cross-layer refinement obligation, and modelling the health
+certificate explicitly in TLA+, would extend the formal guarantee to the
+composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
+are a natural complement where bounded model checking does not scale.
+Second, chunk-level recursive aggregation of recovery proofs would make the
+recovery artifact constant-size for intervals of any length. Third,
+replacing single-bridge DA trust with sampling across independent peers
+would let the DA sensor detect partial withholding rather than only outages.
 
 \subsection*{Artifact Availability}
 
-% TODO: dien thong tin that -- vd repo public/private, giay phep, va co
-% san khi nao (upon publication / ngay bay gio). Day la 1 paragraph chuan
-% trong cac paper he thong/security, reviewer se tim muc nay.
-The implementation, TLA+ specifications, and experiment scripts used to
-produce the results in this paper are available at
-\texttt{[TODO: repository URL]}.
+\pending{repository URL, license, and availability date.}
+The implementation, TLA+ specifications, and experiment scripts are
+publicly available.

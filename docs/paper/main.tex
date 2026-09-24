@@ -16,10 +16,15 @@
 \usepackage{tikz}
 \usetikzlibrary{automata,positioning,arrows.meta}
 \usepackage{placeins}
+\usepackage{forest}
 \usepackage{microtype}
 \usepackage[hidelinks]{hyperref}
 \usepackage{titlesec}
 \usepackage{parskip}
+
+% \pending{...} marks text that depends on an experiment or implementation
+% step not yet completed; grep for it before submission -- none may remain.
+\newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
 
 % Single-column, prose-first layout: numbered sections in small caps,
 % generous paragraph spacing instead of two-column IEEE formatting.
@@ -29,7 +34,7 @@
 \title{\Large\bfseries Engram Hybrid Adaptive Consensus: A Sovereign
 Finite-State-Machine Fallback for Modular Blockchains}
 
-% TODO: dien ten that + affiliation.
+% TODO(before submission): real author names, affiliations, emails.
 \author{Author One$^{1}$ \quad Author Two$^{1}$\\[4pt]
 \normalsize $^{1}$Department Name, Affiliation/University, City, Country\\
 \normalsize \texttt{email1@domain.com}, \texttt{email2@domain.com}}

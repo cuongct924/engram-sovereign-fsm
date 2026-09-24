@@ -1,182 +1,215 @@
 \section{Related Work}
 \label{sec:related}
 
-\subsection{BFT Consensus and Atomic Distributed Objects}
-Tendermint~\cite{buchman2016tendermint} and its CometBFT successor provide
-partially synchronous BFT consensus with deterministic finality, and form
-the base layer our protocol extends. Their safety and liveness proofs, like
-most BFT consensus literature, are stated over a closed validator set whose
-own network is the only communication channel considered; the liveness of
-any \emph{external} dependency, such as a settlement or DA layer, is outside
-the model. More recent work on atomic distributed objects, such as
-AdoB~\cite{honore2024adob} and Adore~\cite{honore2022adore}, generalizes BFT
-consensus to certified reconfiguration and richer object semantics, but
-again within a single, self-contained fault domain. Engram differs by making
-the health of \emph{external} layers itself an object the consensus protocol
-must reach quorum agreement on, rather than an assumption external to the
-model.
+Engram sits at the intersection of eight lines of work. Fig.~\ref{fig:taxonomy}
+organizes them by the question each answers about a chain that depends on
+external layers; Table~\ref{tab:comparison} compares representative systems
+on the properties Engram targets. The gap is the empty leaf in
+Fig.~\ref{fig:taxonomy}: no prior design makes \emph{external}-layer health
+a quorum-certified input to the \emph{same} consensus instance that orders
+transactions, and then changes validity rules and withdrawal policy on the
+basis of that input.
 
-\subsection{Leader-Based vs.\ DAG-Based BFT Consensus}
-HotStuff established the modern template for leader-based BFT consensus,
-achieving linear communication complexity and responsiveness in the
-partially synchronous model~\cite{yin2019hotstuff}; CometBFT, which Engram
-extends, is part of this same leader-based lineage. A separate line of work
-instead decouples transaction dissemination from ordering using a
-directed-acyclic-graph (DAG) mempool: Narwhal separates reliable
-dissemination from consensus so that throughput is no longer bottlenecked by
-the ordering protocol~\cite{danezis2022narwhal}, and Bullshark builds a
-zero-message-overhead ordering rule on top of a Narwhal-style DAG to reach
-practical, low-latency partial-synchrony
-performance~\cite{spiegelman2022bullshark}. These DAG-based designs target a
-different bottleneck than Engram does: they optimize raw consensus
-throughput under a closed, always-available validator set, whereas Engram's
-problem is what the validator set should do when \emph{external, peripheral}
-infrastructure (Bitcoin, DA) becomes unavailable. Engram therefore builds on
-the simpler leader-based CometBFT core -- compatible with the existing
-Cosmos SDK ecosystem it targets -- rather than a DAG mempool; adapting the
-FSM sensor-and-fallback design to a DAG-based core such as Narwhal/Bullshark
-is an orthogonal engineering direction we do not explore here.
+\begin{figure}[h]
+\centering
+\begin{forest}
+for tree={
+  grow'=0, draw, rounded corners, font=\scriptsize, align=left,
+  inner sep=2.5pt, l sep=6mm, s sep=1.5mm, anchor=west, child anchor=west,
+  parent anchor=east, edge={->},
+  edge path={\noexpand\path[\forestoption{edge}] (!u.parent anchor) -- ++(2mm,0) |- (.child anchor)\forestoption{edge label};},
+},
+where level=0{text width=2.2cm, fill=gray!12}{},
+where level=1{text width=2.9cm}{},
+where level=2{text width=5.6cm}{},
+[{How does a chain behave when a layer it depends on fails?}
+  [{Q1. Who agrees that a layer has failed?}
+    [{Nobody / operators (manual intervention)}]
+    [{Each node locally: failure detectors~\cite{chandra1996unreliable,chen2002qos,hayashibara2004phi}}]
+    [{\textbf{The validator quorum, in the same consensus instance (Engram)}}, fill=blue!8]
+  ]
+  [{Q2. Where does the fallback live?}
+    [{On another chain: escape hatch, forced inclusion~\cite{figueira2025escapehatch,capretto2025secure,gudgeon2020sok}}]
+    [{Inside consensus, triggered by internal faults~\cite{neu2021ebbflow,buterin2020gasper,pass2017sleepy}}]
+    [{\textbf{Inside consensus, triggered by external faults (Engram)}}, fill=blue!8]
+  ]
+  [{Q3. What does the anchor guarantee?}
+    [{Bitcoin checkpointing~\cite{tas2023bitcoinpos,azouvi2022pikachu,karakostas2021checkpointing}}]
+    [{DA sampling, fraud proofs~\cite{albassam2019lazyledger,albassam2021fraud,phamminh2026cda}}]
+  ]
+  [{Q4. How is the gap closed on recovery?}
+    [{ZK header-chain proofs~\cite{xie2022zkbridge,vesely2022plumo,bonneau2020mina}}]
+    [{Recursion, folding~\cite{bitansky2013recursive,bowe2019halo,kothapalli2022nova}}]
+  ]
+  [{Q5. How is the design validated?}
+    [{Formal: model checking, deductive proof~\cite{konnov2019apalache,braithwaite2020tendermint,padon2016ivy,hawblitzel2015ironfleet,wilcox2015verdi,qiu2024lido}}]
+    [{Empirical: fault injection~\cite{bano2021twins,basiri2016chaos}}]
+  ]
+]
+\end{forest}
+\caption{Taxonomy of related work. Shaded leaves mark the combination Engram
+occupies; no surveyed system occupies both.}
+\label{fig:taxonomy}
+\end{figure}
+
+\subsection{BFT Consensus Under Partial Synchrony}
+PBFT~\cite{castro1999pbft} and the partial-synchrony model of Dwork, Lynch,
+and Stockmeyer~\cite{dwork1988consensus} underlie the protocols Engram builds
+on. Tendermint~\cite{buchman2016tendermint,buchman2018gossip} and its
+CometBFT successor provide deterministic finality with a rotating proposer;
+HotStuff~\cite{yin2019hotstuff} achieves linear communication in the same
+leader-based lineage, and DAG-based designs such as
+Narwhal/Tusk~\cite{danezis2022narwhal} and
+Bullshark~\cite{spiegelman2022bullshark} decouple dissemination from
+ordering for throughput. BFT forensics~\cite{sheng2021forensics} and
+accountable safety identify culpable validators after a safety violation;
+Engram inherits CometBFT's evidence pool for this purpose. All of these
+reason about a closed validator set whose own network is the only channel
+modelled. Engram does not change their agreement core; it adds an
+externally sourced, quorum-certified input to the object being agreed on.
+AdoB~\cite{honore2024adob} and Adore~\cite{honore2022adore} generalize
+consensus to richer objects with certified reconfiguration, again within
+one fault domain.
+
+\subsection{Availability--Finality Trade-offs Inside Consensus}
+The closest conceptual relatives are protocols that change behavior inside
+consensus when conditions degrade. The sleepy model~\cite{pass2017sleepy}
+formalizes dynamic availability; ebb-and-flow
+protocols~\cite{neu2021ebbflow} expose a dynamically available ledger and a
+finalized prefix, so that the chain keeps growing when finality stalls and
+the finalized ledger catches up when conditions recover. Gasper's inactivity
+leak~\cite{buterin2020gasper,buterin2017casper} restores finality after more
+than a third of validators go offline. These designs share Engram's
+``degrade, don't halt'' goal, and the CAP-style tension~\cite{gilbert2002cap}
+behind it, but their trigger is \emph{internal} participation. Engram's
+trigger is the health of \emph{external} infrastructure, which the validators
+can only observe asynchronously and must therefore certify by quorum.
+
+\subsection{Failure Detection}
+Unreliable failure detectors~\cite{chandra1996unreliable}, their QoS
+metrics~\cite{chen2002qos}, and accrual detectors~\cite{hayashibara2004phi}
+give each process a local, eventually accurate suspicion of other
+processes. Engram's sensors play a similar role for peripheral layers, with
+two differences: suspicion must be \emph{agreed on} before it has any
+effect, and the adversary controls up to $f$ reporters. The health
+certificate (Section~\ref{subsec:health-certificate}) addresses both, and
+hysteresis plays the role of a detector's suspicion timeout.
 
 \subsection{Modular Blockchains and Data Availability}
-LazyLedger, the design that became Celestia, decouples data availability
-from execution and introduces client-side data-availability
-sampling~\cite{albassam2019lazyledger} so that light clients can verify data
-is published without downloading it in full. This line of work specifies how
-to make a DA layer efficiently \emph{verifiable}, but treats DA-layer
-liveness itself as an assumption: if the DA network stalls, execution layers
-built on top of it have no specified fallback. Beyond Celestia's original
-sampling design, more recent work targets the peer-to-peer networking layer
-of DAS itself: Coded Distributed Arrays apply network coding to the
-sampling network to jointly improve storage efficiency, communication
-overhead, and Byzantine robustness relative to Ethereum's current DAS
-networking layer~\cite{phamminh2026cda}. Engram's DA gap sensor
-(Section~\ref{subsec:sensors}) is agnostic to which sampling-network design
-backs it -- it adds an explicit consensus-level response (degrading to a
-local fallback) for the case that the DA layer's liveness assumption does
-not hold, regardless of which DAS construction is underneath; and
-Section~\ref{subsec:sim-to-real} discusses why the current prototype does
-not yet implement full DAS against many independent peers.
+LazyLedger/Celestia~\cite{albassam2019lazyledger} decouples DA from
+execution; fraud and DA proofs~\cite{albassam2021fraud} let light clients
+detect withheld data; coded distributed arrays improve the DAS networking
+layer~\cite{phamminh2026cda}. This work makes DA \emph{verifiable} but
+assumes DA liveness: a rollup that requires DA inclusion before accepting a
+block stops when DA stops. Engram's DA sensor is independent of the
+sampling design; what it adds is a consensus-level response when DA is
+unavailable, plus a backfill requirement before the chain returns to
+\textsc{Anchored} (Section~\ref{subsec:reanchoring}).
 
 \subsection{Bitcoin-Anchored Settlement}
 \label{subsec:settlement}
-Babylon repurposes Bitcoin's proof-of-work as a settlement and slashing
-layer for proof-of-stake chains via timestamped
-checkpoints~\cite{tas2022babylon}. This class of design provides a strong
-settlement anchor but, again, assumes that anchor remains reachable and
-un-reorged. Engram's Bitcoin finality gap sensor
-(Section~\ref{subsec:sensors}) and its threat-model boundary on reorg depth
-(Section~\ref{subsec:formal-invariants}) make the anchor-availability
-assumption explicit and formally bounded, rather than implicit. We note
-that Engram's accountability mechanism
-(Section~\ref{subsec:formal-invariants}) is deliberately different from
-Babylon's: it detects equivocation via CometBFT's own evidence pool at the
-Engram consensus layer, rather than extracting a validator's private key
-through a Bitcoin-published extractable one-time signature. The two are
-different security models solving different problems -- Babylon lets
-Bitcoin itself slash stake, whereas Engram uses Bitcoin only as a settlement
-and finality anchor -- and we do not claim Babylon-style,
-Bitcoin-enforced slashing as part of this system.
-
-\subsection{Eclipse and P2P-Layer Attacks}
-Rehman et al.\ survey eclipse attacks in blockchain
-P2P networks, showing that node-discovery poisoning, peer-eviction gaming,
-and network-level routing control can combine to stay hidden from any single
-metric such as raw peer count~\cite{rehman2025eclipse}. This motivates
-Engram's tri-interface P2P health profiler
-(Section~\ref{subsec:sensors}), which combines six structural, behavioral,
-and temporal bounds rather than relying on peer count alone -- while, as we
-discuss in Section~\ref{sec:discussion}, still sharing the scope limitation
-that survey identifies: static aggregate bounds do not substitute for
-cryptographic peer authentication.
-
-\subsection{Formal Verification of Consensus Protocols}
-TLA+~\cite{lamport2002specifying} is a well-established specification
-language for concurrent and distributed protocols, including prior
-Tendermint/CometBFT specification efforts. Engram's verification
-methodology builds on the LiDO framework's technique of reducing liveness
-properties to a safety obligation on a linking
-invariant~\cite{qiu2024lido}, applying it to a four-layer refinement
-hierarchy (Section~\ref{sec:formal}) that, unlike prior consensus-only
-specifications, also covers the FSM and its interaction with the extended
-consensus proposal. A recent systematization of formal verification for
-consensus protocols surveys over 20 verified protocols and taxonomizes
-verification approaches along a maturity scale from informal reasoning to
-machine-checked code proofs~\cite{bondarev2026sok}; in that taxonomy,
-Engram's approach sits firmly in the \emph{explicit-state model checking}
-family (TLC, and Apalache for bounded SMT-based checks), which is
-well-suited to catching concrete counterexamples on a finite-scope model
-but, unlike \emph{deductive verification} tools such as Coq/Rocq or Agda,
-cannot itself prove a property for arbitrary $N$ and $f$ -- consistent with
-the small-scope threat noted in Section~\ref{subsec:limitations}. On the
-liveness side, an alternative to this paper's refinement-mapping reduction
-is to construct an explicit \emph{ranking function} that decreases
-monotonically toward progress; recent work on \emph{implicit rankings}
-shows how to carry out such ranking-function liveness proofs automatically
-in first-order logic, which could offer a deductive complement to Engram's
-model-checked liveness result in future work~\cite{lotan2025implicit}.
+Pegged sidechains~\cite{back2014sidechains} introduced two-way pegs to
+Bitcoin. Checkpointing into proof-of-work~\cite{karakostas2021checkpointing}
+and into Bitcoin specifically, as in Babylon~\cite{tas2022babylon,tas2023bitcoinpos}
+and Pikachu~\cite{azouvi2022pikachu}, protects proof-of-stake chains against
+long-range attacks; Tas et al.~\cite{tas2023bitcoinpos} also characterize
+what Bitcoin can and cannot add to PoS security, including slashable safety
+via extractable one-time signatures. These designs assume the anchor
+remains reachable. Engram treats unreachability as a first-class condition,
+certifies it by quorum, and locks withdrawals while it persists. Engram does
+not implement Bitcoin-enforced slashing; its accountability comes from
+CometBFT's equivocation evidence.
 
 \subsection{Rollup Escape Hatches and Forced Inclusion}
-A closely related line of work addresses essentially the same liveness
-problem -- what happens when a system's own operator or dependency layer
-stops cooperating -- at a different layer of the modular stack: the L2
-rollup sequencer, rather than an app-chain's Bitcoin/DA/P2P dependencies.
-When a rollup's sequencer stops producing blocks or censors a user, escape
-hatches let users bypass it and withdraw directly against the L1,
-typically via a time-based trigger and a Merkle or validity proof against
-the last known L2 state
-root~\cite{figueira2025escapehatch}. Capretto et al.\ generalize the
-sequencer/data-availability-committee pair into a formally specified
-``arranger'' object and give a fraud-proof mechanism that guarantees
-legal, available, non-conflicting batches even if every arranger replica
-is Byzantine~\cite{capretto2025secure}. Both lines of work confirm that
-peripheral-dependency liveness failure is a real, actively studied problem
-across the modular stack, not one unique to Engram's setting -- but both
-solve it with an \emph{L1-anchored, asynchronous fallback path} external
-to the L2's own block-production consensus: a user- or watcher-triggered
-contract call on a separate chain, exercised only when the primary path is
-already stuck. Engram's design differs by keeping the fallback
-\emph{inside} the validator set's own BFT quorum: peripheral health is a
-field the same consensus vote already agreeing on transactions must also
-agree on, with the FSM state committed in the same block rather than
-resolved via a separate L1 contract after the fact. This is a narrower,
-more specific claim than ``no prior system handles peripheral-dependency
-liveness at all''; we state it precisely to avoid overclaiming novelty
-against this literature.
+When a rollup sequencer stalls or censors, escape
+hatches~\cite{figueira2025escapehatch,gudgeon2020sok} and forced inclusion
+let users withdraw against the L1 using the last known state root; optimistic
+designs such as Arbitrum~\cite{kalodner2018arbitrum} dispute invalid state
+via fraud proofs; Capretto et al.~\cite{capretto2025secure} specify a
+sequencer/DA-committee ``arranger'' that stays correct even if every replica
+is Byzantine. These mechanisms solve a related liveness problem through a
+fallback path on a different chain, triggered by users or watchers after
+the primary path stalls. Engram keeps the fallback inside the validator
+set's own consensus instance and commits the FSM state in the same block.
+
+\subsection{Zero-Knowledge Recovery and Light Clients}
+zkBridge~\cite{xie2022zkbridge}, Plumo~\cite{vesely2022plumo}, and
+Mina~\cite{bonneau2020mina} prove header-chain validity succinctly, the
+latter two via recursive composition~\cite{bitansky2013recursive,bowe2019halo}
+or folding~\cite{kothapalli2022nova}. Engram's recovery proof is a
+fixed-capacity PLONK-family~\cite{gabizon2019plonk} proof over one
+interval chunk with an FSM-policy statement (legality, withdrawal lock)
+rather than only header validity; chaining chunk proofs through an
+on-chain root replaces recursion at the per-header level, where we
+measured recursion to be 650--1{,}200$\times$ slower
+(Section~\ref{subsec:reanchoring}).
+
+\subsection{Formal Verification and Fault Injection}
+TLA+~\cite{lamport2002specifying} with TLC and
+Apalache~\cite{konnov2019apalache} has been used to specify and model-check
+Tendermint components~\cite{braithwaite2020tendermint}. Deductive approaches
+-- Ivy~\cite{padon2016ivy}, IronFleet~\cite{hawblitzel2015ironfleet},
+Verdi~\cite{wilcox2015verdi}, LiDO~\cite{qiu2024lido}, and implicit
+rankings for liveness~\cite{lotan2025implicit} -- prove properties for
+unbounded $N$, which bounded model checking cannot; a recent systematization
+places these approaches on a maturity scale~\cite{bondarev2026sok}. Engram
+sits in the model-checking family, with a per-layer result and an open
+refinement obligation (Section~\ref{sec:formal}). On the empirical side,
+Twins~\cite{bano2021twins} tests BFT implementations by duplicating
+validator identities, chaos engineering~\cite{basiri2016chaos} injects
+production faults, and eclipse attacks on Bitcoin's P2P
+layer~\cite{heilman2015eclipse,rehman2025eclipse} motivate multi-signal
+peer-health profiling. Engram's evaluation combines network-level and
+application-level fault injection against live peripheral networks.
+
+\begin{table}[h]
+\caption{Comparison with representative systems. \checkmark: provided;
+$\circ$: partially or under different assumptions; --: not provided or not
+applicable. Marks reflect each design's primary publication.}
+\label{tab:comparison}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{0.25\linewidth}ccccccc@{}}
+\toprule
+\textbf{System} &
+\rotatebox{75}{\shortstack[l]{External health\\agreed by quorum}} &
+\rotatebox{75}{\shortstack[l]{In-consensus\\fallback}} &
+\rotatebox{75}{\shortstack[l]{Continued execution\\on peripheral outage}} &
+\rotatebox{75}{\shortstack[l]{Withdrawal\\isolation}} &
+\rotatebox{75}{\shortstack[l]{Automatic\\recovery}} &
+\rotatebox{75}{\shortstack[l]{Formal\\verification}} &
+\rotatebox{75}{\shortstack[l]{Live fault-\\injection eval.}} \\
+\midrule
+Tendermint / CometBFT~\cite{buchman2018gossip} & -- & -- & -- & -- & -- & $\circ$ & $\circ$ \\
+Ebb-and-flow~\cite{neu2021ebbflow} & -- & \checkmark & $\circ$ & -- & \checkmark & $\circ$ & -- \\
+Gasper inactivity leak~\cite{buterin2020gasper} & -- & \checkmark & $\circ$ & -- & \checkmark & $\circ$ & -- \\
+Babylon~\cite{tas2023bitcoinpos} & -- & -- & $\circ$ & -- & -- & $\circ$ & -- \\
+Pikachu~\cite{azouvi2022pikachu} & -- & -- & $\circ$ & -- & -- & -- & -- \\
+LazyLedger / Celestia~\cite{albassam2019lazyledger} & -- & -- & -- & -- & -- & -- & -- \\
+Escape hatch~\cite{figueira2025escapehatch} & -- & -- & -- & \checkmark & -- & -- & -- \\
+Secure arranger~\cite{capretto2025secure} & -- & -- & $\circ$ & -- & $\circ$ & \checkmark & -- \\
+zkBridge~\cite{xie2022zkbridge} & -- & -- & -- & -- & -- & -- & -- \\
+\midrule
+\textbf{Engram (this paper)} & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & $\circ$ & \checkmark \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Formal verification for Engram is $\circ$ because the
+per-layer bounded model checking is complete but the cross-layer refinement
+is open (Section~\ref{sec:formal}). ``Formal'' for the other systems covers
+pen-and-paper proofs as well as mechanized ones.
+\end{table}
 
 \subsection{Scope: Storage and Slashing Layers}
-The adaptive-consensus and circuit-breaker concept formalized in this paper
-originated as a brief design sketch (four bullet points, no formal model, no
-evaluation) in an internal organizational
-whitepaper~\cite{engram2026whitepaper}, which describes a substantially
-broader system: a token-incentivized, DePIN-operated physical storage
-network combining Reed-Solomon erasure coding, zero-knowledge
-proof-of-spacetime (zk-PoSt, built on Groth16~\cite{groth2016size} and
-Poseidon), and Bitcoin-anchored slashing via extractable one-time
-signatures. That storage network -- including its token economics, its
-Groth16-based zk-PoSt circuit, and its EOTS-based slashing -- is being
-developed by other members of the authors' organization and is
-\textbf{out of scope} for this paper: none of it is implemented, formally
-verified, or evaluated as part of the artifact described here. Two details
-are worth noting for readers cross-referencing that document: first, the
-whitepaper's sketch ties its fallback fork-choice rule to
-stake-weighted voting power of a native token, whereas this paper's
-formalized design generalizes that to a standard $n=3f+1$ Byzantine
-quorum with no token dependency; second, the whitepaper's zk-PoSt circuit
-(Groth16, for storage-proof privacy) is unrelated to this paper's
-re-anchoring proof circuit (Noir/UltraHonk, for FSM-transition and
-withdrawal-lock legality, Section~\ref{subsec:reanchoring}) -- the two
-systems use different zero-knowledge constructions for different purposes.
-This paper's contribution relative to that sketch is the four-state
-formalization (adding \textsc{Suspicious} and \textsc{Recovering} with
-hysteresis), the TLA+ safety/liveness proofs and ablation study
-(Section~\ref{sec:formal}), and the live empirical evaluation
-(Section~\ref{sec:evaluation}) -- none of which existed in the original
-sketch.
-
-\smallskip
-\noindent\textbf{Positioning.} Unlike the systems above, Engram treats
-peripheral-layer health (Bitcoin settlement, DA, and P2P) as a first-class,
-quorum-agreed consensus variable, backs the fallback state machine with
-machine-checked, per-layer safety and liveness properties, and validates
-that design against a live multi-layer testbed rather than a single-layer
-simulation or a purely theoretical model.
+The adaptive-fallback and circuit-breaker idea formalized here originated as
+a brief sketch in an internal organizational
+whitepaper~\cite{engram2026whitepaper} describing a broader system -- a
+token-incentivized storage network with erasure coding, zk-PoSt built on
+Groth16~\cite{groth2016size}, and Bitcoin-anchored EOTS slashing. That
+system is developed separately and is out of scope: none of it is
+implemented or evaluated here. Relative to the sketch, this paper replaces
+stake-weighted fork choice with a standard $n = 3f{+}1$ quorum, adds the
+\textsc{Suspicious} and \textsc{Recovering} states, the health certificate,
+the recovery proof (Noir/UltraHonk, unrelated to the sketch's Groth16
+circuit), the formal specification, and the live evaluation.
