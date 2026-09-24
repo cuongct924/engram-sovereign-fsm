@@ -12,8 +12,8 @@ requirement is relaxed and cross-chain withdrawals are locked; when health
 returns, a validator-verified recovery proof over the \textsc{Sovereign}
 interval, together with DA backfill, gates the return to \textsc{Anchored}.
 
-Per-layer bounded model checking found no violations across 3.39 million
-distinct states, and a five-mechanism ablation reproduced a distinct
+Per-layer bounded model checking found no violations (the largest run, the
+FSM safety check, explored 3.39 million distinct states), and a five-mechanism ablation reproduced a distinct
 counterexample for each removed mechanism. On a seven-validator testbed with
 live Bitcoin and Celestia networks, the chain kept committing blocks under a
 layered composite fault and completed a full recovery cycle with complete
@@ -25,9 +25,9 @@ rather than to proposal size or validation time.
 \subsection*{Future Work}
 
 Three directions remain beyond the items marked in this paper. First,
-closing the cross-layer refinement obligation, and modelling the health
-certificate explicitly in TLA+, would extend the formal guarantee to the
-composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
+closing the cross-layer refinement obligation, and extending the
+certificate model from Boolean to numeric observations, would extend the
+formal results to the composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
 are a natural complement where bounded model checking does not scale.
 Second, chunk-level recursive aggregation of recovery proofs would make the
 recovery artifact constant-size for intervals of any length. Third,

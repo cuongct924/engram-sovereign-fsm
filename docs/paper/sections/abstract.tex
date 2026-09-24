@@ -22,8 +22,10 @@ proof (Noir/UltraHonk, fixed capacity of 256 headers per proof, chained
 sequentially for longer intervals) attests to header continuity,
 FSM-transition legality, and withdrawal-lock adherence over the
 \textsc{Sovereign} interval. We give a layered TLA+ specification and
-bounded-model-check each layer in isolation (zero violations across 3.39
-million distinct states at $N{\le}4$) with a five-mechanism ablation study
+check each layer in isolation with bounded model checking (zero violations at
+$N{\le}4$;
+the largest run, the FSM safety check, explored 3.39 million distinct
+states) with a five-mechanism ablation study
 in which each removed mechanism reproduces a distinct predicted failure; the
 cross-layer refinement obligation remains open. On a 7-validator Cosmos SDK
 testnet with live Bitcoin regtest and Celestia networks, under a layered

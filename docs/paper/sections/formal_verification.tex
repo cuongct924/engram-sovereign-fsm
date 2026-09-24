@@ -57,18 +57,21 @@ assumptions that the model checker takes as hypotheses:
 \end{itemize}
 Under these hypotheses TLC checks \texttt{EventualDecisionUnderGSTLiveness}
 and the FSM liveness properties directly. The ablation that removes the
-$f{+}1$ fast-forward shows the timeout-progress assumption is load-bearing:
+$f{+}1$ fast-forward shows the timeout-progress assumption is necessary:
 without it TLC finds a lasso in which Byzantine timeout manipulation
 prevents any decision.
 
-\textbf{Health certificates in the model.} The FSM layer abstracts
-certificate aggregation as a single \texttt{UpdateSensors} action that
-yields one metric vector per height. Lemma~1
-(Section~\ref{subsec:health-certificate}) is the argument that justifies
-this abstraction: a well-formed certificate yields exactly one
-deterministic vector, bounded by honest observations. Modelling individual
-signed observations, proposer omission, and quorum formation explicitly in
-TLA+ is future work.
+\textbf{Health certificates in the model.} The server layer models the
+certificate explicitly. Each validator's observation is a Boolean triple
+(healthy, warning, critical) in \texttt{sensor\_view}, written by
+\texttt{ServerExtendVote}; Byzantine validators may forge theirs. The
+proposer may choose any member set of at least $2f{+}1$, the aggregate is a
+per-field majority (\texttt{AggregateHealthCertificate}), and
+\texttt{IsValidProposal} rejects a certificate below $2f{+}1$
+(\texttt{IsWellFormedHealthCertificate}). Numeric metrics, the weighted
+median, signatures, and height binding are not modelled; Lemma~1 covers
+them on paper. Because the certificate lives in the server layer, its
+properties are checked only within the open refinement obligation.
 
 \subsection{Safety Invariants and Attack Resilience Lemmas}
 \label{subsec:formal-invariants}

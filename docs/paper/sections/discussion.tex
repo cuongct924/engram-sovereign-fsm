@@ -78,8 +78,9 @@ precondition for returning to \textsc{Anchored}.
   Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
   collusion suite (Section~\ref{subsec:rq1}) addresses this.
   \item \emph{Formal scope.} Per-layer bounded model checking is complete;
-  the cross-layer refinement is open, and the health-certificate step is
-  argued by Lemma~1 rather than modelled in TLA+.
+  the cross-layer refinement is open. The health certificate is modelled
+  with Boolean observations in the server layer, so its checks fall under
+  the open refinement; numeric aggregation is covered by Lemma~1 only.
   \item \emph{Load range.} Load was tested up to 100 tx/s; behavior at
   higher rates, where per-block overhead could interact with mempool and
   gossip costs, is not characterized.

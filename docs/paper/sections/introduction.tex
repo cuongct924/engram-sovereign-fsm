@@ -80,8 +80,8 @@ never to a partition of the core quorum.
     does not verify the proof (Section~\ref{subsec:reanchoring}).
     \item \textbf{Layered formal specification.} A four-layer TLA+
     specification with bounded model checking of each layer's safety and
-    liveness properties (zero violations across 3.39 million distinct states
-    at $N{\le}4$) and a five-mechanism ablation study in which each removed
+    liveness properties (zero violations at $N{\le}4$; the largest run
+    explored 3.39 million distinct states) and a five-mechanism ablation study in which each removed
     mechanism reproduces a distinct predicted counterexample. The
     cross-layer refinement obligation is specified but open
     (Section~\ref{sec:formal}).
