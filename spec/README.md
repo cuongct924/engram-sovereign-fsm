@@ -38,14 +38,14 @@
     - [6.3 Consensus State Machine Diagram](#63-consensus-state-machine-diagram)
   - [7. Security and Safety Analysis](#7-security-and-safety-analysis)
     - [7.1 State Invariants](#71-state-invariants)
-    - [7.2 Attack Resilience Lemmas](#72-attack-resilience-lemmas)
+    - [7.2 Attack Resilience Properties](#72-attack-resilience-properties)
     - [7.3 Threat Model Boundary: Bitcoin Reorg Depth](#73-threat-model-boundary-bitcoin-reorg-depth)
     - [7.4 Threat Model Boundary: Sensor View Homogeneity](#74-threat-model-boundary-sensor-view-homogeneity)
   - [8. Liveness Analysis and Autonomous Recovery](#8-liveness-analysis-and-autonomous-recovery)
     - [8.1 FSM Temporal Properties](#81-fsm-temporal-properties)
     - [8.2 Transaction-Level Liveness](#82-transaction-level-liveness)
   - [9. Formal Verification stress & ablation](#9-formal-verification-stress--ablation)
-    - [9.1 Proof Strategy](#91-proof-strategy)
+    - [9.1 Verification Strategy](#91-verification-strategy)
     - [9.2 Formal Verification Stress Test](#92-formal-verification-stress-test)
       - [9.2.1. Per-Layer Verification Results (non-refinement)](#921-per-layer-verification-results-non-refinement)
     - [9.3 Ablation study & counterexample traces analysis](#93-ablation-study--counterexample-traces-analysis)
@@ -57,7 +57,7 @@
 
 This document presents the formal specification and model-checked verification of the **Hybrid Adaptive Consensus** protocol for the Engram modular blockchain. The core research question is: **Can a blockchain that depends on external settlement (Bitcoin) and data availability (Celestia) layers maintain provable Safety and Liveness even when those layers fail?**
 
-We answer affirmatively. The protocol introduces a Finite State Machine (FSM) that autonomously degrades security level — rather than halting — when external dependencies become unavailable. **Critically, the consensus mechanism is extended beyond classical transaction ordering: validators now reach Byzantine-fault-tolerant agreement on both the application state and the health status of the peripheral network layers, treating the FSM state as a first-class consensus variable.**
+We answer affirmatively for each layer in isolation: every per-layer safety and liveness property checked so far holds (§9.2.1). The claim for the composed system rests on a refinement check that has not yet completed (§9.2). The protocol introduces a Finite State Machine (FSM) that autonomously degrades security level — rather than halting — when external dependencies become unavailable. **Critically, the consensus mechanism is extended beyond classical transaction ordering: validators now reach Byzantine-fault-tolerant agreement on both the application state and the health status of the peripheral network layers, treating the FSM state as a first-class consensus variable.**
 
 ## 1. Problem Statement
 
@@ -98,7 +98,7 @@ The protocol maintains a four-state FSM that degrades gracefully across security
 2. **Proposes a local view** of the peripheral environment, embedding the leader's observed FSM state, DA receipt, and Bitcoin anchor height directly into the current block proposal.
 3. **Reaches a 2/3-quorum agreement** on this external state telemetry atomically alongside the transaction payload.
 4. **Applies the appropriate security policy** (circuit breaker, withdrawal lock, fork-choice rule) based on the globally agreed-upon state.
-5. **Recovers autonomously** when peripheral layers are restored, re-anchoring sovereign blocks to Bitcoin via a single recursive ZK-Proof.
+5. **Recovers autonomously** when peripheral layers are restored, re-anchoring sovereign blocks to Bitcoin via a ZK-Proof of Recovery.
 
 Critically, the consensus object is extended: a valid proposal is no longer merely a transaction batch; it is a tuple `[transactions, fsm_state, da_receipt, btc_receipt, zk_proof_ref]`. A validator will only issue a `Prevote` for a proposal if all peripheral components strictly match its own local sensor readings, effectively establishing Byzantine-fault-tolerant agreement on the health of the entire modular stack.
 
@@ -113,7 +113,7 @@ The FSM governs four states:
   throttles a subset of transaction admission here as a prototype-level policy, not modeled in
   this specification.
 - **SOVEREIGN**: Active partition. Local PoS activated; Circuit Breaker halts all cross-chain withdrawals.
-- **RECOVERING**: Resolution. Connectivity restored; aggregates all Sovereign transitions into a single recursive ZK-Proof to re-anchor to Bitcoin.
+- **RECOVERING**: Resolution. Connectivity restored; proves the Sovereign interval's transitions in a ZK-Proof of Recovery before re-anchoring to Bitcoin.
 
 #### State Comparison Summary
 
@@ -174,7 +174,7 @@ stateDiagram-v2
 
 - **Hysteresis.** Recovery from `SOVEREIGN` back to `ANCHORED` requires a sustained healthy period of `HYSTERESIS_WAIT` consecutive blocks and a valid ZK-Proof. This prevents state oscillation ("flapping") caused by intermittent connectivity.
 
-- **ZK-based re-anchoring.** Blocks produced in SOVEREIGN mode are secured by local PoS. When connectivity is restored, a single recursive SNARK aggregates all sovereign transitions into one proof, allowing O(1) verification. No re-execution of sovereign blocks is required.
+- **ZK-based re-anchoring.** Blocks produced in SOVEREIGN mode are secured by local PoS. When connectivity is restored, a fixed-capacity SNARK proves up to 256 sovereign headers at constant cost; a longer interval is covered by a chain of such proofs, each starting from the root the previous one committed. No re-execution of sovereign blocks is required. See [`circuit/README.md`](../circuit/README.md).
 
 - **Economic circuit breaker.** Cross-chain withdrawals are locked when the state is `SOVEREIGN` or `RECOVERING`, preventing fund extraction during periods when Bitcoin finality is not available to protect against reversion.
 
@@ -209,7 +209,7 @@ At its core, LiDO defines consensus via an Abstract Pacemaker (`round`, `rem_tim
 
 A refinement mapping mathematically proves that a complex concrete system correctly implements a simpler abstract specification. If the abstract model guarantees a property $P$, the concrete implementation automatically inherits $P$.
 
-In our architecture, `EngramServer.tla` serves as the shared-memory refinement bridge. It intercepts raw Tendermint consensus events and continuously constructs the abstract LiDO certificate tree. Through our refinement variables (`MappedTree`, `mapped_fsm_state`, `mapped_local_times`), the TLC model checker directly verifies `AbstractConsensus!Safety` and `AbstractConsensus!Liveness`, allowing Engram to mechanically inherit LiDO's rigorous theorems for the entire hybrid protocol.
+In our architecture, `EngramServer.tla` serves as the shared-memory refinement bridge. It intercepts raw Tendermint consensus events and continuously constructs the abstract LiDO certificate tree. Through our refinement variables (`MappedTree`, `mapped_fsm_state`, `mapped_local_times`), TLC checks `AbstractConsensus!Safety` and `AbstractConsensus!Liveness` under the mapping (`RefinementSafety`/`RefinementLiveness`). Once those checks complete, the composed protocol inherits LiDO's results; they have not yet completed (§9.2).
 
 
 ### 3.3 Layered Specification Architecture
@@ -459,7 +459,8 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 
 - `fsm_state` matches `CalculateNextFSMState`.
 - `healthy` matches `IsHealthyCondition` -- an independent check, since `fsm_state` alone can't distinguish genuinely healthy from hysteresis-absorbed-warning.
-- A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`EngramTendermint.tla`'s `IsWellFormedHealthCertificate`, checked alongside the `healthy` condition above, not in place of it). This formalizes the real pre-consensus sensor-aggregation mechanism (`x/sovereignty/vote_extension.go`): each validator signs its own sensor observation as an ABCI++ vote extension (`EngramServer.tla`'s `ServerExtendVote` hook, the model's `sensor_view`), the round's proposer aggregates a >=2f+1-weighted quorum of those signed observations into a certificate via weighted-majority-per-field (`EngramFSM.tla`'s `AggregateHealthCertificate`, mirroring the real `AggregateHealthCertificates`), and every validator re-verifies that certificate -- never recomputing `fsm_state`/`healthy` from its own live sensors. This replaces an earlier "each validator recomputes from its own sensors and rejects on mismatch" design, which made `ProcessProposal`'s ACCEPT/REJECT depend on live, per-validator RPC state rather than only the proposal and committed state -- see SS7.4's "Fourth precondition for Theorem 7.1".
+- A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`IsWellFormedHealthCertificate`) -- checked alongside the `healthy` condition above, not in place of it.
+- That certificate formalizes the real pre-consensus mechanism (`x/sovereignty/vote_extension.go`): each validator signs its own sensor observation (`ServerExtendVote`/`sensor_view`), the proposer aggregates a >=2f+1 quorum via weighted-majority-per-field (`AggregateHealthCertificate`), and every validator re-verifies the certificate rather than recomputing from its own live sensors -- see SS7.4's "Fourth precondition for Target Property 7.1".
 - The DA receipt is valid and within `DATolerance(r)`'s round-adaptive gap, whenever `fsm_state \in {ANCHORED, RECOVERING}` or `IsDAHealthy`.
 - `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
 - Withdrawals are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (same scope as §7.1's `CircuitBreakerSafety`).
@@ -535,9 +536,41 @@ stateDiagram-v2
 
 ## 7. Security and Safety Analysis
 
-The formal correctness of the hybrid consensus protocol is guaranteed across the entire reachable state space. The network is modeled against a Byzantine adversary controlling up to $f$ nodes out of $n = 3f + 1$ total, with adversarial message scheduling and non-deterministic peripheral sensor readings.
+The network is modeled against a Byzantine adversary controlling up to $f$ nodes out of $n = 3f + 1$ total, with adversarial message scheduling and non-deterministic peripheral sensor readings.
 
-**Theorem 7.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes will ever decide on conflicting blocks or conflicting FSM states. Any safety violation mathematically guarantees the existence of cryptographic double-signing evidence.*
+**Target Property 7.1 (Hybrid Consensus Safety and Accountability).** *Under partial synchrony, no two honest nodes decide on conflicting blocks or conflicting FSM states, and any safety violation implies double-signing evidence.* This is the property the refinement check of §9.2 would establish for the composed system; **that check has not completed, so 7.1 is a target, not a result.**
+
+Every property in §7–§8 carries one of these statuses:
+
+| Status | Meaning |
+|---|---|
+| **Checked** | Zero violations in a completed per-layer TLC run (§9.2.1), within that config's bounds |
+| **Open** | Specified and listed only in the full-stack refinement configs (§9.2), which have not completed |
+| **Partial** | Bounded Apalache search reached some depth with zero violations but did not finish |
+| **By construction** | Holds structurally from how the spec defines the relevant sets; no search needed |
+
+| Property | Operator | Where checked | Status |
+|---|---|---|---|
+| S1 Circuit Breaker Isolation | `CircuitBreakerSafety` | `MC_FSMSafety` | Checked |
+| S2 Hysteresis Integrity | `HysteresisSafety` | `MC_FSMSafety` | Checked |
+| S2b Suspicious-Exit Hysteresis | `SuspiciousHysteresisSafety` | `MC_FSMSafety` | Checked |
+| S3 Strict FSM Transition Safety | `StrictFSMTransitionSafety` | `MC_FSMSafety` | Checked |
+| S4 FSM State Consistency | `FSMStateConsistency` | `MC_ServerRefinementSafety`; §9.3.2.F | Open; Partial |
+| S5 Monotonicity Safety | `MonotonicitySafety` | `MC_ServerRefinementSafety` | Open |
+| 7.2 Data Withholding Resistance | `DAReceiptConsistency` | `MC_ServerRefinementSafety` | Open |
+| 7.3 Long-Range Attack Prevention | `BTCConsistency` | `MC_ServerRefinementSafety` | Open |
+| 7.4 Message Flooding Bound | `FaultyPrevotes`/`FaultyPrecommits`/`FaultyTimeouts` | — | By construction |
+| 7.5 Eclipse Resilience | `IsHealthyCondition`, `IsCriticalCondition` | `MC_FSMSafety`, `MC_FSMLiveness`; §9.3.2.F | Checked (FSM layer); Partial (proposal layer) |
+| 7.6 Accountability | `Accountability` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
+| Agreement | `AgreementOnValue` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
+| L1 Consensus liveness under GST | `EventualDecisionUnderGSTLiveness` | `MC_ServerRefinementLiveness` | Open |
+| L2 Circuit Breaker Liveness | `CircuitBreakerLiveness` | `MC_FSMLiveness` | Checked |
+| L3 Recovery Initiation | `RecoveryAttemptLiveness` | `MC_FSMLiveness` | Checked |
+| L4 Complete Re-anchoring | `CompleteRecoveryLiveness` | `MC_FSMLiveness` | Checked |
+| L5 ZK-Proof Generation | `ZKProofGenerationLiveness` | `MC_ServerRefinementLiveness` | Open |
+| L6 Persistent Eclipse Resolution | `PersistentEclipseResolutionLiveness` | `MC_ServerRefinementLiveness` | Open |
+| L7 Forced Inclusion | `ForcedInclusionLiveness` | `MC_ServerRefinementLiveness` | Open |
+| Refinement | `RefinementSafety`, `RefinementLiveness` | `MC_ServerRefinement{Safety,Liveness}` | Open |
 
 ### 7.1 State Invariants
 
@@ -548,9 +581,9 @@ CircuitBreakerSafety ==
     WithdrawLocked <=> (state \in {"SOVEREIGN", "RECOVERING"})
 ```
 
-Formally specified in `EngramFSM.tla` as `CircuitBreakerSafety` and verified in both model checker configurations.
+Formally specified in `EngramFSM.tla` as `CircuitBreakerSafety`. Checked in `MC_FSMSafety`; also listed in `MC_ServerRefinementSafety` (open).
 
-**Invariant S2 (Hysteresis Integrity).** A transition from `RECOVERING` back to `ANCHORED` is impossible without satisfying the full hysteresis wait period and providing a valid recursive ZK-Proof. This prevents premature re-anchoring during intermittent connectivity.
+**Invariant S2 (Hysteresis Integrity).** A transition from `RECOVERING` back to `ANCHORED` is impossible without satisfying the full hysteresis wait period and providing a valid ZK-Proof of Recovery. This prevents premature re-anchoring during intermittent connectivity.
 
 ```tlaplus
 HysteresisSafety ==
@@ -558,7 +591,7 @@ HysteresisSafety ==
         => (safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
 ```
 
-Formally specified in `EngramFSM.tla` as `HysteresisSafety` and verified as a temporal safety property in `MC_ServerRefinementSafety`.
+Formally specified in `EngramFSM.tla` as `HysteresisSafety`. Checked as a `PROPERTIES` entry in `MC_FSMSafety.cfg`; also listed in `MC_ServerRefinementSafety` (open).
 
 **Invariant S2b (Suspicious-Exit Hysteresis Integrity).** The symmetric up-hysteresis guard on the `SUSPICIOUS -> ANCHORED` edge (§5.2): a single healthy block cannot exit `SUSPICIOUS`, closing the gray-failure-timeout arbitrage where an attacker resets `suspicious_duration` for free.
 
@@ -590,7 +623,7 @@ FSMStateConsistency ==
         decision[p] /= NilDecision => decision[p].prop.fsm_state = state
 ```
 
-Formally specified in `EngramServer.tla` as `FSMStateConsistency`, part of `HybridTendermintInvariant`.
+Formally specified in `EngramServer.tla` as `FSMStateConsistency`, part of `HybridTendermintInvariant`. Status: open (refinement run) and partial (bounded Apalache, §9.3.2.F).
 
 **Invariant S5 (Monotonicity Safety).** Chain heights and real time must monotonically increase or remain constant, preventing time-travel or chain rollback anomalies.
 
@@ -603,11 +636,11 @@ MonotonicitySafety ==
       ]_serverVars
 ```
 
-### 7.2 Attack Resilience Lemmas
+### 7.2 Attack Resilience Properties
 
-Beyond the state invariants, the `IsValidProposal` predicate in `EngramTendermint.tla` serves as a semantic firewall enforcing the following attack-specific lemmas at the consensus layer.
+Beyond the state invariants, the `IsValidProposal` predicate in `EngramTendermint.tla` serves as a semantic firewall enforcing the following attack-specific properties at the consensus layer. Their check status is in the table at the top of §7.
 
-**Lemma 7.2 (Data Withholding Resistance).** A Byzantine leader publishing a block header while withholding the transaction body (`attestation = FALSE`) will have its proposal rejected by all honest validators, who cast PREVOTE NIL and force a round change.
+**Property 7.2 (Data Withholding Resistance).** A Byzantine leader publishing a block header while withholding the transaction body (`attestation = FALSE`) will have its proposal rejected by all honest validators, who cast PREVOTE NIL and force a round change.
 
 ```tlaplus
 DAReceiptConsistency ==
@@ -619,7 +652,7 @@ DAReceiptConsistency ==
 
 The `\/ IsDAHealthy` branch closes a gap the state-only check would otherwise leave: a decided block whose `fsm_state` is `SUSPICIOUS` or `SOVEREIGN` isn't exempted from the attestation requirement just because it's outside `{ANCHORED, RECOVERING}` — if the DA layer is *currently* healthy, the attestation must still be `TRUE` regardless of which state the block claims. The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
 
-**Lemma 7.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
+**Property 7.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
 
 ```tlaplus
 BTCConsistency ==
@@ -630,7 +663,7 @@ BTCConsistency ==
 
 The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the SPV hash check rejects it at proposal validation -- scoped, like `DAReceiptConsistency` above, to `fsm_state \in {ANCHORED, RECOVERING} \/ IsBTCHealthy`: a proposal legitimately degrading away from `ANCHORED`/`RECOVERING` *because* BTC is down isn't also required to carry a checkpoint the honest network can independently verify while it's down, mirroring the `\/ IsDAHealthy` carve-out's own reasoning. Outside that condition -- i.e. whenever the decided state is `ANCHORED`/`RECOVERING`, or BTC is currently healthy regardless of state -- the SPV check still applies unconditionally.
 
-**Lemma 7.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
+**Property 7.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
 ```tlaplus
 \* Pre-populated at TendermintInit — exactly |ByzantineNodes| messages per round per type
@@ -639,7 +672,7 @@ FaultyPrecommits(r) == { [type |-> "PRECOMMIT", src |-> f, round |-> r, ...] : f
 FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f \in ByzantineNodes }
 ```
 
-**Lemma 7.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
+**Property 7.5 (Eclipse Attack Resilience).** The `IsP2PQualityHealthy` predicate (Section 4.3) enforces six structural and behavioral bounds as a precondition for `IsHealthyCondition`. Additionally, complete anchor isolation escalates directly to a critical condition without waiting for the BTC gap threshold.
 
 ```tlaplus
 \* Recovery is gated on full P2P quality — not merely peer count
@@ -658,9 +691,9 @@ IsCriticalCondition ==
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 ```
 
-The `P2PAdversaryAttack` action in `EngramFSM.tla` has been verified to produce zero errors across both the safety and liveness state spaces. §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` condition (`EngramTendermint.tla:296`), independent of `VerifySPVProof`, which guards the BTC receipt field, not `fsm_state`.
+The `P2PAdversaryAttack` action in `EngramFSM.tla` is part of the completed `MC_FSMSafety` and `MC_FSMLiveness` runs, both with zero violations (§9.2.1). §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` condition (`EngramTendermint.tla:296`), independent of `VerifySPVProof`, which guards the BTC receipt field, not `fsm_state`.
 
-**Lemma 7.6 (Accountability via Evidence).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, matching the concrete implementation's use of CometBFT's stock equivocation evidence pool (`DuplicateVoteEvidence`) — no custom slashing cryptography required.
+**Property 7.6 (Accountability via Evidence).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, matching the concrete implementation's use of CometBFT's stock equivocation evidence pool (`DuplicateVoteEvidence`) — no custom slashing cryptography required.
 
 ```tlaplus
 DoubleSigningEvidence ==
@@ -676,35 +709,35 @@ Accountability ==
     (~AgreementOnValue) => DoubleSigningEvidence
 ```
 
-Formally specified in `EngramTendermint.tla` as `Accountability`, part of `CoreTendermintInvariant`.
+Formally specified in `EngramTendermint.tla` as `Accountability`, part of `CoreTendermintInvariant`, checked in `MC_TendermintSafety` (§9.2.1).
 
 ### 7.3 Threat Model Boundary: Bitcoin Reorg Depth
 
-Bitcoin settlement finality is not unconditional. `EngramConsensus.tla`'s `BitcoinReorg` action lets `h_btc_anchored` retreat, modeling a checkpoint invalidated by a reorg, and guarantees split at `K_DEEP_FINALITY`:
+Bitcoin settlement finality is not unconditional. `EngramConsensus.tla`'s `BitcoinReorg` action lets `h_btc_anchored` retreat, modeling a checkpoint invalidated by a reorg, and the model's coverage splits at `K_DEEP_FINALITY`:
 
 - **Shallow (depth < `K_DEEP_FINALITY`):** covered by the model -- `IsKDeep` blocks re-electing a certificate anchored past a retreated `h_btc_anchored` via `CanElect`.
 - **Deep (depth >= `K_DEEP_FINALITY`):** out of scope by design, like every Bitcoin-anchoring protocol (Babylon included) -- assumed economically infeasible under honest-majority hashpower. `K_DEEP_FINALITY` is the only lever (small for regtest, ~6 confirmations for mainnet).
 
 **Beyond the formal model:** `AnchorTracker.VerifyAnchor` (`x/anchor/anchor.go`) re-derives the OP_RETURN scan fresh every block -- the `is_btc_spv_failed` → `SOVEREIGN` chain is already TLC-covered (free/nondeterministic variable); only whether `VerifyAnchor` sets it correctly is a Go/bitcoind claim, not TLA+-checkable. Confirmed live: a 15-block reorg forced all 4 validators to `SOVEREIGN` ([E10](../docs/EXPERIMENT.md#e10--bitcoin-reorg-fork-choice-reaction)), untested at `K_DEEP_FINALITY`+1.
 
-Third standing precondition for Theorem 7.1 (with partial synchrony and the $f$-bounded adversary): the formal proof holds given reorgs no deeper than `K_DEEP_FINALITY`; the concrete layer's behavior past that is a separate, weaker, empirical claim.
+Third standing precondition for Target Property 7.1 (with partial synchrony and the $f$-bounded adversary): the property is stated for reorgs no deeper than `K_DEEP_FINALITY`; the concrete layer's behavior past that is a separate, weaker, empirical claim.
 
 ### 7.4 Threat Model Boundary: Sensor View Homogeneity
 
 - `EngramFSM.tla` models `btc_gap`/`da_gap`/P2P health as single global variables -- validators are assumed to see a near-identical peripheral view. Sound under partial synchrony, but doesn't model *persistently, adversarially heterogeneous* local views -- enough disagreement forces repeated round-skips.
 - **Exposure isn't uniform:** BTC/DA gaps come from a shared external chain, consistent across validators up to propagation delay. P2P health (`IsP2PQualityHealthy`) is the one genuinely node-local, subjective signal -- the real attack surface here.
 - **What bounds it today:** a liveness lock needs *every* proposer's `fsm_state` rejected for enough rounds that GST is never reached -- leans on the existing partial-synchrony precondition, not a new failure mode. But since the proposer schedule is public, an adversary only needs to eclipse whichever single node is about to propose and rotate each round -- materially cheaper than a simultaneous majority eclipse, though still GST-bounded.
-- **Fourth precondition for Theorem 7.1:** safety/liveness hold given sensor views converge within GST to reach quorum on one `fsm_state`, not that every view is identical. The pre-consensus sensor-aggregation phase this precondition calls for is both implemented (`x/sovereignty/vote_extension.go`) and formalized (`EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal`) -- see SS6.2 for the mechanism and SS9's Future Work note on the modeling simplification involved.
+- **Fourth precondition for Target Property 7.1:** safety/liveness hold given sensor views converge within GST to reach quorum on one `fsm_state`, not that every view is identical. The pre-consensus sensor-aggregation phase this precondition calls for is both implemented (`x/sovereignty/vote_extension.go`) and formalized (`EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal`) -- see SS6.2 for the mechanism and SS9's Future Work note on the modeling simplification involved.
 
 ## 8. Liveness Analysis and Autonomous Recovery
 
-Modular blockchains face critical liveness risks when peripheral layers fail. Through the refinement mapping in `EngramServer.tla`, the concrete implementation mechanically inherits the abstract liveness properties of the LiDO framework.
+Modular blockchains face critical liveness risks when peripheral layers fail. The refinement mapping in `EngramServer.tla` is built so the composed system inherits LiDO's abstract liveness properties once `RefinementLiveness` is checked; that check is open (§9.2).
 
-**Theorem 8.1 (Autonomous Liveness under Degradation).** *The protocol continually processes transactions under normal conditions and autonomously degrades, recovers, and re-anchors its security posture without permanent stalling, even during external modular layer failures.*
+**Target Property 8.1 (Autonomous Liveness under Degradation).** *The protocol continually processes transactions under normal conditions and autonomously degrades, recovers, and re-anchors its security posture without permanent stalling, even during external modular layer failures.*
 
 ### 8.1 FSM Temporal Properties
 
-Theorem 8.1 is established by verifying the following temporal leads-to properties under weak fairness assumptions, using TLC's implied-temporal checking across 8 branches.
+Target Property 8.1 decomposes into the leads-to properties L1–L7 below, each under weak fairness. L2–L4 are checked in the completed `MC_FSMLiveness` run; L1 and L5–L7 are listed only in the open `MC_ServerRefinementLiveness` run (status table, top of §7).
 
 **Property L1 (Standard Consensus Liveness).** Under repeated GST conditions, honest validators always eventually commit a new block.
 
@@ -768,9 +801,9 @@ ForcedInclusionLiveness ==
 Formally specified as `ForcedInclusionLiveness` in `EngramServer.tla`.
 
 ## 9. Formal Verification stress & ablation
-### 9.1 Proof Strategy
+### 9.1 Verification Strategy
 
-The verification proceeds in two phases:
+The full-stack verification has two phases. **Neither has completed** (§9.2); per-layer results are in §9.2.1.
 
 **Phase 1 — Safety.** `MC_ServerRefinementSafety` checks that the concrete `EngramServer` system — under Byzantine message scheduling, adversarial sensor readings, malicious leaders, and data withholding — never violates `AbstractConsensus!Safety`. If no counterexample is found across all reachable states, then the refinement mapping is correct for safety.
 
@@ -780,7 +813,7 @@ The key linking invariant is `QuorumOverlap`:
 
 $$\forall\, q_1, q_2 \in \text{ValidQuorums} : (q_1 \cap q_2) \cap \text{HonestNodes} \neq \emptyset$$
 
-This ensures that any two quorum decisions share at least one honest node, which is the foundation of both Agreement and Liveness in the LiDO model.
+This ensures that any two quorum decisions share at least one honest node. It is a safety premise: it underpins Agreement, not Liveness. Liveness additionally rests on the weak-fairness conjuncts of `EngramConsensus.tla`'s `Liveness` (timeout expiry `TimeoutStartNext`/`TimeoutSkipNext`, early start `EarlyStartNext`, environment updates `UpdateEnv`, message delivery `Push`/`Pull`, and invocation `Invoke`) together with recurring GST.
 
 ### 9.2. Formal Verification Stress Test
 
@@ -817,7 +850,7 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 | FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2 | 1,022,325,986 | 3,386,761 | 22 | 27m33s | 0 |
 | FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above | 10,321,121 | 17,857 | 22 | 2m54s | 0 |
 
-Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety is proven only via `RefinementSafety` in `MC_ServerRefinementSafety`, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
+Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety would be established only via `RefinementSafety` in `MC_ServerRefinementSafety`, which is open, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
 
 ### 9.3. Ablation study & counterexample traces analysis
 
@@ -994,7 +1027,7 @@ sequenceDiagram
 ##### F. Eclipse Attack — Forged `fsm_state` Rejection (attack scenario, not an ablation)
 
 - Unlike A–E, nothing is neutered here — `core/EngramServer_EclipseForgedProposal.tla` `EXTENDS EngramServer` unmodified.
-- This closes Lemma 7.5's open item: `P2PAdversaryAttack` (`EngramFSM.tla`) only exercises FSM-sensor mechanics, never `IsValidProposal`/`FSMStateConsistency` (`EngramTendermint.tla`/`EngramServer.tla`) — no prior check combined a real eclipse with a proposer forging `fsm_state`.
+- This closes Property 7.5's open item: `P2PAdversaryAttack` (`EngramFSM.tla`) only exercises FSM-sensor mechanics, never `IsValidProposal`/`FSMStateConsistency` (`EngramTendermint.tla`/`EngramServer.tla`) — no prior check combined a real eclipse with a proposer forging `fsm_state`.
 - The new action `ByzantineForgedFSMState`, gated on `~IsP2PQualityHealthy`, lets an eclipsed Byzantine proposer broadcast an otherwise honest, well-formed proposal with any `fsm_state` other than the real `CalculateNextFSMState` — isolating forgery as the only defect under test.
 
 Two checks, same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
@@ -1065,7 +1098,7 @@ The current specification verifies an unpipelined Tendermint core. A pipelined v
 
 ### Parametric Verification
 
-The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending the proof to arbitrary $N$ and $f$ would require inductive invariant techniques or a parametric model checker, and is left for future work.
+The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending the results to arbitrary $N$ and $f$ would require inductive invariant techniques or a parametric model checker, and is left for future work.
 
 ### Sensor Aggregation Pre-Consensus Phase
 
