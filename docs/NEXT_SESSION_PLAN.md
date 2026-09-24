@@ -15,7 +15,7 @@ Nguồn yêu cầu, ghi ở từng mục:
 Quy tắc chung:
 - Mọi thay đổi giao thức đi theo thứ tự spec TLA+ → Go → TLC/Apalache → unit test → chạy live
   (skill `go-spec-fidelity`).
-- Mọi đoạn viết mới trong paper theo skill `paper-writing` (mục VI, checklist văn phong).
+- Mọi đoạn viết mới trong paper theo skill `paper-writing` (mục VI về mức độ claim, mục X checklist trước khi nộp).
 - Thí nghiệm cuối (mục 20–21) chỉ chạy **một lần**, sau khi các thay đổi giao thức (mục 15–17) xong.
 
 ## Bảng tổng quan
@@ -34,7 +34,7 @@ Quy tắc chung:
 | 10 | Smoke test live bản sửa sub-quorum certificate | 2 | không | 0,5 ngày | — |
 | 11 | Công cụ đo RQ4 (round, committed throughput, độ trễ tx) | 2 | không | 1–2 ngày | — |
 | 12 | Baseline hard-gated (+ soft/optimistic) | 2 | chế độ baseline | 1–2 ngày | 1, 11 |
-| 13 | Bộ tấn công cộng tác f=2 (B1–B7) + replay checker | 2 | hook Byzantine | 3–4 ngày | 11 |
+| 13 | Bộ tấn công cộng tác f=2 (B1–B8) + sweep Byzantine b = 0…3 (B9) + replay checker | 2 | hook Byzantine | 4–5 ngày | 11 |
 | 14 | Làm lại A3, A4, A7, A10 để phòng thủ thực sự kích hoạt | 2 | không | 1–2 ngày | 13 |
 | 15 | State root trong checkpoint Bitcoin | 3 | có | 1 ngày | — |
 | 16 | Hysteresis thích nghi ANCHORED↔SUSPICIOUS | 3 | có | 3 ngày | 4 |
@@ -100,7 +100,9 @@ cần chốt):
 
 | RQ | Metric | Tiêu chí đạt |
 |---|---|---|
-| RQ1 | Vi phạm replay (mục 13) mỗi case B1–B7 | 0 vi phạm trên mọi trial |
+| RQ1 | Vi phạm replay (mục 13) mỗi case B1–B8 | 0 vi phạm trên mọi trial |
+| RQ1 | Sweep B9, b ≤ 2 | 0 height có aggregate ngoài khoảng honest; 0 withdrawal không an toàn |
+| RQ1 | Sweep B9, b = 3 (f+1) | Đối chứng âm: vi phạm xuất hiện, và chỉ ở height có proposer Byzantine |
 | RQ1 | AppHash divergence | 0 height lệch |
 | RQ2 | Block trong cửa sổ lỗi, Engram vs. hard-gated | Engram ≥ 80% số block lúc khoẻ cùng thời lượng; hard-gated = 0 khi DA outage |
 | RQ2 | "Không stall" | Không có khoảng giữa hai block > 3 × block interval lúc khoẻ |
@@ -368,14 +370,14 @@ Thí nghiệm `scripts/e11_hard_gated_baseline/live_hard_gated_vs_engram.py`:
 - Kết quả `results_live/*.csv`, summary `.md`, hình height theo thời gian cho cả ba hệ, tô vùng lỗi
   (hình mới cho §6.2).
 
-### 13. Bộ tấn công cộng tác f=2 (B1–B7) + replay checker [T][M][B]
+### 13. Bộ tấn công cộng tác f=2 (B1–B9) + replay checker [T][M][B]
 
 Mục tiêu: RQ1 ở đúng quy mô threat model (n=7, f=2), với kiểm tra tính đúng mạnh hơn AppHash
 agreement. Chạy lại A1/A2/A6 ở n=7.
 
 **13a. Hạ tầng hai node Byzantine**
-- Hiện chỉ có `docker/engram-node04-byzantine.yml`. Thêm `engram-node05-byzantine.yml` hoặc tổng quát
-  hoá thành `ENGRAM_BYZANTINE_NODES=node04,node05`.
+- Hiện chỉ có `docker/engram-node04-byzantine.yml`. Tổng quát hoá thành
+  `ENGRAM_BYZANTINE_NODES=node04,…` (B9 cần tới 3 node: node04–node06) thay vì thêm từng file compose.
 - `ENGRAM_BYZANTINE_BEHAVIOR` hiện chỉ tác động phía proposer (`applyByzantineBehavior`,
   `proposal.go`). Thêm:
 
@@ -398,14 +400,43 @@ agreement. Chạy lại A1/A2/A6 ở n=7.
 | B5 | withdrawal ở SOVEREIGN | withdrawal ở SOVEREIGN | không bao giờ commit |
 | B6 | `stale_receipt` | `forge_btc_hash` | bị chặn bởi kiểm tra receipt |
 | B7 | báo suy giảm | báo suy giảm | + 2 honest bị eclipse thật: 4/7 < 2f+1 → không chuyển; biến thể 5/7 → phải chuyển (biên thật của cổng quorum) |
+| B8 | honest | honest | Split view thuần honest, không Byzantine: 3/7 rồi 4/7 honest bị eclipse thật (thấy suy giảm) trong ≥ 10 phút. Đo round/height, nil-vote, số lần chuyển trạng thái; kỳ vọng: aggregate luôn nằm trong khoảng honest, không lệch AppHash, số flap ≤ ngưỡng mục 2 |
+| B9 | sweep số Byzantine b = 0…3 | — | Đo biên threat model, xem bảng dưới |
+
+**B9 — Sweep số Byzantine b ∈ {0, 1, 2, 3} (đo biên threat model).** Với n = 7 thì
+f = ⌊(n−1)/3⌋ = 2 và quorum = 2f+1 = 5; b = 3 = f+1 là một điểm vượt ngưỡng, đủ để chứng minh
+ngưỡng là chặt. Không chạy b ≥ 4: mọi giao thức BFT đều mất đảm bảo ở đó, kết quả biết trước và
+không nói gì riêng về Engram. Byzantine vẫn bỏ phiếu
+consensus bình thường (để chain còn chạy và cô lập tác động lên certificate); chỉ nói dối trong
+observation, và khi làm proposer thì `bias_certificate`. Hai mục tiêu tấn công, mỗi mục tiêu một
+lượt:
+- **Ép SOVEREIGN** khi mọi peripheral khoẻ (griefing: đóng băng withdrawal).
+- **Che giấu outage thật:** tắt toàn bộ DA bridge, Byzantine báo khoẻ → nếu chain giữ ANCHORED thì
+  withdrawal vẫn mở trong lúc DA chết = **withdrawal không an toàn** (metric của mục 12). Đây là
+  kịch bản nguy hiểm nhất.
+
+| b | Vị trí so với ngưỡng (n=7, f=2, quorum 5) | Kỳ vọng |
+|---|---|---|
+| 0–2 | ≤ f (trong threat model) | Không ép được, không che được (Lemma 1) |
+| 3 | f+1 | Ép/che được **chỉ khi proposer là Byzantine** (chọn 3 Byzantine + 2 honest); proposer honest đưa đủ 7 observation thì 4 honest > 7/2, median vẫn honest-bounded |
+
+- Metric mỗi b: tỷ lệ height có aggregate nằm ngoài khoảng honest, có/không chuyển trạng thái bị ép,
+  số withdrawal không an toàn (lượt che giấu outage), tỷ lệ height do proposer Byzantine đề xuất.
+- B1–B8 kiểm tra an toàn trong ngưỡng (≤ f). B9 với b = 3 là đối chứng âm (kỳ vọng vi phạm): paper
+  báo để chứng minh ngưỡng là **chặt** và làm rõ hệ quả khi vượt threat model, không phải để claim
+  an toàn. Hình đề xuất: trục x = b, trục y = tỷ lệ height bị Byzantine kiểm soát, tô vùng b ≤ f.
+- B8 phủ giới hạn "split view gần ngưỡng quorum chưa được test" mà Discussion cũ đã nêu, và là một
+  nguồn khả dĩ của round thêm (đối chiếu với mục 11).
 
 Dùng lại `live_double_signing_test.py` (B4), `live_withdrawal_test.py` (B5),
 `live_byzantine_attacks.py` (B6); mới `scripts/e8_attack_resilience/live_collusion_suite.py` điều phối
-B1–B7, 180 s mỗi case, 3 trial.
+B1–B9, 180 s mỗi case (B8: ≥ 10 phút; B9: 4 giá trị b × 2 mục tiêu), 3 trial.
 
 **13c. Replay checker ngữ nghĩa**
 
 Mới: `engramd debug replay-fsm --rpc <url> --from 1 --to <h> --honest node01,…,node03,node06,node07`:
+- `--honest` là tập validator trung thực của từng case (ví dụ trên cho B1–B8 với node04, node05
+  Byzantine); trong B9 tập này thay đổi theo b.
 - Nạp key validator từ genesis vào keeper trong bộ nhớ (`colltest.MockStore`, như trong test).
 - Mỗi height: lấy `/block`, giải mã `Txs[0]`, chạy `AggregateHealthCertificates` +
   `CalculateNextState` trên state đã replay, rồi áp `CommitFSMTransition`.
@@ -636,7 +667,7 @@ Giữ 5 contribution (thứ tự theo quyết định 1f); chỉ tái cấu trú
 - Kiểm tra lại các ô ✓/◐ của hệ thống khác trong `tab:comparison` theo bài gốc của từng hệ.
 - Compile trên Overleaf (gói mới: `forest`); kiểm tra cây taxonomy và hình kiến trúc không tràn lề.
 - Tên tác giả, affiliation (`main.tex`), URL artifact và license (`conclusion.tex`).
-- Rà lại toàn bài theo checklist văn phong (skill `paper-writing`, mục VI).
+- Rà lại toàn bài theo checklist của skill `paper-writing` (mục X).
 - `grep -rn pending docs/paper/sections/` trả về rỗng.
 
 ---
