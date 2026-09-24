@@ -1,0 +1,291 @@
+\section{Engram Hybrid Adaptive Consensus}
+\label{sec:design}
+
+\subsection{Architecture Overview}
+\label{subsec:architecture}
+
+Engram is a Cosmos SDK application~\cite{kwon2016cosmos} running on a
+forked CometBFT core. Three
+external layers are continuously monitored: (i) Bitcoin, used as a
+settlement and finality anchor via periodic checkpointing; (ii)
+Celestia~\cite{albassam2019lazyledger},
+used as the data-availability (DA) layer; and (iii) the validator P2P
+network itself. Rather than assuming these layers are always healthy, every
+validator runs deterministic local sensors against each of them, and the
+resulting health readings are embedded directly into the consensus proposal
+(Fig.~\ref{fig:architecture}), so that ``is the periphery healthy'' becomes a
+question the validator set answers by quorum, exactly as it does for
+transaction validity.
+
+\begin{figure}[h]
+\centering
+% TODO: thay bang anh that, export tu docs/ARCHITECTURE.md (mermaid) hoac
+% ve lai bang TikZ o dang vector cho paper.
+\fbox{\parbox{0.9\linewidth}{\centering TODO figure -- Architecture: Engram
+execution + Bitcoin settlement + Celestia DA + FSM sensors}}
+\caption{System architecture: the Engram validator set, its Bitcoin
+settlement anchor, its Celestia DA layer, and the FSM sensors that bridge
+them into the consensus proposal.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Threat Model}
+\label{subsec:threat-model}
+
+We assume a partially synchronous network: message delay is unknown but
+bounded after some unknown global stabilization time, consistent with
+CometBFT's own consensus model. The adversary is Byzantine and controls up
+to $f$ validators out of $n$, where $f = \lfloor (n-1)/3 \rfloor$ (e.g.,
+$f{=}2$ at the $n{=}7$ scale used throughout our evaluation); Byzantine
+validators may deviate arbitrarily from the protocol, including colluding
+with one another, but cannot forge signatures or break the collision
+resistance of the hash functions relied on by the consensus layer, the
+Bitcoin blockchain, or the re-anchoring proof circuit, and that the
+UltraHonk backend's KZG polynomial-commitment trusted setup was performed
+honestly -- standard cryptographic hardness assumptions this paper relies
+on but does not independently verify. Beyond the validator set's own Byzantine bound, three
+further assumptions bound what the design defends against: (i) the
+health-aggregation step that certifies a peripheral-health reading requires
+quorum-signed observations, so no single Byzantine validator can force a
+false health claim into a proposal on its own; (ii) Bitcoin settlement is
+treated as safe against reorganizations no deeper than a configurable
+finality depth, consistent with every Bitcoin-anchoring protocol in this
+class (Section~\ref{subsec:settlement}); and (iii) honest validators'
+peripheral-health views converge within the partial-synchrony bound rather
+than being identical at every instant. We additionally assume the FSM's
+threshold parameters (e.g.\ the suspicious- and sovereign-state thresholds,
+the hysteresis wait, and $K_{\text{DEEP\_FINALITY}}$) are protocol-level
+constants that every honest validator runs identically, in the same way
+every honest validator runs the same block-time or quorum-size parameter;
+this is required for the quorum-agreement mechanism described in
+Section~\ref{subsec:fsm} to function at all, since agreement depends on
+every honest validator's local evaluation of the transition function
+matching. A validator running a divergent
+threshold would simply fail to agree with the honest majority and could
+not contribute to quorum -- a liveness cost to that validator, not a safety
+hazard to the network -- so we do not treat threshold consistency as a
+Byzantine attack surface, but we note it here as an operational assumption
+this paper does not separately test. A related but distinct scenario is a
+genuine split view: validators running identical, correctly-configured
+thresholds can still disagree if their own external reads of Bitcoin, DA,
+or P2P health differ near a threshold boundary (e.g.\ 3 of 7 validators
+observing unhealthy Bitcoin connectivity while 4 observe healthy, neither
+side reaching the $\geq 2f{+}1$ quorum needed to commit either target
+state). Section~\ref{sec:evaluation} tests decisive splits only (a
+self-healing 1-of-7 view and a sub-quorum 2-of-7 view); a persistent split
+straddling the quorum boundary has not been tested and could in principle
+cause repeated nil-prevotes and round failures rather than a clean commit
+either way -- we return to this in Section~\ref{sec:discussion}.
+Section~\ref{sec:formal} restates
+(i)--(iii) as explicit preconditions on the safety and accountability
+property targeted there, and Appendix~\ref{app:reorg} tests assumption
+(ii) directly against real Bitcoin reorganizations. We do not assume
+Bitcoin, Celestia, or the P2P network are themselves Byzantine-fault
+tolerant in the sense the validator set is; the claim this design makes is
+that the FSM correctly degrades when any of these external networks
+becomes unavailable or unreliable, not that it substitutes for or defends
+against a Byzantine minority within Bitcoin's or Celestia's own respective
+consensus mechanisms, which is out of scope.
+
+\subsection{Finite State Machine Design}
+\label{subsec:fsm}
+
+The protocol maintains a four-state FSM that degrades gracefully across
+security levels instead of halting when an external dependency fails
+(Table~\ref{tab:fsm-states}). \textsc{Anchored} is normal operation, secured
+by both Bitcoin settlement and Celestia DA. \textsc{Suspicious} is an early
+warning state, reached after a sustained (not single-block) unhealthy
+reading; forced-transaction admission is rate-limited here rather than
+withdrawals being touched --
+withdrawals remain permitted throughout \textsc{Suspicious}, and are locked
+only in \textsc{Sovereign}/\textsc{Recovering} (Table~\ref{tab:fsm-states},
+\emph{Circuit Breaker Isolation}, Section~\ref{subsec:formal-invariants}).
+\textsc{Sovereign} is an active-partition fallback: the validator set
+continues producing blocks under its own quorum, without requiring
+external corroboration from Bitcoin or Celestia, and the circuit breaker
+locks all cross-chain withdrawals. \textsc{Recovering} is the resolution state, entered
+once connectivity is restored, during which all \textsc{Sovereign}-mode
+transitions are aggregated into a single recursive zero-knowledge proof for
+re-anchoring to Bitcoin.
+
+\begin{table}[h]
+\caption{FSM State Comparison}
+\label{tab:fsm-states}
+\centering
+\footnotesize
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{State} & \textbf{Security basis} & \textbf{Withdrawals} & \textbf{Throughput} & \textbf{Finality} \\
+\midrule
+\textsc{Anchored} & Bitcoin + Celestia DA & Permitted & Full & $\sim$10--60 min \\
+\textsc{Suspicious} & Bitcoin (degraded) & Permitted & Restricted$^{\dagger}$ & $\sim$10--60 min \\
+\textsc{Sovereign} & Local quorum & Locked & Full & $\sim$2 s \\
+\textsc{Recovering} & Local quorum + proof & Locked & Full & $\sim$2 s \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize $^{\dagger}$Forced-transaction admission is rate-limited by a
+bounded queue while \textsc{Suspicious} (Section~\ref{subsec:transitions}), not
+locked outright. \textsc{Anchored} and \textsc{Suspicious} share the same
+underlying Bitcoin finality window -- \textsc{Suspicious} reflects reduced
+throughput and admission, not a distinct finality timescale, since Bitcoin
+settlement is still degraded rather than replaced. Bitcoin-anchored
+finality figures reflect Bitcoin's own confirmation-time distribution and
+are not independently measured in this evaluation. More fundamentally,
+\textsc{Anchored}'s Bitcoin-derived finality and \textsc{Sovereign}'s BFT
+finality are not the same kind of guarantee -- one is probabilistic
+economic finality, the other is deterministic BFT finality -- and this
+table should not be read as claiming \textsc{Sovereign} is simply
+``faster-finalizing'' than \textsc{Anchored}.
+\end{table}
+
+Fig.~\ref{fig:fsm} shows the transition diagram. All transitions require
+greater than 2/3 quorum agreement through the consensus pipeline: sensors
+only \emph{propose} a target state, and a validator prevotes for a proposal
+only if the embedded FSM state matches its own local, deterministic
+evaluation of the same transition function.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+    >=Stealth, node distance=2.2cm, auto,
+    state/.style={rectangle, rounded corners, draw, minimum width=2.4cm,
+                  minimum height=1cm, align=center, font=\footnotesize}
+]
+\node[state] (anchored) {ANCHORED};
+\node[state, right=of anchored] (suspicious) {SUSPICIOUS};
+\node[state, below=of suspicious] (sovereign) {SOVEREIGN};
+\node[state, below=of anchored] (recovering) {RECOVERING};
+
+\draw[->] (anchored) -- node[font=\tiny]{\shortstack{Warning\\($k$ blocks)}} (suspicious);
+\draw[->] (anchored) -- node[font=\tiny, swap]{Critical} (sovereign);
+\draw[->] (suspicious) -- node[font=\tiny]{\shortstack{Critical /\\timeout}} (sovereign);
+\draw[->] (suspicious) to[bend left=15] node[font=\tiny]{\shortstack{Healthy\\($k$ blocks)}} (anchored);
+\draw[->] (sovereign) to[bend left=12] node[font=\tiny]{Healthy} (recovering);
+\draw[->] (recovering) to[bend left=12] node[font=\tiny]{\shortstack{Critical /\\non-critical$^{\times k}$}} (sovereign);
+\draw[->] (recovering) to[bend left=40] node[font=\tiny]{\shortstack{Healthy $\wedge$ safe\_blocks=$H$\\$\wedge$ ZK-proof valid}} (anchored);
+\end{tikzpicture}
+\vspace{4mm}
+\caption{Engram FSM state transition diagram. Every edge into
+\textsc{Anchored} or out of \textsc{Suspicious}/\textsc{Recovering} is gated
+by a hysteresis counter requiring $k$ (or $H$, the recovery-edge
+hysteresis wait) consecutive blocks, not a single reading.}
+\label{fig:fsm}
+\end{figure}
+
+\subsection{Network Sensors}
+\label{subsec:sensors}
+
+Three sensor categories feed the transition function; all are deterministic
+so that every honest validator computes the same target state from the same
+committed data.
+
+\textbf{Bitcoin finality gap.} $\Delta H_{\text{BTC}} = H_{\text{current}} -
+\min(H_{\text{submitted}}, H_{\text{anchored}})$ measures how far the latest
+checkpoint is from Bitcoin confirmation. A growing gap indicates Bitcoin
+congestion or a liveness attack on checkpointing. Because a delay-only metric
+cannot detect a \emph{forged} checkpoint, each validator additionally
+performs an off-band SPV check (Merkle-proof inclusion and block-header
+verification); a failed SPV check is treated as critical-severity, on par
+with an excessive gap, since it means the anchor height is unverifiable
+rather than merely stale.
+
+\textbf{Data availability gap.} $\Delta H_{\text{DA}} = H_{\text{local}} -
+H_{\text{verified}}$ measures the lag between the current chain head and the
+highest block for which a verified DA commitment has been received. The
+target design backs this with Celestia-style data-availability sampling and
+Blobstream attestation (Celestia's proof-of-inclusion bridge to external
+chains); Section~\ref{subsec:sim-to-real} discusses the gap
+between that target design and the current prototype, in which each
+validator trusts only its own network's Celestia bridge rather than
+sampling across the other validators' independent bridges.
+
+\textbf{P2P health (tri-interface profiler).} A raw peer count cannot
+distinguish a long-lived honest peer from a freshly injected Sybil, and
+eclipse attacks combine several attack vectors that no single metric
+captures~\cite{rehman2025eclipse}. Engram's P2P health check instead
+combines six structural, behavioral, and temporal bounds -- subnet
+diversity, active-anchor-peer count, clean-peer count, peer churn rate,
+average peer tenure, and peer latency -- applied uniformly to the Engram
+P2P interface, the Bitcoin SPV client, and the Celestia light client.
+Section~\ref{subsec:rq1} and Section~\ref{subsec:limitations}
+discuss the empirical effectiveness and the acknowledged scope limits of
+this profiler, respectively.
+
+\subsection{State Transition Logic and Hysteresis}
+\label{subsec:transitions}
+
+A \emph{warning} condition (a suspicious Bitcoin gap, an unhealthy DA
+reading, or unhealthy P2P quality) demotes \textsc{Anchored} to
+\textsc{Suspicious} only after a sustained streak of consecutive unhealthy
+blocks, absorbing single-block noise. A \emph{critical} condition (an
+excessive Bitcoin gap, a failed SPV check, complete anchor-peer isolation, or
+a suspicious-state timeout) escalates directly to \textsc{Sovereign} from
+either \textsc{Anchored} or \textsc{Suspicious}. Recovery in the opposite
+direction is deliberately harder than escalation: exiting
+\textsc{Suspicious} back to \textsc{Anchored}, or exiting
+\textsc{Recovering} back to \textsc{Anchored}, each requires a sustained
+streak of healthy blocks under a dedicated hysteresis counter, not a single
+healthy reading. This asymmetry -- fast to degrade, slow and quorum-gated to
+recover -- is what Section~\ref{subsec:rq3} evaluates
+quantitatively across all three hysteresis-gated edges. Separately from
+this hysteresis mechanism, \textsc{Suspicious} also caps the rate at which
+would-be-censored transactions can be force-included, via a bounded
+admission queue rather than by touching withdrawals (which stay permitted
+throughout \textsc{Suspicious}, Table~\ref{tab:fsm-states}); this queue cap
+is what gives \textsc{Suspicious} its ``Restricted'' throughput entry in
+Table~\ref{tab:fsm-states}, and Section~\ref{sec:discussion} returns to it
+as a partial mitigation against a repeated-trigger attack on the
+\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary.
+
+\subsection{Extended Proposal and Consensus Protocol}
+\label{subsec:proposal}
+
+The base consensus proposal is extended with four additional fields: the
+target FSM state, a DA receipt (last DA-verified height and an attestation
+flag), a Bitcoin receipt (checkpoint height and canonical block hash), and a
+reference to a re-anchoring ZK proof when applicable. A validator casts a
+prevote for a proposal only if all of the following hold: the embedded FSM
+state matches its own local transition function; the embedded health flag
+matches its own aggregated health certificate; the DA receipt and Bitcoin
+receipt are internally consistent and within a round-adaptive tolerance
+whenever the state is \textsc{Anchored}/\textsc{Recovering} or the
+corresponding layer is currently healthy; and, when the proposal claims
+exit from \textsc{Recovering} to \textsc{Anchored}, a valid ZK re-anchoring
+proof is attached. Section~\ref{subsec:rq4} measures the resulting
+proposal-size and validation-cost overhead directly.
+
+\subsection{Re-anchoring via Zero-Knowledge Proof of Recovery}
+\label{subsec:reanchoring}
+
+When the chain exits \textsc{Sovereign} mode, re-executing every
+locally-produced block on Bitcoin would be prohibitively expensive. Instead,
+a single dynamic-padding circuit (Noir, proved with Barretenberg's
+UltraHonk backend)~\cite{aztec_noir_barretenberg} attests to header-chain
+continuity, FSM-transition legality, and withdrawal-lock adherence across
+a \textsc{Sovereign} interval of up to $N_{\max}=256$ headers, at constant
+cost regardless of how many of those slots are real versus padding
+(Section~\ref{sec:evaluation}). We evaluated, and rejected, a true
+recursive-composition alternative in the style of proof-carrying
+data~\cite{bitansky2013recursive} -- aggregating many small per-header
+proofs via in-circuit verification of each inner proof -- because the
+in-circuit cost of verifying one inner UltraHonk proof dwarfs the cost of
+directly hashing a header, making recursion 650--1,200$\times$ slower than
+the dynamic-padding circuit at matched header counts in our benchmarks
+(Appendix~\ref{app:backend}); recursion is a better fit for proofs that
+are themselves expensive to re-verify (e.g.\ rollup batches), not cheap
+per-header hashing. A \textsc{Sovereign} interval longer than
+$N_{\max}$ headers is covered by a rolling sequence of dynamic-padding
+proofs, each starting where the last left off, rather than by a single
+proof over the whole interval -- so verification is $O(1)$ per proof, not
+$O(1)$ regardless of total interval length. Verification itself happens
+off-chain: every validator runs an embedded UltraHonk verifier locally, and
+only a commitment to the resulting state root is anchored on Bitcoin via
+the existing checkpoint mechanism (Section~\ref{subsec:sensors}) -- Bitcoin
+itself cannot evaluate the proof (its script is not expressive enough for
+UltraHonk verification), so its role after re-anchoring is timestamping
+and settlement of that commitment, not independent proof verification. A
+full backend comparison against an alternative STARK-based prover
+(Plonky3) is deferred to Appendix~\ref{app:backend}, since it evaluates a
+secondary design question (prover backend choice) rather than a core
+contribution.

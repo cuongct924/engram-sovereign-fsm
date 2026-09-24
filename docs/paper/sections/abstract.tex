@@ -1,0 +1,40 @@
+Modular blockchains decompose execution, settlement, and data availability (DA)
+across separate layers, but existing consensus protocols treat the liveness of
+these peripheral layers as a hard precondition: when Bitcoin settlement or a
+DA layer stalls, the chain halts rather than degrades. We present the
+\emph{Engram Hybrid Adaptive Consensus}, a CometBFT-based protocol that folds
+peripheral network health into the consensus object itself. A four-state
+finite state machine (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
+\textsc{Recovering}) is agreed upon by quorum alongside every block proposal,
+degrading monotonically into a local fallback that keeps producing blocks
+without external corroboration from Bitcoin or Celestia, instead of
+stalling, and re-anchoring to Bitcoin autonomously via a constant-cost,
+dynamic-padding zero-knowledge proof once peripherals recover. We bound-model-check each
+protocol layer's safety and liveness properties in isolation with TLA+
+(zero violations across 3.39 million distinct states, $1.02\times10^{9}$ generated, at each
+layer's own checked-in scale, $N{\le}4$) and run a five-mechanism ablation
+study at the FSM layer, each ablation reproducing a distinct, previously
+predicted failure mode; the cross-layer refinement check that would extend
+these per-layer guarantees to the full composed system at production scale
+($N{=}7$) is specified but not yet run to completion, which we report
+explicitly rather than presenting per-layer results as a substitute. We
+evaluate the reference implementation on a real 7-validator Cosmos SDK
+testnet against a live Bitcoin regtest network and a live Celestia DA
+network, using Docker-level and application-level fault injection. Under a
+layered composite fault (Bitcoin congestion, DA outage, and P2P churn
+overlapping), the chain sustains continuous block production and completes a
+full \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} recovery
+cycle with 100\% AppHash agreement across all validators. Hysteresis on all
+three state-transition edges is shown to trade uptime against flapping
+resistance in a quantifiable, tunable way. Under a representative Byzantine
+attack (a malicious proposer, tested at 4-node scale), safety holds with
+zero AppHash divergence. The extended consensus object adds a measured,
+near-constant steady-state overhead of +228 bytes per block, negligible
+validation cost ($\sim$18.25\,$\mu$s per proposal), and a
+$\sim$23--27\% reduction in block-production rate attributable to
+round-skip overhead, with no throughput
+ceiling found within the tested range (up to 100 tx/s). These results
+indicate that treating peripheral-layer health as a first-class,
+component-level-verified, and empirically validated consensus variable is a
+practical way to trade a small, bounded overhead for substantially stronger
+liveness guarantees in modular blockchain systems.

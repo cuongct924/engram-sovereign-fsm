@@ -1,0 +1,78 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Testbed}
+
+Most live results reported in Section~\ref{sec:evaluation} run on one
+7-validator testbed: a genuine Cosmos SDK application on a forked CometBFT
+core, deployed as a set of interconnected containers rather than an
+in-process simulation. Two experiments are an explicit exception, carried
+over from an earlier 4-validator cluster and not yet re-run at 7-validator
+scale: the RQ1 malicious-proposer test (Section~\ref{sec:evaluation}) and
+the eclipse/Sybil rows of Appendix~\ref{app:attacks}; we flag this
+inconsistency rather than let the blanket ``7-validator'' framing elsewhere
+in this section imply otherwise. The 7-validator testbed includes a
+Bitcoin regtest network (two nodes, with a continuous mining loop producing
+a block roughly every 20 seconds), a Celestia data-availability network
+with seven independent bridge nodes -- one per validator, so each
+validator retrieves its own DA view rather than the network sharing a
+single bridge -- and a zero-knowledge prover (Noir, proved with
+Barretenberg) that monitors for a \textsc{Sovereign}-mode backlog and
+submits recovery-proof transactions once one accumulates. Validator gossip
+runs over a dedicated full mesh of pairwise links, separate from the
+network carrying Bitcoin, Celestia, and RPC traffic.
+
+\subsection{Fault Injection}
+
+Two classes of fault injection are used. Network-level faults are induced
+through kernel-level traffic control, covering profiles for uniform
+delay/jitter, packet loss, single-node isolation (an eclipse-style
+partition), and heterogeneous per-validator wide-area-network delay/loss
+intended to approximate seven geographically distinct regions.
+Application-level faults are used where network delay alone cannot
+reproduce the failure mechanism of interest: Bitcoin congestion is induced
+by suspending new checkpoint submission at the application layer, so the
+finality gap grows directly rather than through added RPC latency; DA
+outages are induced by taking one or all seven Celestia bridge nodes
+offline; and Byzantine behavior is induced either through dedicated
+non-validator attacker processes or by configuring a validator instance to
+misreport its proposals, double-sign, or flood the network with timeout
+messages.
+
+\subsection{Sim-to-Real Gap}
+\label{subsec:sim-to-real}
+
+This testbed approximates a real decentralized deployment; it is not one,
+and we state the gap explicitly rather than leave it implicit. First, all
+containers share a single physical machine's CPU and memory, so a
+resource-contention condition can affect every validator simultaneously in
+a way that geographically separate hardware would not; during evaluation
+this manifested once as a contention-induced delay in the anchor
+verification path, which we identified and corrected before the
+measurements reported here were collected. Second, the testbed's Bitcoin
+network produces blocks roughly 30$\times$ faster than Bitcoin mainnet;
+height-based thresholds remain valid at any timescale, but the wall-clock
+timings reported in Section~\ref{sec:evaluation} would be proportionally
+longer in a mainnet deployment. Third, while the network runs seven
+independent bridge nodes (one per validator, not a single shared bridge),
+each validator's data-availability check currently trusts only its own
+bridge rather than cross-validating against the other validators' bridges
+through genuine light-client sampling; this is a deliberate scope choice
+for the current prototype, and it means our DA-outage results measure a
+bridge -- or all seven, taken offline together -- going down, not a
+sampling-detected partial failure of an otherwise-healthy network. We
+return to the implications of all three points in
+Section~\ref{sec:discussion}.
+
+\subsection{Baselines}
+
+Three baselines are used across the experiments in
+Section~\ref{sec:evaluation} and Appendix~\ref{app:attacks}: a vanilla
+CometBFT deployment that never activates the FSM's health-aware hook and
+therefore cannot leave its genesis \textsc{Anchored} state regardless of
+real peripheral health, used to establish that the fallback behavior is
+not an artifact of measurement; a peer-count-only P2P detector, used to
+isolate the marginal benefit of the tri-interface profiler
+(Section~\ref{subsec:sensors}); and each hysteresis edge's own floor
+parameter value (a threshold of zero, disabling that edge's hysteresis),
+used to isolate the marginal benefit of hysteresis itself.

@@ -1,0 +1,72 @@
+\documentclass[11pt]{article}
+
+% ==========================================
+% PACKAGES
+% ==========================================
+\usepackage[margin=1in]{geometry}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta}
+\usepackage{placeins}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% Single-column, prose-first layout: numbered sections in small caps,
+% generous paragraph spacing instead of two-column IEEE formatting.
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{0.6em}{}
+
+\title{\Large\bfseries Engram Hybrid Adaptive Consensus: A Sovereign
+Finite-State-Machine Fallback for Modular Blockchains}
+
+% TODO: dien ten that + affiliation.
+\author{Author One$^{1}$ \quad Author Two$^{1}$\\[4pt]
+\normalsize $^{1}$Department Name, Affiliation/University, City, Country\\
+\normalsize \texttt{email1@domain.com}, \texttt{email2@domain.com}}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+\input{sections/abstract}
+
+\vspace{6pt}
+\noindent\textbf{Keywords:} blockchain consensus, Byzantine fault
+tolerance, modular blockchain, finite state machine, formal verification,
+TLA+, zero-knowledge proofs
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/related_work}
+\input{sections/system_design}
+\input{sections/formal_verification}
+\input{sections/experimental_setup}
+\input{sections/evaluation}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\appendix
+\clearpage
+\begin{center}
+{\Large\bfseries Appendix}
+\end{center}
+\vspace{6pt}
+\input{sections/appendix}
+
+\end{document}
