@@ -70,9 +70,18 @@ func fsmInputFromMetrics(ctx sdk.Context, k *keeper.Keeper, metrics *types.Perip
 	}
 }
 
+// voteExtensionsAvailableAt reports whether the extended commit of extHeight
+// carries vote extensions (CometBFT's ABCIParams.VoteExtensionsEnabled). Only
+// then can a proposer be held to a >=2f+1 certificate.
+func voteExtensionsAvailableAt(ctx sdk.Context, extHeight int64) bool {
+	cp := ctx.ConsensusParams()
+	return cp.Abci != nil && cp.Abci.VoteExtensionsEnableHeight != 0 &&
+		extHeight >= cp.Abci.VoteExtensionsEnableHeight
+}
+
 // degradedMetrics is the fail-safe aggregate when quorum can't be reached
-// (chain start, or a Byzantine coalition withholding extensions): treat
-// health as maximally degraded rather than assume healthy.
+// (chain start, before any vote extension exists): treat health as
+// maximally degraded rather than assume healthy.
 func degradedMetrics(params types.Params) *types.PeripheralMetrics {
 	return &types.PeripheralMetrics{
 		BtcGap: params.SovereignThreshold,
@@ -316,6 +325,13 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		// have derived -- pure function over ext.Certificates, no live read.
 		metrics, aggOk := AggregateHealthCertificates(ctx, k, ctx.ChainID(), ext.Height, ext.Certificates)
 		if !aggOk {
+			// Once extensions exist, >=2f+1 is always available to an honest
+			// proposer; accepting less would let one proposer omit observations
+			// and force SOVEREIGN via the degraded fallback.
+			if voteExtensionsAvailableAt(ctx, ext.Height) {
+				fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=sub_quorum_certificate certs=%d\n", req.Height, req.Round, len(ext.Certificates))
+				return reject, nil
+			}
 			metrics = degradedMetrics(k.Params)
 		}
 		currState, in := fsmInputFromMetrics(ctx, k, metrics)

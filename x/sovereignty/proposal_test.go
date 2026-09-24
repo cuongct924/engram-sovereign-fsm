@@ -382,3 +382,61 @@ func TestCommitFSMTransition_TracksZKProofSubmission(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, proofValid, "proof is pending Bitcoin confirmation, not yet valid")
 }
+
+// withVoteExtensionsEnabledAt mirrors cmd/engramd's genesis, which enables
+// vote extensions from height 1 (so height 2 is the first proposal whose
+// LocalLastCommit carries them).
+func withVoteExtensionsEnabledAt(ctx sdk.Context, height int64) sdk.Context {
+	return ctx.WithConsensusParams(cmtproto.ConsensusParams{
+		Abci: &cmtproto.ABCIParams{VoteExtensionsEnableHeight: height},
+	})
+}
+
+// omittedQuorumProposal is a proposer keeping only 2 of 4 equal-power
+// certificates (below the 2f+1=3 quorum) and claiming the SOVEREIGN state a
+// maximally degraded aggregate would imply.
+func omittedQuorumProposal(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) []byte {
+	t.Helper()
+	cert := healthyAggregatedCertificate(t, k, ctx, reqHeight)
+	cert.Certificates = cert.Certificates[:2]
+	cert.FsmState = types.StateSovereign
+	cert.Healthy = false
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
+	require.NoError(t, err)
+	return tx
+}
+
+func TestProcessProposal_RejectsSubQuorumCertificateOnceExtensionsExist(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	tx := omittedQuorumProposal(t, k, ctx, 2)
+
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 2})
+	require.NoError(t, err)
+	require.False(t, resp.IsAccepted(),
+		"a proposer omitting observations below 2f+1 must not be able to force SOVEREIGN via the degraded fallback")
+}
+
+func TestProcessProposal_AcceptsFullQuorumCertificateOnceExtensionsExist(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	cert := healthyAggregatedCertificate(t, k, ctx, 2)
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
+	require.NoError(t, err)
+
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 2})
+	require.NoError(t, err)
+	require.True(t, resp.IsAccepted())
+}
+
+func TestProcessProposal_AcceptsDegradedFallbackBeforeExtensionsExist(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	// Height 1's LocalLastCommit (height 0) has no extensions at all, so no
+	// proposer can reach quorum -- the degraded fallback is the only option.
+	tx := omittedQuorumProposal(t, k, ctx, 1)
+
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
+	require.NoError(t, err)
+	require.True(t, resp.IsAccepted())
+}

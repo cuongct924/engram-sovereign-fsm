@@ -147,11 +147,11 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   proposer's residual influence is choosing \emph{which} honest value in the
   honest range is selected when honest validators genuinely disagree. If
   omission drops $S$ below quorum, the certificate is not well-formed and
-  honest validators reject the proposal. \pending{the implementation
-  currently substitutes a maximally degraded metric vector for a sub-quorum
-  certificate in \texttt{ProcessProposal} instead of rejecting it; change to
-  reject (except at the first height with vote extensions) and re-run
-  E8.}
+  honest validators reject the proposal. The only exception is the
+  first height after vote extensions are enabled, whose predecessor carries
+  no extensions; there the certificate is replaced by a maximally degraded
+  metric vector, the conservative choice. \pending{re-run E8 live with the
+  omission attack (B3).}
   \item \emph{Missing observations.} CometBFT's extended commit for $h{-}1$
   always contains extensions from at least $2f{+}1$ voting power, so an
   honest proposer can always build a well-formed certificate; missing
