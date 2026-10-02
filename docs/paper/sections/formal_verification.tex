@@ -63,16 +63,24 @@ no violation. The necessity of that assumption is therefore not established
 here.
 
 \textbf{Health certificates in the model.} The server layer models the
-certificate explicitly. Each validator's observation is a Boolean triple
-(healthy, warning, critical) in \texttt{sensor\_view}, written by
-\texttt{ServerExtendVote}; Byzantine validators may forge theirs. The
-proposer may choose any member set of at least $2f{+}1$, the aggregate is a
-per-field majority (\texttt{AggregateHealthCertificate}), and
-\texttt{IsValidProposal} rejects a certificate below $2f{+}1$
-(\texttt{IsWellFormedHealthCertificate}). Numeric metrics, the weighted
-median, signatures, and height binding are not modelled; Lemma~1 covers
-them on paper. Because the certificate lives in the server layer, its
-properties are checked only within the open refinement obligation.
+certificate explicitly. Each validator's observation holds three Booleans
+(healthy, warning, critical) and the Bitcoin and DA gaps clipped to $0..3$,
+written to \texttt{sensor\_view} by \texttt{ServerExtendVote}. A Byzantine
+validator may sign any observation; an honest validator with an eclipsed P2P
+layer may report a degraded one, never a healthier one. The proposer may
+choose any member set of at least $2f{+}1$. The aggregate
+(\texttt{AggregateHealthCertificate}) is a per-field majority for the
+Booleans and a weighted median for the gaps, and \texttt{IsValidProposal}
+rejects a certificate below $2f{+}1$.
+
+Lemma~1 is checked as \texttt{AggWithinHonestRange} with Apalache, with the
+observation vector left symbolic so that one check covers every vector. For
+$N{=}4$ and $f{=}1$ it reported no violation (22\,s). With two Byzantine
+validators in the same network it reports a violation (25\,s), so the bound
+on Byzantine members is necessary. Signatures, height binding, and the
+individual P2P counters are not modelled. The check covers the aggregate as a
+function; the certificate's role inside \texttt{IsValidProposal} is covered
+only by the open refinement obligation.
 
 \subsection{Safety Invariants and Attack Resilience Lemmas}
 \label{subsec:formal-invariants}
@@ -110,16 +118,16 @@ Section~\ref{subsec:threat-model}.
 \toprule
 \textbf{Layer / property} & \textbf{States gen.} & \textbf{Distinct} & \textbf{Depth} & \textbf{Time} & \textbf{Workers} & \textbf{Viol.} \\
 \midrule
-Tendermint (safety) & 3{,}573{,}347 & 509{,}883 & 25 & 2\,m\,58\,s & \pending{} & 0 \\
-FSM (safety) & 1{,}371{,}377{,}696 & 4{,}542{,}271 & 23 & 19\,m\,36\,s & 4 & 0 \\
-FSM (liveness) & 17{,}986{,}105 & 31{,}105 & 23 & 7\,m\,39\,s & 2 & 0 \\
+Tendermint (safety) & 3{,}772{,}809 & 537{,}536 & 25 & 1\,m\,01\,s & 10 & 0 \\
+FSM (safety) & 1{,}371{,}377{,}696 & 4{,}542{,}271 & 23 & 10\,m\,19\,s & 10 & 0 \\
+FSM (liveness) & 17{,}986{,}105 & 31{,}105 & 23 & 3\,m\,45\,s & 10 & 0 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
 \footnotesize Each row is one completed TLC run of that layer's driver. Depth is
 the number of breadth-first levels at which the search terminated with every
 state satisfying the state constraint explored, so it is the diameter of the
-constrained state graph and not a cap. Hardware: \pending{TLC host CPU and RAM}.
+constrained state graph and not a cap. Hardware: Apple M1 Pro, 10 cores, 32\,GB RAM.
 \end{table}
 
 Table~\ref{tab:formal-config} lists the bounds of each run.

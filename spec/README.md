@@ -48,6 +48,7 @@
     - [9.1 Verification Strategy](#91-verification-strategy)
     - [9.2 Formal Verification Stress Test](#92-formal-verification-stress-test)
       - [9.2.1. Per-Layer Verification Results (non-refinement)](#921-per-layer-verification-results-non-refinement)
+      - [9.2.2. Health-Certificate Bound (Apalache)](#922-health-certificate-bound-apalache)
     - [9.3 Ablation study & counterexample traces analysis](#93-ablation-study--counterexample-traces-analysis)
   - [References](#references)
   - [Future Work](#future-work)
@@ -463,7 +464,11 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 - `fsm_state` matches `CalculateNextFSMState`.
 - `healthy` matches `IsHealthyCondition` -- an independent check, since `fsm_state` alone can't distinguish genuinely healthy from hysteresis-absorbed-warning.
 - A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`IsWellFormedHealthCertificate`) -- checked alongside the `healthy` condition above, not in place of it.
-- That certificate formalizes the real pre-consensus mechanism (`x/sovereignty/vote_extension.go`): each validator signs its own sensor observation (`ServerExtendVote`/`sensor_view`), the proposer aggregates a >=2f+1 quorum via weighted-majority-per-field (`AggregateHealthCertificate`), and every validator re-verifies the certificate rather than recomputing from its own live sensors -- see SS7.4's "Fourth precondition for Target Property 7.1".
+- The certificate formalizes the real pre-consensus mechanism (`x/sovereignty/vote_extension.go`):
+  - Each validator signs its own observation (`ServerExtendVote` writes `sensor_view`): three predicates (`is_healthy`, `is_warning`, `is_critical`) and two clipped gaps (`btc_gap_obs`, `da_gap_obs`).
+  - The proposer picks a member set of at least `THRESHOLD2` and aggregates it (`AggregateHealthCertificate`): per-field majority for predicates, weighted median (`WeightedMedianOf`) for gaps.
+  - Every validator re-verifies that certificate; none recomputes it from its own live sensors.
+- A certificate below `THRESHOLD2` is rejected (`IsWellFormedHealthCertificate`). In the implementation this applies once vote extensions exist for the previous height (`x/sovereignty/proposal.go`, `sub_quorum_certificate`); only the first height after extensions are enabled falls back to a degraded aggregate.
 - The DA receipt is valid and within `DATolerance(r)`'s round-adaptive gap, whenever `fsm_state \in {ANCHORED, RECOVERING}` or `IsDAHealthy`.
 - `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifyAnchorReceipt(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
 - Withdrawals are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (same scope as §7.1's `CircuitBreakerSafety`).
@@ -547,7 +552,7 @@ Every property in §7–§8 carries one of these statuses:
 
 | Status | Meaning |
 |---|---|
-| **Checked** | Zero violations in a completed per-layer TLC run (§9.2.1), within that config's bounds |
+| **Checked** | Zero violations in a completed per-layer TLC run (§9.2.1) or a completed Apalache check (§9.2.2), within that config's bounds |
 | **Open** | Specified and listed only in the full-stack refinement configs (§9.2), which have not completed |
 | **Partial** | Bounded Apalache search reached some depth with zero violations but did not finish |
 | **By construction** | Holds structurally from how the spec defines the relevant sets; no search needed |
@@ -565,6 +570,7 @@ Every property in §7–§8 carries one of these statuses:
 | 7.3 Long-Range Attack Prevention | `BTCConsistency` | `MC_ServerRefinementSafety` | Open |
 | 7.4 Message Flooding Bound | `FaultyPrevotes`/`FaultyPrecommits`/`FaultyTimeouts` | — | By construction |
 | 7.5 Eclipse Resilience | `IsHealthyCondition`, `IsCriticalCondition` | `MC_FSMSafety`, `MC_FSMLiveness`; §9.3.2.F | Checked (FSM layer); Partial (proposal layer) |
+| L1 Health-Certificate Bound (Lemma 1) | `AggWithinHonestRange` | `MC_HealthCertificate_Apalache` | Checked (all observation vectors, N=4, f=1) |
 | 7.6 Accountability | `Accountability` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
 | Agreement | `AgreementOnValue` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
 | L1 Consensus liveness under GST | `EventualDecisionUnderGSTLiveness` | `MC_ServerRefinementLiveness` | Open |
@@ -740,10 +746,10 @@ Third standing precondition for Target Property 7.1 (with partial synchrony and 
 
 ### 7.4 Threat Model Boundary: Sensor View Homogeneity
 
-- `EngramFSM.tla` models `btc_gap`/`da_gap`/P2P health as single global variables -- validators are assumed to see a near-identical peripheral view. Sound under partial synchrony, but doesn't model *persistently, adversarially heterogeneous* local views -- enough disagreement forces repeated round-skips.
+- `EngramFSM.tla` models `btc_gap`/`da_gap`/P2P health as single global variables -- the FSM layer assumes a near-identical peripheral view (per-validator observations live in `sensor_view`, §6.2). Sound under partial synchrony, but doesn't model *persistently, adversarially heterogeneous* local views -- enough disagreement forces repeated round-skips.
 - **Exposure isn't uniform:** BTC/DA gaps come from a shared external chain, consistent across validators up to propagation delay. P2P health (`IsP2PQualityHealthy`) is the one genuinely node-local, subjective signal -- the real attack surface here.
 - **What bounds it today:** a liveness lock needs *every* proposer's `fsm_state` rejected for enough rounds that GST is never reached -- leans on the existing partial-synchrony precondition, not a new failure mode. But since the proposer schedule is public, an adversary only needs to eclipse whichever single node is about to propose and rotate each round -- materially cheaper than a simultaneous majority eclipse, though still GST-bounded.
-- **Fourth precondition for Target Property 7.1:** safety/liveness hold given sensor views converge within GST to reach quorum on one `fsm_state`, not that every view is identical. The pre-consensus sensor-aggregation phase this precondition calls for is both implemented (`x/sovereignty/vote_extension.go`) and formalized (`EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal`) -- see SS6.2 for the mechanism and SS9's Future Work note on the modeling simplification involved.
+- **Fourth precondition for Target Property 7.1:** safety and liveness hold given that sensor views converge within GST to reach a quorum on one `fsm_state`, not that every view is identical. The certificate that enforces this is implemented and modeled; its mechanism is in §6.2 and its bound is `AggWithinHonestRange` (§9.2.2).
 
 ## 8. Liveness Analysis and Autonomous Recovery
 
@@ -869,11 +875,39 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 
 | Layer | Config | Key Parameters | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2 | 3,573,347 | 509,883 | 25 | 2m58s | 0 |
-| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2; re-run with `da_backfill_valid` and `DABackfill`, 4 workers | 1,371,377,696 | 4,542,271 | 23 | 19m36s | 0 |
-| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above; re-run with `da_backfill_valid` and `DABackfill`, 2 workers | 17,986,105 | 31,105 | 23 | 7m39s | 0 |
+| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2; numeric certificate observations, 10 workers | 3,772,809 | 537,536 | 25 | 1m01s | 0 |
+| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2; re-run with the numeric certificate observations, 10 workers | 1,371,377,696 | 4,542,271 | 23 | 10m19s | 0 |
+| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above; re-run with the numeric certificate observations, 10 workers | 17,986,105 | 31,105 | 23 | 3m45s | 0 |
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety would be established only via `RefinementSafety` in `MC_ServerRefinementSafety`, which is open, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
+
+#### 9.2.2. Health-Certificate Bound (Apalache)
+
+`AggWithinHonestRange` states Lemma 1 for the numeric certificate: for every member set of at least `THRESHOLD2` with at most `T` Byzantine members, each aggregated gap lies within the range of the honest members' observations, and a predicate on which all honest members agree keeps that value. Eclipsed honest validators count as honest; their degraded readings (`EclipsedReadings`) define the range.
+
+`MC_HealthCertificate_Apalache.tla` leaves the initial `sensor_view` fully symbolic and only stutters, so one length-1 check covers every observation vector, not only those `ServerExtendVote` reaches.
+
+| Constants | Invariant | Result | Time |
+| :--- | :--- | :--- | ---: |
+| `ApalacheCInit`: N=4, one Byzantine, `ObsCap`=3 | `AggWithinHonestRange` | No error | 22.0s |
+| `ApalacheCInit_TwoByzantine`: N=4, two Byzantine | `Sanity_AggWithinHonestRange_NoByzantineBound` | Violated at state 0 | 24.6s |
+
+The second row drops the `T` bound on Byzantine members and shows the invariant is not vacuous. Trace: `spec/traces/ablation_agg_no_byzantine_bound.{itf.json,trace.tla}`.
+
+```bash
+export JAVA_HOME=<path to JDK 17+>
+export PATH="$JAVA_HOME/bin:$PATH"
+cd spec
+
+~/tools/apalache/apalache/bin/apalache-mc check \
+  --cinit=ApalacheCInit --init=HCInit --next=HCNext \
+  --inv=AggWithinHonestRange --length=1 \
+  core/MC_HealthCertificate_Apalache.tla
+```
+
+Expected: `The outcome is: NoError`. Replace `--cinit` and `--inv` with the second row's values to reproduce the violation.
+
+Scope: the aggregate is checked per observation vector, not under the Tendermint round structure; the certificate's role inside `IsValidProposal` is still covered only by the open refinement configs (§9.2). Raw P2P counters stay folded into the three predicates.
 
 ### 9.3. Ablation study & counterexample traces analysis
 
@@ -1125,9 +1159,13 @@ The current results use a small-scope hypothesis (4 nodes, $f = 1$). Extending t
 
 ### Sensor Aggregation Pre-Consensus Phase
 
-Formalized: `EngramVars.tla`'s `sensor_view` (per-validator signed observation) and `health_certs` (aggregated certificate), `EngramFSM.tla`'s `AggregateHealthCertificate`, `EngramServer.tla`'s `ServerExtendVote` hook, and `EngramTendermint.tla`'s certificate cross-check in `IsValidProposal` -- see SS6.2.
+Formalized: `sensor_view` and `health_certs` (`EngramVars.tla`), `AggregateHealthCertificate`/`WeightedMedianOf`/`EclipsedReadings` (`EngramFSM.tla`), `ServerExtendVote` (`EngramServer.tla`) and the certificate cross-check in `IsValidProposal` (`EngramTendermint.tla`); the mechanism is in §6.2 and Lemma 1 is checked in §9.2.2.
 
-**Modeling simplification, still open:** heterogeneity is modeled at the three-predicate boundary (`is_healthy`/`is_warning`/`is_critical`) rather than by giving each raw sensor field (`btc_gap`, `da_gap`, individual P2P counters) an independent per-validator value -- the latter would multiply TLC's state space by that field count per validator for little additional insight, since `btc_gap`/`da_gap` already come from a shared external chain (SS7.4: consistent across validators up to propagation delay) and P2P health is already the one flagged genuinely-subjective signal. A correct, non-eclipsed validator's `sensor_view` always equals the true global predicates in this model; only Byzantine forgery of `sensor_view` is modeled as a source of divergence today, not genuine per-validator P2P eclipse. Extending `sensor_view` to diverge for correct-but-eclipsed validators too remains open.
+Still open:
+- Per-validator raw P2P counters (subnet diversity, anchors, churn, tenure, latency). They stay folded into the three predicates, which keeps the numeric domain to the two shared-chain gaps.
+- Eclipse is modeled as degradation only: an eclipsed honest validator may look worse than the truth, never healthier.
+- Signatures and height binding. The spec models no cryptography; the implementation verifies them in `AggregateHealthCertificates`.
+- Certificate behaviour under the Tendermint round structure, which depends on the open refinement (§9.2).
 
 
 ## How to Run the Verification
