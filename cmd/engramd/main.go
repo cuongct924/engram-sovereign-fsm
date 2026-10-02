@@ -235,12 +235,13 @@ func testnetInitFilesCmd() *cobra.Command {
 		chainID        string
 		hostnamePrefix string
 		startingPort   int
+		peerHosts      []string
 	)
 	cmd := &cobra.Command{
 		Use:   "testnet init-files",
 		Short: "Generate N validator home directories sharing one genesis, for a real multi-node testnet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return testnetInitFiles(outputDir, numValidators, chainID, hostnamePrefix, startingPort)
+			return testnetInitFiles(outputDir, numValidators, chainID, hostnamePrefix, startingPort, peerHosts)
 		},
 	}
 	cmd.Flags().IntVar(&numValidators, "v", 4, "number of validators")
@@ -248,6 +249,7 @@ func testnetInitFilesCmd() *cobra.Command {
 	cmd.Flags().StringVar(&chainID, "chain-id", "engram-dev-1", "chain ID for the shared genesis")
 	cmd.Flags().StringVar(&hostnamePrefix, "hostname-prefix", "engram-node", "moniker/hostname prefix, nodes are named <prefix>01, <prefix>02, ...")
 	cmd.Flags().IntVar(&startingPort, "p2p-port", 26656, "P2P port every node listens on (same port on every node -- each is a distinct Docker hostname, not distinct ports)")
+	cmd.Flags().StringSliceVar(&peerHosts, "peer-hosts", nil, "multi-host deployment: one routable host/IP per validator, in node order (deploy/README.md); replaces the Docker pairwise-link IPs in persistent_peers and sets external_address")
 	return cmd
 }
 
@@ -273,9 +275,12 @@ func pairwiseLinkPeerIP(self, peer, n int) string {
 	return fmt.Sprintf("172.40.%d.3", link)
 }
 
-func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p2pPort int) error {
+func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p2pPort int, peerHosts []string) error {
 	if n < 1 {
 		return fmt.Errorf("need at least 1 validator, got %d", n)
+	}
+	if len(peerHosts) != 0 && len(peerHosts) != n {
+		return fmt.Errorf("--peer-hosts needs exactly %d entries (one per validator), got %d", n, len(peerHosts))
 	}
 
 	type nodeInfo struct {
@@ -355,8 +360,16 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 			if j == i {
 				continue
 			}
-			peerIP := pairwiseLinkPeerIP(i, j, n)
-			peers = append(peers, fmt.Sprintf("%s@%s:%d", other.nodeID, peerIP, p2pPort))
+			peerAddr := pairwiseLinkPeerIP(i, j, n)
+			if len(peerHosts) > 0 {
+				peerAddr = peerHosts[j]
+			}
+			peers = append(peers, fmt.Sprintf("%s@%s:%d", other.nodeID, peerAddr, p2pPort))
+		}
+		if len(peerHosts) > 0 {
+			// A cloud VM's public IP is not on its own interface, so the node cannot learn
+			// the address its peers must dial.
+			config.P2P.ExternalAddress = fmt.Sprintf("%s:%d", peerHosts[i], p2pPort)
 		}
 		config.P2P.PersistentPeers = strings.Join(peers, ",")
 

@@ -1,0 +1,26 @@
+---
+- name: Create the node directory
+  ansible.builtin.file:
+    path: "{{ remote_base }}/node"
+    state: directory
+    mode: "0700"
+
+- name: Render the node compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ remote_base }}/node/docker-compose.yml"
+    mode: "0600"   # carries the Bitcoin RPC password
+
+- name: Start this validator's Celestia bridge
+  ansible.builtin.command:
+    cmd: docker compose up -d celestia-bridge
+    chdir: "{{ remote_base }}/node"
+  changed_when: true
+
+- name: Wait for the bridge to serve requests
+  ansible.builtin.command: docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' celestia-bridge
+  register: bridge_health
+  until: bridge_health.stdout == 'healthy'
+  retries: 60
+  delay: 5
+  changed_when: false

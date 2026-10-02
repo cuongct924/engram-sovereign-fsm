@@ -1,0 +1,63 @@
+---
+- name: Check required variables
+  ansible.builtin.assert:
+    that:
+      - bitcoin_rpc_password | length > 0
+      - operator_cidrs | length > 0
+      - groups['infra'] | length == 1
+      - groups['validators'] | length >= 4
+      - groups['validators'] | map('extract', hostvars, 'node_index') | map('int') | sort == range(1, (groups['validators'] | length) + 1) | list
+      - engram_mode in ['engram', 'hard-gated', 'soft']
+    fail_msg: >-
+      Set BITCOIN_RPC_PASSWORD, set operator_cidrs, give the inventory exactly one infra host and
+      >= 4 validators whose node_index values are 1..N with no gaps (see inventory/example.yml).
+    quiet: true
+
+- name: Check the CometBFT fork checkout exists (go.mod replace target)
+  ansible.builtin.stat:
+    path: "{{ cometbft_fork_dir }}"
+  register: fork
+  failed_when: not fork.stat.exists
+  changed_when: false
+
+- name: Create the generated directory
+  ansible.builtin.file:
+    path: "{{ generated_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Build engramd for the controller (generates genesis)
+  ansible.builtin.command:
+    cmd: go build -o {{ generated_dir }}/engramd ./cmd/engramd
+    chdir: "{{ engram_repo_dir }}"
+  changed_when: false
+
+- name: Generate one genesis and one home per validator
+  ansible.builtin.command:
+    cmd: >-
+      {{ generated_dir }}/engramd testnet init-files
+      --v {{ validator_count }}
+      --chain-id {{ engram_chain_id }}
+      --output-dir {{ generated_dir }}/testnet-data
+      --peer-hosts {{ (groups['validators'] | map('extract', hostvars) | sort(attribute='node_index')
+                       | map(attribute='peer_host') | list) | join(',') }}
+    creates: "{{ generated_dir }}/testnet-data/engram-node01/config/genesis.json"
+  environment: "{{ engram_params | default({}) | combine({'ENGRAM_PARAM_NOOP': ''}) }}"
+
+- name: Archive the sources the hosts build images from
+  ansible.builtin.shell: |
+    set -e
+    tmp=$(mktemp -d)
+    ln -s "{{ engram_repo_dir }}" "$tmp/engram-sovereign-fsm"
+    ln -s "{{ cometbft_fork_dir }}" "$tmp/engram-consensus-core"
+    tar -C "$tmp" -chzf "{{ generated_dir }}/src.tgz" \
+      --exclude='.git' --exclude='.venv' --exclude='data' --exclude='testnet-data' \
+      --exclude='build' --exclude='deploy' --exclude='docs/paper' --exclude='__pycache__' \
+      --exclude='results' --exclude='results_live' \
+      --exclude='scripts/e6_zk_reanchoring_benchmark' --exclude='.claude' --exclude='*.pdf' --exclude='target' \
+      --exclude='engram-consensus-core/docs' \
+      engram-sovereign-fsm engram-consensus-core
+    rm -rf "$tmp"
+  args:
+    executable: /bin/bash
+  changed_when: true

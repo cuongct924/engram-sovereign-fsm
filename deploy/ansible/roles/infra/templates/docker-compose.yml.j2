@@ -1,0 +1,132 @@
+name: engram-infra
+
+# Bitcoin regtest + the single-validator Celestia chain the validators' bridges attach to.
+# Named volumes (not bind mounts) so each image's own user owns its data directory.
+services:
+  bitcoin-node01:
+    image: lncm/bitcoind:{{ bitcoin_version }}
+    container_name: bitcoin-node01
+    restart: unless-stopped
+    ports:
+      - "18443:18443"
+      - "18444:18444"
+    volumes:
+      - bitcoin-data:/home/bitcoin/.bitcoin
+    # See docker/bitcoin-regtest-cluster.yml: -datadir forces the real mount, -wallet auto-loads
+    # engramwallet, -rpcworkqueue=128 survives 7 validators' per-block polling.
+    command:
+      - -datadir=/home/bitcoin/.bitcoin
+      - -wallet=engramwallet
+      - -printtoconsole
+      - -regtest=1
+      - -server=1
+      - -txindex=1
+      - -rpcuser={{ bitcoin_rpc_user }}
+      - -rpcpassword={{ bitcoin_rpc_password }}
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -rpcworkqueue=128
+      - -fallbackfee=0.0002
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-regtest", "-rpcuser={{ bitcoin_rpc_user }}", "-rpcpassword={{ bitcoin_rpc_password }}", "getblockcount"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  bitcoin-miner-loop:
+    image: lncm/bitcoind:{{ bitcoin_version }}
+    container_name: bitcoin-miner-loop
+    restart: unless-stopped
+    environment:
+      - BITCOIN_RPC_HOST=bitcoin-node01
+      - BITCOIN_RPC_PORT=18443
+      - BITCOIN_RPC_USER={{ bitcoin_rpc_user }}
+      - BITCOIN_RPC_PASSWORD={{ bitcoin_rpc_password }}
+      - BITCOIN_WALLET=engramwallet
+    entrypoint: ["/bin/sh", "/scripts/bitcoin_miner_loop.sh", "{{ miner_interval_s }}"]
+    volumes:
+      - {{ remote_base }}/engram-sovereign-fsm/scripts/bitcoin_miner_loop.sh:/scripts/bitcoin_miner_loop.sh:ro
+    profiles: [miner]
+
+  celestia-app:
+    image: ghcr.io/celestiaorg/celestia-app:{{ celestia_app_version }}
+    container_name: celestia-app
+    restart: unless-stopped
+    ports:
+      - "26657:26657"
+      - "9090:9090"
+    environment:
+      - CELESTIA_CHAIN_ID=private
+    volumes:
+      - celestia-app-data:/home/celestia
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:26657/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+      start_period: 40s
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -f /home/celestia/.celestia-app/config/genesis.json ] || [ -d /home/celestia/.celestia-app/config/gentx ]; then
+          celestia-appd init mynode --chain-id private &&
+          celestia-appd keys add validator --keyring-backend test >> /home/celestia/admin_seed.txt 2>&1 &&
+          celestia-appd add-genesis-account validator 1000000000000utia --keyring-backend test &&
+          celestia-appd gentx validator 5000000000utia --chain-id private --keyring-backend test &&
+          celestia-appd collect-gentxs &&
+          sed -i 's/indexer = "null"/indexer = "kv"/' /home/celestia/.celestia-app/config/config.toml
+        fi
+        celestia-appd start --rpc.laddr tcp://0.0.0.0:26657 --minimum-gas-prices 0.001utia --grpc.enable --grpc.address 0.0.0.0:9090
+
+{% if prover_enabled | bool %}
+  # The prover's own bridge/account, separate from the validators' bridges (see
+  # docker/celestia-local-cluster.yml's celestia-bridge-prover).
+  celestia-bridge-prover:
+    image: ghcr.io/celestiaorg/celestia-node:{{ celestia_node_version }}
+    container_name: celestia-bridge-prover
+    restart: unless-stopped
+    volumes:
+      - bridge-prover-data:/home/celestia
+    depends_on:
+      celestia-app:
+        condition: service_healthy
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip celestia-app &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://celestia-app:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip celestia-app --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+    profiles: [prover]
+
+  reanchoring-prover:
+    build:
+      context: {{ remote_base }}/engram-sovereign-fsm
+      dockerfile: docker/reanchoring-prover/Dockerfile
+      additional_contexts:
+        cometbft-fork: {{ remote_base }}/engram-consensus-core
+    container_name: reanchoring-prover
+    restart: unless-stopped
+    init: true
+    environment:
+      - NODE_URL=http://{{ (groups['validators'] | map('extract', hostvars) | sort(attribute='node_index') | first).ansible_host }}:26657
+      - POLL_INTERVAL_S=3
+      - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
+      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN:-}
+    profiles: [prover]
+{% endif %}
+
+volumes:
+  bitcoin-data:
+  celestia-app-data:
+{% if prover_enabled | bool %}
+  bridge-prover-data:
+{% endif %}

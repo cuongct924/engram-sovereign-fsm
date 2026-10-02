@@ -1,0 +1,31 @@
+---
+# Stops everything and wipes chain state on every host so the next site.yml starts from a fresh
+# genesis. Run with -e wipe_generated=true to also delete the controller's generated genesis/keys
+# (required before a new deploy; keeping them with wiped hosts reuses stale validator state).
+- name: Wipe hosts
+  hosts: infra:validators
+  become: true
+  tasks:
+    - name: Stop and remove containers and volumes
+      ansible.builtin.shell: |
+        for d in {{ remote_base }}/infra {{ remote_base }}/node; do
+          [ -f "$d/docker-compose.yml" ] && docker compose -f "$d/docker-compose.yml" down -v --remove-orphans
+        done
+        true
+      changed_when: true
+    - name: Remove node homes and compose state
+      ansible.builtin.file:
+        path: "{{ remote_base }}/{{ item }}"
+        state: absent
+      loop: [node, infra]
+
+- name: Wipe controller artifacts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove generated genesis, keys and source archive
+      ansible.builtin.file:
+        path: "{{ generated_dir }}"
+        state: absent
+      when: wipe_generated | default(false) | bool

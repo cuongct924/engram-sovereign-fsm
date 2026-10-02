@@ -1,0 +1,64 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, jq, ufw, chrony, rsync, python3]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Block timestamps are medians of validators' clocks: keep every host disciplined by NTP.
+- name: Enable time synchronisation
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Install Docker (engine, compose and buildx plugins)
+  ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
+  args:
+    creates: /usr/bin/docker
+
+- name: Start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create the base directory
+  ansible.builtin.file:
+    path: "{{ remote_base }}"
+    state: directory
+    mode: "0755"
+
+- name: Upload sources (validators build engramd; infra builds the prover)
+  ansible.builtin.unarchive:
+    src: "{{ generated_dir }}/src.tgz"
+    dest: "{{ remote_base }}"
+  when: inventory_hostname in groups['validators'] or (prover_enabled | bool)
+  tags: [sources]
+
+- name: Allow SSH before enabling the firewall
+  ansible.builtin.command: ufw allow 22/tcp
+  changed_when: false
+
+- name: Compute this host's firewall rules (source, port)
+  ansible.builtin.set_fact:
+    fw_rules: >-
+      {{
+        (
+          ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) | difference([ansible_host]) | product([26656]) | list)
+          + (([infra_host] + operator_cidrs) | product([26657]) | list)
+        ) if inventory_hostname in groups['validators'] else (
+          ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) + operator_cidrs) | product([18443]) | list
+          + ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) | product([26657, 9090]) | list)
+        )
+      }}
+
+- name: Open the ports this host needs
+  ansible.builtin.command: "ufw allow from {{ item[0] }} to any port {{ item[1] }} proto tcp"
+  loop: "{{ fw_rules }}"
+  changed_when: false
+
+- name: Enable the firewall
+  ansible.builtin.command: ufw --force enable
+  changed_when: false

@@ -1,0 +1,31 @@
+---
+# Prints each validator's height, catching_up flag and peer count, plus the infra Bitcoin height.
+- name: Validator status
+  hosts: validators
+  gather_facts: false
+  tasks:
+    - name: Query CometBFT /status and /net_info
+      ansible.builtin.shell: |
+        s=$(curl -s --max-time 5 http://127.0.0.1:26657/status)
+        n=$(curl -s --max-time 5 http://127.0.0.1:26657/net_info)
+        echo "$s" | jq -r '"height=\(.result.sync_info.latest_block_height) catching_up=\(.result.sync_info.catching_up)"' | tr '\n' ' '
+        echo "$n" | jq -r '"peers=\(.result.n_peers)"'
+      register: out
+      changed_when: false
+    - ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ out.stdout }}"
+
+- name: Infra status
+  hosts: infra
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Bitcoin height and wallet balance
+      ansible.builtin.shell: >
+        docker exec bitcoin-node01 bitcoin-cli -regtest -rpcuser={{ bitcoin_rpc_user }}
+        -rpcpassword={{ bitcoin_rpc_password }} -rpcwallet=engramwallet getblockcount
+      register: out
+      changed_when: false
+      no_log: true
+    - ansible.builtin.debug:
+        msg: "bitcoin regtest height: {{ out.stdout }}"

@@ -1,0 +1,33 @@
+---
+# Runs after the validators are up: the prover polls validator RPC. The bridge-prover token
+# is fetched from its container and the account funded before the prover starts.
+- name: Skip unless the prover is enabled
+  ansible.builtin.meta: end_host
+  when: not (prover_enabled | bool)
+
+- name: Fund the prover's Celestia account
+  ansible.builtin.command:
+    cmd: bash {{ remote_base }}/engram-sovereign-fsm/scripts/testnet_fund_celestia_bridge.sh celestia-bridge-prover
+  changed_when: false
+
+- name: Read the prover bridge's admin token
+  ansible.builtin.command: docker exec celestia-bridge-prover cat /home/celestia/bridge_auth.txt
+  register: prover_token
+  until: prover_token.stdout | length > 0
+  retries: 30
+  delay: 3
+  changed_when: false
+  no_log: true
+
+- name: Write the token where compose reads it
+  ansible.builtin.copy:
+    content: "CELESTIA_BRIDGE_PROVER_AUTH_TOKEN={{ prover_token.stdout }}\n"
+    dest: "{{ remote_base }}/infra/.env"
+    mode: "0600"
+  no_log: true
+
+- name: Build and start the prover
+  ansible.builtin.command:
+    cmd: docker compose --profile prover up -d --build reanchoring-prover
+    chdir: "{{ remote_base }}/infra"
+  changed_when: true

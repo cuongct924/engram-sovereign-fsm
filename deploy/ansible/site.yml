@@ -1,0 +1,52 @@
+---
+# Full deploy. Idempotent; re-run after fixing a failure. A fresh chain needs teardown.yml first
+# (a stale priv_validator_state.json trips FilePV's anti-double-sign guard, see CLAUDE.md).
+- name: Build engramd and generate genesis on the controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles: [controller]
+  tags: [prepare]
+
+- name: Base setup (Docker, time sync, firewall, sources)
+  hosts: infra:validators
+  become: true
+  roles: [common]
+  tags: [common]
+
+- name: Infra host (Bitcoin regtest, miner, celestia-app, prover)
+  hosts: infra
+  become: true
+  roles: [infra]
+  tags: [infra]
+
+- name: Per-validator Celestia bridges
+  hosts: validators
+  become: true
+  roles: [bridge]
+  tags: [bridge]
+
+- name: Fund the bridges, one at a time (a single funding account races on sequence numbers)
+  hosts: validators
+  serial: 1
+  become: true
+  tasks:
+    - ansible.builtin.import_role:
+        name: bridge
+        tasks_from: fund
+  tags: [fund]
+
+- name: Start the validators
+  hosts: validators
+  become: true
+  roles: [engramd]
+  tags: [engramd]
+
+- name: Start the ZK prover (needs validator RPC to be up)
+  hosts: infra
+  become: true
+  tasks:
+    - ansible.builtin.import_role:
+        name: infra
+        tasks_from: prover
+  tags: [prover]

@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars and edit.
+operator_cidrs = ["198.51.100.7/32"] # the machine that runs the experiment scripts
+validator_regions = ["nyc3", "nyc3", "ams3", "fra1", "sfo3", "sgp1", "blr1"]

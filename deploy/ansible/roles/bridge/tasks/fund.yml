@@ -1,0 +1,35 @@
+---
+# Runs serially. An unfunded bridge account makes every blob.Submit fail, which keeps the FSM in
+# SOVEREIGN forever (CLAUDE.md, Troubleshooting) -- so this must finish before engramd starts.
+- name: Read the bridge's admin token
+  ansible.builtin.command: docker exec celestia-bridge celestia bridge auth admin --node.store /home/celestia
+  register: bridge_token
+  until: bridge_token.stdout | length > 0
+  retries: 30
+  delay: 3
+  changed_when: false
+  no_log: true
+
+- name: Resolve the bridge's blob-submission account address
+  ansible.builtin.shell: |
+    docker exec celestia-bridge curl -s -X POST \
+      -H "Content-Type: application/json" -H "Authorization: Bearer {{ bridge_token.stdout }}" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"state.AccountAddress","params":[]}' \
+      http://localhost:26658 | jq -r '.result'
+  register: bridge_addr
+  changed_when: false
+  no_log: true
+  failed_when: bridge_addr.stdout | length == 0 or bridge_addr.stdout == 'null'
+
+- name: Fund the account from the celestia-app genesis account (runs on the infra host)
+  ansible.builtin.script:
+    cmd: fund_address.sh {{ bridge_addr.stdout }}
+  delegate_to: "{{ groups['infra'][0] }}"
+  changed_when: true
+
+- name: Pass the token to compose
+  ansible.builtin.copy:
+    content: "CELESTIA_BRIDGE_AUTH_TOKEN={{ bridge_token.stdout }}\n"
+    dest: "{{ remote_base }}/node/.env"
+    mode: "0600"
+  no_log: true

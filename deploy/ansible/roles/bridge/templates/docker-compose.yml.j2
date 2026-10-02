@@ -1,0 +1,70 @@
+name: engram-node
+
+services:
+  # This validator's own DA observer, attached to the infra celestia-app. One bridge per
+  # validator keeps DA availability a set of independent observations (docs/EXPERIMENT.md).
+  celestia-bridge:
+    image: ghcr.io/celestiaorg/celestia-node:{{ celestia_node_version }}
+    container_name: celestia-bridge
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:26658:26658"
+    volumes:
+      - bridge-data:/home/celestia
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip {{ infra_host }} &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://{{ infra_host }}:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip {{ infra_host }} --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  engramd:
+    build:
+      context: {{ remote_base }}/engram-sovereign-fsm
+      additional_contexts:
+        cometbft-fork: {{ remote_base }}/engram-consensus-core
+    image: engram/engramd:local
+    container_name: engramd
+    hostname: {{ inventory_hostname }}
+    restart: unless-stopped
+    command: ["start"]
+    depends_on:
+      celestia-bridge:
+        condition: service_healthy
+    ports:
+      - "26656:26656"
+      - "26657:26657"
+    volumes:
+      - {{ remote_base }}/node/home:/root/.engramd
+    environment:
+      MONIKER: {{ inventory_hostname }}
+      MINIMUM_GAS_PRICES: 0uengram
+      BITCOIN_HOST: "{{ infra_host }}"
+      BITCOIN_RPC_PORT: "18443"
+      BITCOIN_RPC_USER: "{{ bitcoin_rpc_user }}"
+      BITCOIN_RPC_PASSWORD: "{{ bitcoin_rpc_password }}"
+      CELESTIA_BRIDGE_URL: http://celestia-bridge:26658
+      CELESTIA_BRIDGE_AUTH_TOKEN: ${CELESTIA_BRIDGE_AUTH_TOKEN:-}
+      CELESTIA_NAMESPACE_ID: {{ celestia_namespace_id }}
+      ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
+      ENGRAM_MODE: {{ engram_mode }}
+    profiles: [engramd]
+
+volumes:
+  bridge-data:

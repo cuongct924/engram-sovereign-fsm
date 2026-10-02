@@ -1,0 +1,48 @@
+---
+- name: Create the infra directory
+  ansible.builtin.file:
+    path: "{{ remote_base }}/infra"
+    state: directory
+    mode: "0700"
+
+- name: Render the infra compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ remote_base }}/infra/docker-compose.yml"
+    mode: "0600"   # carries the Bitcoin RPC password
+
+- name: Start Bitcoin and celestia-app
+  ansible.builtin.command:
+    cmd: docker compose up -d bitcoin-node01 celestia-app
+    chdir: "{{ remote_base }}/infra"
+  changed_when: true
+
+- name: Create and fund the Bitcoin wallet (idempotent; mines only on first creation)
+  ansible.builtin.command:
+    cmd: bash {{ remote_base }}/engram-sovereign-fsm/scripts/testnet_fund_wallet.sh
+  environment:
+    BITCOIN_RPC_USER: "{{ bitcoin_rpc_user }}"
+    BITCOIN_RPC_PASSWORD: "{{ bitcoin_rpc_password }}"
+  changed_when: false
+  no_log: true
+
+- name: Start the steady miner (Bitcoin must mine continuously, CLAUDE.md)
+  ansible.builtin.command:
+    cmd: docker compose --profile miner up -d bitcoin-miner-loop
+    chdir: "{{ remote_base }}/infra"
+  changed_when: true
+
+- name: Wait for celestia-app to be healthy
+  ansible.builtin.command: docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' celestia-app
+  register: app_health
+  until: app_health.stdout == 'healthy'
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Start the prover's Celestia bridge
+  ansible.builtin.command:
+    cmd: docker compose --profile prover up -d celestia-bridge-prover
+    chdir: "{{ remote_base }}/infra"
+  changed_when: true
+  when: prover_enabled | bool

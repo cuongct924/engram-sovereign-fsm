@@ -1,0 +1,36 @@
+---
+# --- Required: export these (or set them via ansible-vault) before running ---
+bitcoin_rpc_user: "{{ lookup('env', 'BITCOIN_RPC_USER') | default('engram_admin', true) }}"
+bitcoin_rpc_password: "{{ lookup('env', 'BITCOIN_RPC_PASSWORD') }}"
+# CIDRs allowed to reach each validator's CometBFT RPC (26657) and the infra Bitcoin RPC (18443):
+# the machine that runs the experiment scripts. Example: ["198.51.100.7/32"].
+operator_cidrs: []
+
+# --- Experiment configuration ---
+engram_chain_id: engram-wan-1
+engram_mode: engram            # engram | hard-gated | soft (see docs/EXPERIMENT.md E11)
+prover_enabled: true           # ZK re-anchoring prover on the infra host; needs >= 8 GB RAM
+miner_interval_s: 20           # one regtest block every N seconds (CLAUDE.md: keep it steady)
+
+# ENGRAM_PARAM_* baked into genesis (consensus-critical, see .env.example). The 200 ms default
+# for MAX_PEER_LATENCY is below real inter-continent RTT, so every validator would report
+# unhealthy P2P and the FSM would never stay ANCHORED. Report this value next to any WAN result.
+engram_params:
+  ENGRAM_PARAM_MAX_PEER_LATENCY: 500
+
+# --- Image versions (match .env.example) ---
+bitcoin_version: v25.0
+celestia_app_version: v1.11.0
+celestia_node_version: v0.14.1
+celestia_namespace_id: engramda01
+
+# --- Paths ---
+engram_repo_dir: "{{ playbook_dir }}/../.."
+# go.mod's `replace github.com/cometbft/cometbft => ../engram-consensus-core` (CLAUDE.md).
+cometbft_fork_dir: "{{ engram_repo_dir }}/../engram-consensus-core"
+generated_dir: "{{ playbook_dir }}/../.generated"
+remote_base: /opt/engram
+
+# Address other hosts use to reach a given host. Override per host to use a private address.
+infra_host: "{{ hostvars[groups['infra'][0]].ansible_host }}"
+validator_count: "{{ groups['validators'] | length }}"

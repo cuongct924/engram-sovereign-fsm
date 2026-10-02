@@ -1,9 +1,12 @@
 package main
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cometbft/cometbft/p2p"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsePersistentPeerIDs(t *testing.T) {
@@ -95,4 +98,33 @@ func TestDefaultHome(t *testing.T) {
 	if home == "" {
 		t.Fatal("expected a non-empty default home path")
 	}
+}
+
+func TestTestnetInitFilesPeerHosts(t *testing.T) {
+	hosts := []string{"10.0.0.1", "10.0.0.2", "validator-3.example.org"}
+	dir := t.TempDir()
+	require.NoError(t, testnetInitFiles(dir, 3, "engram-test-1", "engram-node", 26656, hosts))
+
+	cfg, err := loadConfig(filepath.Join(dir, "engram-node02"))
+	require.NoError(t, err)
+	require.Equal(t, "10.0.0.2:26656", cfg.P2P.ExternalAddress)
+	peers := strings.Split(cfg.P2P.PersistentPeers, ",")
+	require.Len(t, peers, 2)
+	require.Contains(t, peers[0], "@10.0.0.1:26656")
+	require.Contains(t, peers[1], "@validator-3.example.org:26656")
+	require.NotContains(t, cfg.P2P.PersistentPeers, "172.40.")
+}
+
+func TestTestnetInitFilesPeerHostsCountMustMatch(t *testing.T) {
+	err := testnetInitFiles(t.TempDir(), 3, "engram-test-1", "engram-node", 26656, []string{"a", "b"})
+	require.ErrorContains(t, err, "exactly 3 entries")
+}
+
+func TestTestnetInitFilesDefaultsToPairwiseLinks(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, testnetInitFiles(dir, 2, "engram-test-1", "engram-node", 26656, nil))
+	cfg, err := loadConfig(filepath.Join(dir, "engram-node01"))
+	require.NoError(t, err)
+	require.Contains(t, cfg.P2P.PersistentPeers, "@172.40.0.3:26656")
+	require.Empty(t, cfg.P2P.ExternalAddress)
 }

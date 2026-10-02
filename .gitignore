@@ -102,3 +102,11 @@ x/sovereignty/keeper/zk_assets/*.wasm
 
 .claude/worktrees
 .claude/settings.local.json
+# deploy/: Terraform state and provider caches, generated inventory, controller-side genesis and keys
+deploy/.generated/
+deploy/ansible/inventory/hosts.yml
+deploy/terraform/**/.terraform/
+deploy/terraform/**/.terraform.lock.hcl
+deploy/terraform/**/*.tfstate
+deploy/terraform/**/*.tfstate.*
+deploy/terraform/**/terraform.tfvars

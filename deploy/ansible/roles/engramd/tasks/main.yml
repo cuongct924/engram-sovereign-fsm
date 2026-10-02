@@ -1,0 +1,31 @@
+---
+- name: Create the node home
+  ansible.builtin.file:
+    path: "{{ remote_base }}/node/home"
+    state: directory
+    mode: "0700"
+
+# force: false -- never overwrite a running node's priv_validator_state.json (CLAUDE.md,
+# FilePV's anti-double-sign guard). A fresh chain goes through teardown.yml.
+- name: Install this validator's keys, genesis and config (only its own home)
+  ansible.builtin.copy:
+    src: "{{ generated_dir }}/testnet-data/engram-node{{ '%02d' % (node_index | int) }}/"
+    dest: "{{ remote_base }}/node/home/"
+    mode: preserve
+    directory_mode: "0700"
+    force: false
+
+- name: Build and start engramd
+  ansible.builtin.command:
+    cmd: docker compose --profile engramd up -d --build engramd
+    chdir: "{{ remote_base }}/node"
+  changed_when: true
+
+- name: Wait for the RPC to answer
+  ansible.builtin.uri:
+    url: http://127.0.0.1:26657/status
+    return_content: true
+  register: rpc
+  until: rpc.status == 200
+  retries: 60
+  delay: 5
