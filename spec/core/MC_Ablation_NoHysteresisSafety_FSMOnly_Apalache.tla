@@ -93,6 +93,7 @@ MC_FSMInit ==
 \* safe_blocks.
 MC_FSMNext ==
     /\ \/ UpdateSensors /\ UNCHANGED illegal_early_exit
+       \/ DABackfill /\ UNCHANGED illegal_early_exit
        \/ /\ ExecuteFSMTransition(CalculateNextFSMState)
           /\ UNCHANGED <<networkSensorVars, censorshipVars>>
           /\ UNCHANGED <<reanchoring_proof_valid>>

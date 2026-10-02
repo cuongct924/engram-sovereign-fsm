@@ -3,7 +3,7 @@
  * EngramFSM — Circuit-Breaker Finite State Machine
  *
  * Models the 4-state circuit breaker (ANCHORED -> SUSPICIOUS -> SOVEREIGN ->
- * RECOVERING -> ANCHORED) driven by three environment sensors: Bitcoin SPV
+ * RECOVERING -> ANCHORED) driven by three environment sensors: Bitcoin anchor re-verification
  * gap, DA availability, and P2P network quality.
  *
  * Depends on: EngramVars (variables), Integers, FiniteSets
@@ -133,26 +133,26 @@ IsBTCGapSuspicious ==
 
 IsBTCGapSovereign == btc_gap >= SOVEREIGN_THRESHOLD
 
-\* BTC layer is within both gap thresholds and its SPV/header check hasn't
+\* BTC layer is within both gap thresholds and its anchor re-verification hasn't
 \* failed -- the BTC-side analog of IsDAHealthy above, gating
 \* IsValidProposal's Settlement Monotonicity & BTC Light Client Hash Check
 \* (EngramTendermint.tla) the same way IsDAHealthy gates its DA Pipeline
 \* Check.
-IsBTCHealthy == ~IsBTCGapSuspicious /\ ~IsBTCGapSovereign /\ ~is_btc_spv_failed
+IsBTCHealthy == ~IsBTCGapSuspicious /\ ~IsBTCGapSovereign /\ ~is_anchor_reverification_failed
 
 
 (* ======================== HEALTH CONDITION PREDICATES ===================== *)
 \* Withdrawal guard: TRUE whenever cross-chain withdrawals must be halted
 WithdrawLocked == state \in {"SOVEREIGN", "RECOVERING"}
 
-\* Hard failure: BTC gap crossed threshold, BTC SPV/header verification failed
+\* Hard failure: BTC gap crossed threshold, BTC anchor re-verification failed
 \* (the anchor height itself is untrustworthy, not merely stale -- same
 \* severity class as IsBTCGapSovereign, unlike is_das_failed/
 \* is_attestation_failed which only feed IsWarningCondition), OR Total Loss
 \* of Anchor Peers (Complete Eclipse), OR a SUSPICIOUS gray-failure timeout.
 IsCriticalCondition ==
     \/ IsBTCGapSovereign
-    \/ is_btc_spv_failed
+    \/ is_anchor_reverification_failed
     \/ Cardinality(ActiveAnchors) = 0
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 
@@ -166,7 +166,7 @@ IsWarningCondition ==
 IsHealthyCondition ==
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
-    /\ ~is_btc_spv_failed
+    /\ ~is_anchor_reverification_failed
     /\ IsDAHealthy
     /\ IsP2PQualityHealthy
 
@@ -203,7 +203,7 @@ FSMTypeOK ==
     /\ da_gap >= 0
     /\ is_das_failed \in BOOLEAN
     /\ is_attestation_failed \in BOOLEAN
-    /\ is_btc_spv_failed \in BOOLEAN
+    /\ is_anchor_reverification_failed \in BOOLEAN
     /\ IsFiniteSet(active_peers)
     /\ IsFiniteSet(anchor_peers)
     /\ IsFiniteSet(blacklisted_peers)
@@ -213,6 +213,7 @@ FSMTypeOK ==
     /\ unhealthy_streak \in 0..DOWN_HYSTERESIS_THRESHOLD
     /\ failed_recovery_attempts \in 0..MAX_DOWN_HYSTERESIS_THRESHOLD
     /\ reanchoring_proof_valid \in BOOLEAN
+    /\ da_backfill_valid \in BOOLEAN
 
 
 (* ======================== STATE MACHINE INITIALIZATION ================================== *)
@@ -222,7 +223,7 @@ FSMInit ==
     /\ h_btc_current = 0
     /\ h_btc_submitted = 0
     /\ h_btc_anchored = 0
-    /\ is_btc_spv_failed = FALSE
+    /\ is_anchor_reverification_failed = FALSE
     
     /\ h_engram_current = 0
     /\ h_engram_verified = 0
@@ -242,32 +243,33 @@ FSMInit ==
     /\ unhealthy_streak = 0
     /\ failed_recovery_attempts = 0
     /\ reanchoring_proof_valid = FALSE
+    /\ da_backfill_valid = FALSE
 
 
 (* ======================== ENVIRONMENT SENSOR UPDATE ======================= *)
 
 \* ------------------- 1. BTC FINALITY GAP SENSOR -------------------
 
-\* Scenario 1: SPV operates normally; the anchor advances to the submitted height.
+\* Scenario 1: anchor re-verification operates normally; the anchor advances to the submitted height.
 BTCNormalUpdate ==
     /\ h_btc_current' \in {h_btc_current, h_btc_current + 1}
     /\ h_btc_submitted' \in {h_btc_submitted, h_btc_current'}
-    /\ is_btc_spv_failed' = FALSE
-    /\ h_btc_anchored' = h_btc_submitted'   \* SPV verification passed: anchor can advance
+    /\ is_anchor_reverification_failed' = FALSE
+    /\ h_btc_anchored' = h_btc_submitted'   \* anchor re-verification passed: anchor can advance
     \* /\ UNCHANGED <<fsmVars>> 
     \* /\ UNCHANGED <<daGapSensorVars, p2pHealthSensorVars>>
 
-\* Scenario 2: SPV fails or is under attack; the anchor is throttled (frozen).
-BTCSPVFailure ==
+\* Scenario 2: anchor re-verification fails or is under attack; the anchor is throttled (frozen).
+BTCReverificationFailure ==
     /\ h_btc_current' \in {h_btc_current, h_btc_current + 1}
     /\ h_btc_submitted' \in {h_btc_submitted, h_btc_current'}
-    /\ is_btc_spv_failed' = TRUE
-    /\ h_btc_anchored' = h_btc_anchored     \* SPV verification failed: anchor is frozen
+    /\ is_anchor_reverification_failed' = TRUE
+    /\ h_btc_anchored' = h_btc_anchored     \* anchor re-verification failed: anchor is frozen
     \* /\ UNCHANGED <<fsmVars>> 
     \* /\ UNCHANGED <<daGapSensorVars, p2pHealthSensorVars>>
 
 
-UpdateBTCSensor == BTCNormalUpdate \/ BTCSPVFailure
+UpdateBTCSensor == BTCNormalUpdate \/ BTCReverificationFailure
 
 
 \* ------------------- 2. DATA AVAILABILITY SENSOR -------------------
@@ -378,7 +380,7 @@ UpdateSensors ==
               /\ h_btc_submitted' > 0
            THEN TRUE
            ELSE FALSE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, da_backfill_valid>>
     /\ UNCHANGED <<censorshipVars>>
 
 
@@ -437,10 +439,13 @@ CalculateNextFSMState ==
                                /\ unhealthy_streak + 1 >= EffectiveDownHysteresisThreshold -> "SOVEREIGN"
       [] state = "RECOVERING" /\ ~IsHealthyCondition -> "RECOVERING"
 
-      \* Exit condition when hysteresis and ZK proof are both satisfied
-      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+      \* Exit condition when hysteresis, ZK proof and DA backfill are all satisfied.
+      \* A recovery proof shows the SOVEREIGN interval is valid, not that its
+      \* data is available, so exit also needs the DA backfill certificate.
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE
+                               /\ da_backfill_valid = TRUE -> "ANCHORED"
 
-      \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
+      \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT, pending ZK proofs and pending DA backfill)
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
 
       [] OTHER -> state
@@ -487,6 +492,14 @@ ExecuteFSMTransition(target_state) ==
                 THEN 0
                 ELSE failed_recovery_attempts
 
+    \* da_backfill_valid is earned only by DABackfill during RECOVERING and
+    \* survives while the state stays RECOVERING; any transition into or out of
+    \* RECOVERING clears it, so each SOVEREIGN interval needs its own backfill.
+    /\ da_backfill_valid' =
+           IF target_state = "RECOVERING" /\ state = "RECOVERING"
+           THEN da_backfill_valid
+           ELSE FALSE
+
     \* It resets to 0 automatically if transitioning out of RECOVERING or just entering it from SOVEREIGN.
     \* While staying in RECOVERING: a healthy block increments toward
     \* HYSTERESIS_WAIT as before; a non-critical unhealthy block being
@@ -514,6 +527,17 @@ ExecuteFSMTransition(target_state) ==
                 ELSE IF suspicious_safe_blocks >= 1 THEN suspicious_safe_blocks - 1 ELSE 0
            ELSE 0
 
+\* DA backfill: while RECOVERING, once the DA layer is healthy, the queued block
+\* data of the SOVEREIGN interval is published and becomes retrievable. Enabled
+\* only in RECOVERING and only until it completes; it changes nothing else.
+DABackfill ==
+    /\ state = "RECOVERING"
+    /\ da_backfill_valid = FALSE
+    /\ IsDAHealthy
+    /\ da_backfill_valid' = TRUE
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
+    /\ UNCHANGED <<networkSensorVars, censorshipVars>>
+
 (* ======================== THE NEXT-STATE ACTION (FOR UNIT TEST) ============ *)
 FSMNext == 
     \/ /\ UpdateSensors
@@ -522,6 +546,7 @@ FSMNext ==
        /\ ExecuteFSMTransition(state')
        /\ UNCHANGED <<networkSensorVars, censorshipVars>>
        /\ UNCHANGED <<reanchoring_proof_valid>>
+    \/ DABackfill
 
 
 FSMSpec == FSMInit /\ [][FSMNext]_fsmVars
@@ -536,6 +561,12 @@ CircuitBreakerSafety ==
 HysteresisSafety ==
     [][ (state = "RECOVERING" /\ state' = "ANCHORED")
         => (safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
+
+\* Safety 2a: The only way to exit RECOVERING is also after the DA backfill
+\* certificate -- the SOVEREIGN interval's data is available before withdrawals
+\* reopen (P_avail).
+SovereignDataPublishedSafety ==
+    [][ (state = "RECOVERING" /\ state' = "ANCHORED") => da_backfill_valid ]_fsmVars
 
 \* Safety 2b: The only way to exit SUSPICIOUS to ANCHORED is after full
 \* hysteresis (Gray Failure Arbitrage fix) -- a single healthy block can
@@ -566,8 +597,12 @@ RecoveryAttemptLiveness ==
 
 \* Liveness 3: Recovery must eventually complete once proof is ready
 CompleteRecoveryLiveness ==
-    (state = "RECOVERING" /\ reanchoring_proof_valid /\ IsHealthyCondition)
-    ~> (state = "ANCHORED" \/ ~IsHealthyCondition \/ ~reanchoring_proof_valid)
+    (state = "RECOVERING" /\ reanchoring_proof_valid /\ da_backfill_valid /\ IsHealthyCondition)
+    ~> (state = "ANCHORED" \/ ~IsHealthyCondition \/ ~reanchoring_proof_valid \/ ~da_backfill_valid)
+
+\* Liveness 3b: DA backfill must eventually complete during recovery under healthy conditions.
+DABackfillLiveness ==
+    (state = "RECOVERING" /\ IsHealthyCondition) ~> (da_backfill_valid = TRUE \/ state /= "RECOVERING")
 
 \* Liveness 4: ZK proof must eventually be generated during recovery under healthy conditions.
 ZKProofGenerationLiveness == 

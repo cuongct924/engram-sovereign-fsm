@@ -167,9 +167,9 @@ ServerUponProposalInPrecommitNoDecision(p) ==
                   /\ h_engram_current' = prop.da_receipt.published_block_height
                   /\ is_das_failed' = FALSE
                   /\ is_attestation_failed' = FALSE
-                  /\ is_btc_spv_failed' = FALSE
+                  /\ is_anchor_reverification_failed' = FALSE
               ELSE
-                  /\ UNCHANGED <<h_btc_current, is_btc_spv_failed>> 
+                  /\ UNCHANGED <<h_btc_current, is_anchor_reverification_failed>> 
                   /\ UNCHANGED <<h_engram_current, is_das_failed, is_attestation_failed>>
 
            \* BUG FIX: this used to also assert UNCHANGED <<safe_blocks,
@@ -320,6 +320,17 @@ ServerUpdateEnvironment ==
     /\ UNCHANGED <<invariantVars, certificateVars>>
     /\ action' = "UpdateEnvironment"
 
+\* DA backfill step: publishes the queued SOVEREIGN-interval data while
+\* RECOVERING (EngramFSM.tla's DABackfill). Changes only da_backfill_valid, so
+\* it maps to a stuttering abstract step under the refinement.
+ServerDABackfill ==
+    /\ DABackfill
+    /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
+    /\ UNCHANGED <<msgsBroadcastVars, propAuditVars, evidence>>
+    /\ UNCHANGED <<invariantVars, certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
+    /\ action' = "DABackfill"
+
 \* Apalache note: quorum_certs is a single Set, so every member (E_QC and
 \* M_QC alike) must share one uniform record shape -- new_EQC below adds
 \* `method |-> "None"` for that reason, matching ServerInsertProposal's E_QC.
@@ -464,6 +475,7 @@ ServerByzantineDataWithholding ==
 ServerNext ==
     \/ ServerAdvanceRealTime
     \/ ServerUpdateEnvironment
+    \/ ServerDABackfill
     \/ /\ SynchronizedLocalClocks
        /\ \E p \in HonestNodes : ServerMessageProcessing(p)
     \/ ServerByzantinePull

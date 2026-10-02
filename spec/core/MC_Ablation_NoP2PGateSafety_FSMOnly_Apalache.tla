@@ -70,6 +70,7 @@ MC_FSMInit ==
 \* Decision): ExecuteFSMTransition is called unconditionally.
 MC_FSMNext ==
     /\ \/ UpdateSensors /\ UNCHANGED illegal_p2p_recovery
+       \/ DABackfill /\ UNCHANGED illegal_p2p_recovery
        \/ /\ ExecuteFSMTransition(CalculateNextFSMState)
           /\ UNCHANGED <<networkSensorVars, censorshipVars>>
           /\ UNCHANGED <<reanchoring_proof_valid>>

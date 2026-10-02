@@ -3,7 +3,7 @@
  * EngramFSM — Circuit-Breaker Finite State Machine
  *
  * Models the 4-state circuit breaker (ANCHORED -> SUSPICIOUS -> SOVEREIGN ->
- * RECOVERING -> ANCHORED) driven by three environment sensors: Bitcoin SPV
+ * RECOVERING -> ANCHORED) driven by three environment sensors: Bitcoin anchor re-verification
  * gap, DA availability, and P2P network quality.
  *
  * Depends on: EngramVars (variables), Integers, FiniteSets
@@ -137,6 +137,7 @@ FSMTypeOK ==
     /\ peer_churn_rate \in Nat /\ avg_peer_tenure \in Nat /\ peer_latency \in Nat
     /\ safe_blocks \in 0..HYSTERESIS_WAIT
     /\ reanchoring_proof_valid \in BOOLEAN
+    /\ da_backfill_valid \in BOOLEAN
 
 
 (* ======================== STATE MACHINE INITIALIZATION ================================== *)
@@ -146,7 +147,7 @@ FSMInit ==
     /\ h_btc_current = 0
     /\ h_btc_submitted = 0
     /\ h_btc_anchored = 0
-    /\ is_btc_spv_failed = FALSE
+    /\ is_anchor_reverification_failed = FALSE
     
     /\ h_engram_current = 0
     /\ h_engram_verified = 0
@@ -163,32 +164,33 @@ FSMInit ==
     /\ safe_blocks = 0
     /\ suspicious_duration = 0
     /\ reanchoring_proof_valid = FALSE
+    /\ da_backfill_valid = FALSE
 
 
 (* ======================== ENVIRONMENT SENSOR UPDATE ======================= *)
 
 \* ------------------- 1. BTC FINALITY GAP SENSOR -------------------
 
-\* Scenario 1: SPV operates normally; the anchor advances to the submitted height.
+\* Scenario 1: anchor re-verification operates normally; the anchor advances to the submitted height.
 BTCNormalUpdate ==
     /\ h_btc_current' \in {h_btc_current, h_btc_current + 1}
     /\ h_btc_submitted' \in {h_btc_submitted, h_btc_current'}
-    /\ is_btc_spv_failed' = FALSE
-    /\ h_btc_anchored' = h_btc_submitted'   \* SPV verification passed: anchor can advance
+    /\ is_anchor_reverification_failed' = FALSE
+    /\ h_btc_anchored' = h_btc_submitted'   \* anchor re-verification passed: anchor can advance
     \* /\ UNCHANGED <<fsmVars>> 
     \* /\ UNCHANGED <<daGapSensorVars, p2pHealthSensorVars>>
 
-\* Scenario 2: SPV fails or is under attack; the anchor is throttled (frozen).
-BTCSPVFailure ==
+\* Scenario 2: anchor re-verification fails or is under attack; the anchor is throttled (frozen).
+BTCReverificationFailure ==
     /\ h_btc_current' \in {h_btc_current, h_btc_current + 1}
     /\ h_btc_submitted' \in {h_btc_submitted, h_btc_current'}
-    /\ is_btc_spv_failed' = TRUE
-    /\ h_btc_anchored' = h_btc_anchored     \* SPV verification failed: anchor is frozen
+    /\ is_anchor_reverification_failed' = TRUE
+    /\ h_btc_anchored' = h_btc_anchored     \* anchor re-verification failed: anchor is frozen
     \* /\ UNCHANGED <<fsmVars>> 
     \* /\ UNCHANGED <<daGapSensorVars, p2pHealthSensorVars>>
 
 
-UpdateBTCSensor == BTCNormalUpdate \/ BTCSPVFailure
+UpdateBTCSensor == BTCNormalUpdate \/ BTCReverificationFailure
 
 
 \* ------------------- 2. DATA AVAILABILITY SENSOR -------------------
@@ -299,7 +301,7 @@ UpdateSensors ==
               /\ h_btc_submitted' > 0
            THEN TRUE
            ELSE FALSE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, da_backfill_valid>>
     /\ UNCHANGED <<censorshipVars>>
 
 
@@ -324,7 +326,7 @@ CalculateNextFSMState ==
       \* precondition has been deleted for this experiment -- see
       \* core/EngramFSM.tla's real CalculateNextFSMState for the checked-in
       \* version. Sanity_NeverFlapInRecovering is expected to FAIL here.
-      [] state = "RECOVERING" /\ IsHealthyCondition  /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ reanchoring_proof_valid = TRUE /\ da_backfill_valid = TRUE -> "ANCHORED"
       
       \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
@@ -342,11 +344,24 @@ ExecuteFSMTransition(target_state) ==
            THEN MinVal(suspicious_duration + 1, MAX_SUSPICIOUS_TIME + 1)
            ELSE 0
                                  
+    /\ da_backfill_valid' =
+           IF target_state = "RECOVERING" /\ state = "RECOVERING"
+           THEN da_backfill_valid
+           ELSE FALSE
+
     \* It resets to 0 automatically if transitioning out of RECOVERING or just entering it from SOVEREIGN
     /\ safe_blocks' = 
            IF target_state = "RECOVERING" /\ state = "RECOVERING"
            THEN MinVal(safe_blocks + 1, HYSTERESIS_WAIT)
            ELSE 0
+
+DABackfill ==
+    /\ state = "RECOVERING"
+    /\ da_backfill_valid = FALSE
+    /\ IsDAHealthy
+    /\ da_backfill_valid' = TRUE
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
+    /\ UNCHANGED <<networkSensorVars, censorshipVars>>
 
 (* ======================== THE NEXT-STATE ACTION (FOR UNIT TEST) ============ *)
 FSMNext == 
@@ -356,6 +371,7 @@ FSMNext ==
        /\ ExecuteFSMTransition(state')
        /\ UNCHANGED <<networkSensorVars, censorshipVars>>
        /\ UNCHANGED <<reanchoring_proof_valid>>
+    \/ DABackfill
 
 
 FSMSpec == FSMInit /\ [][FSMNext]_fsmVars

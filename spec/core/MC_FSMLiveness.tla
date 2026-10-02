@@ -50,14 +50,14 @@ MC_FSMUpdateSensors ==
     /\ avg_peer_tenure' \in {0, MIN_AVG_TENURE + 1}
     /\ peer_latency'    \in {0, MAX_PEER_LATENCY + 1}
     /\ UNCHANGED <<anchor_peers, blacklisted_peers>>
-    \* is_attestation_failed/is_btc_spv_failed: pre-existing gap in this
+    \* is_attestation_failed/is_anchor_reverification_failed: pre-existing gap in this
     \* action's next-state relation (neither assigned nor left UNCHANGED,
     \* leaving both completely unspecified -- TLC rejects this outright).
     \* Only is_das_failed is deliberately varied for this liveness harness's
     \* minimal DA-side mock; the other two DA/BTC failure flags stay fixed
     \* here, same treatment as anchor_peers/blacklisted_peers above.
-    /\ UNCHANGED <<is_attestation_failed, is_btc_spv_failed>>
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
+    /\ UNCHANGED <<is_attestation_failed, is_anchor_reverification_failed>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid, da_backfill_valid>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
@@ -68,18 +68,27 @@ MC_GenerateZKProof ==
     /\ IsHealthyCondition
     /\ reanchoring_proof_valid = FALSE
     /\ reanchoring_proof_valid' = TRUE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, da_backfill_valid>>
     /\ UNCHANGED <<btcGapSensorVars, daGapSensorVars, p2pHealthSensorVars>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars, censorshipVars, certificateVars>>
     /\ UNCHANGED <<sensorAggVars>>
 
+\* DABackfill (EngramFSM.tla) already asserts UNCHANGED for the FSM and sensor
+\* variables it does not touch; only the Tendermint/bookkeeping groups remain.
+MC_DABackfill ==
+    /\ DABackfill
+    /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
+    /\ UNCHANGED <<certificateVars, sensorAggVars>>
+
 MC_FSMLivenessNext ==
     \/ MC_FSMTransition
     \/ MC_FSMUpdateSensors
+    \/ MC_DABackfill
     \* \/ MC_GenerateZKProof
 
 MC_FSMLivenessFairness ==
     /\ WF_fsmVars(MC_FSMTransition)
+    /\ WF_fsmVars(MC_DABackfill)
     \* /\ SF_MC_AllVars(MC_GenerateZKProof)
 
 MC_FSMLivenessSpec ==

@@ -19,7 +19,7 @@
     - [3.3 Layered Specification Architecture](#33-layered-specification-architecture)
   - [4. Network Sensors: Measuring Peripheral Layer Health](#4-network-sensors-measuring-peripheral-layer-health)
     - [4.1 Bitcoin Finality Gap Sensor](#41-bitcoin-finality-gap-sensor)
-      - [Bitcoin SPV Verification](#bitcoin-spv-verification)
+      - [Bitcoin Anchor Re-verification](#bitcoin-anchor-re-verification)
     - [4.2 Data Availability Gap Sensor](#42-data-availability-gap-sensor)
       - [Data Availability Sampling (DAS)](#data-availability-sampling-das)
     - [4.3 P2P Health Sensor (Tri-Interface Profiler)](#43-p2p-health-sensor-tri-interface-profiler)
@@ -94,7 +94,7 @@ The **Engram Hybrid Adaptive Consensus** addresses both gaps simultaneously. Eac
 
 The protocol maintains a four-state FSM that degrades gracefully across security levels. Instead of halting when external dependencies fail, the network:
 
-1. **Detects degradation** through deterministic local network sensors (e.g., integrated Bitcoin SPV, Celestia DAS).
+1. **Detects degradation** through deterministic local network sensors (e.g., integrated Bitcoin anchor re-verification, Celestia DAS).
 2. **Proposes a local view** of the peripheral environment, embedding the leader's observed FSM state, DA receipt, and Bitcoin anchor height directly into the current block proposal.
 3. **Reaches a 2/3-quorum agreement** on this external state telemetry atomically alongside the transaction payload.
 4. **Applies the appropriate security policy** (circuit breaker, withdrawal lock, fork-choice rule) based on the globally agreed-upon state.
@@ -246,7 +246,7 @@ graph TD
 
 - **Layer 3 — The Concrete Implementations:**
   - **`EngramTendermint.tla` (Protocol Engine)**: The customized CometBFT consensus engine managing the full Propose $\rightarrow$ Prevote $\rightarrow$ Precommit $\rightarrow$ Commit pipeline. It processes the extended proposal structure, simulates Byzantine attacks (data withholding, censorship, timeout flooding), and implements the improved $f+1$ pacemaker (UponfPlusOneTimeoutsAny).
-  - **`EngramFSM.tla` (Sovereign Fallback):** The adaptive circuit breaker. It continuously computes `IsWarningCondition`, `IsCriticalCondition`, and `IsHealthyCondition` from peripheral sensor readings. It also manages the hysteresis counter (`safe_blocks`) and ZK-Proof validity flag (`reanchoring_proof_valid`).
+  - **`EngramFSM.tla` (Sovereign Fallback):** The adaptive circuit breaker. It continuously computes `IsWarningCondition`, `IsCriticalCondition`, and `IsHealthyCondition` from peripheral sensor readings. It also manages the hysteresis counter (`safe_blocks`), the ZK-Proof validity flag (`reanchoring_proof_valid`), and the DA backfill flag (`da_backfill_valid`).
 
 
 ## 4. Network Sensors: Measuring Peripheral Layer Health
@@ -259,20 +259,20 @@ This sensor measures how far the latest Engram epoch checkpoint is from being Bi
 
 $$\Delta H_{\text{BTC}} = H_{\text{current}} - \min(H_{\text{submitted}},\, H_{\text{anchored}})$$
 
-- $H_{\text{current}}$: latest Bitcoin block height observed by Engram validator nodes running an SPV light client.
+- $H_{\text{current}}$: latest Bitcoin block height observed by Engram validator nodes running an anchor re-verifier.
 - $H_{\text{submitted}}$: Bitcoin block height at the moment an Engram epoch checkpoint was broadcast.
 - $H_{\text{anchored}}$: Bitcoin block height at which the checkpoint was confirmed (included in the Bitcoin chain).
 
 The formula uses $\min(H_{\text{submitted}}, H_{\text{anchored}})$ as the baseline so that a submitted-but-unconfirmed checkpoint is counted toward the gap.
 
-#### Bitcoin SPV Verification
+#### Bitcoin Anchor Re-verification
 
 The gap formula measures *delay*, but cannot detect *forged* checkpoint data. An eclipsed node receiving a fabricated `btc_receipt` from a Byzantine leader would see a plausible height value while the underlying checkpoint is invalid. To close this gap, each validator performs two off-band checks independently of the consensus pipeline, using Babylon's BTC Light Client and BTC Checkpoint modules:
 
 1. **OP_RETURN Inclusion Check**: verify via Merkle proof that the Engram checkpoint transaction is included in the claimed Bitcoin block.
-2. **Block Header Verification**: hash the block header to confirm `checkpoint_block_hash` matches the canonical chain maintained by the local SPV client.
+2. **Block Header Verification**: hash the block header to confirm `checkpoint_block_hash` matches the canonical chain maintained by the local anchor re-verifier.
 
-The combined result is stored as a single boolean `is_btc_spv_failed` in local state, and enters `IsCriticalCondition` directly — a failed SPV check means the current anchor height itself is unverifiable, not merely stale, the same severity class as `IsBTCGapSovereign`, unlike `is_das_failed`/`is_attestation_failed` which only feed the softer `IsWarningCondition`. An earlier revision instead relied on the failure indirectly widening `btc_gap` past `SOVEREIGN_THRESHOLD` on its own; that left a multi-block exploitation window where a forged or since-reorged anchor stayed trusted (withdrawals unlocked) until the gap organically grew, since nothing read the flag directly.
+The combined result is stored as a single boolean `is_anchor_reverification_failed` in local state, and enters `IsCriticalCondition` directly — a failed anchor re-verification means the current anchor height itself is unverifiable, not merely stale, the same severity class as `IsBTCGapSovereign`, unlike `is_das_failed`/`is_attestation_failed` which only feed the softer `IsWarningCondition`. An earlier revision instead relied on the failure indirectly widening `btc_gap` past `SOVEREIGN_THRESHOLD` on its own; that left a multi-block exploitation window where a forged or since-reorged anchor stayed trusted (withdrawals unlocked) until the gap organically grew, since nothing read the flag directly.
 
 ### 4.2 Data Availability Gap Sensor
 
@@ -298,7 +298,7 @@ The boolean `is_das_failed` is set to TRUE if any sampling check fails within th
 
 The Bitcoin and DA sensors each reduce to one numeric gap. P2P health can't: a raw peer count can't tell an honest long-lived peer from a freshly injected Sybil, and Eclipse attacks — surveyed in Rehman et al. (2025) [[8]](#references) — combine node-discovery poisoning, peer-eviction gaming, and network-level routing control to stay hidden from any single metric.
 
-`IsP2PQualityHealthy` covers this with six constants in two groups, applied uniformly to all three protected interfaces (Engram P2P, Bitcoin SPV client, Celestia light client):
+`IsP2PQualityHealthy` covers this with six constants in two groups, applied uniformly to all three protected interfaces (Engram P2P, Bitcoin anchor re-verifier, Celestia light client):
 
 ```tlaplus
 IsP2PQualityHealthy ==
@@ -347,7 +347,7 @@ IsWarningCondition ==
 ```tlaplus
 IsCriticalCondition == 
     \/ IsBTCGapSovereign                            \* btc_gap >= T_Sovereign
-    \/ is_btc_spv_failed                            \* BTC SPV/header verification failed -- untrustworthy, not merely stale
+    \/ is_anchor_reverification_failed                            \* BTC anchor re-verification failed -- untrustworthy, not merely stale
     \/ Cardinality(ActiveAnchors) = 0               \* complete anchor isolation
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME   \* escalation timeout
 ```
@@ -360,7 +360,7 @@ The anchor isolation clause captures total Eclipse Attack success and escalates 
 IsHealthyCondition == 
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
-    /\ ~is_btc_spv_failed
+    /\ ~is_anchor_reverification_failed
     /\ IsDAHealthy
     /\ IsP2PQualityHealthy
 ```
@@ -399,7 +399,8 @@ CalculateNextFSMState ==
       [] state = "RECOVERING" /\ ~IsHealthyCondition
                                /\ unhealthy_streak + 1 >= EffectiveDownHysteresisThreshold -> "SOVEREIGN"
       [] state = "RECOVERING" /\ ~IsHealthyCondition -> "RECOVERING"
-      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE
+                               /\ da_backfill_valid = TRUE -> "ANCHORED"
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
 
       [] OTHER -> state
@@ -410,7 +411,9 @@ Read state-by-state:
 * **From ANCHORED:** `IsCriticalCondition` drops straight to `SOVEREIGN`; `IsWarningCondition` alone only demotes to `SUSPICIOUS` after `unhealthy_streak+1 >= DOWN_HYSTERESIS_THRESHOLD` consecutive blocks (absorbs single-block noise) — never jumps directly to/from `RECOVERING`.
 * **From SUSPICIOUS:** escalates to `SOVEREIGN` on `IsCriticalCondition` or once `suspicious_duration >= MAX_SUSPICIOUS_TIME` (gray-failure timeout). Recovers to `ANCHORED` only after `suspicious_safe_blocks+1 >= SUSPICIOUS_HYSTERESIS_WAIT` consecutive healthy blocks (closes the one-block reset arbitrage).
 * **From SOVEREIGN:** moves to `RECOVERING` once `IsHealthyCondition` holds; `ExecuteFSMTransition` (below) then governs how long it must stay healthy before exiting.
-* **From RECOVERING:** `IsCriticalCondition` falls straight back to `SOVEREIGN`; a non-critical failure is absorbed like ANCHORED's but against `EffectiveDownHysteresisThreshold` (doubles per failed attempt, capped at `MAX_DOWN_HYSTERESIS_THRESHOLD`). Exit to `ANCHORED` needs `IsHealthyCondition`, `safe_blocks = HYSTERESIS_WAIT`, and `reanchoring_proof_valid = TRUE` together (§5.2 "Re-anchoring via ZK-Proof of Recovery" below).
+* **From RECOVERING:** `IsCriticalCondition` falls straight back to `SOVEREIGN`; a non-critical failure is absorbed like ANCHORED's but against `EffectiveDownHysteresisThreshold` (doubles per failed attempt, capped at `MAX_DOWN_HYSTERESIS_THRESHOLD`). Exit to `ANCHORED` needs `IsHealthyCondition`, `safe_blocks = HYSTERESIS_WAIT`, `reanchoring_proof_valid = TRUE`, and `da_backfill_valid = TRUE` together (§5.2 "Re-anchoring via ZK-Proof of Recovery" below).
+  * `da_backfill_valid` is set by the `DABackfill` action, enabled only in `RECOVERING` while the DA layer is healthy, and cleared by any transition into or out of `RECOVERING`.
+  * It abstracts "the block data of every height in the `SOVEREIGN` interval is published to DA and retrievable". A recovery proof shows the interval is valid, not that its data is available.
 
 `suspicious_duration` is incremented while the FSM remains in `SUSPICIOUS` and reset to zero on any other transition (see `ExecuteFSMTransition` below) — it feeds the timeout escalation above, not `IsCriticalCondition` directly.
 
@@ -462,7 +465,7 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 - A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`IsWellFormedHealthCertificate`) -- checked alongside the `healthy` condition above, not in place of it.
 - That certificate formalizes the real pre-consensus mechanism (`x/sovereignty/vote_extension.go`): each validator signs its own sensor observation (`ServerExtendVote`/`sensor_view`), the proposer aggregates a >=2f+1 quorum via weighted-majority-per-field (`AggregateHealthCertificate`), and every validator re-verifies the certificate rather than recomputing from its own live sensors -- see SS7.4's "Fourth precondition for Target Property 7.1".
 - The DA receipt is valid and within `DATolerance(r)`'s round-adaptive gap, whenever `fsm_state \in {ANCHORED, RECOVERING}` or `IsDAHealthy`.
-- `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifySPVProof(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
+- `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifyAnchorReceipt(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
 - Withdrawals are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (same scope as §7.1's `CircuitBreakerSafety`).
 - A ZK-Proof (`VerifyZkProof`) is mandatory when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
 
@@ -553,6 +556,7 @@ Every property in §7–§8 carries one of these statuses:
 |---|---|---|---|
 | S1 Circuit Breaker Isolation | `CircuitBreakerSafety` | `MC_FSMSafety` | Checked |
 | S2 Hysteresis Integrity | `HysteresisSafety` | `MC_FSMSafety` | Checked |
+| S2a Sovereign-Data Published | `SovereignDataPublishedSafety` | `MC_FSMSafety` | Checked |
 | S2b Suspicious-Exit Hysteresis | `SuspiciousHysteresisSafety` | `MC_FSMSafety` | Checked |
 | S3 Strict FSM Transition Safety | `StrictFSMTransitionSafety` | `MC_FSMSafety` | Checked |
 | S4 FSM State Consistency | `FSMStateConsistency` | `MC_ServerRefinementSafety`; §9.3.2.F | Open; Partial |
@@ -592,6 +596,18 @@ HysteresisSafety ==
 ```
 
 Formally specified in `EngramFSM.tla` as `HysteresisSafety`. Checked as a `PROPERTIES` entry in `MC_FSMSafety.cfg`; also listed in `MC_ServerRefinementSafety` (open).
+
+**Invariant S2a (Sovereign-Data Published).** A transition from `RECOVERING` to `ANCHORED` is impossible before the `SOVEREIGN` interval's block data is published to DA. Withdrawals reopen only on `ANCHORED`, so this is the data-availability condition on the exit.
+
+```tlaplus
+SovereignDataPublishedSafety ==
+    [][ (state = "RECOVERING" /\ state' = "ANCHORED") => da_backfill_valid ]_fsmVars
+```
+
+Formally specified in `EngramFSM.tla` as `SovereignDataPublishedSafety`; added to the `PROPERTIES` of `MC_FSMSafety.cfg`.
+* `da_backfill_valid` is a Boolean abstraction of the implementation's `da_contiguous_height >= recovering_entry_height - 1`.
+* Checked in `MC_FSMSafety` with zero violations (§9.2.1). The Server-layer drivers carry the new `ServerDABackfill` action but were not re-run on it.
+* No ablation driver removes the gate yet.
 
 **Invariant S2b (Suspicious-Exit Hysteresis Integrity).** The symmetric up-hysteresis guard on the `SUSPICIOUS -> ANCHORED` edge (§5.2): a single healthy block cannot exit `SUSPICIOUS`, closing the gray-failure-timeout arbitrage where an attacker resets `suspicious_duration` for free.
 
@@ -652,7 +668,7 @@ DAReceiptConsistency ==
 
 The `\/ IsDAHealthy` branch closes a gap the state-only check would otherwise leave: a decided block whose `fsm_state` is `SUSPICIOUS` or `SOVEREIGN` isn't exempted from the attestation requirement just because it's outside `{ANCHORED, RECOVERING}` — if the DA layer is *currently* healthy, the attestation must still be `TRUE` regardless of which state the block claims. The `ByzantineDataWithholding` action in `EngramTendermint.tla` explicitly injects such malformed proposals. `DAReceiptConsistency` in `HybridTendermintInvariant` formally captures the invariant that no such proposal is ever decided.
 
-**Property 7.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifySPVProof`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
+**Property 7.3 (Long-Range Attack Prevention).** The fork-choice rule enforces strict monotonic settlement anchoring via `VerifyAnchorReceipt`. Any adversarial proposal attempting to revert to a prior anchor height, or carrying a forged Bitcoin branch hash, is automatically rejected.
 
 ```tlaplus
 BTCConsistency ==
@@ -661,7 +677,7 @@ BTCConsistency ==
         => decision[p].prop.btc_receipt.checkpoint_block_height = h_btc_anchored
 ```
 
-The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the SPV hash check rejects it at proposal validation -- scoped, like `DAReceiptConsistency` above, to `fsm_state \in {ANCHORED, RECOVERING} \/ IsBTCHealthy`: a proposal legitimately degrading away from `ANCHORED`/`RECOVERING` *because* BTC is down isn't also required to carry a checkpoint the honest network can independently verify while it's down, mirroring the `\/ IsDAHealthy` carve-out's own reasoning. Outside that condition -- i.e. whenever the decided state is `ANCHORED`/`RECOVERING`, or BTC is currently healthy regardless of state -- the SPV check still applies unconditionally.
+The `ByzantineDataWithholding` action also injects a forged BTC receipt (`<<"BTC_FORK", height>>`) to verify the anchor hash check rejects it at proposal validation -- scoped, like `DAReceiptConsistency` above, to `fsm_state \in {ANCHORED, RECOVERING} \/ IsBTCHealthy`: a proposal legitimately degrading away from `ANCHORED`/`RECOVERING` *because* BTC is down isn't also required to carry a checkpoint the honest network can independently verify while it's down, mirroring the `\/ IsDAHealthy` carve-out's own reasoning. Outside that condition -- i.e. whenever the decided state is `ANCHORED`/`RECOVERING`, or BTC is currently healthy regardless of state -- the SPV check still applies unconditionally.
 
 **Property 7.4 (Byzantine Message Flooding Mitigation).** The accepted message set from the Byzantine coalition per round and message type is deterministically bounded by $|F|$, enforced structurally by the initial message sets in `EngramTendermint.tla`.
 
@@ -679,19 +695,19 @@ FaultyTimeouts(r)   == { [type |-> "TIMEOUT",   src |-> f, round |-> r]      : f
 IsHealthyCondition ==
     /\ ~IsBTCGapSovereign
     /\ ~IsBTCGapSuspicious
-    /\ ~is_btc_spv_failed
+    /\ ~is_anchor_reverification_failed
     /\ IsDAHealthy
     /\ IsP2PQualityHealthy   \* all 6 structural/behavioral bounds must hold
 
 \* Complete anchor isolation, or an unverifiable anchor, triggers Critical immediately
 IsCriticalCondition ==
     \/ IsBTCGapSovereign
-    \/ is_btc_spv_failed
+    \/ is_anchor_reverification_failed
     \/ Cardinality(ActiveAnchors) = 0
     \/ suspicious_duration >= MAX_SUSPICIOUS_TIME
 ```
 
-The `P2PAdversaryAttack` action in `EngramFSM.tla` is part of the completed `MC_FSMSafety` and `MC_FSMLiveness` runs, both with zero violations (§9.2.1). §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` condition (`EngramTendermint.tla:296`), independent of `VerifySPVProof`, which guards the BTC receipt field, not `fsm_state`.
+The `P2PAdversaryAttack` action in `EngramFSM.tla` is part of the completed `MC_FSMSafety` and `MC_FSMLiveness` runs, both with zero violations (§9.2.1). §9.3.2.F below constructs the full execution trace for an eclipsed proposer's fabricated `fsm_state` — rejected via `IsValidProposal`'s `prop.fsm_state = CalculateNextFSMState` condition (`EngramTendermint.tla:296`), independent of `VerifyAnchorReceipt`, which guards the BTC receipt field, not `fsm_state`.
 
 **Property 7.6 (Accountability via Evidence).** Any fork — a violation of `AgreementOnValue` — implies some node broadcast two conflicting messages in the same round. The `DoubleSigningEvidence` predicate detects this across all message phases, matching the concrete implementation's use of CometBFT's stock equivocation evidence pool (`DuplicateVoteEvidence`) — no custom slashing cryptography required.
 
@@ -718,7 +734,7 @@ Bitcoin settlement finality is not unconditional. `EngramConsensus.tla`'s `Bitco
 - **Shallow (depth < `K_DEEP_FINALITY`):** covered by the model -- `IsKDeep` blocks re-electing a certificate anchored past a retreated `h_btc_anchored` via `CanElect`.
 - **Deep (depth >= `K_DEEP_FINALITY`):** out of scope by design, like every Bitcoin-anchoring protocol (Babylon included) -- assumed economically infeasible under honest-majority hashpower. `K_DEEP_FINALITY` is the only lever (small for regtest, ~6 confirmations for mainnet).
 
-**Beyond the formal model:** `AnchorTracker.VerifyAnchor` (`x/anchor/anchor.go`) re-derives the OP_RETURN scan fresh every block -- the `is_btc_spv_failed` → `SOVEREIGN` chain is already TLC-covered (free/nondeterministic variable); only whether `VerifyAnchor` sets it correctly is a Go/bitcoind claim, not TLA+-checkable. Confirmed live: a 15-block reorg forced all 4 validators to `SOVEREIGN` ([E10](../docs/EXPERIMENT.md#e10--bitcoin-reorg-fork-choice-reaction)), untested at `K_DEEP_FINALITY`+1.
+**Beyond the formal model:** `AnchorTracker.VerifyAnchor` (`x/anchor/anchor.go`) re-derives the OP_RETURN scan fresh every block -- the `is_anchor_reverification_failed` → `SOVEREIGN` chain is already TLC-covered (free/nondeterministic variable); only whether `VerifyAnchor` sets it correctly is a Go/bitcoind claim, not TLA+-checkable. Confirmed live: a 15-block reorg forced all 4 validators to `SOVEREIGN` ([E10](../docs/EXPERIMENT.md#e10--bitcoin-reorg-fork-choice-reaction)), untested at `K_DEEP_FINALITY`+1.
 
 Third standing precondition for Target Property 7.1 (with partial synchrony and the $f$-bounded adversary): the property is stated for reorgs no deeper than `K_DEEP_FINALITY`; the concrete layer's behavior past that is a separate, weaker, empirical claim.
 
@@ -763,12 +779,19 @@ RecoveryAttemptLiveness ==
     ~> (state = "RECOVERING" \/ ~IsHealthyCondition)
 ```
 
-**Property L4 (Complete Re-anchoring).** Once a valid ZK-Proof is available and conditions remain healthy, the system must eventually return to `ANCHORED`. Under these conditions `CalculateNextFSMState`'s `state = "RECOVERING" /\ IsHealthyCondition /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE -> "ANCHORED"` branch (§5.2) is the only enabled FSM transition; weak fairness guarantees it fires.
+**Property L4 (Complete Re-anchoring).** Once a valid ZK-Proof and the DA backfill are available and conditions remain healthy, the system must eventually return to `ANCHORED`. Under these conditions `CalculateNextFSMState`'s `state = "RECOVERING" /\ IsHealthyCondition /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE /\ da_backfill_valid = TRUE -> "ANCHORED"` branch (§5.2) is the only enabled FSM transition; weak fairness guarantees it fires.
 
 ```tlaplus
 CompleteRecoveryLiveness ==
-    (state = "RECOVERING" /\ reanchoring_proof_valid /\ IsHealthyCondition)
-    ~> (state = "ANCHORED" \/ ~IsHealthyCondition \/ ~reanchoring_proof_valid)
+    (state = "RECOVERING" /\ reanchoring_proof_valid /\ da_backfill_valid /\ IsHealthyCondition)
+    ~> (state = "ANCHORED" \/ ~IsHealthyCondition \/ ~reanchoring_proof_valid \/ ~da_backfill_valid)
+```
+
+**Property L4b (DA Backfill Liveness).** During recovery under healthy conditions, the backfill must eventually complete. Specified as `DABackfillLiveness` in `EngramFSM.tla`; not listed in any `.cfg`, because `MC_FSMLiveness`'s sensor mock toggles `is_das_failed` freely, so `DABackfill` is not continuously enabled and weak fairness does not apply.
+
+```tlaplus
+DABackfillLiveness ==
+    (state = "RECOVERING" /\ IsHealthyCondition) ~> (da_backfill_valid = TRUE \/ state /= "RECOVERING")
 ```
 
 **Property L5 (ZK-Proof Generation Liveness).** During recovery under healthy conditions, a valid re-anchoring proof must eventually be produced.
@@ -847,8 +870,8 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 | Layer | Config | Key Parameters | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
 | Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2 | 3,573,347 | 509,883 | 25 | 2m58s | 0 |
-| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2 | 1,022,325,986 | 3,386,761 | 22 | 27m33s | 0 |
-| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above | 10,321,121 | 17,857 | 22 | 2m54s | 0 |
+| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2; re-run with `da_backfill_valid` and `DABackfill`, 4 workers | 1,371,377,696 | 4,542,271 | 23 | 19m36s | 0 |
+| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above; re-run with `da_backfill_valid` and `DABackfill`, 2 workers | 17,986,105 | 31,105 | 23 | 7m39s | 0 |
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety would be established only via `RefinementSafety` in `MC_ServerRefinementSafety`, which is open, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
 
@@ -921,7 +944,7 @@ sequenceDiagram
     participant N as Honest Node n2 (as leader)
     participant F as IsValidProposal (ablated)
 
-    S->>N: BTC SPV failure detected
+    S->>N: BTC anchor re-verification failure detected
     Note over N: CalculateNextFSMState = SOVEREIGN
     Note over N: Bundles a TX_WITHDRAWAL into the same proposal
     N->>F: Submit proposal (fsm_state=SOVEREIGN, value=TX_WITHDRAWAL)
@@ -1046,7 +1069,7 @@ sequenceDiagram
     rect rgb(255, 245, 235)
     Note over Adv,Q: From the actual trace (Check 1, Sanity_ForgedProposalReachable)
     Adv->>V: UpdateEnvironment: active_peers = {sybil_n1, sybil_n2, sybil_n3}, anchor_peers unreachable
-    Note over V: is_btc_spv_failed, is_das_failed, is_attestation_failed = TRUE -- full eclipse
+    Note over V: is_anchor_reverification_failed, is_das_failed, is_attestation_failed = TRUE -- full eclipse
     B->>Q: ByzantineForgedFSMState: broadcast proposal (fsm_state="SUSPICIOUS", btc_receipt/da_receipt honestly attested)
     end
     rect rgb(235, 245, 255)

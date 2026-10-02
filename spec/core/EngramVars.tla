@@ -179,9 +179,9 @@ VARIABLES
     \* @type: Int;
     h_btc_anchored,             \* Last confirmed Engram checkpoint height on Bitcoin
     \* @type: Bool;
-    is_btc_spv_failed           \* OP_RETURN inclusion check & Block header verification failure flag
+    is_anchor_reverification_failed           \* OP_RETURN inclusion check & Block header verification failure flag
 
-btcGapSensorVars == <<h_btc_current, h_btc_submitted, h_btc_anchored, is_btc_spv_failed>>
+btcGapSensorVars == <<h_btc_current, h_btc_submitted, h_btc_anchored, is_anchor_reverification_failed>>
 
 \* All environmental sensors
 networkSensorVars == <<p2pHealthSensorVars, daGapSensorVars, btcGapSensorVars>>
@@ -212,10 +212,16 @@ VARIABLES
                                \* well-timed block) gets progressively harder, not equally
                                \* cheap every cycle.
     \* @type: Bool;
-    reanchoring_proof_valid  \* Boolean: ZK re-anchoring proof confirmed on-chain
+    reanchoring_proof_valid, \* Boolean: ZK re-anchoring proof confirmed on-chain
+    \* @type: Bool;
+    da_backfill_valid        \* Boolean: the block data of the whole SOVEREIGN interval has been
+                              \* published to the DA layer and is retrievable (DA backfill
+                              \* certificate). Abstracts da_contiguous_height >=
+                              \* recovering_entry_height - 1 in the Go implementation: a recovery
+                              \* proof shows the interval is valid, not that its data is available.
 
 \* Top-level FSM tuple consumed by EngramTendermint actions
-fsmVars == <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
+fsmVars == <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid, da_backfill_valid>>
 
 
 (* ======================== CENSORSHIP VARIABLES ======================= *)
