@@ -55,11 +55,12 @@ assumptions that the model checker takes as hypotheses:
   environment updates, so a persistently healthy (or unhealthy)
   certificate eventually drives the corresponding transition.
 \end{itemize}
-Under these hypotheses TLC checks \texttt{EventualDecisionUnderGSTLiveness}
-and the FSM liveness properties directly. The ablation that removes the
-$f{+}1$ fast-forward shows the timeout-progress assumption is necessary:
-without it TLC finds a lasso in which Byzantine timeout manipulation
-prevents any decision.
+Under these hypotheses TLC checks the FSM liveness properties directly. A
+TLC ablation that removes the $f{+}1$ fast-forward, which would show the
+timeout-progress assumption is necessary, has not completed: its best run
+reached depth 12 (69{,}408{,}583 states generated, 828{,}673 distinct) with
+no violation. The necessity of that assumption is therefore not established
+here.
 
 \textbf{Health certificates in the model.} The server layer models the
 certificate explicitly. Each validator's observation is a Boolean triple
@@ -105,60 +106,76 @@ Section~\ref{subsec:threat-model}.
 \label{tab:formal-verification}
 \centering
 \footnotesize
-\begin{tabular}{@{}lrrrr@{}}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-\textbf{Layer / property} & \textbf{States gen.} & \textbf{Distinct} & \textbf{Depth} & \textbf{Viol.} \\
+\textbf{Layer / property} & \textbf{States gen.} & \textbf{Distinct} & \textbf{Depth} & \textbf{Time} & \textbf{Workers} & \textbf{Viol.} \\
 \midrule
-Tendermint (safety) & 3{,}573{,}347 & 509{,}883 & 25 & 0 \\
-FSM (safety) & 1{,}022{,}325{,}986 & 3{,}386{,}761 & 22 & 0 \\
-FSM (liveness) & 10{,}321{,}121 & 17{,}857 & 22 & 0 \\
+Tendermint (safety) & 3{,}573{,}347 & 509{,}883 & 25 & 2\,m\,58\,s & \pending{} & 0 \\
+FSM (safety) & 1{,}371{,}377{,}696 & 4{,}542{,}271 & 23 & 19\,m\,36\,s & 4 & 0 \\
+FSM (liveness) & 17{,}986{,}105 & 31{,}105 & 23 & 7\,m\,39\,s & 2 & 0 \\
 \bottomrule
 \end{tabular}
+\\[2pt]
+\footnotesize Each row is one completed TLC run of that layer's driver. Depth is
+the number of breadth-first levels at which the search terminated with every
+state satisfying the state constraint explored, so it is the diameter of the
+constrained state graph and not a cap. Hardware: \pending{TLC host CPU and RAM}.
 \end{table}
+
+Table~\ref{tab:formal-config} lists the bounds of each run.
 
 Table~\ref{tab:formal-verification} reports the per-layer results, each
 obtained by running that layer's own model-checking driver standalone at its
-checked-in configuration
-($N{=}4$, $f{=}1$ for Tendermint; a suspicious-state threshold of 2,
-a sovereign-state threshold of 4, a hysteresis wait of 2 blocks, and a
-down-hysteresis threshold of 2 for the FSM layer). All three runs
+checked-in configuration (Table~\ref{tab:formal-config}). All three runs
 found zero violations in their bounded state spaces. These results cover
 the Tendermint-style and FSM layers; the abstract and server layers are
 exercised only through the open refinement obligation above.
 
-The ablation study spans two layers: the circuit breaker, hysteresis, and
-P2P health gate belong to the FSM layer, whereas DA consistency and the
-$f{+}1$ fast-forward belong to the consensus layer. Each mechanism's necessity is therefore shown within its own
-layer's bounded configuration.
+The ablation study spans two layers: the hysteresis and P2P health gate
+belong to the FSM layer, whereas the circuit breaker and DA consistency are
+checked in the Tendermint-layer driver. Each result therefore holds within its
+own layer's bounded configuration.
 
 \begin{table}[h]
-\caption{Ablation Study: Removing One Mechanism at a Time}
+\caption{Ablation Study: Removing One Mechanism at a Time (Apalache)}
 \label{tab:ablation}
 \centering
 \footnotesize
-\begin{tabular}{@{}p{0.24\linewidth}p{0.24\linewidth}p{0.1\linewidth}p{0.24\linewidth}@{}}
+\begin{tabular}{@{}p{0.2\linewidth}p{0.22\linewidth}p{0.07\linewidth}p{0.08\linewidth}p{0.24\linewidth}@{}}
 \toprule
-\textbf{Removed} & \textbf{Targeted threat} & \textbf{Depth} & \textbf{Violated property} \\
+\textbf{Removed} & \textbf{Targeted threat} & \textbf{Depth} & \textbf{Time} & \textbf{Violated property} \\
 \midrule
-Circuit breaker & Withdrawal leakage & 2 & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalLeakage} \\
-Hysteresis & Premature re-anchoring & 6 & \texttt{Sanity\_NoIllegal} \texttt{HysteresisExit} \\
-P2P health gate & False recovery under eclipse & 3 & \texttt{Sanity\_NoIllegal} \texttt{P2PRecovery} \\
-DA consistency & Data withholding & 2 & \texttt{Sanity\_Never} \texttt{ProposeWithheldData} \\
-$f{+}1$ fast-forward & Liveness deadlock & 4 & \texttt{EventualDecision} \texttt{UnderGSTLiveness} \\
+Circuit breaker & Withdrawal leakage & 2 & 66.7\,s & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalLeakage} \\
+Hysteresis & Premature re-anchoring & 6 & 117.0\,s & \texttt{Sanity\_NoIllegal} \texttt{HysteresisExit} \\
+P2P health gate & False recovery under eclipse & 3 & 24.2\,s & \texttt{Sanity\_NoIllegal} \texttt{P2PRecovery} \\
+DA consistency & Data withholding & 2 & 63.3\,s & \texttt{Sanity\_Never} \texttt{ProposeWithheldData} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Table~\ref{tab:ablation} reports the ablation study. Each row removes one
 mechanism and re-runs verification against the sanity property that
-mechanism protects. Four ablations were checked with Apalache's bounded SMT
-search, which found each counterexample in 25--120\,s at depth 2--6, far
-faster than TLC's breadth-first search for shallow counterexamples; the
-liveness-only $f{+}1$ fast-forward ablation was checked with TLC. Every
-ablation produced the predicted violation: without the circuit breaker a
-withdrawal leaks; without hysteresis the chain re-anchors prematurely;
-without the P2P gate an eclipsed validator forces an illegal recovery;
-without DA consistency a withholding proposal is accepted; and without the
-fast-forward, Byzantine timeout manipulation deadlocks the protocol. Each
-mechanism is therefore individually necessary. Single-factor ablation does
-not test joint removal, so it does not establish joint sufficiency.
+mechanism protects. Apalache's bounded SMT search found each counterexample
+in 24--117\,s at depth 2--6, far faster than TLC's breadth-first search for
+shallow counterexamples. Each ablation reproduced the violation its mechanism
+is designed to prevent: without the circuit breaker a withdrawal leaks;
+without hysteresis the chain re-anchors prematurely; without the P2P gate an
+eclipsed validator forces an illegal recovery; and without DA consistency a
+withholding proposal is accepted. The ablations show what each mechanism
+prevents. Single-factor ablation does not test joint removal, so it does not
+establish that the set of mechanisms is sufficient.
+
+\begin{table}[h]
+\caption{TLC Run Configurations}
+\label{tab:formal-config}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.2\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Run} & \textbf{Constants and bounds} \\
+\midrule
+Tendermint (safety) & $N{=}4$, $f{=}1$ (three honest, one Byzantine node); MaxRound 2; MaxBTCHeight 10; MaxEngramHeight 10; MaxTimestamp 2; symmetry reduction over the three honest nodes \\
+FSM (safety, liveness) & SuspiciousThreshold 2; SovereignThreshold 4; DAThreshold 2; HysteresisWait 2; SuspiciousHysteresisWait 2; MaxSuspiciousTime 2; DownHysteresisThreshold 2; MaxDownHysteresisThreshold 8; MinPeers 3; MinSubnetDiversity 2; MinAnchorPeers 1; MaxChurnRate 10; MinAvgTenure 100; MaxPeerLatency 50; the Bitcoin and Engram heights stay below 10 (safety run); no symmetry reduction \\
+\bottomrule
+\end{tabular}
+\end{table}

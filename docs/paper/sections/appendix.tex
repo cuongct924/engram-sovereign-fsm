@@ -2,28 +2,31 @@
 \label{app:attacks}
 
 Table~\ref{tab:attack-full} reports the full ten-scenario single-actor
-attack suite. A1, A2, and A6 ran on the earlier four-validator cluster; all
-other scenarios ran on the seven-validator testbed.
+attack suite. A1 and A2 ran on the earlier four-validator cluster ($n{=}4$);
+all other scenarios ran on the seven-validator testbed ($n{=}7$). The column
+\emph{Byz.\ VP} gives the share of voting power held by the misbehaving
+validator: one of seven validators is 14.3\%, and the attacker containers of
+A1 and A2 are non-validators (0\%).
 
 \begin{table}[h]
 \caption{Full Attack-Resilience Suite (live)}
 \label{tab:attack-full}
 \centering
 \footnotesize
-\begin{tabular}{@{}p{0.04\linewidth}p{0.24\linewidth}p{0.08\linewidth}p{0.08\linewidth}p{0.42\linewidth}@{}}
+\begin{tabular}{@{}p{0.04\linewidth}p{0.18\linewidth}p{0.03\linewidth}p{0.07\linewidth}p{0.06\linewidth}p{0.06\linewidth}p{0.36\linewidth}@{}}
 \toprule
-\textbf{\#} & \textbf{Attack} & \textbf{Safety} & \textbf{Diverg.} & \textbf{Attack-specific signal} \\
+\textbf{\#} & \textbf{Attack} & \textbf{$n$} & \textbf{Byz.\ VP} & \textbf{Safety} & \textbf{Diverg.} & \textbf{Attack-specific signal} \\
 \midrule
-A1 & Eclipse & True & 0 & Filter holds 8/8, nil-prevote ratio 0.0 throughout \\
-A2 & Simulated multi-subnet Sybil & True & 0 & Filter holds 8/8 despite 12 attackers \\
-A3 & Data withholding & True & 0 & --- \\
-A4 & Forged Bitcoin receipt & True & 0 & --- \\
-A5 & Withdrawal during \textsc{Sovereign} & True & 0 & Withdrawal correctly blocked; transaction never commits \\
-A6 & Malicious proposer & True & 0 & Forged FSM state rejected by all honest validators (Section~\ref{subsec:rq1}) \\
-A7 & Censorship & True & 0 & Censoring confirmed real (target tx omitted 9/9 proposer turns); honest reject signals stayed at 0 since the next honest proposer included the tx before the ignore-round threshold fired \\
-A8 & Combined (A6 + A1) & True & 0 & Safety held under simultaneous overlap \\
-A9 & Double-signing & True & 0 & 6/6 honest validators detected real duplicate-vote evidence; 1-block detection latency \\
-A10 & Timeout flood & True & 0 & Cadence held (0.770$\to$0.706 blocks/s); rate limiter dropped 0/0/0/0/0/0 at moderate (20 msg/s) intensity \\
+A1 & Eclipse & 4 & 0\% & True & 0 & Filter holds 8/8, nil-prevote ratio 0.0 throughout \\
+A2 & Simulated multi-subnet Sybil & 4 & 0\% & True & 0 & Filter holds 8/8 despite 12 attackers \\
+A3 & Data withholding & 7 & 14.3\% & True & 0 & --- \\
+A4 & Forged Bitcoin receipt & 7 & 14.3\% & True & 0 & --- \\
+A5 & Withdrawal during \textsc{Sovereign} & 7 & --- & True & 0 & Withdrawal correctly blocked; transaction never commits \\
+A6 & Malicious proposer & 7 & 14.3\% & True & 0 & Forged FSM state rejected by all honest validators (Section~\ref{subsec:rq1}) \\
+A7 & Censorship & 7 & 14.3\% & True & 0 & Censoring confirmed real (target tx omitted 9/9 proposer turns); honest reject signals stayed at 0 since the next honest proposer included the tx before the ignore-round threshold fired \\
+A8 & Combined (A6 + A1) & 7 & 14.3\% & True & 0 & Safety held under simultaneous overlap \\
+A9 & Double-signing & 7 & 14.3\% & True & 0 & 6/6 honest validators detected real duplicate-vote evidence; 1-block detection latency \\
+A10 & Timeout flood & 7 & 14.3\% & True & 0 & Cadence held (0.770$\to$0.706 blocks/s); rate limiter dropped 0/0/0/0/0/0 at moderate (20 msg/s) intensity \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -170,3 +173,57 @@ available logs -- the per-validator sensor value was not captured, only the
 committed FSM state and suspicious-duration counter. The data that is
 available shows the depth-15 escalation came from the suspicious-duration
 bound, not from a direct critical-condition jump.
+
+\FloatBarrier
+\section{Network Emulation Parameters}
+\label{app:netem}
+
+Table~\ref{tab:netem-profiles} lists every \texttt{tc netem} profile, applied
+through Pumba. No correlation or distribution option is set, so delay jitter
+is uniform and loss is independent per packet (the \texttt{netem} defaults).
+Profiles that name no interface use Pumba's default interface
+(\texttt{eth0}), which carries Bitcoin, Celestia, and RPC traffic rather than
+the dedicated pairwise validator links. Only the S4 scenario and the relay-latency attack (P4) of
+Section~\ref{sec:evaluation} target the validator links explicitly.
+
+\begin{table}[h]
+\caption{Network Emulation Profiles (Testbed A)}
+\label{tab:netem-profiles}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.2\linewidth}p{0.4\linewidth}p{0.12\linewidth}p{0.14\linewidth}@{}}
+\toprule
+\textbf{Profile} & \textbf{Effect and target} & \textbf{Duration} & \textbf{Used by} \\
+\midrule
+\texttt{chaos-delay} & 100\,ms delay, 20\,ms jitter, all seven validators & 5\,min & baseline \\
+\texttt{chaos-loss} & 5\% loss, validators 1 and 2 & 2\,min & composite \\
+\texttt{chaos-eclipse} & 100\% loss, validator 1 & 3\,min & S5 \\
+\texttt{chaos-btc-delay} & 500\,ms delay, 100\,ms jitter, one \texttt{bitcoind} & 2\,min & composite \\
+\texttt{chaos-wan-latency} & Per-validator delay and jitter, Table~\ref{tab:netem-wan} & 10\,min & WAN baseline \\
+\texttt{chaos-wan-loss} & Per-validator loss, Table~\ref{tab:netem-wan} & 10\,min & WAN variant \\
+S4 eclipse & 300\,ms delay, 50\,ms jitter on the six validator links of validator 1 & 2\,min & S4 \\
+P4 relay latency & 350\,ms delay, 50\,ms jitter on all P2P interfaces of one validator & 244\,s & P4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{WAN Baseline Profiles Per Validator (one profile of seven emulated regions)}
+\label{tab:netem-wan}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{Validator} & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+Delay (ms)  & 15 & 70 & 140 & 45 & 100 & 30 & 180 \\
+Jitter (ms) & 3 & 15 & 25 & 10 & 20 & 6 & 30 \\
+Loss (\%, loss variant) & 1 & 3 & 6 & 2 & 4 & 1 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each validator receives one delay value on its egress, so the profile is a
+per-validator offset rather than a pairwise round-trip-time matrix. A
+pairwise matrix between regions is measured only on Testbed~B.
+\pending{measure and tabulate the inter-region round-trip times of Testbed~B.}

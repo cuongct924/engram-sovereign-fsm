@@ -13,26 +13,245 @@ The peripheral layers are real software, not simulators: a two-node Bitcoin
 regtest network mined continuously at roughly one block per 20\,s, and a
 Celestia network with seven bridge nodes, one per validator, so that each
 validator forms its own DA view. A prover process (Noir/Barretenberg)
-watches for a \textsc{Sovereign} backlog and submits recovery proofs. Two
-experiments predate the move to seven validators and ran on a four-validator
-cluster ($f{=}1$): the single-proposer attack (A6) and the eclipse/Sybil rows
-(A1/A2) of Appendix~\ref{app:attacks}.
-\pending{re-run A6 and A1/A2 at $n{=}7$, and run the $f{=}2$ collusion
-suite of Section~\ref{subsec:rq1}.}
+watches for a \textsc{Sovereign} backlog and submits recovery proofs. The
+eclipse and Sybil rows (A1 and A2) of Appendix~\ref{app:attacks} predate the
+move to seven validators and ran on a four-validator cluster ($f{=}1$).
+\pending{re-run A1/A2 at $n{=}7$, and run the $f{=}2$ collusion suite of
+Section~\ref{subsec:rq1}.}
+
+\subsection{Environments and Software Versions}
+\label{subsec:environment}
+
+All results come from one environment, Testbed~A: the seven-validator Docker
+deployment above on a single host. A second environment, Testbed~B, with one
+validator on each of seven cloud virtual machines, is planned for the
+experiments that depend on real wide-area conditions. Every table and figure
+in Section~\ref{sec:evaluation} is a Testbed~A measurement unless its
+caption says otherwise, and results from the two environments are never
+pooled into one number. Table~\ref{tab:environment} lists the configuration.
+
+\begin{table}[h]
+\caption{Testbed Configuration and Software Versions}
+\label{tab:environment}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.2\linewidth}p{0.45\linewidth}p{0.2\linewidth}@{}}
+\toprule
+\textbf{Component} & \textbf{Testbed A} & \textbf{Testbed B} \\
+\midrule
+Host & Apple M1 Pro, 32\,GB RAM, macOS & \pending{} \\
+Container runtime & Docker 29.0.1; VM allocation \pending{} & \pending{} \\
+Validators (7) & No CPU or memory limit per container & \pending{} \\
+Consensus core & CometBFT v0.39.3 module path, replaced by the fork
+\texttt{engram-consensus-core} at commit \texttt{493a20121} & Same commit \\
+Application & Cosmos SDK v0.54.3; this repository at \pending{results commit} & Same commit \\
+Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) & \pending{} \\
+Celestia & celestia-app v1.11.0 (0.5 CPU, 1\,GB); seven celestia-node
+v0.14.1 bridges (0.3 CPU, 512\,MB each) & \pending{} \\
+Prover & nargo 1.0.0-beta.22, \texttt{bb} 5.0.0-nightly.20260522
+(6 CPU, 8\,GB limit) & \pending{} \\
+Fault injection & Pumba (image tag \texttt{latest}) driving kernel
+\texttt{tc netem} & Real network \\
+Formal tools & TLC \pending{version}; Apalache v0.58.3 on JDK 17 & --- \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize CPU and memory figures are container limits. The fork differs
+from upstream CometBFT in four ways: an $f{+}1$ timeout round-skip, per-peer
+round-trip-time measurement and a peer health monitor that feed the P2P
+sensor, per-peer rate limiting and bounded round acceptance for timeout
+messages, and the proposal round passed to the application through
+\texttt{PrepareProposal} and \texttt{ProcessProposal}.
+\end{table}
 
 \subsection{Fault Injection}
 
 Network-level faults use kernel traffic control (\texttt{tc netem} via
 Pumba): uniform delay and jitter, packet loss, single-node isolation, and a
 heterogeneous per-validator wide-area profile approximating seven regions.
-Application-level faults reproduce mechanisms that delay alone cannot:
-Bitcoin congestion suspends checkpoint submission so the finality gap grows
-directly; DA outages stop one or all seven Celestia bridges; and Byzantine
-behavior is injected through attacker processes or through a validator
-configured to forge proposal fields, omit transactions, double-sign, or
-flood timeout messages. Every fault targets a peripheral layer or a
-minority of validators; none partitions the core consensus network below
-$2f{+}1$, consistent with the scope defined in Section~\ref{sec:intro}.
+Appendix~\ref{app:netem} lists the parameters of every profile. The
+\emph{WAN latency baseline} is the per-validator delay and jitter profile of
+Table~\ref{tab:netem-wan}, held for the whole run unless a step in
+Table~\ref{tab:schedule} suspends it.
+
+Application-level faults reproduce mechanisms that delay alone cannot, and
+each simulates the consequence of a failure rather than its cause.
+\begin{itemize}
+  \item \emph{Bitcoin congestion} suspends the submission of new
+  checkpoints (a pending one still confirms), so the finality gap grows
+  directly. It does not congest the Bitcoin mempool.
+  \item \emph{DA outage} stops one or all seven Celestia bridge containers.
+  It does not emulate a data-availability-sampling failure.
+  \item \emph{Byzantine behavior} is injected through attacker processes or
+  through a validator configured to forge proposal fields, omit
+  transactions, double-sign, or flood timeout messages.
+\end{itemize}
+Every fault targets a peripheral layer or a minority of validators; none
+partitions the core consensus network below $2f{+}1$, consistent with the
+scope defined in Section~\ref{sec:intro}.
+
+\subsection{Fault Schedules}
+\label{subsec:schedules}
+
+Table~\ref{tab:schedule} gives the onset, mechanism, and duration of each
+fault in the two scripted runs of Section~\ref{subsec:rq2}. Times are
+relative to the start of each run, durations are the length of the polling
+window the script holds the fault for, and each of S2--S5 is followed by a
+wait of up to 90\,s for the validators to return to \textsc{Anchored} before
+the next scenario starts.
+
+\begin{table}[h]
+\caption{Fault Schedules of the Scripted Runs}
+\label{tab:schedule}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.07\linewidth}p{0.5\linewidth}p{0.2\linewidth}@{}}
+\toprule
+\textbf{Step} & \textbf{Fault and mechanism} & \textbf{Duration} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Composite run (standing WAN latency baseline)}} \\
+C1 & Baseline, no fault & 15\,s \\
+C2 & Bitcoin fault: 500\,$\pm$\,100\,ms RPC delay on one \texttt{bitcoind} (profile length 2\,min) & 60\,s \\
+C3 & All seven Celestia bridges stopped, added to C2 & 60\,s \\
+C4 & Three cycles of 5\% packet loss on validators 1 and 2 (WAN baseline suspended) & 3\,$\times$\,(20\,s on, 10\,s off) \\
+C5 & Hold; bridges still stopped & 30\,s \\
+C6 & Heal: Bitcoin profile cleaned up, bridges restarted & 30\,s \\
+C7 & Wait for \textsc{Anchored} (limit 600\,s) & until recovery \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Seven-scenario sweep}} \\
+S1 & Healthy baseline & 15\,s \\
+S2 & Checkpoint submission suspended on all validators & 180\,s \\
+S3 & All seven Celestia bridges stopped & 60\,s \\
+S4 & 300\,$\pm$\,50\,ms delay on the six validator links of validator 1 & 120\,s \\
+S5 & 100\% packet loss on validator 1 & 180\,s \\
+S6 & One \texttt{bitcoind} and all seven bridges stopped & 90\,s \\
+S7 & Faults removed; wait for \textsc{Anchored} (limit 600\,s) & until recovery \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{FSM Parameters}
+\label{subsec:params}
+
+FSM parameters are fixed in the genesis file, so every validator holds
+identical values. All live experiments use the defaults of
+Table~\ref{tab:fsm-params} unless a section states an override. Sensors are
+sampled once per block, when a validator signs its vote extension; the
+measurement scripts poll each validator's RPC every 3\,s (2\,s during the
+packet-loss cycles of C4). Blocks arrive about once per second.
+
+\begin{table}[h]
+\caption{FSM Parameters Used in the Live Experiments}
+\label{tab:fsm-params}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.34\linewidth}rp{0.38\linewidth}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Unit and role} \\
+\midrule
+\texttt{SuspiciousThreshold} & 5 & Bitcoin gap, blocks \\
+\texttt{SovereignThreshold} & 8 & Bitcoin gap, blocks \\
+\texttt{DAThreshold} & 30 & DA gap, blocks \\
+\texttt{KDeepFinality} & 2 & Reorg depth, Bitcoin blocks \\
+\texttt{MinPeers} & 3 & Clean peers \\
+\texttt{MinSubnetDiversity} & 2 & Distinct subnets \\
+\texttt{MinAnchorPeers} & 2 & Active anchor peers \\
+\texttt{MaxChurnRate} & 5 & Peer churn events \\
+\texttt{MinAvgTenure} & 300 & Mean peer tenure, s \\
+\texttt{MaxPeerLatency} & 200 & Round-trip time, ms \\
+\texttt{HysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
+\texttt{DownHysteresisThreshold} & 2 & \textsc{Anchored}$\to$\textsc{Suspicious}, blocks \\
+\texttt{MaxDownHysteresisThreshold} & 8 & Cap on the backed-off threshold \\
+\texttt{SuspiciousHysteresisWait} & 2 & \textsc{Suspicious}$\to$\textsc{Anchored}, blocks \\
+\texttt{MaxSuspiciousTime} & 24 & \textsc{Suspicious} escalation bound, blocks \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Overrides: the hysteresis sweeps of Section~\ref{subsec:rq3}
+vary one hysteresis parameter at a time; the Monte Carlo study of
+Section~\ref{subsec:rq1} uses the P2P thresholds of
+Section~\ref{subsec:montecarlo}.
+\end{table}
+
+\subsection{Metrics}
+\label{subsec:metrics}
+
+Let a run record the FSM state $s_b$ of every block $b$ in a window $W$.
+\begin{itemize}
+  \item \emph{Anchored uptime} $=|\{b\in W : s_b=\textsc{Anchored}\}|/|W|$.
+  In-process, $W$ is the whole recorded timeline: for the noisy
+  environments, the 100 noisy blocks plus the setup blocks that precede them
+  (two for the \textsc{Recovering}$\to$\textsc{Anchored} sweep, one for the
+  others). The no-noise control of that sweep ends at the first
+  \textsc{Anchored} block, so its window is only the setup blocks plus the
+  wait, and its uptime falls as the wait grows. Live, $W$ is the sequence of
+  RPC samples of one validator over a 300\,s window.
+  \item \emph{Flapping count} is the number of transitions that immediately
+  reverse the preceding transition, for example
+  \textsc{Anchored}$\to$\textsc{Suspicious} followed by
+  \textsc{Suspicious}$\to$\textsc{Anchored}, over the same $W$. Live runs
+  detect reversals between consecutive samples, so a reversal faster than
+  the polling interval is not seen.
+  \item \emph{Absorption rate} is $a/(a+d)$, where $a$ is the number of
+  disturbed blocks that begin in \textsc{Anchored} and leave the state
+  unchanged, and $d$ is the number that move it to \textsc{Suspicious}.
+  It is defined only on the \textsc{Anchored}$\to$\textsc{Suspicious} and
+  \textsc{Suspicious}$\to$\textsc{Anchored} sweeps.
+  \item \emph{Blocks/s} $=(h_{\max}-h_{\min})/T$ over a measurement window of
+  length $T$ (60\,s after an 8\,s warm-up in Section~\ref{subsec:rq4}).
+  \emph{Steady blocks/s} $=1/\bar\imath$, where $\bar\imath$ is the mean
+  block interval. \emph{Gap fraction} $=1-n\bar\imath/T$, where $n$ is the
+  number of observed intervals: the share of the window not accounted for
+  by intervals at the steady pace, that is, time spent in heights that took
+  longer than one interval.
+\end{itemize}
+
+\subsection{Synthetic Workloads}
+\label{subsec:montecarlo}
+
+\textbf{Noise profile (in-process).} The hysteresis sweeps drive the real
+state machine with sensor readings generated per block. Each block is
+disturbed independently with probability 0.2 and healthy otherwise, for 100
+blocks, from a fixed pseudo-random seed (7 for the
+\textsc{Recovering}$\to$\textsc{Anchored} sweep, 11 for the
+\textsc{Anchored}$\to$\textsc{Suspicious} sweep), so every threshold value
+sees the same noise sequence. A disturbance sets sensors to a failing
+reading for one block. Critical disturbances set the Bitcoin gap to
+\texttt{SovereignThreshold}. Warning-level disturbances set the Bitcoin gap
+to \texttt{SuspiciousThreshold}, mark DA unavailable, or give the P2P sensor
+a snapshot with no clean peers, diversity, or tenure and only the minimum
+anchor count. The combined environments apply several at once.
+
+\textbf{Monte Carlo P2P study.} A \emph{snapshot} is one synthetic tuple of
+the six P2P sensor fields (subnet diversity, active anchors, clean peers,
+churn rate, mean tenure, latency). A benign snapshot draws each field inside its healthy range
+with a uniform random margin. An attack of \emph{intensity}
+$x\in[0,1]$ perturbs the fields it targets in proportion to $x$ (for
+example, the relay attack adds $x\,(\texttt{MaxPeerLatency}{+}150)$\,ms of
+latency and leaves the other fields benign); $x=0$ is benign and $x=1$ is
+the full attack. Detectors are the six-bound profiler and the
+peer-count-only rule $\text{CleanPeers}\ge\texttt{MinPeers}$. The study uses
+production-scale P2P thresholds: 8 subnets, 4 anchors, 20 clean peers, churn
+5, tenure 300\,s, latency 200\,ms. Four measurements per cell follow, all
+from fixed seeds.
+\begin{itemize}
+  \item \emph{False-positive rate:} the share of 2{,}000 benign snapshots
+  flagged unhealthy.
+  \item \emph{False-negative rate:} the share of 2{,}000 full-intensity
+  snapshots flagged healthy.
+  \item \emph{Detection delay:} over 500 ramps, the number of snapshots until
+  the first flag, with intensity rising $0.1,0.2,\ldots,1.0$ over 10
+  snapshots. The mean is taken over ramps that were detected.
+  \item \emph{Evasion threshold:} the largest intensity (on the 0--1 scale)
+  at which a majority of 20 probes still read healthy, found by a 12-step
+  binary search that queries the detector, so it bounds an adversary with
+  oracle access.
+\end{itemize}
+The ramp-shape study uses 300 ramps per shape and the three shapes
+$x$ (linear), $\sqrt{x}$ (front-loaded), and $x^2$ (slow). The upper 95\% confidence bound on a
+rate observed as 0 in $n$ trials is about $3/n$ (rule of three): 0.15\% for
+$n=2{,}000$ and 1\% for $n=300$.
+\pending{report the standard deviation of detection delay per cell.}
 
 \subsection{Baselines}
 \label{subsec:baselines}
@@ -64,12 +283,14 @@ its threshold set to its floor isolates the contribution of hysteresis
 Four properties of the testbed limit how its results transfer to a
 production deployment.
 \begin{itemize}
-  \item \emph{Single physical host.} All containers share one machine's CPU
-  and memory, so resource contention can affect every validator at once;
-  wide-area conditions are emulated with \texttt{tc netem} rather than real
-  geographic distribution.
-  \pending{repeat the composite-fault experiment on seven hosts in at least
-  three regions, $\geq 3$ trials.}
+  \item \emph{Single physical host.} All Testbed~A containers share one
+  machine's CPU and memory, so resource contention can affect every validator
+  at once; wide-area conditions are emulated with \texttt{tc netem} rather
+  than real geographic distribution. Testbed~B removes both limitations for
+  the experiments repeated on it.
+  \pending{repeat the composite-fault experiment on Testbed~B (seven hosts in
+  at least three regions, $\geq 3$ trials) and report the measured
+  inter-region round-trip times.}
   \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
   faster than on mainnet. Height-based thresholds are unaffected, but
   wall-clock durations scale accordingly.
