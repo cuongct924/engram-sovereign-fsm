@@ -1,0 +1,4 @@
+L,chunks,leaf_circuit_size,agg_circuit_size,leaf_prove_s_mean,leaf_prove_peak_mb,chain_prove_s,chain_verify_ms,chain_proof_bytes,agg_prove_s_mean,agg_prove_peak_mb,agg_verify_ms,agg_proof_bytes,total_agg_prove_s,trials
+256,1,3234226,3002299,31.45,5681,31.451,34.0,14656,25.73,5180,48.8,   14656,57.18,5
+512,2,3234226,3002299,30.23,5926,60.452,69.0,29312,29.48,5164,39.6,   14656,89.93,5
+1024,4,3234226,3002299,30.03,5926,120.121,148.0,58624,26.54,5172,44.0,   14656,146.66,5
