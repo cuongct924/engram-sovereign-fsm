@@ -1,0 +1,68 @@
+{
+  "arm": "engram",
+  "repeats": 5,
+  "duration_s": 60.0,
+  "rate_hz": 20.0,
+  "metrics": {
+    "accepted": {
+      "mean": 1200.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "committed": {
+      "mean": 1200.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "committed_tx_per_s": {
+      "mean": 20.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "latency_p50_s": {
+      "mean": 1.0440123558044434,
+      "stdev": 0.04968494480911048,
+      "ci95": 0.04355077430818657
+    },
+    "latency_p95_s": {
+      "mean": 1.6569918632507323,
+      "stdev": 0.07515604491729262,
+      "ci95": 0.06587717793919678
+    },
+    "mempool_mean": {
+      "mean": 15.342691511387164,
+      "stdev": 1.1235909669676571,
+      "ci95": 0.9848709061694055
+    },
+    "mempool_max": {
+      "mean": 35.2,
+      "stdev": 5.215361924162119,
+      "ci95": 4.571466285558715
+    },
+    "heights": {
+      "mean": 55.6,
+      "stdev": 1.51657508881031,
+      "ci95": 1.3293366766925523
+    },
+    "rounds_per_height": {
+      "mean": 1.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "nil_precommits_per_height": {
+      "mean": 0.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "rejected_per_height": {
+      "mean": 0.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "tx_per_block": {
+      "mean": 21.595971059724782,
+      "stdev": 0.6067199092055287,
+      "ci95": 0.5318134484321365
+    }
+  }
+}
