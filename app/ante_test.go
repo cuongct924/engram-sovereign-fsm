@@ -72,7 +72,7 @@ func TestAnteHandle_BlocksHighRiskTxWhileSovereign(t *testing.T) {
 
 // TestAnteHandle_BlocksHighRiskTxWhileRecovering covers the RECOVERING half
 // of WithdrawLocked -- re-anchoring isn't finalized until safe_blocks reaches
-// HysteresisWait, so withdrawals stay halted here too, not just in SOVEREIGN.
+// RecoveryHysteresisWait, so withdrawals stay halted here too, not just in SOVEREIGN.
 func TestAnteHandle_BlocksHighRiskTxWhileRecovering(t *testing.T) {
 	cbd, ctx, k := newTestAnteFixture(t)
 	require.NoError(t, k.FSMState.Set(ctx, fsmtypes.StateRecovering))

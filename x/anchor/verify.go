@@ -31,9 +31,9 @@ func Tolerance(round, kDeepFinality uint64) uint64 {
 	return kDeepFinality + livenessMargin + round
 }
 
-// VerifySPVProof ports VerifySPVProof verbatim (spec/core/EngramTendermint.tla:271-275):
+// VerifyAnchorReceipt ports VerifyAnchorReceipt verbatim (spec/core/EngramTendermint.tla:271-275):
 //
-//	VerifySPVProof(receipt) ==
+//	VerifyAnchorReceipt(receipt) ==
 //	    /\ receipt.checkpoint_block_height <= h_btc_current
 //	    /\ receipt.checkpoint_block_height >= h_btc_anchored
 //	    /\ receipt.checkpoint_block_hash = ExpectedBlockHash(receipt.checkpoint_block_height)
@@ -46,7 +46,7 @@ func Tolerance(round, kDeepFinality uint64) uint64 {
 // CanElect's SOVEREIGN-state IsMaxStakeBranch has no comparable artifact: it
 // needs SumStake >= TOTAL_STAKE/2, weaker than CometBFT's unmodified >=2/3
 // commit quorum, so any block the fork commits already satisfies it.
-func VerifySPVProof(receipt Receipt, hBTCCurrent, hBTCAnchored uint64) bool {
+func VerifyAnchorReceipt(receipt Receipt, hBTCCurrent, hBTCAnchored uint64) bool {
 	if receipt.CheckpointBlockHeight > hBTCCurrent {
 		return false
 	}
@@ -61,9 +61,9 @@ func VerifySPVProof(receipt Receipt, hBTCCurrent, hBTCAnchored uint64) bool {
 //
 //	/\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsBTCHealthy) =>
 //	    /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
-//	    /\ VerifySPVProof(prop.btc_receipt)
+//	    /\ VerifyAnchorReceipt(prop.btc_receipt)
 //
-// The freshness/SPV checks apply only when the proposal claims ANCHORED/
+// The freshness/anchor-hash checks apply only when the proposal claims ANCHORED/
 // RECOVERING, or the BTC sensor is independently healthy -- otherwise (e.g.
 // SOVEREIGN with BTC genuinely down) a stale/unverifiable checkpoint must not
 // invalidate the proposal, or a real outage makes every proposal permanently
@@ -82,5 +82,5 @@ func VerifyReceipt(receipt Receipt, fsmState string, isBTCHealthy bool, hBTCCurr
 	if receipt.CheckpointBlockHeight < uint64(lowerBound) {
 		return false
 	}
-	return VerifySPVProof(receipt, hBTCCurrent, hBTCAnchored)
+	return VerifyAnchorReceipt(receipt, hBTCCurrent, hBTCAnchored)
 }

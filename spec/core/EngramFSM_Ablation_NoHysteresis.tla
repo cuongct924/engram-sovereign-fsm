@@ -38,7 +38,7 @@ ASSUME
     /\ SUSPICIOUS_THRESHOLD \in Nat
     /\ SOVEREIGN_THRESHOLD \in Nat
     /\ DA_THRESHOLD \in Nat
-    /\ HYSTERESIS_WAIT \in Nat
+    /\ RECOVERY_HYSTERESIS_WAIT \in Nat
     /\ MIN_PEERS \in Nat
     /\ MIN_SUBNET_DIVERSITY \in Nat
     /\ MIN_ANCHOR_PEERS  \in Nat
@@ -135,7 +135,7 @@ FSMTypeOK ==
     /\ IsFiniteSet(anchor_peers)
     /\ IsFiniteSet(blacklisted_peers)
     /\ peer_churn_rate \in Nat /\ avg_peer_tenure \in Nat /\ peer_latency \in Nat
-    /\ safe_blocks \in 0..HYSTERESIS_WAIT
+    /\ safe_blocks \in 0..RECOVERY_HYSTERESIS_WAIT
     /\ reanchoring_proof_valid \in BOOLEAN
     /\ da_backfill_valid \in BOOLEAN
 
@@ -322,13 +322,13 @@ CalculateNextFSMState ==
       \* Fallback to SOVEREIGN if network degrades while in RECOVERING
       [] state = "RECOVERING" /\ ~IsHealthyCondition -> "SOVEREIGN"
       
-      \* ABLATION (Remove Hysteresis): the `safe_blocks = HYSTERESIS_WAIT`
+      \* ABLATION (Remove Hysteresis): the `safe_blocks = RECOVERY_HYSTERESIS_WAIT`
       \* precondition has been deleted for this experiment -- see
       \* core/EngramFSM.tla's real CalculateNextFSMState for the checked-in
       \* version. Sanity_NeverFlapInRecovering is expected to FAIL here.
       [] state = "RECOVERING" /\ IsHealthyCondition  /\ reanchoring_proof_valid = TRUE /\ da_backfill_valid = TRUE -> "ANCHORED"
       
-      \* Catch-all for remaining in RECOVERING (covers safe_blocks < HYSTERESIS_WAIT and pending ZK proofs)
+      \* Catch-all for remaining in RECOVERING (covers safe_blocks < RECOVERY_HYSTERESIS_WAIT and pending ZK proofs)
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
       
       [] OTHER -> state
@@ -352,7 +352,7 @@ ExecuteFSMTransition(target_state) ==
     \* It resets to 0 automatically if transitioning out of RECOVERING or just entering it from SOVEREIGN
     /\ safe_blocks' = 
            IF target_state = "RECOVERING" /\ state = "RECOVERING"
-           THEN MinVal(safe_blocks + 1, HYSTERESIS_WAIT)
+           THEN MinVal(safe_blocks + 1, RECOVERY_HYSTERESIS_WAIT)
            ELSE 0
 
 DABackfill ==
@@ -360,7 +360,7 @@ DABackfill ==
     /\ da_backfill_valid = FALSE
     /\ IsDAHealthy
     /\ da_backfill_valid' = TRUE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, flap_level, stable_blocks, reanchoring_proof_valid>>
     /\ UNCHANGED <<networkSensorVars, censorshipVars>>
 
 (* ======================== THE NEXT-STATE ACTION (FOR UNIT TEST) ============ *)
@@ -385,7 +385,7 @@ CircuitBreakerSafety ==
 \* Safety 2: The only way to exit RECOVERING is after full hysteresis + valid ZK proof
 HysteresisSafety ==
     [][ (state = "RECOVERING" /\ state' = "ANCHORED")
-        => (safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
+        => (safe_blocks = RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
 
 \* Safety 3: Prevents any illegal or out-of-order FSM state transitions.
 StrictFSMTransitionSafety == 

@@ -107,10 +107,13 @@ func (a AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, bz json.Raw
 	if err := a.keeper.UnhealthyStreak.Set(ctx, gs.UnhealthyStreak); err != nil {
 		panic(err)
 	}
-	if err := a.keeper.FailedRecoveryAttempts.Set(ctx, gs.FailedRecoveryAttempts); err != nil {
+	if err := a.keeper.FlapLevel.Set(ctx, gs.FlapLevel); err != nil {
 		panic(err)
 	}
 	if err := a.keeper.SuspiciousSafeBlocks.Set(ctx, gs.SuspiciousSafeBlocks); err != nil {
+		panic(err)
+	}
+	if err := a.keeper.StableBlocks.Set(ctx, gs.StableBlocks); err != nil {
 		panic(err)
 	}
 }
@@ -122,19 +125,21 @@ func (a AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawM
 	proofValid, _ := a.keeper.ReanchoringProofValid.Get(ctx)
 	metrics, _ := a.keeper.Metrics.Get(ctx)
 	unhealthyStreak, _ := a.keeper.UnhealthyStreak.Get(ctx)
-	failedRecoveryAttempts, _ := a.keeper.FailedRecoveryAttempts.Get(ctx)
+	flapLevel, _ := a.keeper.FlapLevel.Get(ctx)
 	suspiciousSafeBlocks, _ := a.keeper.SuspiciousSafeBlocks.Get(ctx)
+	stableBlocks, _ := a.keeper.StableBlocks.Get(ctx)
 
 	gs := &types.GenesisState{
-		FsmState:               fsmState,
-		SafeBlocksCounter:      safeBlocks,
-		SuspiciousDuration:     suspiciousDuration,
-		ReanchoringProofValid:  proofValid,
-		InitialMetrics:         metrics,
-		Params:                 a.keeper.Params.ToGenesisParams(),
-		UnhealthyStreak:        unhealthyStreak,
-		FailedRecoveryAttempts: failedRecoveryAttempts,
-		SuspiciousSafeBlocks:   suspiciousSafeBlocks,
+		FsmState:              fsmState,
+		SafeBlocksCounter:     safeBlocks,
+		SuspiciousDuration:    suspiciousDuration,
+		ReanchoringProofValid: proofValid,
+		InitialMetrics:        metrics,
+		Params:                a.keeper.Params.ToGenesisParams(),
+		UnhealthyStreak:       unhealthyStreak,
+		FlapLevel:             flapLevel,
+		SuspiciousSafeBlocks:  suspiciousSafeBlocks,
+		StableBlocks:          stableBlocks,
 	}
 	return cdc.MustMarshalJSON(gs)
 }

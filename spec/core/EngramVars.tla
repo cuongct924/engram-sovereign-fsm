@@ -28,12 +28,12 @@
 
 CONSTANTS
     \* @type: Int;
-    HYSTERESIS_WAIT,    \* Consecutive safe blocks required for successful recovery
+    RECOVERY_HYSTERESIS_WAIT,    \* Consecutive safe blocks required for successful recovery
     \* @type: Int;
     DA_THRESHOLD,       \* Max allowed block gap since last DA publication verification
     \* @type: Int;
     SUSPICIOUS_HYSTERESIS_WAIT  \* Consecutive healthy blocks required to exit SUSPICIOUS ->
-                                 \* ANCHORED -- mirrors HYSTERESIS_WAIT's role on the
+                                 \* ANCHORED -- mirrors RECOVERY_HYSTERESIS_WAIT's role on the
                                  \* RECOVERING -> ANCHORED edge, applied to SUSPICIOUS's own
                                  \* exit edge (closes the single-block gray-failure-arbitrage gap)
 
@@ -205,12 +205,14 @@ VARIABLES
                               \* ANCHORED or RECOVERING -- gates the downward transition
                               \* instead of firing on a single noisy reading (E5's flapping finding)
     \* @type: Int;
-    failed_recovery_attempts, \* Consecutive RECOVERING -> SOVEREIGN regressions since the
-                               \* last successful RECOVERING -> ANCHORED -- exponentially
-                               \* backs off RECOVERING's down-hysteresis grace period, so a
-                               \* repeated precisely-timed flapping attack (not just a single
-                               \* well-timed block) gets progressively harder, not equally
-                               \* cheap every cycle.
+    flap_level, \* Adaptive-hysteresis level: +1 per demotion caused by warning-level
+                 \* noise (ANCHORED -> SUSPICIOUS, non-critical RECOVERING -> SOVEREIGN),
+                 \* -1 per STABLE_WINDOW healthy ANCHORED blocks. Scales the down-
+                 \* hysteresis threshold, so repeated flapping (noise or a timed
+                 \* attacker) faces a progressively higher bar that relaxes once stable.
+    \* @type: Int;
+    stable_blocks, \* Healthy ANCHORED blocks accumulated toward decaying flap_level; leaks
+                    \* (not hard-resets) on an absorbed warning block, like safe_blocks.
     \* @type: Bool;
     reanchoring_proof_valid, \* Boolean: ZK re-anchoring proof confirmed on-chain
     \* @type: Bool;
@@ -221,7 +223,7 @@ VARIABLES
                               \* proof shows the interval is valid, not that its data is available.
 
 \* Top-level FSM tuple consumed by EngramTendermint actions
-fsmVars == <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid, da_backfill_valid>>
+fsmVars == <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, flap_level, stable_blocks, reanchoring_proof_valid, da_backfill_valid>>
 
 
 (* ======================== CENSORSHIP VARIABLES ======================= *)

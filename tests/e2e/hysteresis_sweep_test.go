@@ -1,8 +1,8 @@
 // E5 -- Hysteresis and Flapping Sensitivity (E5, Figure 4). Sweeps
-// HysteresisWait over {0,1,3,5,10,20} through the real Harness/BeginBlocker
+// RecoveryHysteresisWait over {0,1,3,5,10,20} through the real Harness/BeginBlocker
 // path under 5 environments (stable, noisy DA, noisy BTC, noisy P2P,
 // combined). Noisy envs use a per-block Bernoulli disturbance with a fixed
-// RNG seed across all HysteresisWait values, so only hysteresis filtering
+// RNG seed across all RecoveryHysteresisWait values, so only hysteresis filtering
 // differs -- an earlier one-shot-disturbance version never produced flapping
 // and didn't test what hysteresis is actually for.
 package e2e
@@ -23,19 +23,19 @@ import (
 var hysteresisSweepValues = []uint64{0, 1, 3, 5, 10, 20}
 
 const (
-	noisyWindowBlocks = 100 // fixed window so all HysteresisWait values get a fair, identical-length shot
+	noisyWindowBlocks = 100 // fixed window so all RecoveryHysteresisWait values get a fair, identical-length shot
 	noiseProbability  = 0.2 // per-block chance of a 1-block disturbance in a noisy environment
 )
 
 type hysteresisRun struct {
-	HysteresisWait   uint64
-	Environment      string
-	ReachedAnchored  bool // did the FSM ever reach ANCHORED within the window
-	FirstAnchoredAt  int64
-	FinalState       string // state at the end of the window -- "did it stick"
-	FlappingCount    int
-	TotalTransitions int
-	AnchoredUptime   float64 // fraction of the run's blocks spent in ANCHORED -- the real "stability" metric
+	RecoveryHysteresisWait uint64
+	Environment            string
+	ReachedAnchored        bool // did the FSM ever reach ANCHORED within the window
+	FirstAnchoredAt        int64
+	FinalState             string // state at the end of the window -- "did it stick"
+	FlappingCount          int
+	TotalTransitions       int
+	AnchoredUptime         float64 // fraction of the run's blocks spent in ANCHORED -- the real "stability" metric
 }
 
 func anchoredUptime(h *Harness) float64 {
@@ -52,12 +52,12 @@ func anchoredUptime(h *Harness) float64 {
 	return float64(anchored) / float64(len(timeline))
 }
 
-// runStableRecovery: SOVEREIGN -> heal -> RECOVERING -> wait HysteresisWait
+// runStableRecovery: SOVEREIGN -> heal -> RECOVERING -> wait RecoveryHysteresisWait
 // -> submit proof -> ANCHORED. No-noise control for the noisy environments.
 func runStableRecovery(t *testing.T, hysteresisWait uint64) hysteresisRun {
 	t.Helper()
 	h := NewHarness(t)
-	h.keeper.Params.HysteresisWait = hysteresisWait
+	h.keeper.Params.RecoveryHysteresisWait = hysteresisWait
 
 	h.BTC.SetGap(h.keeper.Params.SovereignThreshold)
 	h.Advance()
@@ -75,14 +75,14 @@ func runStableRecovery(t *testing.T, hysteresisWait uint64) hysteresisRun {
 
 	m := h.ComputeMetrics()
 	return hysteresisRun{
-		HysteresisWait:   hysteresisWait,
-		Environment:      "stable",
-		ReachedAnchored:  h.State() == types.StateAnchored,
-		FirstAnchoredAt:  firstAnchoredHeight(h),
-		FinalState:       h.State(),
-		FlappingCount:    m.FlappingCount,
-		TotalTransitions: m.TotalTransitions,
-		AnchoredUptime:   anchoredUptime(h),
+		RecoveryHysteresisWait: hysteresisWait,
+		Environment:            "stable",
+		ReachedAnchored:        h.State() == types.StateAnchored,
+		FirstAnchoredAt:        firstAnchoredHeight(h),
+		FinalState:             h.State(),
+		FlappingCount:          m.FlappingCount,
+		TotalTransitions:       m.TotalTransitions,
+		AnchoredUptime:         anchoredUptime(h),
 	}
 }
 
@@ -125,11 +125,11 @@ func healSensors(h *Harness) {
 
 // runNoisyRecovery: enter RECOVERING with the proof valid, then run a fixed
 // window where each block independently disturbs (noiseProbability) or heals.
-// Fixed per-env RNG seed => identical noise across HysteresisWait values.
+// Fixed per-env RNG seed => identical noise across RecoveryHysteresisWait values.
 func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresisRun {
 	t.Helper()
 	h := NewHarness(t)
-	h.keeper.Params.HysteresisWait = hysteresisWait
+	h.keeper.Params.RecoveryHysteresisWait = hysteresisWait
 	disturb := envDisturbances[env]
 
 	h.BTC.SetGap(h.keeper.Params.SovereignThreshold)
@@ -141,7 +141,7 @@ func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresi
 	require.Equal(t, types.StateRecovering, h.State(), "environment %s", env)
 	h.SetReanchoringProofValid(true)
 
-	rng := rand.New(rand.NewSource(7)) // fixed seed: identical noise sequence across all HysteresisWait values
+	rng := rand.New(rand.NewSource(7)) // fixed seed: identical noise sequence across all RecoveryHysteresisWait values
 	for i := 0; i < noisyWindowBlocks; i++ {
 		if rng.Float64() < noiseProbability {
 			disturb(h)
@@ -153,14 +153,14 @@ func runNoisyRecovery(t *testing.T, hysteresisWait uint64, env string) hysteresi
 
 	m := h.ComputeMetrics()
 	return hysteresisRun{
-		HysteresisWait:   hysteresisWait,
-		Environment:      env,
-		ReachedAnchored:  firstAnchoredHeight(h) != -1,
-		FirstAnchoredAt:  firstAnchoredHeight(h),
-		FinalState:       h.State(),
-		FlappingCount:    m.FlappingCount,
-		TotalTransitions: m.TotalTransitions,
-		AnchoredUptime:   anchoredUptime(h),
+		RecoveryHysteresisWait: hysteresisWait,
+		Environment:            env,
+		ReachedAnchored:        firstAnchoredHeight(h) != -1,
+		FirstAnchoredAt:        firstAnchoredHeight(h),
+		FinalState:             h.State(),
+		FlappingCount:          m.FlappingCount,
+		TotalTransitions:       m.TotalTransitions,
+		AnchoredUptime:         anchoredUptime(h),
 	}
 }
 
@@ -184,7 +184,7 @@ func TestE5_HysteresisSweep(t *testing.T) {
 	_ = w.Write([]string{"hysteresis_wait", "environment", "reached_anchored", "first_anchored_at", "final_state", "flapping_count", "total_transitions", "anchored_uptime"})
 	for _, r := range runs {
 		_ = w.Write([]string{
-			strconv.FormatUint(r.HysteresisWait, 10),
+			strconv.FormatUint(r.RecoveryHysteresisWait, 10),
 			r.Environment,
 			strconv.FormatBool(r.ReachedAnchored),
 			strconv.FormatInt(r.FirstAnchoredAt, 10),
@@ -193,15 +193,15 @@ func TestE5_HysteresisSweep(t *testing.T) {
 			strconv.Itoa(r.TotalTransitions),
 			strconv.FormatFloat(r.AnchoredUptime, 'f', 4, 64),
 		})
-		t.Logf("HysteresisWait=%d env=%s reached_anchored=%v first_anchored_at=%d final_state=%s flapping=%d total_transitions=%d anchored_uptime=%.2f",
-			r.HysteresisWait, r.Environment, r.ReachedAnchored, r.FirstAnchoredAt, r.FinalState, r.FlappingCount, r.TotalTransitions, r.AnchoredUptime)
+		t.Logf("RecoveryHysteresisWait=%d env=%s reached_anchored=%v first_anchored_at=%d final_state=%s flapping=%d total_transitions=%d anchored_uptime=%.2f",
+			r.RecoveryHysteresisWait, r.Environment, r.ReachedAnchored, r.FirstAnchoredAt, r.FinalState, r.FlappingCount, r.TotalTransitions, r.AnchoredUptime)
 	}
 
-	// Stable (no noise) must always reach and stay ANCHORED regardless of HysteresisWait.
+	// Stable (no noise) must always reach and stay ANCHORED regardless of RecoveryHysteresisWait.
 	for _, r := range runs {
 		if r.Environment == "stable" {
-			require.True(t, r.ReachedAnchored, "HysteresisWait=%d stable: must reach ANCHORED", r.HysteresisWait)
-			require.Equal(t, types.StateAnchored, r.FinalState, "HysteresisWait=%d stable: must end ANCHORED", r.HysteresisWait)
+			require.True(t, r.ReachedAnchored, "RecoveryHysteresisWait=%d stable: must reach ANCHORED", r.RecoveryHysteresisWait)
+			require.Equal(t, types.StateAnchored, r.FinalState, "RecoveryHysteresisWait=%d stable: must end ANCHORED", r.RecoveryHysteresisWait)
 		}
 	}
 }

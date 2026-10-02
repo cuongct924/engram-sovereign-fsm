@@ -53,7 +53,7 @@ Sanity_NeverBreakCircuit ==
 
 \* EXPECT FAIL: Proves the system eventually completes hysteresis and fully recovers to ANCHORED.
 Sanity_NeverRecoverFully == 
-    [] ~(state = "ANCHORED" /\ safe_blocks = HYSTERESIS_WAIT)
+    [] ~(state = "ANCHORED" /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT)
 
 \* EXPECT FAIL: Proves the Global Stabilisation Time (GST) is actually reached in the trace.
 Sanity_NeverReachGST == 
@@ -100,7 +100,7 @@ StateSpaceLimit ==
     /\ avg_peer_tenure <= MIN_AVG_TENURE + 100
     /\ peer_latency    <= MAX_PEER_LATENCY + 10
 
-    /\ is_btc_spv_failed \in BOOLEAN
+    /\ is_anchor_reverification_failed \in BOOLEAN
     /\ is_das_failed \in BOOLEAN
     /\ is_attestation_failed \in BOOLEAN
     /\ state \in {"ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"}

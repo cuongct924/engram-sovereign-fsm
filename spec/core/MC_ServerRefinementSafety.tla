@@ -143,7 +143,7 @@ StateSpaceLimit ==
     /\ avg_peer_tenure \in {MIN_AVG_TENURE, MIN_AVG_TENURE + 2} 
     /\ peer_latency \in {0, MAX_PEER_LATENCY}
 
-    /\ is_btc_spv_failed \in BOOLEAN
+    /\ is_anchor_reverification_failed \in BOOLEAN
     /\ is_das_failed \in BOOLEAN
     /\ is_attestation_failed \in BOOLEAN
     /\ state \in {"ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"}
@@ -158,7 +158,7 @@ MyTraceView ==
         
         _3_sensors |-> [ 
             btc_gap    |-> h_btc_current - h_btc_anchored, 
-            spv_failed |-> is_btc_spv_failed,
+            reverification_failed |-> is_anchor_reverification_failed,
             da_failed  |-> is_das_failed, 
             peers      |-> active_peers 
         ],

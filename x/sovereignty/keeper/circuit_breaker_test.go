@@ -126,7 +126,7 @@ func TestCalculateNextState_RecoveringAbsorbsUnhealthyBlockBelowDownHysteresisTh
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               m,
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		UnhealthyStreak:       0,
 		ReanchoringProofValid: true,
 	}, p)
@@ -140,7 +140,7 @@ func TestCalculateNextState_RecoveringRegressesToSovereignOnceDownHysteresisThre
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               m,
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		UnhealthyStreak:       p.DownHysteresisThreshold - 1,
 		ReanchoringProofValid: true,
 	}, p)
@@ -156,7 +156,7 @@ func TestCalculateNextState_RecoveringCriticalBypassesDownHysteresis(t *testing.
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               m,
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		UnhealthyStreak:       0,
 		ReanchoringProofValid: true,
 	}, p)
@@ -165,15 +165,15 @@ func TestCalculateNextState_RecoveringCriticalBypassesDownHysteresis(t *testing.
 
 func TestCalculateNextState_RecoveringStaysWhenHysteresisNotYetSatisfied(t *testing.T) {
 	p := types.DefaultParams()
-	require.Greater(t, p.HysteresisWait, uint64(0), "test assumes HysteresisWait > 0 so safe_blocks < HysteresisWait is reachable")
+	require.Greater(t, p.RecoveryHysteresisWait, uint64(0), "test assumes RecoveryHysteresisWait > 0 so safe_blocks < RecoveryHysteresisWait is reachable")
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               healthyMetrics(),
-		SafeBlocks:            0, // < HysteresisWait
+		SafeBlocks:            0, // < RecoveryHysteresisWait
 		ReanchoringProofValid: true,
 		DABackfillValid:       true,
 	}, p)
-	require.Equal(t, types.StateRecovering, next, "must not exit RECOVERING before safe_blocks reaches HysteresisWait")
+	require.Equal(t, types.StateRecovering, next, "must not exit RECOVERING before safe_blocks reaches RecoveryHysteresisWait")
 }
 
 func TestCalculateNextState_RecoveringStaysWhenProofNotYetValid(t *testing.T) {
@@ -181,7 +181,7 @@ func TestCalculateNextState_RecoveringStaysWhenProofNotYetValid(t *testing.T) {
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               healthyMetrics(),
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		ReanchoringProofValid: false,
 		DABackfillValid:       true,
 	}, p)
@@ -195,7 +195,7 @@ func TestCalculateNextState_RecoveringStaysWhenDABackfillPending(t *testing.T) {
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               healthyMetrics(),
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		ReanchoringProofValid: true,
 		DABackfillValid:       false,
 	}, p)
@@ -207,7 +207,7 @@ func TestCalculateNextState_RecoveringToAnchoredWhenAllConditionsMet(t *testing.
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               healthyMetrics(),
-		SafeBlocks:            p.HysteresisWait,
+		SafeBlocks:            p.RecoveryHysteresisWait,
 		ReanchoringProofValid: true,
 		DABackfillValid:       true,
 	}, p)
@@ -250,10 +250,10 @@ func TestDABackfillValid(t *testing.T) {
 
 func TestNextSafeBlocks_IncrementsWhileStayingRecoveringAndCapsAtHysteresisWait(t *testing.T) {
 	p := types.DefaultParams()
-	p.HysteresisWait = 3
+	p.RecoveryHysteresisWait = 3
 
-	got := NextSafeBlocks(types.StateRecovering, types.StateRecovering, p.HysteresisWait, true, p)
-	require.Equal(t, p.HysteresisWait, got, "must cap at HysteresisWait, not overflow past it")
+	got := NextSafeBlocks(types.StateRecovering, types.StateRecovering, p.RecoveryHysteresisWait, true, p)
+	require.Equal(t, p.RecoveryHysteresisWait, got, "must cap at RecoveryHysteresisWait, not overflow past it")
 
 	got = NextSafeBlocks(types.StateRecovering, types.StateRecovering, 0, true, p)
 	require.Equal(t, uint64(1), got)
@@ -264,9 +264,9 @@ func TestNextSafeBlocks_ResetsOnAnyOtherTransition(t *testing.T) {
 
 	require.Equal(t, uint64(0), NextSafeBlocks(types.StateSovereign, types.StateRecovering, 0, true, p),
 		"entering RECOVERING for the first time must start safe_blocks at 0")
-	require.Equal(t, uint64(0), NextSafeBlocks(types.StateRecovering, types.StateSovereign, p.HysteresisWait, false, p),
+	require.Equal(t, uint64(0), NextSafeBlocks(types.StateRecovering, types.StateSovereign, p.RecoveryHysteresisWait, false, p),
 		"regressing out of RECOVERING must reset safe_blocks")
-	require.Equal(t, uint64(0), NextSafeBlocks(types.StateRecovering, types.StateAnchored, p.HysteresisWait, true, p),
+	require.Equal(t, uint64(0), NextSafeBlocks(types.StateRecovering, types.StateAnchored, p.RecoveryHysteresisWait, true, p),
 		"completing recovery must reset safe_blocks")
 }
 
@@ -394,41 +394,103 @@ func TestEffectiveDownHysteresisThreshold_DoublesPerFailedAttemptAndCaps(t *test
 	require.Equal(t, uint64(8), EffectiveDownHysteresisThreshold(10, p), "many failed attempts: capped, no overflow")
 }
 
-func TestNextFailedRecoveryAttempts_IncrementsOnRegressionAndResetsOnSuccess(t *testing.T) {
+func adaptiveParams() types.Params {
 	p := types.DefaultParams()
 	p.DownHysteresisThreshold = 2
-	p.MaxDownHysteresisThreshold = 8
-
-	got := NextFailedRecoveryAttempts(types.StateRecovering, types.StateSovereign, 0, p)
-	require.Equal(t, uint64(1), got, "a regression must increment from 0")
-
-	got = NextFailedRecoveryAttempts(types.StateRecovering, types.StateSovereign, 1, p)
-	require.Equal(t, uint64(2), got, "a second consecutive regression must increment again")
-
-	got = NextFailedRecoveryAttempts(types.StateRecovering, types.StateAnchored, 2, p)
-	require.Equal(t, uint64(0), got, "a successful recovery must reset the counter")
+	p.MaxDownHysteresisThreshold = 8 // saturates at flap_level=2 (2*2^2=8)
+	p.StableWindow = 3
+	return p
 }
 
-func TestNextFailedRecoveryAttempts_SaturatesOnceEffectiveThresholdCaps(t *testing.T) {
-	// Once EffectiveDownHysteresisThreshold has reached
-	// MaxDownHysteresisThreshold, further regressions must not keep growing
-	// the counter forever -- it has no more effect and would be an unbounded
-	// Nat, breaking TLC's finite-state-space assumption (FSMTypeOK's
-	// 0..MAX_DOWN_HYSTERESIS_THRESHOLD bound).
-	p := types.DefaultParams()
-	p.DownHysteresisThreshold = 2
-	p.MaxDownHysteresisThreshold = 8 // reached at attempts=2 (2*2^2=8)
+func TestNextFlapLevel_IncrementsOnNoiseDrivenDemotions(t *testing.T) {
+	p := adaptiveParams()
 
-	got := NextFailedRecoveryAttempts(types.StateRecovering, types.StateSovereign, 2, p)
-	require.Equal(t, uint64(2), got, "must saturate, not keep incrementing past the point the cap is already reached")
+	require.Equal(t, uint64(1), NextFlapLevel(types.StateAnchored, types.StateSuspicious, 0, 0, false, false, p),
+		"ANCHORED->SUSPICIOUS is warning-driven by construction and must increment")
+	require.Equal(t, uint64(1), NextFlapLevel(types.StateRecovering, types.StateSovereign, 0, 0, false, false, p),
+		"a non-critical RECOVERING->SOVEREIGN (down-hysteresis exhausted) must increment")
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateRecovering, types.StateSovereign, 1, 0, false, false, p),
+		"consecutive flaps keep incrementing")
 }
 
-func TestNextFailedRecoveryAttempts_IgnoresUnrelatedTransitions(t *testing.T) {
-	p := types.DefaultParams()
-	require.Equal(t, uint64(3), NextFailedRecoveryAttempts(types.StateRecovering, types.StateRecovering, 3, p),
-		"staying in RECOVERING (absorbed or genuinely healthy) must not change the counter")
-	require.Equal(t, uint64(0), NextFailedRecoveryAttempts(types.StateAnchored, types.StateSuspicious, 0, p),
-		"ANCHORED/SUSPICIOUS activity is unrelated to RECOVERING's backoff counter")
+func TestNextFlapLevel_CriticalDemotionIsNotAFlap(t *testing.T) {
+	p := adaptiveParams()
+
+	require.Equal(t, uint64(1), NextFlapLevel(types.StateRecovering, types.StateSovereign, 1, 0, false, true, p),
+		"a critical RECOVERING->SOVEREIGN is a genuine fault and must not raise the level")
+	require.Equal(t, uint64(0), NextFlapLevel(types.StateAnchored, types.StateSovereign, 0, 0, false, true, p),
+		"ANCHORED->SOVEREIGN (critical) is never a flap")
+	require.Equal(t, uint64(0), NextFlapLevel(types.StateSuspicious, types.StateSovereign, 0, 0, false, true, p),
+		"SUSPICIOUS->SOVEREIGN is never a flap")
+}
+
+func TestNextFlapLevel_SaturatesOnceEffectiveThresholdCaps(t *testing.T) {
+	// Past the cap a higher level has no effect and would be an unbounded Nat,
+	// breaking TLC's finite-state assumption (FSMTypeOK's bound).
+	p := adaptiveParams()
+
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateAnchored, types.StateSuspicious, 2, 0, false, false, p),
+		"must saturate once the effective threshold already equals the cap")
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateRecovering, types.StateSovereign, 2, 0, false, false, p))
+}
+
+func TestNextFlapLevel_SuccessfulRecoveryDoesNotReset(t *testing.T) {
+	p := adaptiveParams()
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateRecovering, types.StateAnchored, 2, 0, true, false, p),
+		"forgiveness is earned by stability in ANCHORED, not by one successful recovery")
+}
+
+func TestNextFlapLevel_DecaysAfterStableWindowHealthyAnchoredBlocks(t *testing.T) {
+	p := adaptiveParams() // StableWindow = 3
+
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateAnchored, types.StateAnchored, 2, 1, true, false, p),
+		"stable_blocks+1 < StableWindow: no decay yet")
+	require.Equal(t, uint64(1), NextFlapLevel(types.StateAnchored, types.StateAnchored, 2, 2, true, false, p),
+		"stable_blocks+1 >= StableWindow: decays by exactly 1")
+	require.Equal(t, uint64(0), NextFlapLevel(types.StateAnchored, types.StateAnchored, 0, 2, true, false, p),
+		"flap_level is floored at 0")
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateAnchored, types.StateAnchored, 2, 2, false, false, p),
+		"an absorbed warning block never decays the level")
+	require.Equal(t, uint64(2), NextFlapLevel(types.StateSuspicious, types.StateSuspicious, 2, 2, true, false, p),
+		"only ANCHORED blocks count toward decay")
+}
+
+func TestNextStableBlocks_IncrementsDecaysLeaksAndResets(t *testing.T) {
+	p := adaptiveParams() // StableWindow = 3
+
+	require.Equal(t, uint64(2), NextStableBlocks(types.StateAnchored, types.StateAnchored, 1, 1, true, p),
+		"healthy ANCHORED block with flap_level>0 increments")
+	require.Equal(t, uint64(0), NextStableBlocks(types.StateAnchored, types.StateAnchored, 2, 1, true, p),
+		"reaching StableWindow restarts the counter (the level just decayed)")
+	require.Equal(t, uint64(1), NextStableBlocks(types.StateAnchored, types.StateAnchored, 2, 1, false, p),
+		"an absorbed warning block leaks 1 instead of hard-resetting")
+	require.Equal(t, uint64(0), NextStableBlocks(types.StateAnchored, types.StateAnchored, 0, 1, false, p),
+		"leak is floored at 0")
+	require.Equal(t, uint64(0), NextStableBlocks(types.StateAnchored, types.StateAnchored, 2, 0, true, p),
+		"nothing to forgive at flap_level=0: stays 0")
+	require.Equal(t, uint64(0), NextStableBlocks(types.StateAnchored, types.StateSuspicious, 2, 1, false, p),
+		"leaving ANCHORED resets")
+	require.Equal(t, uint64(0), NextStableBlocks(types.StateRecovering, types.StateAnchored, 2, 1, true, p),
+		"entering ANCHORED starts from 0")
+}
+
+func TestCalculateNextState_AnchoredBackoffRequiresMoreConsecutiveNoiseAfterAFlap(t *testing.T) {
+	// ANCHORED->SUSPICIOUS now uses the adaptive threshold: the same streak
+	// that demoted at flap_level=0 must be absorbed at flap_level=1.
+	p := adaptiveParams()
+	warn := healthyMetrics()
+	warn.BtcGap = p.SuspiciousThreshold // warning band, below SovereignThreshold
+	in := FSMInput{Metrics: warn, UnhealthyStreak: 1, FlapLevel: 0}
+	require.Equal(t, types.StateSuspicious, CalculateNextState(types.StateAnchored, in, p),
+		"streak 1+1 >= threshold 2: demote")
+
+	in.FlapLevel = 1
+	require.Equal(t, types.StateAnchored, CalculateNextState(types.StateAnchored, in, p),
+		"same streak at flap_level=1 (threshold 4): absorbed")
+
+	in.UnhealthyStreak = 3
+	require.Equal(t, types.StateSuspicious, CalculateNextState(types.StateAnchored, in, p),
+		"streak 3+1 >= threshold 4: demote")
 }
 
 func TestCalculateNextState_RecoveringBackoffRequiresMoreConsecutiveNoiseAfterAFailedAttempt(t *testing.T) {
@@ -443,22 +505,22 @@ func TestCalculateNextState_RecoveringBackoffRequiresMoreConsecutiveNoiseAfterAF
 
 	// With 0 prior failed attempts: UnhealthyStreak = threshold-1 = 1 triggers regression.
 	next := CalculateNextState(types.StateRecovering, FSMInput{
-		Metrics:                m,
-		SafeBlocks:             p.HysteresisWait,
-		UnhealthyStreak:        1,
-		FailedRecoveryAttempts: 0,
-		ReanchoringProofValid:  true,
+		Metrics:               m,
+		SafeBlocks:            p.RecoveryHysteresisWait,
+		UnhealthyStreak:       1,
+		FlapLevel:             0,
+		ReanchoringProofValid: true,
 	}, p)
 	require.Equal(t, types.StateSovereign, next, "baseline: threshold-1 streak regresses with no backoff")
 
 	// With 1 prior failed attempt: the effective threshold is now 4, so the
 	// same UnhealthyStreak=1 must be absorbed instead.
 	next = CalculateNextState(types.StateRecovering, FSMInput{
-		Metrics:                m,
-		SafeBlocks:             p.HysteresisWait,
-		UnhealthyStreak:        1,
-		FailedRecoveryAttempts: 1,
-		ReanchoringProofValid:  true,
+		Metrics:               m,
+		SafeBlocks:            p.RecoveryHysteresisWait,
+		UnhealthyStreak:       1,
+		FlapLevel:             1,
+		ReanchoringProofValid: true,
 	}, p)
 	require.Equal(t, types.StateRecovering, next, "after 1 failed attempt: the same streak must now be absorbed, harder to exploit")
 }

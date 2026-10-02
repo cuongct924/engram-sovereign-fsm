@@ -40,10 +40,11 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	if err != nil {
 		unhealthyStreak = 0
 	}
-	failedRecoveryAttempts, err := k.FailedRecoveryAttempts.Get(ctx)
+	flapLevel, err := k.FlapLevel.Get(ctx)
 	if err != nil {
-		failedRecoveryAttempts = 0
+		flapLevel = 0
 	}
+	stableBlocks, _ := k.StableBlocks.Get(ctx)
 	proofValid, err := k.ReanchoringProofValid.Get(ctx)
 	if err != nil {
 		proofValid = false
@@ -52,14 +53,14 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 
 	// 2. Compute the next FSM state (spec/core/EngramFSM.tla's CalculateNextFSMState).
 	in := keeper.FSMInput{
-		Metrics:                metrics,
-		SafeBlocks:             safeBlocks,
-		SuspiciousDuration:     suspiciousDuration,
-		SuspiciousSafeBlocks:   suspiciousSafeBlocks,
-		UnhealthyStreak:        unhealthyStreak,
-		FailedRecoveryAttempts: failedRecoveryAttempts,
-		ReanchoringProofValid:  proofValid,
-		DABackfillValid:        keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
+		Metrics:               metrics,
+		SafeBlocks:            safeBlocks,
+		SuspiciousDuration:    suspiciousDuration,
+		SuspiciousSafeBlocks:  suspiciousSafeBlocks,
+		UnhealthyStreak:       unhealthyStreak,
+		FlapLevel:             flapLevel,
+		ReanchoringProofValid: proofValid,
+		DABackfillValid:       keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
 	}
 	nextState := keeper.CalculateNextState(currState, in, k.Params)
 
@@ -105,7 +106,11 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	if err := k.SuspiciousSafeBlocks.Set(ctx, keeper.NextSuspiciousSafeBlocks(currState, nextState, suspiciousSafeBlocks, healthy, k.Params)); err != nil {
 		return err
 	}
-	if err := k.FailedRecoveryAttempts.Set(ctx, keeper.NextFailedRecoveryAttempts(currState, nextState, failedRecoveryAttempts, k.Params)); err != nil {
+	critical := types.IsCriticalCondition(metrics, k.Params, suspiciousDuration)
+	if err := k.FlapLevel.Set(ctx, keeper.NextFlapLevel(currState, nextState, flapLevel, stableBlocks, healthy, critical, k.Params)); err != nil {
+		return err
+	}
+	if err := k.StableBlocks.Set(ctx, keeper.NextStableBlocks(currState, nextState, stableBlocks, flapLevel, healthy, k.Params)); err != nil {
 		return err
 	}
 

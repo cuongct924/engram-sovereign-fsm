@@ -22,22 +22,17 @@ const (
 )
 
 // SignedHealthCertificate is one validator's raw ABCI++ vote-extension
-// payload plus the CometBFT ExtensionSignature that authenticated it,
-// carried inside AggregatedHealthCertificate so every validator (not just
-// the proposer, who is the only one to receive ExtendedCommitInfo) can
-// independently re-verify the signature and recompute the aggregation --
-// see x/sovereignty/vote_extension.go.
+// payload plus its ExtensionSignature, so every validator (not just the
+// proposer) can independently re-verify and recompute the aggregation.
 type SignedHealthCertificate struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ValidatorAddress []byte                 `protobuf:"bytes,1,opt,name=validator_address,json=validatorAddress,proto3" json:"validator_address,omitempty"`
 	// Round the vote extension was signed at (ExtendedVoteInfo's originating
 	// precommit round), needed to reconstruct CometBFT's VoteExtensionSignBytes.
 	Round int32 `protobuf:"varint,2,opt,name=round,proto3" json:"round,omitempty"`
-	// Raw ExtendedVoteInfo.VoteExtension bytes exactly as CometBFT delivered
-	// them (a marshaled PeripheralMetrics) -- kept as opaque bytes, not a
-	// decoded PeripheralMetrics field, so signature verification runs against
-	// the literal signed bytes rather than a re-marshal that could diverge
-	// from the original encoding.
+	// Raw ExtendedVoteInfo.VoteExtension bytes exactly as delivered -- kept
+	// opaque so verification runs against the literal signed bytes, not a
+	// re-marshal that could diverge.
 	MetricsExtension   []byte `protobuf:"bytes,3,opt,name=metrics_extension,json=metricsExtension,proto3" json:"metrics_extension,omitempty"`
 	ExtensionSignature []byte `protobuf:"bytes,4,opt,name=extension_signature,json=extensionSignature,proto3" json:"extension_signature,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -102,13 +97,10 @@ func (x *SignedHealthCertificate) GetExtensionSignature() []byte {
 	return nil
 }
 
-// AggregatedHealthCertificate replaces ExtendedProposal (former
-// x/sovereignty/proposal.go) as Txs[0]. certificates carries >=2f+1
-// signed per-validator sensor snapshots from the previous height's precommit
-// round; the remaining fields are the leader's claimed deterministic
-// aggregation over them, cross-checked by every validator via
-// AggregateHealthCertificates before ProcessProposal accepts and
-// CommitFSMTransition commits -- never a live local sensor re-read.
+// AggregatedHealthCertificate replaces the former ExtendedProposal as
+// Txs[0]. certificates carries >=2f+1 signed sensor snapshots; the
+// remaining fields are the leader's claimed aggregation over them,
+// cross-checked by every validator before ProcessProposal accepts.
 type AggregatedHealthCertificate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Height at which `certificates` were signed as vote extensions
@@ -124,7 +116,11 @@ type AggregatedHealthCertificate struct {
 	BtcCheckpointBlockHashHeight uint64                     `protobuf:"varint,9,opt,name=btc_checkpoint_block_hash_height,json=btcCheckpointBlockHashHeight,proto3" json:"btc_checkpoint_block_hash_height,omitempty"`
 	// zk_proof_ref carries rt_new (keeper.LastAnchoredRoot) when a recovery
 	// proof is present, nil otherwise -- see ExtendedProposal's former doc.
-	ZkProofRef    []byte `protobuf:"bytes,10,opt,name=zk_proof_ref,json=zkProofRef,proto3" json:"zk_proof_ref,omitempty"`
+	ZkProofRef []byte `protobuf:"bytes,10,opt,name=zk_proof_ref,json=zkProofRef,proto3" json:"zk_proof_ref,omitempty"`
+	// critical is the leader's claim of IsCriticalCondition over the certified
+	// aggregate, cross-checked like `healthy`; CommitFSMTransition needs it to
+	// tell a critical RECOVERING->SOVEREIGN from a noise-driven one (flap_level).
+	Critical      bool `protobuf:"varint,11,opt,name=critical,proto3" json:"critical,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -229,6 +225,13 @@ func (x *AggregatedHealthCertificate) GetZkProofRef() []byte {
 	return nil
 }
 
+func (x *AggregatedHealthCertificate) GetCritical() bool {
+	if x != nil {
+		return x.Critical
+	}
+	return false
+}
+
 var File_engram_sovereignty_v1_vote_extension_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_vote_extension_proto_rawDesc = "" +
@@ -238,7 +241,7 @@ const file_engram_sovereignty_v1_vote_extension_proto_rawDesc = "" +
 	"\x11validator_address\x18\x01 \x01(\fR\x10validatorAddress\x12\x14\n" +
 	"\x05round\x18\x02 \x01(\x05R\x05round\x12+\n" +
 	"\x11metrics_extension\x18\x03 \x01(\fR\x10metricsExtension\x12/\n" +
-	"\x13extension_signature\x18\x04 \x01(\fR\x12extensionSignature\"\x8d\x04\n" +
+	"\x13extension_signature\x18\x04 \x01(\fR\x12extensionSignature\"\xa9\x04\n" +
 	"\x1bAggregatedHealthCertificate\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\x03R\x06height\x12R\n" +
 	"\fcertificates\x18\x02 \x03(\v2..engram.sovereignty.v1.SignedHealthCertificateR\fcertificates\x12\x1b\n" +
@@ -251,7 +254,8 @@ const file_engram_sovereignty_v1_vote_extension_proto_rawDesc = "" +
 	" btc_checkpoint_block_hash_height\x18\t \x01(\x04R\x1cbtcCheckpointBlockHashHeight\x12 \n" +
 	"\fzk_proof_ref\x18\n" +
 	" \x01(\fR\n" +
-	"zkProofRefBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"zkProofRef\x12\x1a\n" +
+	"\bcritical\x18\v \x01(\bR\bcriticalBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_vote_extension_proto_rawDescOnce sync.Once

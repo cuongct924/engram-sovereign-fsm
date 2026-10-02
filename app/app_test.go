@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	dbm "github.com/cosmos/cosmos-db"
+	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
 
 	log "cosmossdk.io/log/v2"
@@ -23,7 +24,7 @@ func TestNewEngramApp_VanillaSkipsPreBlocker(t *testing.T) {
 		{"normal", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			engramApp := NewEngramApp(log.NewNopLogger(), dbm.NewMemDB(), "engram-test-1", tc.vanilla, "")
+			engramApp := NewEngramApp(log.NewNopLogger(), dbm.NewMemDB(), "engram-test-1", tc.vanilla, sovereigntytypes.BaselineEngram, "")
 
 			handlers := reflect.ValueOf(engramApp.BaseApp).Elem().FieldByName("abciHandlers")
 			require.True(t, handlers.IsValid(), "baseapp.BaseApp's abciHandlers field not found -- SDK internals changed, update this test")

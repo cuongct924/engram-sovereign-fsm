@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Query service for a node's current FSM state -- serves the E9 trace-driven
+// Query service for a node's current FSM state -- serves E9's composite-fault
 // stress test and E2 observation (not part of consensus).
 type QueryClient interface {
 	State(ctx context.Context, in *QueryStateRequest, opts ...grpc.CallOption) (*QueryStateResponse, error)
@@ -70,7 +70,7 @@ func (c *queryClient) RecoveryHeaders(ctx context.Context, in *QueryRecoveryHead
 // All implementations should embed UnimplementedQueryServer
 // for forward compatibility.
 //
-// Query service for a node's current FSM state -- serves the E9 trace-driven
+// Query service for a node's current FSM state -- serves E9's composite-fault
 // stress test and E2 observation (not part of consensus).
 type QueryServer interface {
 	State(context.Context, *QueryStateRequest) (*QueryStateResponse, error)

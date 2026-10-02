@@ -119,9 +119,9 @@ func TestE2_S2_BTCCongestion(t *testing.T) {
 	}
 	require.Equal(t, types.StateSovereign, h.State(), "sustained btc_gap >= SOVEREIGN_THRESHOLD must reach SOVEREIGN")
 
-	// Heal: gap back to 0, hold long enough to satisfy HysteresisWait, submit proof.
+	// Heal: gap back to 0, hold long enough to satisfy RecoveryHysteresisWait, submit proof.
 	h.BTC.SetGap(0)
-	for i := uint64(0); i <= p.HysteresisWait+2; i++ {
+	for i := uint64(0); i <= p.RecoveryHysteresisWait+2; i++ {
 		if i == 1 {
 			h.SetReanchoringProofValid(true)
 		}
@@ -153,7 +153,7 @@ func TestE2_S3_DAUnavailable(t *testing.T) {
 	require.Equal(t, types.StateSovereign, h.State(), "persistent DA outage must eventually escalate via gray-failure timeout")
 
 	h.DA.SetAvailable(true)
-	for i := uint64(0); i <= p.HysteresisWait+2; i++ {
+	for i := uint64(0); i <= p.RecoveryHysteresisWait+2; i++ {
 		if i == 1 {
 			h.SetReanchoringProofValid(true)
 		}
@@ -266,8 +266,8 @@ func TestE2_S7_Recovery(t *testing.T) {
 	require.Equal(t, types.StateRecovering, h.State(), "healed sensors must move SOVEREIGN -> RECOVERING")
 
 	// Hold in RECOVERING without a valid proof -- must not exit early even
-	// once safe_blocks reaches HysteresisWait.
-	for i := uint64(0); i < p.HysteresisWait; i++ {
+	// once safe_blocks reaches RecoveryHysteresisWait.
+	for i := uint64(0); i < p.RecoveryHysteresisWait; i++ {
 		h.Advance()
 	}
 	require.Equal(t, types.StateRecovering, h.State(), "must not exit RECOVERING before the reanchoring proof is submitted, even with hysteresis satisfied")

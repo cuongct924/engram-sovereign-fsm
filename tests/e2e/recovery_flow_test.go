@@ -76,7 +76,7 @@ func TestRecoveryFlow_RegressesToSovereignOnSustainedDeterioration(t *testing.T)
 // TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch covers
 // HysteresisSafety's "restarting the recovery process from the beginning"
 // clause: after a RECOVERING attempt regresses to SOVEREIGN, a second attempt
-// must NOT inherit safe_blocks -- it accumulates HysteresisWait from zero.
+// must NOT inherit safe_blocks -- it accumulates RecoveryHysteresisWait from zero.
 func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	h := NewHarness(t)
 	p := types.DefaultParams()
@@ -89,19 +89,19 @@ func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State())
 
-	for i := uint64(0); i < p.HysteresisWait; i++ {
+	for i := uint64(0); i < p.RecoveryHysteresisWait; i++ {
 		h.Advance()
 	}
 	require.Equal(t, types.StateRecovering, h.State(), "must not exit RECOVERING without a proof, even with hysteresis satisfied")
 	beforeRegression := h.Timeline()[len(h.Timeline())-1]
-	require.Equal(t, p.HysteresisWait, beforeRegression.SafeBlocks, "must have fully accumulated hysteresis before regressing")
+	require.Equal(t, p.RecoveryHysteresisWait, beforeRegression.SafeBlocks, "must have fully accumulated hysteresis before regressing")
 
 	h.BTC.SetGap(p.SovereignThreshold) // genuinely critical this time
 	h.Advance()
 	require.Equal(t, types.StateSovereign, h.State())
 
 	// Second attempt: heal and recover from scratch. If safe_blocks carried over,
-	// HysteresisWait would already be satisfied on the first RECOVERING block
+	// RecoveryHysteresisWait would already be satisfied on the first RECOVERING block
 	// of this attempt -- assert it is NOT.
 	h.BTC.SetGap(0)
 	h.Advance()
@@ -110,7 +110,7 @@ func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	require.Equal(t, uint64(0), freshEntry.SafeBlocks,
 		"a fresh RECOVERING interval must start safe_blocks at 0, not carry over progress from a prior aborted attempt")
 
-	for i := uint64(0); i < p.HysteresisWait; i++ {
+	for i := uint64(0); i < p.RecoveryHysteresisWait; i++ {
 		h.Advance()
 	}
 	require.Equal(t, types.StateRecovering, h.State(), "must not exit RECOVERING before a proof is submitted, even with hysteresis satisfied")
@@ -145,7 +145,7 @@ func TestRecoveryFlow_StaysRecoveringUntilSovereignIntervalDataIsPublished(t *te
 	h.BTC.SetGap(0)
 	h.Advance()
 	require.Equal(t, types.StateRecovering, h.State())
-	for i := uint64(0); i < p.HysteresisWait; i++ {
+	for i := uint64(0); i < p.RecoveryHysteresisWait; i++ {
 		h.Advance()
 	}
 	h.SetReanchoringProofValid(true)

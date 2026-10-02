@@ -11,7 +11,7 @@
  * proved equivalent and much faster.
  *
  * EXTENDS EngramFSM_Ablation_NoHysteresis (dropped `safe_blocks =
- * HYSTERESIS_WAIT` from CalculateNextFSMState's RECOVERING -> ANCHORED
+ * RECOVERY_HYSTERESIS_WAIT` from CalculateNextFSMState's RECOVERING -> ANCHORED
  * branch). Expected to violate Sanity_NoIllegalHysteresisExit.
  *
  * NOTE on MC_FSMNext: the real FSMNext (EngramFSM.tla) guards its
@@ -32,7 +32,7 @@
  * reacts), present in both specs equally, not a consequence of ablating
  * hysteresis. The real property being ablated is HysteresisSafety
  * (EngramFSM.tla): `[][(state="RECOVERING" /\ state'="ANCHORED") =>
- * (safe_blocks=HYSTERESIS_WAIT /\ reanchoring_proof_valid)]_fsmVars`.
+ * (safe_blocks=RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid)]_fsmVars`.
  * Apalache's --inv only checks current-state predicates, not this kind
  * of action/step formula, so `illegal_early_exit` below is a ghost
  * variable (declared only in this driver, mirroring nothing in core/)
@@ -99,7 +99,7 @@ MC_FSMNext ==
           /\ UNCHANGED <<reanchoring_proof_valid>>
           /\ illegal_early_exit' =
                  (state = "RECOVERING" /\ state' = "ANCHORED"
-                  /\ ~(safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid))
+                  /\ ~(safe_blocks = RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid))
     /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
     /\ UNCHANGED <<bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<certificateVars>>
@@ -114,11 +114,12 @@ ApalacheCInit ==
     /\ SUSPICIOUS_THRESHOLD = 2
     /\ SOVEREIGN_THRESHOLD  = 4
     /\ DA_THRESHOLD         = 2
-    /\ HYSTERESIS_WAIT      = 2
+    /\ RECOVERY_HYSTERESIS_WAIT      = 2
     /\ SUSPICIOUS_HYSTERESIS_WAIT      = 2
     /\ MAX_SUSPICIOUS_TIME  = 2
     /\ DOWN_HYSTERESIS_THRESHOLD  = 2
     /\ MAX_DOWN_HYSTERESIS_THRESHOLD  = 8
+    /\ STABLE_WINDOW  = 2
     /\ MIN_PEERS            = 3
     /\ MIN_SUBNET_DIVERSITY = 2
     /\ MIN_ANCHOR_PEERS     = 1

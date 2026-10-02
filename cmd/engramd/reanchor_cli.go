@@ -76,8 +76,8 @@ func queryStateCmd() *cobra.Command {
 			fmt.Printf("fsm_state=%s safe_blocks=%d suspicious_duration=%d reanchoring_proof_valid=%t\n",
 				out.FsmState, out.SafeBlocks, out.SuspiciousDuration, out.ReanchoringProofValid)
 			if m := out.Metrics; m != nil {
-				fmt.Printf("btc_gap=%d is_btc_spv_failed=%t da_gap=%d is_das_failed=%t is_attestation_failed=%t\n",
-					m.BtcGap, m.IsBtcSpvFailed, m.DaGap, m.IsDasFailed, m.IsAttestationFailed)
+				fmt.Printf("btc_gap=%d is_anchor_reverification_failed=%t da_gap=%d is_das_failed=%t is_attestation_failed=%t\n",
+					m.BtcGap, m.IsAnchorReverificationFailed, m.DaGap, m.IsDasFailed, m.IsAttestationFailed)
 				fmt.Printf("subnet_diversity=%d active_anchors=%d clean_peers=%d peer_churn_rate=%d avg_peer_tenure=%d peer_latency=%d\n",
 					m.SubnetDiversity, m.ActiveAnchors, m.CleanPeers, m.PeerChurnRate, m.AvgPeerTenure, m.PeerLatency)
 			}

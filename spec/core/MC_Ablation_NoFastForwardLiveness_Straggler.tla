@@ -60,7 +60,7 @@ StateSpaceLimit ==
     /\ peer_churn_rate \in {0, MAX_CHURN_RATE}
     /\ avg_peer_tenure \in {MIN_AVG_TENURE, MIN_AVG_TENURE + 2}
     /\ peer_latency \in {0, MAX_PEER_LATENCY}
-    /\ is_btc_spv_failed \in BOOLEAN
+    /\ is_anchor_reverification_failed \in BOOLEAN
     /\ is_das_failed \in BOOLEAN
     /\ is_attestation_failed \in BOOLEAN
     /\ state \in {"ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"}

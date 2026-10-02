@@ -25,18 +25,19 @@ const (
 // "ANCHORED"/"SUSPICIOUS"/"SOVEREIGN"/"RECOVERING" literals of
 // spec/core/EngramFSM.tla and x/sovereignty/types/state.go.
 type GenesisState struct {
-	state                  protoimpl.MessageState `protogen:"open.v1"`
-	FsmState               string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                              // Usually "ANCHORED" at genesis
-	SafeBlocksCounter      uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`                // Counter for TLA+ `safe_blocks`
-	SuspiciousDuration     uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`               // Counter for TLA+ `suspicious_duration`
-	ReanchoringProofValid  bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"`    // TLA+ `reanchoring_proof_valid`
-	InitialMetrics         *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                            // Initial sensor snapshot
-	Params                 *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                                  // Operational params, see GenesisParams
-	UnhealthyStreak        uint64                 `protobuf:"varint,8,opt,name=unhealthy_streak,json=unhealthyStreak,proto3" json:"unhealthy_streak,omitempty"`                        // TLA+ `unhealthy_streak` (down-hysteresis)
-	FailedRecoveryAttempts uint64                 `protobuf:"varint,9,opt,name=failed_recovery_attempts,json=failedRecoveryAttempts,proto3" json:"failed_recovery_attempts,omitempty"` // TLA+ `failed_recovery_attempts` (exponential backoff)
-	SuspiciousSafeBlocks   uint64                 `protobuf:"varint,10,opt,name=suspicious_safe_blocks,json=suspiciousSafeBlocks,proto3" json:"suspicious_safe_blocks,omitempty"`      // TLA+ `suspicious_safe_blocks` (SUSPICIOUS exit hysteresis)
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	FsmState              string                 `protobuf:"bytes,1,opt,name=fsm_state,json=fsmState,proto3" json:"fsm_state,omitempty"`                                           // Usually "ANCHORED" at genesis
+	SafeBlocksCounter     uint64                 `protobuf:"varint,2,opt,name=safe_blocks_counter,json=safeBlocksCounter,proto3" json:"safe_blocks_counter,omitempty"`             // Counter for TLA+ `safe_blocks`
+	SuspiciousDuration    uint64                 `protobuf:"varint,3,opt,name=suspicious_duration,json=suspiciousDuration,proto3" json:"suspicious_duration,omitempty"`            // Counter for TLA+ `suspicious_duration`
+	ReanchoringProofValid bool                   `protobuf:"varint,4,opt,name=reanchoring_proof_valid,json=reanchoringProofValid,proto3" json:"reanchoring_proof_valid,omitempty"` // TLA+ `reanchoring_proof_valid`
+	InitialMetrics        *PeripheralMetrics     `protobuf:"bytes,6,opt,name=initial_metrics,json=initialMetrics,proto3" json:"initial_metrics,omitempty"`                         // Initial sensor snapshot
+	Params                *GenesisParams         `protobuf:"bytes,7,opt,name=params,proto3" json:"params,omitempty"`                                                               // Operational params, see GenesisParams
+	UnhealthyStreak       uint64                 `protobuf:"varint,8,opt,name=unhealthy_streak,json=unhealthyStreak,proto3" json:"unhealthy_streak,omitempty"`                     // TLA+ `unhealthy_streak` (down-hysteresis)
+	FlapLevel             uint64                 `protobuf:"varint,9,opt,name=flap_level,json=flapLevel,proto3" json:"flap_level,omitempty"`                                       // TLA+ `flap_level` (adaptive down-hysteresis level)
+	SuspiciousSafeBlocks  uint64                 `protobuf:"varint,10,opt,name=suspicious_safe_blocks,json=suspiciousSafeBlocks,proto3" json:"suspicious_safe_blocks,omitempty"`   // TLA+ `suspicious_safe_blocks` (SUSPICIOUS exit hysteresis)
+	StableBlocks          uint64                 `protobuf:"varint,11,opt,name=stable_blocks,json=stableBlocks,proto3" json:"stable_blocks,omitempty"`                             // TLA+ `stable_blocks` (flap_level decay counter)
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *GenesisState) Reset() {
@@ -118,9 +119,9 @@ func (x *GenesisState) GetUnhealthyStreak() uint64 {
 	return 0
 }
 
-func (x *GenesisState) GetFailedRecoveryAttempts() uint64 {
+func (x *GenesisState) GetFlapLevel() uint64 {
 	if x != nil {
-		return x.FailedRecoveryAttempts
+		return x.FlapLevel
 	}
 	return 0
 }
@@ -128,6 +129,13 @@ func (x *GenesisState) GetFailedRecoveryAttempts() uint64 {
 func (x *GenesisState) GetSuspiciousSafeBlocks() uint64 {
 	if x != nil {
 		return x.SuspiciousSafeBlocks
+	}
+	return 0
+}
+
+func (x *GenesisState) GetStableBlocks() uint64 {
+	if x != nil {
+		return x.StableBlocks
 	}
 	return 0
 }
@@ -140,7 +148,7 @@ type GenesisParams struct {
 	SuspiciousThreshold        uint64                 `protobuf:"varint,1,opt,name=suspicious_threshold,json=suspiciousThreshold,proto3" json:"suspicious_threshold,omitempty"`
 	SovereignThreshold         uint64                 `protobuf:"varint,2,opt,name=sovereign_threshold,json=sovereignThreshold,proto3" json:"sovereign_threshold,omitempty"`
 	DaThreshold                uint64                 `protobuf:"varint,3,opt,name=da_threshold,json=daThreshold,proto3" json:"da_threshold,omitempty"`
-	HysteresisWait             uint64                 `protobuf:"varint,4,opt,name=hysteresis_wait,json=hysteresisWait,proto3" json:"hysteresis_wait,omitempty"`
+	RecoveryHysteresisWait     uint64                 `protobuf:"varint,4,opt,name=recovery_hysteresis_wait,json=recoveryHysteresisWait,proto3" json:"recovery_hysteresis_wait,omitempty"`
 	MinPeers                   uint64                 `protobuf:"varint,5,opt,name=min_peers,json=minPeers,proto3" json:"min_peers,omitempty"`
 	MinSubnetDiversity         uint64                 `protobuf:"varint,6,opt,name=min_subnet_diversity,json=minSubnetDiversity,proto3" json:"min_subnet_diversity,omitempty"`
 	MinAnchorPeers             uint64                 `protobuf:"varint,7,opt,name=min_anchor_peers,json=minAnchorPeers,proto3" json:"min_anchor_peers,omitempty"`
@@ -157,15 +165,14 @@ type GenesisParams struct {
 	SuspiciousHysteresisWait   uint64                 `protobuf:"varint,18,opt,name=suspicious_hysteresis_wait,json=suspiciousHysteresisWait,proto3" json:"suspicious_hysteresis_wait,omitempty"`
 	MaxSuspiciousForcedTxQueue uint64                 `protobuf:"varint,19,opt,name=max_suspicious_forced_tx_queue,json=maxSuspiciousForcedTxQueue,proto3" json:"max_suspicious_forced_tx_queue,omitempty"`
 	MaxCensorshipRounds        uint64                 `protobuf:"varint,20,opt,name=max_censorship_rounds,json=maxCensorshipRounds,proto3" json:"max_censorship_rounds,omitempty"`
-	// proof_only_recovery, when true, requires refreshReanchoringProofValid
-	// (x/sovereignty/sensors_refresh.go) to grant reanchoring_proof_valid
-	// ONLY from a real, on-chain-verified ZK proof -- the BTC-height heuristic
-	// (h_btc_anchored >= h_btc_submitted) is disabled. Exists so E10 can run a
-	// proof-only variant and attribute recovery to the ZK pipeline
-	// specifically, not either path. false = today's default (either path).
+	// proof_only_recovery, when true, requires reanchoring_proof_valid to
+	// come only from a real ZK proof -- the BTC-height heuristic fallback is
+	// disabled. false (default) allows either path.
 	ProofOnlyRecovery bool `protobuf:"varint,21,opt,name=proof_only_recovery,json=proofOnlyRecovery,proto3" json:"proof_only_recovery,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// stable_window: healthy ANCHORED blocks that decay flap_level by 1.
+	StableWindow  uint64 `protobuf:"varint,22,opt,name=stable_window,json=stableWindow,proto3" json:"stable_window,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GenesisParams) Reset() {
@@ -219,9 +226,9 @@ func (x *GenesisParams) GetDaThreshold() uint64 {
 	return 0
 }
 
-func (x *GenesisParams) GetHysteresisWait() uint64 {
+func (x *GenesisParams) GetRecoveryHysteresisWait() uint64 {
 	if x != nil {
-		return x.HysteresisWait
+		return x.RecoveryHysteresisWait
 	}
 	return 0
 }
@@ -345,11 +352,18 @@ func (x *GenesisParams) GetProofOnlyRecovery() bool {
 	return false
 }
 
+func (x *GenesisParams) GetStableWindow() uint64 {
+	if x != nil {
+		return x.StableWindow
+	}
+	return 0
+}
+
 var File_engram_sovereignty_v1_genesis_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\n" +
-	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\x8d\x04\n" +
+	"#engram/sovereignty/v1/genesis.proto\x12\x15engram.sovereignty.v1\x1a!engram/sovereignty/v1/state.proto\"\x97\x04\n" +
 	"\fGenesisState\x12\x1b\n" +
 	"\tfsm_state\x18\x01 \x01(\tR\bfsmState\x12.\n" +
 	"\x13safe_blocks_counter\x18\x02 \x01(\x04R\x11safeBlocksCounter\x12/\n" +
@@ -357,15 +371,17 @@ const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\x17reanchoring_proof_valid\x18\x04 \x01(\bR\x15reanchoringProofValid\x12Q\n" +
 	"\x0finitial_metrics\x18\x06 \x01(\v2(.engram.sovereignty.v1.PeripheralMetricsR\x0einitialMetrics\x12<\n" +
 	"\x06params\x18\a \x01(\v2$.engram.sovereignty.v1.GenesisParamsR\x06params\x12)\n" +
-	"\x10unhealthy_streak\x18\b \x01(\x04R\x0funhealthyStreak\x128\n" +
-	"\x18failed_recovery_attempts\x18\t \x01(\x04R\x16failedRecoveryAttempts\x124\n" +
+	"\x10unhealthy_streak\x18\b \x01(\x04R\x0funhealthyStreak\x12\x1d\n" +
+	"\n" +
+	"flap_level\x18\t \x01(\x04R\tflapLevel\x124\n" +
 	"\x16suspicious_safe_blocks\x18\n" +
-	" \x01(\x04R\x14suspiciousSafeBlocksJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\x81\b\n" +
+	" \x01(\x04R\x14suspiciousSafeBlocks\x12#\n" +
+	"\rstable_blocks\x18\v \x01(\x04R\fstableBlocksJ\x04\b\x05\x10\x06R\x15hysteresis_wait_limit\"\xb7\b\n" +
 	"\rGenesisParams\x121\n" +
 	"\x14suspicious_threshold\x18\x01 \x01(\x04R\x13suspiciousThreshold\x12/\n" +
 	"\x13sovereign_threshold\x18\x02 \x01(\x04R\x12sovereignThreshold\x12!\n" +
-	"\fda_threshold\x18\x03 \x01(\x04R\vdaThreshold\x12'\n" +
-	"\x0fhysteresis_wait\x18\x04 \x01(\x04R\x0ehysteresisWait\x12\x1b\n" +
+	"\fda_threshold\x18\x03 \x01(\x04R\vdaThreshold\x128\n" +
+	"\x18recovery_hysteresis_wait\x18\x04 \x01(\x04R\x16recoveryHysteresisWait\x12\x1b\n" +
 	"\tmin_peers\x18\x05 \x01(\x04R\bminPeers\x120\n" +
 	"\x14min_subnet_diversity\x18\x06 \x01(\x04R\x12minSubnetDiversity\x12(\n" +
 	"\x10min_anchor_peers\x18\a \x01(\x04R\x0eminAnchorPeers\x12$\n" +
@@ -383,7 +399,8 @@ const file_engram_sovereignty_v1_genesis_proto_rawDesc = "" +
 	"\x1asuspicious_hysteresis_wait\x18\x12 \x01(\x04R\x18suspiciousHysteresisWait\x12B\n" +
 	"\x1emax_suspicious_forced_tx_queue\x18\x13 \x01(\x04R\x1amaxSuspiciousForcedTxQueue\x122\n" +
 	"\x15max_censorship_rounds\x18\x14 \x01(\x04R\x13maxCensorshipRounds\x12.\n" +
-	"\x13proof_only_recovery\x18\x15 \x01(\bR\x11proofOnlyRecoveryBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x13proof_only_recovery\x18\x15 \x01(\bR\x11proofOnlyRecovery\x12#\n" +
+	"\rstable_window\x18\x16 \x01(\x04R\fstableWindowBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_genesis_proto_rawDescOnce sync.Once

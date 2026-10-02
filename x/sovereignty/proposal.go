@@ -56,19 +56,19 @@ func fsmInputFromMetrics(ctx sdk.Context, k *keeper.Keeper, metrics *types.Perip
 	suspiciousDuration, _ := k.SuspiciousDuration.Get(ctx)
 	suspiciousSafeBlocks, _ := k.SuspiciousSafeBlocks.Get(ctx)
 	unhealthyStreak, _ := k.UnhealthyStreak.Get(ctx)
-	failedRecoveryAttempts, _ := k.FailedRecoveryAttempts.Get(ctx)
+	flapLevel, _ := k.FlapLevel.Get(ctx)
 	proofValid, _ := k.ReanchoringProofValid.Get(ctx)
 	recoveringEntryHeight, _ := k.RecoveringEntryHeight.Get(ctx)
 
 	return currState, keeper.FSMInput{
-		Metrics:                metrics,
-		SafeBlocks:             safeBlocks,
-		SuspiciousDuration:     suspiciousDuration,
-		SuspiciousSafeBlocks:   suspiciousSafeBlocks,
-		UnhealthyStreak:        unhealthyStreak,
-		FailedRecoveryAttempts: failedRecoveryAttempts,
-		ReanchoringProofValid:  proofValid,
-		DABackfillValid:        keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
+		Metrics:               metrics,
+		SafeBlocks:            safeBlocks,
+		SuspiciousDuration:    suspiciousDuration,
+		SuspiciousSafeBlocks:  suspiciousSafeBlocks,
+		UnhealthyStreak:       unhealthyStreak,
+		FlapLevel:             flapLevel,
+		ReanchoringProofValid: proofValid,
+		DABackfillValid:       keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
 	}
 }
 
@@ -158,6 +158,9 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 
 		currState, in := fsmInputFromMetrics(ctx, k, metrics)
 		targetState := keeper.CalculateNextState(currState, in, k.Params)
+		if k.Baseline.HardGated() {
+			targetState = types.StateAnchored
+		}
 
 		hEngramVerified, _ := k.HEngramVerified.Get(ctx)
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
@@ -193,7 +196,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 		// zkProofFreshnessBaseline, not a raw hEngramVerifiedPrev read.
 		baseline := zkProofFreshnessBaseline(ctx, k, currState, hEngramVerifiedPrev)
 		var zkProofRef []byte
-		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait &&
+		if targetState == types.StateRecovering && in.SafeBlocks == k.Params.RecoveryHysteresisWait &&
 			daReceipt.Attestation && daReceipt.PublishedBlockHeight >= baseline {
 			if root, rerr := k.LastAnchoredRoot.Get(ctx); rerr == nil {
 				zkProofRef = root
@@ -205,6 +208,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 			Certificates:                 certs,
 			FsmState:                     targetState,
 			Healthy:                      types.IsHealthyCondition(in.Metrics, k.Params),
+			Critical:                     types.IsCriticalCondition(in.Metrics, k.Params, in.SuspiciousDuration),
 			DaPublishedBlockHeight:       daReceipt.PublishedBlockHeight,
 			DaAttestation:                daReceipt.Attestation,
 			BtcCheckpointBlockHeight:     btcReceipt.CheckpointBlockHeight,
@@ -216,7 +220,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 		innerTxs := req.Txs
 		// Filter withdrawal transactions early to avoid proposing rejected TXs
 		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:332).
-		if types.WithdrawLocked(targetState) {
+		if types.WithdrawLocked(targetState) && !k.Baseline.SkipsCircuitBreaker() {
 			filtered := innerTxs[:0:0]
 			for _, tx := range innerTxs {
 				if containsWithdrawal(tx) {
@@ -340,6 +344,9 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 
 		// 1. fsm_state cross-check (IsValidProposal:296).
 		expectedState := keeper.CalculateNextState(currState, in, k.Params)
+		if k.Baseline.HardGated() {
+			expectedState = types.StateAnchored
+		}
 		if ext.FsmState != expectedState {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=fsm_state_mismatch ext=%s expected=%s currState=%s aggOk=%v safeBlocks=%d unhealthyStreak=%d susDur=%d susSafeBlocks=%d proofValid=%v\n",
 				req.Height, req.Round, ext.FsmState, expectedState, currState, aggOk, in.SafeBlocks, in.UnhealthyStreak, in.SuspiciousDuration, in.SuspiciousSafeBlocks, in.ReanchoringProofValid)
@@ -351,6 +358,14 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		if ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=healthy_mismatch ext.Healthy=%v computed=%v\n",
 				req.Height, req.Round, ext.Healthy, types.IsHealthyCondition(in.Metrics, k.Params))
+			return reject, nil
+		}
+
+		// 1c. Critical cross-check, same reason as 1b: CommitFSMTransition feeds
+		// ext.Critical into flap_level, so it must be independently recomputed.
+		if computed := types.IsCriticalCondition(in.Metrics, k.Params, in.SuspiciousDuration); ext.Critical != computed {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=critical_mismatch ext.Critical=%v computed=%v\n",
+				req.Height, req.Round, ext.Critical, computed)
 			return reject, nil
 		}
 
@@ -383,14 +398,14 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		hBtcCurrent := in.Metrics.BtcCurrentHeight
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
-		if !anchor.VerifyReceipt(btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
+		if !anchor.VerifyReceipt(btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, k.Baseline.BTCToleranceRound(round), k.Params.KDeepFinality) {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=btc_verify_receipt btcReceipt=%+v fsmState=%s isBTCHealthy=%v hBtcCurrent=%d hBtcAnchored=%d kDeepFinality=%d\n",
 				req.Height, req.Round, btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, k.Params.KDeepFinality)
 			return reject, nil
 		}
 
 		// 4. Circuit breaker: no withdrawal while SOVEREIGN/RECOVERING (IsValidProposal:332).
-		if types.WithdrawLocked(ext.FsmState) {
+		if types.WithdrawLocked(ext.FsmState) && !k.Baseline.SkipsCircuitBreaker() {
 			for _, tx := range req.Txs[1:] {
 				if containsWithdrawal(tx) {
 					fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=withdrawal_locked\n", req.Height, req.Round)
@@ -404,7 +419,7 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		// (which ratchets every block and would starve this gate).
 		hEngramVerifiedCommitted, _ := k.HEngramVerified.Get(ctx)
 		baseline := zkProofFreshnessBaseline(ctx, k, currState, hEngramVerifiedCommitted)
-		if ext.FsmState == types.StateRecovering && in.SafeBlocks == k.Params.HysteresisWait {
+		if ext.FsmState == types.StateRecovering && in.SafeBlocks == k.Params.RecoveryHysteresisWait {
 			if !verifyZkProofFlag(ext.ZkProofRef, daReceipt, baseline) {
 				fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=zk_proof_gate zkProofRefLen=%d daReceipt=%+v baseline=%d\n",
 					req.Height, req.Round, len(ext.ZkProofRef), daReceipt, baseline)
@@ -412,7 +427,7 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 			}
 		} else if len(ext.ZkProofRef) > 0 {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=unexpected_zk_proof_ref fsmState=%s safeBlocks=%d hysteresisWait=%d\n",
-				req.Height, req.Round, ext.FsmState, in.SafeBlocks, k.Params.HysteresisWait)
+				req.Height, req.Round, ext.FsmState, in.SafeBlocks, k.Params.RecoveryHysteresisWait)
 			return reject, nil
 		}
 

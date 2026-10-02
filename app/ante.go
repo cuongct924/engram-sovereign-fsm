@@ -29,8 +29,8 @@ func (cbd CircuitBreakerDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simula
 
 	// WithdrawLocked mirrors spec/core/EngramFSM.tla's WithdrawLocked --
 	// RECOVERING is included, not just SOVEREIGN, since the re-anchoring
-	// proof isn't finalized until safe_blocks reaches HYSTERESIS_WAIT.
-	if fsmtypes.WithdrawLocked(currentState) {
+	// proof isn't finalized until safe_blocks reaches RECOVERY_HYSTERESIS_WAIT.
+	if fsmtypes.WithdrawLocked(currentState) && !cbd.fsmKeeper.Baseline.SkipsCircuitBreaker() {
 		for _, msg := range tx.GetMsgs() {
 			if isHighRiskTransaction(msg) {
 				return ctx, errors.New("CIRCUIT BREAKER ACTIVE: withdrawals and high-value transactions are halted while fsm_state is SOVEREIGN or RECOVERING")

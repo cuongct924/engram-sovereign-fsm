@@ -239,7 +239,7 @@ SynchronizedLocalClocks ==
 
 (********************* DYNAMIC TOLERANCE CALCULATION *********************)
 \* The tolerance expands dynamically based on the Consensus Round.
-\* It only applies to exogenous physical metrics (DA Blobstream & Bitcoin SPV).
+\* It only applies to exogenous physical metrics (DA Blobstream & Bitcoin anchor re-verification).
 DATolerance(r) ==
     CASE r <= 1 -> 0
       [] r = 2  -> 2
@@ -271,10 +271,10 @@ VerifyZkProof(zk_proof, da_receipt) ==
 \* @type: (Int) => <<Str, Int>>;
 ExpectedBlockHash(height) == <<"BTC_BLOCK", height>>
 
-\* Simulates an SPV Light Client validating a BTC Receipt.
-\* If an eclipsed Proposer submits a forged branch (e.g., <<"BTC_FORK", height>>), the SPV client will reject it.
+\* Simulates an anchor re-verifier validating a BTC Receipt.
+\* If an eclipsed Proposer submits a forged branch (e.g., <<"BTC_FORK", height>>), the anchor re-verifier will reject it.
 \* @type: ({ checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }) => Bool;
-VerifySPVProof(receipt) ==
+VerifyAnchorReceipt(receipt) ==
     /\ receipt.checkpoint_block_height <= h_btc_current
     /\ receipt.checkpoint_block_height >= h_btc_anchored
     \* The receipt's hash must stricty match the Canonical Chain's hash
@@ -305,14 +305,14 @@ IsValidProposal(prop) ==
 
         \* Settlement Monotonicity & BTC Light Client Hash Check
         /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
-        /\ VerifySPVProof(prop.btc_receipt)
+        /\ VerifyAnchorReceipt(prop.btc_receipt)
 
         \* Economic Circuit Breaker: Halt all cross-chain withdrawals during partition
         /\ (prop.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => ~ContainsWithdrawal(prop.value)
         
         \* RE-ANCHORING Logic: Mandatory ZK-Proof when hysteresis wait is met
         \* If not met, strict enforcement that no fake ZK-proof is attached.
-        /\  IF prop.fsm_state = "RECOVERING" /\ safe_blocks = HYSTERESIS_WAIT 
+        /\  IF prop.fsm_state = "RECOVERING" /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT 
             THEN VerifyZkProof(prop.zk_proof_ref, prop.da_receipt)
             ELSE prop.zk_proof_ref = FALSE
 

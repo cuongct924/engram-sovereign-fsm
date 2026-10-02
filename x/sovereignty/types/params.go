@@ -4,28 +4,33 @@ import "fmt"
 
 // Params mirrors the CONSTANTS declared in spec/core/EngramFSM.tla.
 type Params struct {
-	SuspiciousThreshold uint64 // BTC gap threshold for Gray Failure warning
-	SovereignThreshold  uint64 // BTC gap threshold for Hard Failure (circuit-break)
-	DAThreshold         uint64 // da_gap threshold for DA health
-	HysteresisWait      uint64 // safe_blocks required before RECOVERING -> ANCHORED
-	MinPeers            uint64 // minimum clean (non-blacklisted) peers required
-	MinSubnetDiversity  uint64 // minimum distinct subnets required
-	MinAnchorPeers      uint64 // minimum active anchor/bootstrap peers required
-	MaxChurnRate        uint64 // maximum allowed peer disconnects/reconnects per epoch
-	MinAvgTenure        uint64 // minimum average peer tenure
-	MaxPeerLatency      uint64 // maximum allowed peer latency
-	MaxSuspiciousTime   uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
-	MaxIgnoreRounds     uint64 // rounds a forced tx can be ignored before IsCensoring trips
+	SuspiciousThreshold    uint64 // BTC gap threshold for Gray Failure warning
+	SovereignThreshold     uint64 // BTC gap threshold for Hard Failure (circuit-break)
+	DAThreshold            uint64 // da_gap threshold for DA health
+	RecoveryHysteresisWait uint64 // safe_blocks required before RECOVERING -> ANCHORED
+	MinPeers               uint64 // minimum clean (non-blacklisted) peers required
+	MinSubnetDiversity     uint64 // minimum distinct subnets required
+	MinAnchorPeers         uint64 // minimum active anchor/bootstrap peers required
+	MaxChurnRate           uint64 // maximum allowed peer disconnects/reconnects per epoch
+	MinAvgTenure           uint64 // minimum average peer tenure
+	MaxPeerLatency         uint64 // maximum allowed peer latency
+	MaxSuspiciousTime      uint64 // max blocks tolerated in SUSPICIOUS before escalating to SOVEREIGN
+	MaxIgnoreRounds        uint64 // rounds a forced tx can be ignored before IsCensoring trips
 
 	// DownHysteresisThreshold gates ANCHORED->SUSPICIOUS and
 	// RECOVERING->SOVEREIGN on UnhealthyStreak+1 reaching this value (E5's
 	// flapping fix). 1 = pre-fix immediate-demote behavior.
 	DownHysteresisThreshold uint64
 
-	// MaxDownHysteresisThreshold caps RECOVERING's backoff-doubled
-	// down-hysteresis threshold -- without it, repeated regressions would
-	// grow the grace period into a liveness risk. Must be >= DownHysteresisThreshold.
+	// MaxDownHysteresisThreshold caps the adaptively backed-off down-hysteresis
+	// threshold -- without it, repeated flapping would grow the grace period
+	// into a liveness risk. Must be >= DownHysteresisThreshold.
 	MaxDownHysteresisThreshold uint64
+
+	// StableWindow is the number of healthy ANCHORED blocks that decay
+	// FlapLevel by 1 (spec STABLE_WINDOW). Should be >= MaxDownHysteresisThreshold
+	// so the level is forgiven no faster than it is earned.
+	StableWindow uint64
 
 	// SuspiciousHysteresisWait gates SUSPICIOUS->ANCHORED on
 	// SuspiciousSafeBlocks+1 consecutive healthy blocks (Gray Failure
@@ -73,13 +78,15 @@ func DefaultParams() Params {
 		SovereignThreshold:  8,
 		// Sized off the Engram:Celestia block-time ratio plus DA submit latency.
 		DAThreshold: 30,
-		// Deliberately small -- E5 found uptime falls as HysteresisWait grows.
-		HysteresisWait: 2,
+		// Deliberately small -- E5 found uptime falls as RecoveryHysteresisWait grows.
+		RecoveryHysteresisWait: 2,
 		// Smallest value granting a genuine 1-block grace period.
 		DownHysteresisThreshold: 2,
 		// 8 (=2*2^2): allows 2 backoff doublings (2->4->8) before capping.
 		MaxDownHysteresisThreshold: 8,
-		// Same reasoning as HysteresisWait -- smallest value granting a
+		// Twice MaxDownHysteresisThreshold: forgiveness is slower than backoff.
+		StableWindow: 16,
+		// Same reasoning as RecoveryHysteresisWait -- smallest value granting a
 		// genuine 1-block grace period.
 		SuspiciousHysteresisWait: 2,
 		// Reasoned default, not measured -- candidate for an E5-style sweep.
@@ -142,6 +149,9 @@ func (p Params) Validate() error {
 		return fmt.Errorf("params: MaxDownHysteresisThreshold (%d) must be >= DownHysteresisThreshold (%d)",
 			p.MaxDownHysteresisThreshold, p.DownHysteresisThreshold)
 	}
+	if p.StableWindow == 0 {
+		return fmt.Errorf("params: StableWindow must be >= 1")
+	}
 	if p.MaxCensorshipRounds <= p.MaxIgnoreRounds {
 		return fmt.Errorf("params: MaxCensorshipRounds (%d) must be > MaxIgnoreRounds (%d), or the escape hatch fires before enforcement ever engages",
 			p.MaxCensorshipRounds, p.MaxIgnoreRounds)
@@ -156,7 +166,7 @@ func (p Params) ToGenesisParams() *GenesisParams {
 		SuspiciousThreshold:        p.SuspiciousThreshold,
 		SovereignThreshold:         p.SovereignThreshold,
 		DaThreshold:                p.DAThreshold,
-		HysteresisWait:             p.HysteresisWait,
+		RecoveryHysteresisWait:     p.RecoveryHysteresisWait,
 		MinPeers:                   p.MinPeers,
 		MinSubnetDiversity:         p.MinSubnetDiversity,
 		MinAnchorPeers:             p.MinAnchorPeers,
@@ -170,6 +180,7 @@ func (p Params) ToGenesisParams() *GenesisParams {
 		MaxPeersPerSubnet:          p.MaxPeersPerSubnet,
 		DownHysteresisThreshold:    p.DownHysteresisThreshold,
 		MaxDownHysteresisThreshold: p.MaxDownHysteresisThreshold,
+		StableWindow:               p.StableWindow,
 		SuspiciousHysteresisWait:   p.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: p.MaxSuspiciousForcedTxQueue,
 		MaxCensorshipRounds:        p.MaxCensorshipRounds,
@@ -188,7 +199,7 @@ func (gp *GenesisParams) ToParams() Params {
 		SuspiciousThreshold:        gp.SuspiciousThreshold,
 		SovereignThreshold:         gp.SovereignThreshold,
 		DAThreshold:                gp.DaThreshold,
-		HysteresisWait:             gp.HysteresisWait,
+		RecoveryHysteresisWait:     gp.RecoveryHysteresisWait,
 		MinPeers:                   gp.MinPeers,
 		MinSubnetDiversity:         gp.MinSubnetDiversity,
 		MinAnchorPeers:             gp.MinAnchorPeers,
@@ -202,6 +213,7 @@ func (gp *GenesisParams) ToParams() Params {
 		MaxPeersPerSubnet:          gp.MaxPeersPerSubnet,
 		DownHysteresisThreshold:    gp.DownHysteresisThreshold,
 		MaxDownHysteresisThreshold: gp.MaxDownHysteresisThreshold,
+		StableWindow:               gp.StableWindow,
 		SuspiciousHysteresisWait:   gp.SuspiciousHysteresisWait,
 		MaxSuspiciousForcedTxQueue: gp.MaxSuspiciousForcedTxQueue,
 		MaxCensorshipRounds:        gp.MaxCensorshipRounds,

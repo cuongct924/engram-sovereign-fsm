@@ -240,12 +240,8 @@ func (x *QueryRecoveryHeader) GetStateRoot() []byte {
 }
 
 // QueryValidatorInfo is the wire form of types.ValidatorInfo, in the SAME
-// order keeper.ValidatorPubKeys iterates (ascending raw address bytes) --
-// which matches cmttypes.ValidatorSet.Validators' own sort order exactly
-// (both are byte-order-sorted by address), so an off-chain prover can build
-// a boundary-block witness (circuit/reanchoring/src/main.nr's
-// ValidatorSetWitness) whose per-validator order matches what
-// ValidatorSetHash was actually computed over.
+// order keeper.ValidatorPubKeys iterates -- matching cmttypes.ValidatorSet's
+// own sort order so a witness-builder's order matches ValidatorSetHash.
 type QueryValidatorInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PubKey        []byte                 `protobuf:"bytes,1,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
@@ -304,13 +300,9 @@ type QueryRecoveryHeadersResponse struct {
 	// started (empty if no interval is currently tracked).
 	LastAnchoredRoot []byte                 `protobuf:"bytes,1,opt,name=last_anchored_root,json=lastAnchoredRoot,proto3" json:"last_anchored_root,omitempty"`
 	Headers          []*QueryRecoveryHeader `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty"`
-	// Boundary-block binding data (circuit/README.md's Scope section) --
-	// x/sovereignty/keeper/keeper.go's LastAnchoredHeight/BlockHashByHeight/
-	// ValidatorSetHash docs. block_hashes mirrors BlockHashByHeight's
-	// currently-tracked entries (bounded to roughly one interval's span, same
-	// as headers) -- a witness-builder looks up whichever height it's
-	// checkpointing at (any tracked height, not just a fixed interval end;
-	// see BlockHashByHeight's doc for why this is deliberately general).
+	// Boundary-block binding data (circuit/README.md's Scope section).
+	// block_hashes mirrors BlockHashByHeight's tracked entries -- a
+	// witness-builder can look up any tracked height, not just a fixed endpoint.
 	LastAnchoredHeight uint64                `protobuf:"varint,3,opt,name=last_anchored_height,json=lastAnchoredHeight,proto3" json:"last_anchored_height,omitempty"`
 	ValidatorSetHash   []byte                `protobuf:"bytes,4,opt,name=validator_set_hash,json=validatorSetHash,proto3" json:"validator_set_hash,omitempty"`
 	Validators         []*QueryValidatorInfo `protobuf:"bytes,5,rep,name=validators,proto3" json:"validators,omitempty"`

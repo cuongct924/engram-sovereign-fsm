@@ -146,7 +146,7 @@ func (c *RPCClient) CurrentHeight(ctx context.Context) (uint64, error) {
 }
 
 // BlockHashAt calls getblockhash(height) -- real per-validator verification,
-// not VerifySPVProof (whose abstracted <<"BTC_BLOCK", height>> hash stays the
+// not VerifyAnchorReceipt (whose abstracted <<"BTC_BLOCK", height>> hash stays the
 // spec-fidelity check).
 func (c *RPCClient) BlockHashAt(ctx context.Context, height uint64) (string, error) {
 	var hash string

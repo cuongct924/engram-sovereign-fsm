@@ -19,6 +19,10 @@ type Keeper struct {
 	// verified values), overridden by InitChainer from validated genesis.
 	Params types.Params
 
+	// Baseline selects a same-binary RQ2 comparison system; the zero value
+	// is the real Engram protocol (types.BaselineMode).
+	Baseline types.BaselineMode
+
 	// FSM state, mirroring spec/core/EngramFSM.tla's state variables.
 	FSMState           collections.Item[string]
 	SafeBlocks         collections.Item[uint64]
@@ -26,9 +30,11 @@ type Keeper struct {
 	// UnhealthyStreak backs E5's down-hysteresis: consecutive absorbed
 	// non-critical warning/unhealthy blocks before demoting.
 	UnhealthyStreak collections.Item[uint64]
-	// FailedRecoveryAttempts backs the flapping-attack exponential-backoff
-	// hardening: RECOVERING->SOVEREIGN regressions since last recovery.
-	FailedRecoveryAttempts collections.Item[uint64]
+	// FlapLevel backs adaptive down-hysteresis: +1 per warning-driven demotion,
+	// -1 per StableWindow healthy ANCHORED blocks (spec flap_level).
+	FlapLevel collections.Item[uint64]
+	// StableBlocks counts healthy ANCHORED blocks toward decaying FlapLevel.
+	StableBlocks collections.Item[uint64]
 	// SuspiciousSafeBlocks backs the Gray Failure Arbitrage fix: consecutive
 	// healthy blocks absorbed in SUSPICIOUS before exiting.
 	SuspiciousSafeBlocks  collections.Item[uint64]
@@ -128,7 +134,8 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 		DetectedEvidenceCount:          collections.NewItem(sb, collections.NewPrefix(16), "detected_evidence_count", collections.Uint64Value),
 		LastDetectedEvidence:           collections.NewItem(sb, collections.NewPrefix(17), "last_detected_evidence", collections.NewJSONValueCodec[types.EvidenceRecord]()),
 		UnhealthyStreak:                collections.NewItem(sb, collections.NewPrefix(18), "unhealthy_streak", collections.Uint64Value),
-		FailedRecoveryAttempts:         collections.NewItem(sb, collections.NewPrefix(19), "failed_recovery_attempts", collections.Uint64Value),
+		FlapLevel:                      collections.NewItem(sb, collections.NewPrefix(19), "flap_level", collections.Uint64Value),
+		StableBlocks:                   collections.NewItem(sb, collections.NewPrefix(31), "stable_blocks", collections.Uint64Value),
 		SuspiciousSafeBlocks:           collections.NewItem(sb, collections.NewPrefix(20), "suspicious_safe_blocks", collections.Uint64Value),
 		RecoveryProofDAHeights:         collections.NewMap(sb, collections.NewPrefix(21), "recovery_proof_da_heights", collections.Uint64Key, collections.Uint64Value),
 		ValidatorPubKeys:               collections.NewMap(sb, collections.NewPrefix(22), "validator_pub_keys", collections.StringKey, collections.NewJSONValueCodec[types.ValidatorInfo]()),

@@ -88,7 +88,7 @@ func TestE9_CompositeFaultCombinedFailure(t *testing.T) {
 	record()
 	require.Equal(t, types.StateRecovering, h.State(), "phase 6: all peripherals healed must move SOVEREIGN -> RECOVERING")
 
-	for i := uint64(0); i < p.HysteresisWait; i++ {
+	for i := uint64(0); i < p.RecoveryHysteresisWait; i++ {
 		record()
 	}
 	h.SetReanchoringProofValid(true)

@@ -5,7 +5,7 @@
  * from README.md's Lemma 7.5 -- "a dedicated scenario constructing the full
  * execution trace that shows an eclipsed proposer's fabricated fsm_state is
  * deterministically rejected via FSMStateConsistency combined with
- * VerifySPVProof."
+ * VerifyAnchorReceipt."
  *
  * Confirmed real (this session) that this open item was a genuine gap, not
  * just a missing diagram: the only thing previously "verified to produce

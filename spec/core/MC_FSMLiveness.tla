@@ -26,7 +26,8 @@ MC_FSMTransition ==
         \/ suspicious_safe_blocks' /= suspicious_safe_blocks
         \/ safe_blocks' /= safe_blocks
         \/ unhealthy_streak' /= unhealthy_streak
-        \/ failed_recovery_attempts' /= failed_recovery_attempts
+        \/ flap_level' /= flap_level
+        \/ stable_blocks' /= stable_blocks
     \* ExecuteFSMTransition never touches reanchoring_proof_valid (only
     \* MC_GenerateZKProof/UpdateSensors do) -- pre-existing gap, matching
     \* real FSMNext's own UNCHANGED <<reanchoring_proof_valid>> pattern
@@ -57,7 +58,7 @@ MC_FSMUpdateSensors ==
     \* minimal DA-side mock; the other two DA/BTC failure flags stay fixed
     \* here, same treatment as anchor_peers/blacklisted_peers above.
     /\ UNCHANGED <<is_attestation_failed, is_anchor_reverification_failed>>
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, reanchoring_proof_valid, da_backfill_valid>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, flap_level, stable_blocks, reanchoring_proof_valid, da_backfill_valid>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<censorshipVars>>
     /\ UNCHANGED <<certificateVars>>
@@ -68,7 +69,7 @@ MC_GenerateZKProof ==
     /\ IsHealthyCondition
     /\ reanchoring_proof_valid = FALSE
     /\ reanchoring_proof_valid' = TRUE
-    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, failed_recovery_attempts, da_backfill_valid>>
+    /\ UNCHANGED <<state, safe_blocks, suspicious_duration, suspicious_safe_blocks, unhealthy_streak, flap_level, stable_blocks, da_backfill_valid>>
     /\ UNCHANGED <<btcGapSensorVars, daGapSensorVars, p2pHealthSensorVars>>
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars, censorshipVars, certificateVars>>
     /\ UNCHANGED <<sensorAggVars>>

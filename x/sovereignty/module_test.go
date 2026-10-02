@@ -58,7 +58,7 @@ func TestAppModuleBasic_ValidateGenesis_RejectsMalformedJSON(t *testing.T) {
 }
 
 // TestAppModule_InitGenesis_SetsEveryCounter guards the regression InitGenesis
-// used to have: UnhealthyStreak/FailedRecoveryAttempts/SuspiciousSafeBlocks
+// used to have: UnhealthyStreak/FlapLevel/StableBlocks/SuspiciousSafeBlocks
 // were silently dropped, invisible at fresh genesis but reset on export/import.
 func TestAppModule_InitGenesis_SetsEveryCounter(t *testing.T) {
 	mod, k, ctx, cdc := newTestModule(t)
@@ -69,7 +69,8 @@ func TestAppModule_InitGenesis_SetsEveryCounter(t *testing.T) {
 	gs.SuspiciousDuration = 7
 	gs.ReanchoringProofValid = true
 	gs.UnhealthyStreak = 2
-	gs.FailedRecoveryAttempts = 5
+	gs.FlapLevel = 5
+	gs.StableBlocks = 6
 	gs.SuspiciousSafeBlocks = 4
 	gs.InitialMetrics = &types.PeripheralMetrics{CleanPeers: 9}
 	bz := cdc.MustMarshalJSON(gs)
@@ -96,9 +97,13 @@ func TestAppModule_InitGenesis_SetsEveryCounter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), unhealthyStreak)
 
-	failedRecoveryAttempts, err := k.FailedRecoveryAttempts.Get(ctx)
+	flapLevel, err := k.FlapLevel.Get(ctx)
 	require.NoError(t, err)
-	require.Equal(t, uint64(5), failedRecoveryAttempts)
+	require.Equal(t, uint64(5), flapLevel)
+
+	stableBlocks, err := k.StableBlocks.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(6), stableBlocks)
 
 	suspiciousSafeBlocks, err := k.SuspiciousSafeBlocks.Get(ctx)
 	require.NoError(t, err)
@@ -138,7 +143,8 @@ func TestAppModule_ExportGenesis_RoundTripsInitGenesis(t *testing.T) {
 	in.SuspiciousDuration = 2
 	in.ReanchoringProofValid = true
 	in.UnhealthyStreak = 3
-	in.FailedRecoveryAttempts = 4
+	in.FlapLevel = 4
+	in.StableBlocks = 3
 	in.SuspiciousSafeBlocks = 5
 	in.InitialMetrics = &types.PeripheralMetrics{CleanPeers: 6}
 	mod.InitGenesis(ctx, cdc, cdc.MustMarshalJSON(in))
@@ -152,7 +158,8 @@ func TestAppModule_ExportGenesis_RoundTripsInitGenesis(t *testing.T) {
 	require.Equal(t, in.SuspiciousDuration, out.SuspiciousDuration)
 	require.Equal(t, in.ReanchoringProofValid, out.ReanchoringProofValid)
 	require.Equal(t, in.UnhealthyStreak, out.UnhealthyStreak)
-	require.Equal(t, in.FailedRecoveryAttempts, out.FailedRecoveryAttempts)
+	require.Equal(t, in.FlapLevel, out.FlapLevel)
+	require.Equal(t, in.StableBlocks, out.StableBlocks)
 	require.Equal(t, in.SuspiciousSafeBlocks, out.SuspiciousSafeBlocks)
 	require.Equal(t, in.InitialMetrics.CleanPeers, out.InitialMetrics.CleanPeers)
 }

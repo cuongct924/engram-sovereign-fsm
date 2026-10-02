@@ -71,7 +71,7 @@ ServerInsertProposal(p) ==
                \* ZK proof search space: only open the TRUE branch once
                \* hysteresis is satisfied, to avoid spurious re-anchoring paths.
                proof_search_space ==
-                   IF state = "RECOVERING" /\ safe_blocks >= HYSTERESIS_WAIT
+                   IF state = "RECOVERING" /\ safe_blocks >= RECOVERY_HYSTERESIS_WAIT
                    THEN {TRUE, FALSE}
                    ELSE {FALSE}
            IN
@@ -407,7 +407,7 @@ ZKProofConsistency ==
     \A p \in HonestNodes :
         (decision[p] /= NilDecision
          /\ decision[p].prop.fsm_state = "RECOVERING"
-         /\ safe_blocks = HYSTERESIS_WAIT)
+         /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT)
         => decision[p].prop.zk_proof_ref = TRUE
 
 \* Decided proposal's healthy claim must match the current sensor state --

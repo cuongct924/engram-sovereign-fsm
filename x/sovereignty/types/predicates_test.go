@@ -162,9 +162,9 @@ func TestIsCriticalCondition(t *testing.T) {
 
 	t.Run("btc spv failed alone triggers critical", func(t *testing.T) {
 		m := healthyMetricsForParams(p)
-		m.IsBtcSpvFailed = true
+		m.IsAnchorReverificationFailed = true
 		if !IsCriticalCondition(m, p, 0) {
-			t.Error("expected critical via is_btc_spv_failed")
+			t.Error("expected critical via is_anchor_reverification_failed")
 		}
 	})
 
@@ -248,7 +248,7 @@ func TestIsHealthyCondition(t *testing.T) {
 
 	t.Run("btc spv failed alone breaks healthy", func(t *testing.T) {
 		m := healthyMetricsForParams(p)
-		m.IsBtcSpvFailed = true
+		m.IsAnchorReverificationFailed = true
 		if IsHealthyCondition(m, p) {
 			t.Error("expected not healthy")
 		}

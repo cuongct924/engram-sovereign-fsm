@@ -95,7 +95,8 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 	suspiciousDuration, _ := k.SuspiciousDuration.Get(ctx)
 	suspiciousSafeBlocks, _ := k.SuspiciousSafeBlocks.Get(ctx)
 	unhealthyStreak, _ := k.UnhealthyStreak.Get(ctx)
-	failedRecoveryAttempts, _ := k.FailedRecoveryAttempts.Get(ctx)
+	flapLevel, _ := k.FlapLevel.Get(ctx)
+	stableBlocks, _ := k.StableBlocks.Get(ctx)
 
 	// Step 3: drive the FSM transition to the agreed state and update anchored heights.
 	if err := k.FSMState.Set(ctx, ext.FsmState); err != nil {
@@ -115,8 +116,12 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 	if err := k.SuspiciousSafeBlocks.Set(ctx, keeper.NextSuspiciousSafeBlocks(currState, ext.FsmState, suspiciousSafeBlocks, ext.Healthy, k.Params)); err != nil {
 		return err
 	}
-	// No local-sensor read -- unlike SafeBlocks/UnhealthyStreak above.
-	if err := k.FailedRecoveryAttempts.Set(ctx, keeper.NextFailedRecoveryAttempts(currState, ext.FsmState, failedRecoveryAttempts, k.Params)); err != nil {
+	// ext.Healthy/ext.Critical are both already-agreed (ProcessProposal checks
+	// #1b/#1c), so neither flap_level nor stable_blocks reads a local sensor.
+	if err := k.FlapLevel.Set(ctx, keeper.NextFlapLevel(currState, ext.FsmState, flapLevel, stableBlocks, ext.Healthy, ext.Critical, k.Params)); err != nil {
+		return err
+	}
+	if err := k.StableBlocks.Set(ctx, keeper.NextStableBlocks(currState, ext.FsmState, stableBlocks, flapLevel, ext.Healthy, k.Params)); err != nil {
 		return err
 	}
 	if err := k.HBtcAnchored.Set(ctx, ext.BtcCheckpointBlockHeight); err != nil {
@@ -168,7 +173,7 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 
 	// Step 4: mark a claimed ZK proof as submitted. Latched ONCE per episode
 	// (HeuristicProofLatched's doc) -- SafeBlocks stays pinned at
-	// HysteresisWait, so re-running this every block would re-pin
+	// RecoveryHysteresisWait, so re-running this every block would re-pin
 	// HBtcSubmitted to an ever-climbing value and hAnchored could never
 	// catch up.
 	if ext.FsmState == types.StateRecovering && len(ext.ZkProofRef) > 0 {

@@ -54,7 +54,7 @@ func TestSubmitForcedTx_SkipsValidationWhenTxDecoderUnset(t *testing.T) {
 }
 
 // Regression: this handler used to set FSMState=ANCHORED on proof validity alone, bypassing
-// StrictFSMTransitionSafety/HysteresisWait -- it must only latch RealProofSubmittedHeight.
+// StrictFSMTransitionSafety/RecoveryHysteresisWait -- it must only latch RealProofSubmittedHeight.
 func TestSubmitRecoveryProof_NeverSetsFSMStateDirectly(t *testing.T) {
 	srv, ctx := newTestMsgServer(t)
 	require.NoError(t, srv.FSMState.Set(ctx, types.StateSovereign))

@@ -6,16 +6,16 @@ import (
 
 // FSMInput bundles the FSM-internal variables CalculateNextState needs
 // beyond the raw sensor snapshot, mirroring safe_blocks/suspicious_duration/
-// unhealthy_streak/failed_recovery_attempts/reanchoring_proof_valid in
+// unhealthy_streak/flap_level/reanchoring_proof_valid in
 // spec/core/EngramFSM.tla.
 type FSMInput struct {
-	Metrics                *types.PeripheralMetrics
-	SafeBlocks             uint64
-	SuspiciousDuration     uint64
-	SuspiciousSafeBlocks   uint64
-	UnhealthyStreak        uint64
-	FailedRecoveryAttempts uint64
-	ReanchoringProofValid  bool
+	Metrics               *types.PeripheralMetrics
+	SafeBlocks            uint64
+	SuspiciousDuration    uint64
+	SuspiciousSafeBlocks  uint64
+	UnhealthyStreak       uint64
+	FlapLevel             uint64
+	ReanchoringProofValid bool
 	// DABackfillValid mirrors da_backfill_valid (spec/core/EngramFSM.tla:246,533-540):
 	// the SOVEREIGN interval's block data is published to DA and retrievable.
 	DABackfillValid bool
@@ -36,12 +36,12 @@ func DABackfillValid(daContiguousHeight, recoveringEntryHeight uint64) bool {
 }
 
 // EffectiveDownHysteresisThreshold mirrors the TLA+ operator of the same name
-// (spec/core/EngramFSM.tla): RECOVERING's down-hysteresis grace doubles per
-// RECOVERING->SOVEREIGN regression, capped at MaxDownHysteresisThreshold --
-// flapping attacks face a harder bar each cycle.
-func EffectiveDownHysteresisThreshold(failedRecoveryAttempts uint64, p types.Params) uint64 {
+// (spec/core/EngramFSM.tla): the down-hysteresis grace of both demotion edges
+// doubles per flap_level, capped at MaxDownHysteresisThreshold -- repeated
+// flapping faces a harder bar each cycle, relaxed again as FlapLevel decays.
+func EffectiveDownHysteresisThreshold(flapLevel uint64, p types.Params) uint64 {
 	effective := p.DownHysteresisThreshold
-	for i := uint64(0); i < failedRecoveryAttempts; i++ {
+	for i := uint64(0); i < flapLevel; i++ {
 		if effective >= p.MaxDownHysteresisThreshold {
 			return p.MaxDownHysteresisThreshold
 		}
@@ -71,7 +71,7 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 			return types.StateSovereign
 		}
 		if warning {
-			if in.UnhealthyStreak+1 >= p.DownHysteresisThreshold {
+			if in.UnhealthyStreak+1 >= EffectiveDownHysteresisThreshold(in.FlapLevel, p) {
 				return types.StateSuspicious
 			}
 			return types.StateAnchored // absorb: streak not yet exhausted
@@ -101,14 +101,14 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 			return types.StateSovereign
 		}
 		if !healthy {
-			if in.UnhealthyStreak+1 >= EffectiveDownHysteresisThreshold(in.FailedRecoveryAttempts, p) {
+			if in.UnhealthyStreak+1 >= EffectiveDownHysteresisThreshold(in.FlapLevel, p) {
 				return types.StateSovereign
 			}
 			return types.StateRecovering // absorb: streak not yet exhausted
 		}
 		// A recovery proof shows the interval is valid, not that its data is
 		// available, so exit also needs the DA backfill (EngramFSM.tla:444-446).
-		if in.SafeBlocks == p.HysteresisWait && in.ReanchoringProofValid && in.DABackfillValid {
+		if in.SafeBlocks == p.RecoveryHysteresisWait && in.ReanchoringProofValid && in.DABackfillValid {
 			return types.StateAnchored
 		}
 		// healthy but hysteresis not yet satisfied, proof or DA backfill still pending: stay RECOVERING
@@ -121,15 +121,15 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 
 // NextSafeBlocks mirrors ExecuteFSMTransition's safe_blocks' update
 // (spec/core/EngramFSM.tla:383-394): staying in RECOVERING increments on
-// healthy (cap HysteresisWait) and leaks -1 on absorbed noise (E5's flapping
+// healthy (cap RecoveryHysteresisWait) and leaks -1 on absorbed noise (E5's flapping
 // fix); any other transition resets to 0.
 func NextSafeBlocks(currentState, targetState string, safeBlocks uint64, healthy bool, p types.Params) uint64 {
 	if targetState != types.StateRecovering || currentState != types.StateRecovering {
 		return 0
 	}
 	if healthy {
-		if safeBlocks+1 > p.HysteresisWait {
-			return p.HysteresisWait
+		if safeBlocks+1 > p.RecoveryHysteresisWait {
+			return p.RecoveryHysteresisWait
 		}
 		return safeBlocks + 1
 	}
@@ -179,22 +179,51 @@ func NextUnhealthyStreak(currentState, targetState string, streak uint64, health
 	return 0
 }
 
-// NextFailedRecoveryAttempts mirrors ExecuteFSMTransition's
-// failed_recovery_attempts' update (spec/core/EngramFSM.tla): +1 per real
-// RECOVERING->SOVEREIGN regression (saturating once the capped effective
-// threshold stops growing), 0 on RECOVERING->ANCHORED, unchanged otherwise.
-func NextFailedRecoveryAttempts(currentState, targetState string, attempts uint64, p types.Params) uint64 {
-	switch {
-	case currentState == types.StateRecovering && targetState == types.StateSovereign:
-		if EffectiveDownHysteresisThreshold(attempts, p) >= p.MaxDownHysteresisThreshold {
-			return attempts
+// NextFlapLevel mirrors ExecuteFSMTransition's flap_level' update
+// (spec/core/EngramFSM.tla): +1 per demotion driven by warning-level noise --
+// ANCHORED->SUSPICIOUS, and RECOVERING->SOVEREIGN only when not critical (a
+// critical failure is a genuine fault, not flapping) -- saturating once the
+// capped effective threshold stops growing. -1 once StableWindow healthy
+// ANCHORED blocks have accumulated; unchanged otherwise. A successful
+// recovery does not reset it.
+//
+// critical is the already-agreed AggregatedHealthCertificate.Critical, never a
+// live local sensor read.
+func NextFlapLevel(currentState, targetState string, flapLevel, stableBlocks uint64, healthy, critical bool, p types.Params) uint64 {
+	demoted := (currentState == types.StateAnchored && targetState == types.StateSuspicious) ||
+		(currentState == types.StateRecovering && targetState == types.StateSovereign && !critical)
+	if demoted {
+		if EffectiveDownHysteresisThreshold(flapLevel, p) >= p.MaxDownHysteresisThreshold {
+			return flapLevel
 		}
-		return attempts + 1
-	case currentState == types.StateRecovering && targetState == types.StateAnchored:
-		return 0
-	default:
-		return attempts
+		return flapLevel + 1
 	}
+	if currentState == types.StateAnchored && targetState == types.StateAnchored && healthy &&
+		flapLevel >= 1 && stableBlocks+1 >= p.StableWindow {
+		return flapLevel - 1
+	}
+	return flapLevel
+}
+
+// NextStableBlocks mirrors ExecuteFSMTransition's stable_blocks' update
+// (spec/core/EngramFSM.tla): while staying in ANCHORED with flap_level > 0, a
+// healthy block increments it (restarting at 0 once it decays flap_level) and
+// an absorbed warning block leaks 1, like NextSafeBlocks; any other transition
+// resets to 0.
+func NextStableBlocks(currentState, targetState string, stableBlocks, flapLevel uint64, healthy bool, p types.Params) uint64 {
+	if currentState != types.StateAnchored || targetState != types.StateAnchored || flapLevel == 0 {
+		return 0
+	}
+	if healthy {
+		if stableBlocks+1 >= p.StableWindow {
+			return 0
+		}
+		return stableBlocks + 1
+	}
+	if stableBlocks == 0 {
+		return 0
+	}
+	return stableBlocks - 1
 }
 
 // NextSuspiciousDuration mirrors the suspicious_duration' update

@@ -178,9 +178,10 @@ func paramsFromEnv() (sovereigntytypes.Params, error) {
 		{"ENGRAM_PARAM_SUSPICIOUS_THRESHOLD", &p.SuspiciousThreshold},
 		{"ENGRAM_PARAM_SOVEREIGN_THRESHOLD", &p.SovereignThreshold},
 		{"ENGRAM_PARAM_DA_THRESHOLD", &p.DAThreshold},
-		{"ENGRAM_PARAM_HYSTERESIS_WAIT", &p.HysteresisWait},
+		{"ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT", &p.RecoveryHysteresisWait},
 		{"ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD", &p.DownHysteresisThreshold},
 		{"ENGRAM_PARAM_MAX_DOWN_HYSTERESIS_THRESHOLD", &p.MaxDownHysteresisThreshold},
+		{"ENGRAM_PARAM_STABLE_WINDOW", &p.StableWindow},
 		{"ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT", &p.SuspiciousHysteresisWait},
 		{"ENGRAM_PARAM_MIN_PEERS", &p.MinPeers},
 		{"ENGRAM_PARAM_MIN_SUBNET_DIVERSITY", &p.MinSubnetDiversity},
@@ -371,16 +372,45 @@ func testnetInitFiles(outputDir string, n int, chainID, hostnamePrefix string, p
 // (proxy.NewLocalClientCreator) -- no multi-node P2P here (see M6 for the
 // Docker multi-node testnet path).
 func startCmd(homeFlag *string) *cobra.Command {
-	var vanilla bool
+	var vanilla, hardGated, soft bool
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(*homeFlag, vanilla)
+			baseline, err := resolveBaselineMode(vanilla, hardGated, soft, os.Getenv("ENGRAM_MODE"))
+			if err != nil {
+				return err
+			}
+			return runStart(*homeFlag, vanilla, baseline)
 		},
 	}
 	cmd.Flags().BoolVar(&vanilla, "vanilla", false, "run plain CometBFT/Cosmos SDK consensus with no sovereignty ABCI++ hooks (docs/EXPERIMENT.md's baseline)")
+	cmd.Flags().BoolVar(&hardGated, "hard-gated", false, "RQ2 baseline: pin the FSM to ANCHORED so BTC/DA receipts are required at every height (also ENGRAM_MODE=hard-gated)")
+	cmd.Flags().BoolVar(&soft, "soft", false, "RQ2 baseline: real FSM but withdrawals are never locked (also ENGRAM_MODE=soft)")
 	return cmd
+}
+
+// resolveBaselineMode picks the RQ2 comparison mode from the mutually
+// exclusive flags, falling back to ENGRAM_MODE (how docker compose sets it).
+func resolveBaselineMode(vanilla, hardGated, soft bool, envMode string) (sovereigntytypes.BaselineMode, error) {
+	n := 0
+	for _, on := range []bool{vanilla, hardGated, soft} {
+		if on {
+			n++
+		}
+	}
+	if n > 1 {
+		return sovereigntytypes.BaselineEngram, fmt.Errorf("--vanilla, --hard-gated and --soft are mutually exclusive")
+	}
+	switch {
+	case hardGated:
+		return sovereigntytypes.BaselineHardGated, nil
+	case soft:
+		return sovereigntytypes.BaselineSoft, nil
+	case vanilla:
+		return sovereigntytypes.BaselineEngram, nil
+	}
+	return sovereigntytypes.ParseBaselineMode(envMode)
 }
 
 // loadConfig reads config/config.toml from home onto cmtcfg's defaults via
@@ -406,7 +436,7 @@ func loadConfig(home string) (*cmtcfg.Config, error) {
 	return config, nil
 }
 
-func runStart(home string, vanilla bool) error {
+func runStart(home string, vanilla bool, baseline sovereigntytypes.BaselineMode) error {
 	config, err := loadConfig(home)
 	if err != nil {
 		return err
@@ -431,7 +461,7 @@ func runStart(home string, vanilla bool) error {
 		fmt.Println("engramd: WARNING -- ENGRAM_BYZANTINE_BEHAVIOR is set:", byzantineBehavior,
 			"(this node will deliberately misbehave; never set this on a real validator)")
 	}
-	engramApp := app.NewEngramApp(sdkLogger, db, genDoc.ChainID, vanilla, byzantineBehavior)
+	engramApp := app.NewEngramApp(sdkLogger, db, genDoc.ChainID, vanilla, baseline, byzantineBehavior)
 
 	pv := privval.LoadFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile())
 	nodeKey, err := p2p.LoadNodeKey(config.NodeKeyFile())

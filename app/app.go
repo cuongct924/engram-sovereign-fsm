@@ -54,9 +54,11 @@ type EngramApp struct {
 
 // NewEngramApp builds a real, runnable EngramApp. chainID must match the
 // genesis file's chain_id. vanilla skips the ABCI++ hook wiring below,
-// giving E2/E3/E7 a same-binary baseline. byzantineBehavior is
+// giving E2/E3/E7 a same-binary baseline. baseline selects RQ2's hard-gated or
+// soft comparison system (types.BaselineMode; zero value = real Engram).
+// byzantineBehavior is
 // ENGRAM_BYZANTINE_BEHAVIOR, empty on every real validator.
-func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, byzantineBehavior string) *EngramApp {
+func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, baseline sovereigntytypes.BaselineMode, byzantineBehavior string) *EngramApp {
 	// "engram" HRP: GetSigners() auto-decodes bech32 from the
 	// `cosmos.msg.v1.signer` field even without SigVerificationDecorator --
 	// address codec required regardless of sig verification.
@@ -93,6 +95,7 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, by
 	// ForcedTxQueue -- see Keeper.TxDecoder's doc for the deadlock this
 	// closes. Same txConfig BaseApp itself decodes with.
 	sovKeeper.TxDecoder = txConfig.TxDecoder()
+	sovKeeper.Baseline = baseline
 
 	// Real active Sybil/eclipse ingress defense (peer_filter.go's
 	// FilterPeerByAddr) -- fails open until wirePeerFilter late-binds a live

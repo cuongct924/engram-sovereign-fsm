@@ -14,15 +14,16 @@ message GenesisState {
   uint64            safe_blocks_counter   = 2; // Counter for TLA+ `safe_blocks`
   uint64            suspicious_duration   = 3; // Counter for TLA+ `suspicious_duration`
   bool              reanchoring_proof_valid = 4; // TLA+ `reanchoring_proof_valid`
-  // field 5 (hysteresis_wait_limit) removed -- superseded by params.hysteresis_wait
+  // field 5 (hysteresis_wait_limit) removed -- superseded by params.recovery_hysteresis_wait
   // below; it was never actually read back into keeper state (dead field).
   reserved 5;
   reserved "hysteresis_wait_limit";
   PeripheralMetrics initial_metrics       = 6; // Initial sensor snapshot
   GenesisParams     params                = 7; // Operational params, see GenesisParams
   uint64            unhealthy_streak      = 8; // TLA+ `unhealthy_streak` (down-hysteresis)
-  uint64            failed_recovery_attempts = 9; // TLA+ `failed_recovery_attempts` (exponential backoff)
+  uint64            flap_level            = 9; // TLA+ `flap_level` (adaptive down-hysteresis level)
   uint64            suspicious_safe_blocks = 10; // TLA+ `suspicious_safe_blocks` (SUSPICIOUS exit hysteresis)
+  uint64            stable_blocks         = 11; // TLA+ `stable_blocks` (flap_level decay counter)
 }
 
 // GenesisParams mirrors types.Params (x/sovereignty/types/params.go) for
@@ -32,7 +33,7 @@ message GenesisParams {
   uint64 suspicious_threshold     = 1;
   uint64 sovereign_threshold      = 2;
   uint64 da_threshold             = 3;
-  uint64 hysteresis_wait          = 4;
+  uint64 recovery_hysteresis_wait          = 4;
   uint64 min_peers                = 5;
   uint64 min_subnet_diversity     = 6;
   uint64 min_anchor_peers         = 7;
@@ -53,4 +54,6 @@ message GenesisParams {
   // come only from a real ZK proof -- the BTC-height heuristic fallback is
   // disabled. false (default) allows either path.
   bool proof_only_recovery = 21;
+  // stable_window: healthy ANCHORED blocks that decay flap_level by 1.
+  uint64 stable_window = 22;
 }

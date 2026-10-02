@@ -42,4 +42,9 @@ message AggregatedHealthCertificate {
   // zk_proof_ref carries rt_new (keeper.LastAnchoredRoot) when a recovery
   // proof is present, nil otherwise -- see ExtendedProposal's former doc.
   bytes zk_proof_ref = 10;
+
+  // critical is the leader's claim of IsCriticalCondition over the certified
+  // aggregate, cross-checked like `healthy`; CommitFSMTransition needs it to
+  // tell a critical RECOVERING->SOVEREIGN from a noise-driven one (flap_level).
+  bool critical = 11;
 }

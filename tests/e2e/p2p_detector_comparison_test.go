@@ -384,7 +384,7 @@ func TestE4_CorrelatedDomainFailure(t *testing.T) {
 			// attack snapshot -- a real multi-vector adversary manipulating
 			// its own peers while BTC/DA are also (independently) unhealthy.
 			correlated.BtcGap = p.SovereignThreshold + uint64(rng.Intn(10))
-			correlated.IsBtcSpvFailed = true
+			correlated.IsAnchorReverificationFailed = true
 			correlated.DaGap = p.DAThreshold + uint64(rng.Intn(10))
 			correlated.IsDasFailed = true
 

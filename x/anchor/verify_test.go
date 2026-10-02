@@ -17,28 +17,28 @@ func TestTolerance(t *testing.T) {
 	require.Equal(t, uint64(10), Tolerance(3, 5), "widened bound tracks kDeepFinality, not a fixed constant")
 }
 
-func TestVerifySPVProof_AcceptsValidCheckpoint(t *testing.T) {
+func TestVerifyAnchorReceipt_AcceptsValidCheckpoint(t *testing.T) {
 	r := Receipt{CheckpointBlockHeight: 50, CheckpointBlockHash: ExpectedBlockHash(50)}
-	require.True(t, VerifySPVProof(r, 100, 10))
+	require.True(t, VerifyAnchorReceipt(r, 100, 10))
 }
 
-func TestVerifySPVProof_RejectsFutureCheckpoint(t *testing.T) {
+func TestVerifyAnchorReceipt_RejectsFutureCheckpoint(t *testing.T) {
 	r := Receipt{CheckpointBlockHeight: 101, CheckpointBlockHash: ExpectedBlockHash(101)}
-	require.False(t, VerifySPVProof(r, 100, 10), "checkpoint must not exceed h_btc_current")
+	require.False(t, VerifyAnchorReceipt(r, 100, 10), "checkpoint must not exceed h_btc_current")
 }
 
-// TestVerifySPVProof_RejectsCheckpointBelowAnchored covers CanElect's IsKDeep
-// branch -- see VerifySPVProof's doc in verify.go for why CanElect has no
+// TestVerifyAnchorReceipt_RejectsCheckpointBelowAnchored covers CanElect's IsKDeep
+// branch -- see VerifyAnchorReceipt's doc in verify.go for why CanElect has no
 // separate fork-level implementation to test beyond this.
-func TestVerifySPVProof_RejectsCheckpointBelowAnchored(t *testing.T) {
+func TestVerifyAnchorReceipt_RejectsCheckpointBelowAnchored(t *testing.T) {
 	r := Receipt{CheckpointBlockHeight: 5, CheckpointBlockHash: ExpectedBlockHash(5)}
-	require.False(t, VerifySPVProof(r, 100, 10), "checkpoint must not regress below h_btc_anchored")
+	require.False(t, VerifyAnchorReceipt(r, 100, 10), "checkpoint must not regress below h_btc_anchored")
 }
 
-func TestVerifySPVProof_RejectsForgedHash(t *testing.T) {
+func TestVerifyAnchorReceipt_RejectsForgedHash(t *testing.T) {
 	forged := BlockHash{Tag: "BTC_FORK", Height: 50}
 	r := Receipt{CheckpointBlockHeight: 50, CheckpointBlockHash: forged}
-	require.False(t, VerifySPVProof(r, 100, 10), "an eclipsed proposer's forged branch must be rejected by the hash check")
+	require.False(t, VerifyAnchorReceipt(r, 100, 10), "an eclipsed proposer's forged branch must be rejected by the hash check")
 }
 
 func TestVerifyReceipt_RejectsBelowToleranceWindow(t *testing.T) {
@@ -55,7 +55,7 @@ func TestVerifyReceipt_RejectsBelowToleranceWindow(t *testing.T) {
 // BTC outage a proposal degrading to SOVEREIGN cannot carry a passing
 // checkpoint, so the check must not apply in that state.
 func TestVerifyReceipt_SkippedWhenNotRequired(t *testing.T) {
-	// SOVEREIGN + BTC unhealthy: freshness/SPV check does not apply.
+	// SOVEREIGN + BTC unhealthy: freshness/anchor-hash check does not apply.
 	r := Receipt{CheckpointBlockHeight: 999, CheckpointBlockHash: BlockHash{Tag: "BTC_FORK", Height: 999}}
 	require.True(t, VerifyReceipt(r, sovtypes.StateSovereign, false, 100, 10, 0, 2))
 }

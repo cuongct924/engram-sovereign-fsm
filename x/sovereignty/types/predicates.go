@@ -15,10 +15,10 @@ func IsBTCGapSovereign(m *PeripheralMetrics, p Params) bool {
 }
 
 // IsBTCHealthy mirrors IsBTCHealthy (spec/core/EngramFSM.tla): gap within
-// both thresholds and no SPV failure -- gates anchor.VerifyReceipt like
+// both thresholds and no anchor re-verification failure -- gates anchor.VerifyReceipt like
 // IsDAHealthy gates da.VerifyReceipt.
 func IsBTCHealthy(m *PeripheralMetrics, p Params) bool {
-	return !IsBTCGapSuspicious(m, p) && !IsBTCGapSovereign(m, p) && !m.IsBtcSpvFailed
+	return !IsBTCGapSuspicious(m, p) && !IsBTCGapSovereign(m, p) && !m.IsAnchorReverificationFailed
 }
 
 // IsDAHealthy mirrors IsDAHealthy: (da_gap < DA_THRESHOLD) /\ ~is_das_failed /\ ~is_attestation_failed.
@@ -37,11 +37,11 @@ func IsP2PQualityHealthy(m *PeripheralMetrics, p Params) bool {
 		m.PeerLatency <= p.MaxPeerLatency
 }
 
-// IsCriticalCondition mirrors IsCriticalCondition: BTC gap/SPV failure, total
+// IsCriticalCondition mirrors IsCriticalCondition: BTC gap/anchor re-verification failure, total
 // anchor-peer loss (eclipse), or a SUSPICIOUS gray-failure timeout.
 func IsCriticalCondition(m *PeripheralMetrics, p Params, suspiciousDuration uint64) bool {
 	return IsBTCGapSovereign(m, p) ||
-		m.IsBtcSpvFailed ||
+		m.IsAnchorReverificationFailed ||
 		m.ActiveAnchors == 0 ||
 		suspiciousDuration >= p.MaxSuspiciousTime
 }
@@ -54,5 +54,5 @@ func IsWarningCondition(m *PeripheralMetrics, p Params) bool {
 
 // IsHealthyCondition mirrors IsHealthyCondition: all sensors green and thresholds satisfied.
 func IsHealthyCondition(m *PeripheralMetrics, p Params) bool {
-	return !IsBTCGapSovereign(m, p) && !IsBTCGapSuspicious(m, p) && !m.IsBtcSpvFailed && IsDAHealthy(m, p) && IsP2PQualityHealthy(m, p)
+	return !IsBTCGapSovereign(m, p) && !IsBTCGapSuspicious(m, p) && !m.IsAnchorReverificationFailed && IsDAHealthy(m, p) && IsP2PQualityHealthy(m, p)
 }

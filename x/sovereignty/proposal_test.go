@@ -401,6 +401,7 @@ func omittedQuorumProposal(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqH
 	cert.Certificates = cert.Certificates[:2]
 	cert.FsmState = types.StateSovereign
 	cert.Healthy = false
+	cert.Critical = true // the degraded fallback (BtcGap at SovereignThreshold) is critical
 	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 	return tx
