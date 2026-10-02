@@ -91,6 +91,119 @@ like the block time or quorum size. A validator running different parameters
 simply fails to validate honest proposals; this affects only its own
 participation, not safety.
 
+\textbf{Layered adversary.} The adversary may degrade the peripheral
+connectivity of \emph{every} honest validator at once (delay Bitcoin
+headers, cut the DA bridge, eclipse the peripheral P2P interface), but it
+cannot partition the core consensus network below $2f{+}1$ voting power.
+Degrading the periphery therefore changes which FSM state the chain is in; it
+does not by itself stop block production.
+
+\textbf{More than $f$ Byzantine validators.} Beyond $f$, no BFT protocol
+retains agreement. In \textsc{Anchored} and \textsc{Suspicious}, a
+checkpoint that carries the state root lets any Bitcoin observer detect a
+fork, because two conflicting histories cannot both match a
+Bitcoin-timestamped root; this is accountability, not prevention. In
+\textsc{Sovereign} nothing outside the validator set constrains the chain,
+which is why withdrawals are locked in that state
+(Section~\ref{subsec:security-semantics}).
+
+\textbf{Security of mode switching.} A transition happens only when a
+well-formed health certificate, built from at least $2f{+}1$ voting power,
+implies it (Lemma~1, Section~\ref{subsec:health-certificate}). A coalition
+of at most $f$ validators therefore cannot force or block a transition. The
+remaining attack surface is griefing by an adversary that degrades the
+peripheral view of a quorum (Section~\ref{sec:discussion}).
+
+\subsection{Security Semantics by Mode}
+\label{subsec:security-semantics}
+
+We state what each FSM state guarantees, using four properties of the
+committed chain $B_1, \dots, B_h$. A \emph{prefix} $B_1, \dots, B_c$ is the
+chain up to height $c \leq h$.
+\begin{itemize}
+  \item $P_{\text{agree}}$: no two conflicting blocks are committed at the
+  same height. Assumption: $f < n/3$.
+  \item $P_{\text{settle}}(c)$: the prefix up to $c$ cannot be rewritten
+  without a Bitcoin reorganization deeper than $K_{\text{DEEP\_FINALITY}}$.
+  Assumptions: such reorganizations are excluded
+  (Section~\ref{subsec:threat-model}), and the Bitcoin checkpoint that
+  buries height $c$ commits the state root at $c$.
+  \item $P_{\text{avail}}(c)$: the block data of every height up to $c$ is
+  retrievable from the DA layer. Assumption: the DA layer is honest and the
+  data was published.
+  \item $P_{\text{exit}}$: a withdrawal commits only against a chain whose
+  settled and available prefix is the one the withdrawal depends on, up to
+  the receipt tolerance defined below. It is enforced by the circuit
+  breaker.
+\end{itemize}
+
+Table~\ref{tab:mode-security} lists which properties hold in each state.
+
+\begin{table}[h]
+\caption{Properties by FSM state. $^\dagger$ holds only if the checkpoint
+commits the state root and the recovery exit gate includes DA backfill
+(Section~\ref{subsec:reanchoring}); the prototype implements neither, so
+these entries are target properties.}
+\label{tab:mode-security}
+\centering
+\footnotesize
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{State} & $P_{\text{agree}}$ & $P_{\text{settle}}$ &
+$P_{\text{avail}}$ & \textbf{Withdrawals} \\
+\midrule
+\textsc{Anchored} & Yes ($f<n/3$) & Yes$^\dagger$ & Yes$^\dagger$ & Permitted \\
+\textsc{Suspicious} & Yes ($f<n/3$) & Yes$^\dagger$, delayed & Yes$^\dagger$ & Permitted \\
+\textsc{Sovereign} & Yes ($f<n/3$) & No & No (validator block stores only) & Locked \\
+\textsc{Recovering} & Yes ($f<n/3$) & Pending recovery proof & Backfilling & Locked \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Receipt tolerance.} Let $\tau$ be the receipt tolerance: in
+\textsc{Anchored} and \textsc{Suspicious}, a valid block at height $h$
+carries a Bitcoin receipt and a DA receipt that attest settled and available
+heights $c_s, c_a \geq h - \tau$ (Section~\ref{subsec:proposal}).
+
+\textbf{Theorem 1 (withdrawal safety).} \emph{Assume $f < n/3$, no Bitcoin
+reorganization deeper than $K_{\text{DEEP\_FINALITY}}$, and an honest DA
+layer. Assume further that (M1) honest validators reject a block that
+contains a withdrawal while the state is \textsc{Sovereign} or
+\textsc{Recovering}; (M2) each Bitcoin checkpoint commits the state root at
+its height; and (M3) \textsc{Recovering}$\to$\textsc{Anchored} requires a
+verified recovery proof and a DA backfill certificate for the whole
+\textsc{Sovereign} interval. If a withdrawal commits in block $B_h$, then
+$P_{\text{agree}}$ holds, the state at $h$ is \textsc{Anchored} or
+\textsc{Suspicious}, and there are heights $c_s, c_a \geq h - \tau$ such
+that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold. Every height
+before $h - \tau$ is settled and available, including every
+\textsc{Sovereign} interval that precedes $B_h$.}
+
+\emph{Proof.} $P_{\text{agree}}$ follows from $f < n/3$. By (M1), the state
+at $h$ is \textsc{Anchored} or \textsc{Suspicious}. In the transition
+function $\delta$, \textsc{Suspicious} is entered only from
+\textsc{Anchored}, and \textsc{Sovereign} is left only through
+\textsc{Recovering}; so every \textsc{Sovereign} interval before $h$ ended
+with a \textsc{Recovering}$\to$\textsc{Anchored} transition, which by (M3)
+required a verified recovery proof and a DA backfill certificate. Hence the
+interval is valid, hash-linked, and available. In the \textsc{Anchored} and
+\textsc{Suspicious} blocks since then, every block carries receipts within
+$\tau$. The Bitcoin receipt in $B_h$ attests a checkpoint at depth at least
+$K_{\text{DEEP\_FINALITY}}$ for some $c_s \geq h - \tau$; by (M2) it
+commits the state root at $c_s$, so rewriting the prefix up to $c_s$
+requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
+attests data availability up to some $c_a \geq h - \tau$, and the DA layer
+is honest. $\square$
+
+Theorem~1 states the exit condition with its exposure window: the $\tau$
+most recent blocks are neither settled nor available when the withdrawal
+commits. Liveness comes from relaxing the receipt checks in
+\textsc{Sovereign}; user safety comes from tying withdrawals to the settled
+and available prefix. The theorem depends on (M2) and (M3), which the
+prototype does not implement, so it describes the target design and is not
+a statement about the current implementation. (M1) is implemented in the
+validity predicate and the ante handler.
+
 \subsection{Health Certificates}
 \label{subsec:health-certificate}
 
@@ -334,6 +447,18 @@ set, whose hash the header commits to (the compiled circuit fixes the set
 size at seven). Unused
 slots are padding, so proving time, verification time, and proof size are
 constant in $n$ (Appendix~\ref{app:backend}).
+
+\textbf{Intended verifier.} A CometBFT quorum certificate shows that a quorum
+signed a block. The recovery proof additionally shows that what the quorum
+signed obeys the FSM transition rules and the withdrawal lock, including when
+the quorum is dishonest. This extra guarantee matters only to a verifier that
+does not trust the quorum: a bridge or light client on another chain, a node
+syncing from genesis, or a Bitcoin observer when the checkpoint commits the
+state root (Section~\ref{subsec:security-semantics}). Validators already
+trust their own quorum, so for them the proof is a consistency check. The
+target verifier of this paper is an external light client that accepts
+a re-anchoring checkpoint only with a valid proof; the prototype does not
+include such a client.
 
 \textbf{Longer intervals: chaining, not recursion.} The circuit has a fixed
 capacity; it does not verify earlier proofs inside itself. An interval
