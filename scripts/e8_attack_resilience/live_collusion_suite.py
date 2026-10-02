@@ -252,6 +252,10 @@ def case_plan(case: str, args):
         "b2": dict(byz={n4: FALSE_DEGRADED, n5: FALSE_DEGRADED + ";bias_certificate"}, attack_s=a, expect_states=set()),
         "b3a": dict(byz={n4: "omit_certs:5"}, attack_s=a, expect_states=set()),
         "b3b": dict(byz={n4: "omit_certs:2"}, attack_s=a, expect_states=set(), expect_reject="sub_quorum_certificate"),
+        # NEXT_SESSION_PLAN item 14: A3/A4 re-run counting the honest validators' REJECT reasons, to show
+        # the DA / BTC receipt checks (not something incidental) blocked the proposal.
+        "a3": dict(byz={n4: "false_da_attestation"}, attack_s=a, expect_states=set(), expect_reject="da_verify_receipt"),
+        "a4": dict(byz={n4: "forge_btc_hash"}, attack_s=a, expect_states=set(), expect_reject="btc_verify_receipt"),
         "b5": dict(byz={n4: "include_withdrawal", n5: "include_withdrawal"}, attack_s=a, sovereign=True,
                    expect_reject="withdrawal_locked"),
         "b6": dict(byz={n4: "stale_receipt", n5: "forge_btc_hash"}, attack_s=a, expect_states=set(),
@@ -470,7 +474,7 @@ def run_double_sign(trial, args, assignment) -> dict:
     return row
 
 
-CASES = ["b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
+CASES = ["a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
 
 
 def main():

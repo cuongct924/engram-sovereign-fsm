@@ -27,7 +27,29 @@ for mode in $MODES; do
 		echo "--> WIPE_DATA=1: wiping data/bitcoin-node0* and data/celestia-*"
 		rm -rf data/bitcoin-node0* data/celestia-*
 	fi
-	make testnet-up MODE="$mode" N="$N"
+	# A hard-gated chain cannot start from genesis: with the FSM pinned to ANCHORED, block 1 needs a DA
+	# receipt that does not exist yet, so no proposal ever validates. Every mode therefore starts as
+	# engram, reaches a healthy ANCHORED, and only then is the validators' mode switched (state kept).
+	make testnet-up MODE=engram N="$N" || echo "--> testnet-up's health wait failed; checking the chain directly"
+	python3 - <<'PY'
+import sys
+sys.path.insert(0, "scripts/framework")
+from logger import sample_all_nodes
+import time
+deadline = time.time() + 1200
+while time.time() < deadline:
+    s = sample_all_nodes()
+    if s and all(x.fsm_state == "ANCHORED" for x in s):
+        sys.exit(0)
+    time.sleep(5)
+sys.exit("cluster never reached ANCHORED in engram mode")
+PY
+	if [ "$mode" != "engram" ]; then
+		echo "--> switching validators to $mode (state kept)"
+		svcs=$(for i in $(seq 1 "$N"); do printf 'engram-node%02d ' "$i"; done)
+		ENGRAM_MODE="$mode" docker compose --env-file .env -f docker-compose.yml --profile seven-node up -d --no-deps --force-recreate $svcs
+		sleep 45
+	fi
 	for fault in $FAULTS; do
 		python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials "$TRIALS"
 	done
