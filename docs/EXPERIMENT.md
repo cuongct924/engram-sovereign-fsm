@@ -46,7 +46,7 @@ failures.
 | Group | Scientific goal | Baseline | Metrics |
 |---|---|---|---|
 | **E1** Formal verification stress & ablation | Prove safety/liveness holds beyond one small config | Full FSM vs. removing hysteresis / P2P sensor / f+1 pacemaker / ZK proof gate | States generated, distinct states, depth, violations found, counterexample class |
-| **E2** Fault-injection end-to-end prototype | Show the fallback keeps the chain alive under BTC/DA/P2P failure | Vanilla CometBFT with hard external preconditions; static circuit breaker | Block commit rate, time-to-SOVEREIGN, committed tx during outage, downtime, recovery time |
+| **E2** Fault-injection end-to-end prototype | Show the fallback keeps the chain alive under BTC/DA failure or peripheral/partial P2P degradation (core quorum connectivity intact) | Static circuit breaker; FSM without hysteresis; peer-count-only P2P sensor. The liveness comparison against a chain that hard-requires BTC/DA receipts is **E11** | Block commit rate, time-to-SOVEREIGN, committed tx during outage, downtime, recovery time |
 | **E3** External-dependency failure matrix | Evaluate each failure and combinations | Same as E2 | Expected FSM state, withdrawal policy, block-production mode per health combination (a lookup table, not a scalar metric — see §4) |
 | **E4** P2P eclipse/Sybil detection | Test whether the tri-interface profiler beats a peer-count sensor | Peer-count-only detector | FPR/FNR, detection delay, incorrect recovery attempts |
 | **E5** FSM transition stability across all absorb edges | Show every hysteresis-gated edge (RECOVERING→ANCHORED, ANCHORED→SUSPICIOUS, SUSPICIOUS→ANCHORED) resists flapping under natural noise | Each sweep's own floor value (`HYSTERESIS_WAIT=0`, `DownHysteresisThreshold=1`, `SuspiciousHysteresisWait=1`) — the edge transitions on a single reading, no absorption | Anchored uptime, flapping/transition counts, withdrawal-locked time, absorption rate, time-outside-ANCHORED |
@@ -202,9 +202,9 @@ scenarios. Answers RQ2/RQ3.
 | S7 Recovery | failures clear, ZK proof submitted | Confirmed, live |
 
 Live: `scripts/e2_fault_injection/live_scenario_matrix.py`, real 7-node cluster (superseded a
-4-node run; see Results). Baselines: vanilla
-CometBFT (`engramd start --vanilla`), static circuit breaker, FSM without hysteresis, FSM with a
-peer-count-only P2P sensor — see **Vanilla comparison** below. (Logic validated in-process first
+4-node run; see Results). Baselines: static circuit breaker, FSM without hysteresis, FSM with a
+peer-count-only P2P sensor. Vanilla CometBFT (`engramd start --vanilla`) is a control only — see
+**Vanilla comparison** below; the liveness comparison against a hard-gated chain is **E11**. (Logic validated in-process first
 via `go test ./tests/e2e/...`, real `BeginBlocker`, mocked sensors; only live results are reported
 here.)
 
@@ -271,8 +271,9 @@ scale — not enough to force a sustained escalation.
 
 **Vanilla comparison:** structural fact confirmed by `app/app_test.go`'s
 `TestNewEngramApp_VanillaSkipsPreBlocker` — vanilla mode never wires `PreBlocker`, so `FSMState`
-can never leave genesis `ANCHORED` regardless of real BTC/DA/P2P health. Live confirmation
-pending.
+can never leave genesis `ANCHORED` regardless of real BTC/DA/P2P health. Vanilla has no
+dependency on either layer, so it never stalls when they fail and is not a liveness baseline:
+RQ2's comparison is Engram against the hard-gated chain in **E11**. Live confirmation pending.
 
 **Conclusion:**
 
@@ -1425,7 +1426,7 @@ measurement: every row in it is aggregated.
 |---|---|
 | **Fig. 1** | Architecture: Engram execution + BTC settlement + Celestia DA + FSM sensors |
 | **Fig. 2** | FSM timeline under combined failure *(E9)* |
-| **Fig. 3** | Availability/throughput during outage: Engram FSM vs. vanilla CometBFT *(E2)* |
+| **Fig. 3** | Block height during BTC/DA outage: hard-gated vs. Engram vs. soft *(E11)*; vanilla CometBFT as control *(E2)* |
 | **Fig. 4** | Hysteresis parameter sweeps, all 3 edges: uptime vs. absorption trade-off *(E5)* |
 | **Fig. 5** | FSM cascade under a real relay-latency attack: state timeline + block height *(E4)* |
 | **Fig. 8** | FSM reaction to real Bitcoin reorgs by depth, 5 trials *(E10)* |
