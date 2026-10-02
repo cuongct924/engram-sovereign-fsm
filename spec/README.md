@@ -49,6 +49,7 @@
     - [9.2 Formal Verification Stress Test](#92-formal-verification-stress-test)
       - [9.2.1. Per-Layer Verification Results (non-refinement)](#921-per-layer-verification-results-non-refinement)
       - [9.2.2. Health-Certificate Bound (Apalache)](#922-health-certificate-bound-apalache)
+      - [9.2.3. Decomposed C1 Refinement](#923-decomposed-c1-refinement)
     - [9.3 Ablation study & counterexample traces analysis](#93-ablation-study--counterexample-traces-analysis)
   - [References](#references)
   - [Future Work](#future-work)
@@ -908,6 +909,24 @@ cd spec
 Expected: `The outcome is: NoError`. Replace `--cinit` and `--inv` with the second row's values to reproduce the violation.
 
 Scope: the aggregate is checked per observation vector, not under the Tendermint round structure; the certificate's role inside `IsValidProposal` is still covered only by the open refinement configs (§9.2). Raw P2P counters stay folded into the three predicates.
+
+#### 9.2.3. Decomposed C1 Refinement
+
+The monolithic C1 run does not complete. C1 (N=4, f=1, MaxRound=2, MaxBTCHeight=2, MaxEngramHeight=2, MaxTimestamp=6) is therefore split by which actions may fire, each part checked with TLC for `RefinementSafety`, `FSMTypeOK`, `CoreTendermintInvariant` and `HybridTendermintInvariant`, with symmetry over the three honest nodes and `CertDetail <- CertDetailOff` (the certificate's numeric fields never feed a Server transition).
+
+| Part | Driver | Actions kept | Result |
+| :--- | :--- | :--- | :--- |
+| (a) Consensus core, environment frozen | `MC_ConsensusCoreRefinementSafety` | Everything in `ServerNext` except `ServerUpdateEnvironment` and `ServerDABackfill` | Partial: stopped after 1h41m at 68,593,021 states generated, 19,848,141 distinct, depth 15, 13,542,792 on the queue; 0 violations |
+| (b) Environment, consensus frozen | `MC_EnvironmentRefinementSafety` | `ServerAdvanceRealTime`, `ServerUpdateEnvironment`, `ServerDABackfill` | Complete: 4,826,336 states generated, 17,500 distinct, depth 10, 10m35s; 0 violations |
+
+Part (a) did not finish and is not a verification result; part (b) is a complete bounded result. Neither part covers the interleaving of environment and consensus steps, for example `Pull` reading `fsm_state` and `h_btc_*` at the step it fires, or the decision hook writing the FSM state. No composition argument is established, so C1 is not claimed.
+
+Spec changes the run exposed (all in the `spec/c1-decompose` branch):
+- `ServerExtendVote` did not declare the Tendermint variables `UNCHANGED`, so every Server-layer TLC run stopped at its first ExtendVote step. Fixed.
+- `ServerHonestTimeout` and `ServerUponTimeoutCert` now certify only a round no honest node has left: the abstract `Timeout(n)` stamps the current abstract round, so a T_QC for a skipped round maps to no abstract step. This removes behaviours from the concrete model.
+- `EngramConsensus.tla` gains `NilQuorumSkipNext`, a round advance that leaves the tree unchanged. A Tendermint round that ends on a quorum of nil precommits matches none of `TimeoutStartNext`, `EarlyStartNext` and `TimeoutSkipNext`. This weakens the target spec.
+
+An inductive alternative (per-action obligations over the whole `ServerNext`, checked with Apalache) avoids the composition gap but needs an inductive invariant and a non-recursive `SumStakeOp`; it has not been started.
 
 ### 9.3. Ablation study & counterexample traces analysis
 
