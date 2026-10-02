@@ -76,7 +76,8 @@ Table~\ref{tab:reanchor-scaling} confirms that proving time, verification
 time, and proof size are independent of the number of real headers up to
 the compiled capacity $N_{\max}{=}256$. Verification by the validators'
 embedded WebAssembly verifier costs $\sim$26\,ms per proof. An interval of
-$L$ blocks requires $\lceil L/256 \rceil$ chained proofs.
+$L$ blocks requires $\lceil L/256 \rceil$ leaf proofs when submitted one by one,
+or a single aggregate proof up to 1024 blocks (Appendix~\ref{app:aggregation}).
 
 \begin{table}[h]
 \caption{Backend Comparison, Statement Coverage}
@@ -110,6 +111,62 @@ Plonky3 proves in 0.024--0.096\,s with proof sizes of 84--124\,KB across
 2--256 headers. Neither comparison supports a general speed claim for Plonky3, because
 both omit the component that dominates the deployed circuit's cost. These
 numbers characterize primitive-level backend trade-offs only.
+
+\FloatBarrier
+\section{Chunk Aggregation}
+\label{app:aggregation}
+
+This appendix measures the aggregator of Section~\ref{subsec:reanchoring}
+against submitting the chunk proofs one by one. The measurements were taken
+offline on a 10-core, 32\,GiB macOS workstation, not on Testbed~A, with
+nargo 1.0.0-beta.22 and \texttt{bb} 5.0.0-nightly.20260522. The chain is
+synthetic: it has one deterministic header sequence with real ed25519
+precommits and one validator set, so that consecutive chunks chain through
+their roots and heights. Aggregate proving and verification are averaged over
+five trials per interval length; each leaf proof was timed once. Absolute times
+are not comparable to Table~\ref{tab:reanchor-scaling}, which was measured on a
+different host.
+
+\begin{table}[h]
+\caption{Chunk Aggregation vs.\ Submitting Chunk Proofs One by One ($K{=}4$)}
+\label{tab:aggregation}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{\textbf{One by one}} & \multicolumn{3}{c}{\textbf{Aggregate}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+$L$ & Prove & Bytes & Verify & Prove & Bytes & Verify \\
+\midrule
+256  & 31.5 s  & 14{,}656 & 19.8 ms & 57.2 s  & 14{,}656 & 20.2 ms \\
+512  & 60.5 s  & 29{,}312 & 39.5 ms & 89.9 s  & 14{,}656 & 20.2 ms \\
+1024 & 120.1 s & 58{,}624 & 79.1 ms & 146.7 s & 14{,}656 & 20.2 ms \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Verify is the validators' embedded WebAssembly verifier, measured
+per proof (30 iterations, three runs); the one-by-one column is $n$ times the
+leaf cost. Aggregate prove includes the leaf proofs. At $L{=}256$ a single
+leaf proof is submitted and the aggregate row is shown for the overhead only.
+\end{table}
+
+Table~\ref{tab:aggregation} shows that submitted bytes and verification time of
+the aggregate do not depend on $L$ up to $K \cdot 256 = 1024$, while the
+one-by-one cost grows linearly. The price is one extra proof: the aggregator
+circuit has 3{,}002{,}299 gates and proves in 25.7--29.5\,s using about 5.2\,GB,
+against 3{,}234{,}226 gates, 30.0--31.5\,s, and 5.7--5.9\,GB for a leaf. Total
+proving time rises by 49\% at $L{=}512$ and 22\% at $L{=}1024$. Chunk proofs
+were produced sequentially; proving them in parallel was not measured. Every
+chunk boundary height needs a round-zero commit, so a round skip at an interior
+boundary prevents building that chunk's witness.
+
+The aggregator rejects each of eleven malformed witnesses: reversed or repeated
+chunks, a wrong total count, final root, first height, or validator-set hash,
+a height gap between chunks, a different validator set in the second chunk,
+an extension through padding slots, and a chunk count outside $[1,K]$. The
+valid two-chunk witness is accepted, and a 512-header aggregate passes every
+\texttt{SubmitRecoveryProof} binding against fixture chain state. A live
+re-anchoring through an aggregate proof on the Docker testbed was not run.
 
 \FloatBarrier
 \section{Bitcoin Reorg Depth Reaction}

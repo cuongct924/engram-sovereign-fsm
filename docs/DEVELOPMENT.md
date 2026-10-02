@@ -322,7 +322,16 @@ to `1.0.0-beta.22`.
 ```bash
 ./scripts/reanchoring_prover/prove_and_submit.sh    # one-shot: query -> witness -> prove -> submit
 ./scripts/reanchoring_prover/watch_and_prove.sh      # continuous, used by several live E2/E9 runs
+# intervals longer than 256 headers as ONE proof (up to K*256 = 1024): opt-in
+ENGRAM_AGGREGATE=1 ./scripts/reanchoring_prover/prove_and_submit.sh
 ```
+
+Changing `circuit/reanchoring` invalidates three embedded artifacts: `zk_assets/vk`,
+`circuit/reanchoring_aggregator/src/leaf_vk.nr` (`python3 gen_leaf_vk.py ../reanchoring/target/leaf_rec`
+after `bb write_vk -t noir-recursive`), and `zk_assets/vk_aggregate` (`bb write_vk` of the recompiled
+aggregator). `prove_aggregate_and_submit.sh` refuses to run against a stale `leaf_vk.nr`. The
+containerized prover is capped at 8 GiB while a leaf proof peaks near 6 GB, so aggregation runs
+host-side (`PROVER=host`).
 
 Manual steps, if not using the wrapper:
 
@@ -332,8 +341,8 @@ Manual steps, if not using the wrapper:
 ./build/engramd tx-submit-recovery-proof --proof <file> --public-inputs <file>
 ```
 
-**Known limitation:** `count` (headers actually proved, 1..=`N_MAX`=256) is a public input, so one
-proof can cover a variable-length interval, not a fixed `N`. Proving still takes real time (see
+**Known limitation:** `count` (headers actually proved, 1..=`N_MAX`=256, or up to `K*N_MAX`=1024 for
+an aggregate) is a public input, so one proof can cover a variable-length interval, not a fixed `N`. Proving still takes real time (see
 E6), so a proof can go stale mid-flight while the interval keeps growing underneath it. That's the
 anti-replay check (`RealProofSubmittedHeight`) working correctly, not a bug — submit while the
 interval is stable, don't race a growing one.

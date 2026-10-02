@@ -29,8 +29,10 @@ closing the cross-layer refinement obligation, and extending the
 certificate model from Boolean to numeric observations, would extend the
 formal results to the composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
 are a natural complement where bounded model checking does not scale.
-Second, chunk-level recursive aggregation of recovery proofs would make the
-recovery artifact constant-size for intervals of any length. Third,
+Second, replacing the fixed-arity aggregator with incremental recursion
+would make the recovery artifact constant-size for intervals of any length,
+and a live re-anchoring through an aggregate proof would extend the offline
+aggregation measurements to the full testbed. Third,
 replacing single-bridge DA trust with sampling across independent peers
 would let the DA sensor detect partial withholding rather than only outages.
 

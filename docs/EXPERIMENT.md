@@ -805,6 +805,38 @@ regenerated):
 * Smaller win than a hash-only comparison would show — the 14 boundary ed25519 verifications
   don't shrink with the hash choice and now dominate the circuit.
 
+#### Chunk aggregation (Table 6E)
+
+**Question:** can one proof cover an interval longer than `N_MAX=256`, with verification cost
+independent of the interval length?
+
+**Method:** `scripts/e6_zk_reanchoring_benchmark/benchmark_aggregate.sh` splits an interval of `L`
+headers into `ceil(L/256)` chunks, proves each with `circuit/reanchoring` (noir-recursive target),
+and folds them with `circuit/reanchoring_aggregator` (`K=4`). `generate_chain.go`'s chunk mode
+supplies one deterministic header chain with real ed25519 precommits and a shared validator set, so
+consecutive chunks chain through `rt_last`/`rt_new`. Chaining baseline: the same leaf proofs
+submitted one by one.
+
+**Data source:** offline, in-process measurement on a 10-core / 32 GiB macOS workstation (not the
+Testbed A host); synthetic chain, not a live Docker cluster. Aggregate prove/verify: 5 trials per
+`L`; each leaf proof timed once. Results: `results/table6e_aggregate.csv`.
+
+| L | Chunks | Chaining: prove | Chaining: bytes | Aggregate: total prove | Aggregate: bytes |
+|---:|---:|---:|---:|---:|---:|
+| 256 | 1 | 31.5 s | 14,656 | 57.2 s | 14,656 |
+| 512 | 2 | 60.5 s | 29,312 | 89.9 s | 14,656 |
+| 1024 | 4 | 120.1 s | 58,624 | 146.7 s | 14,656 |
+
+* Embedded-WASM verification (`BenchmarkVerifyRecoveryProofWasm`): leaf 19.8 ms, aggregate 20.2 ms
+  per proof, so chaining costs `n` x 19.8 ms and an aggregate 20.2 ms for any `L <= 1024`.
+* Aggregation adds one ~26-29 s proof (peak ~5.2 GB; a leaf proof peaks at ~5.9 GB): +22% prove
+  time at `L=1024`, +49% at `L=512`. It gives no benefit at `L <= 256`.
+* Soundness: `circuit/reanchoring_aggregator/negative_tests.sh` rejects all 11 malformed witnesses
+  (and accepts the valid one); `TestSubmitRecoveryProof_AcceptsRealAggregate` runs a real 512-header
+  aggregate through `SubmitRecoveryProof`.
+* Not measured: a live Docker testnet re-anchoring through an aggregate proof (the prover container
+  is limited to 8 GiB, so `PROVER=host` is the route), parallel chunk proving, `L > K*N_MAX`.
+
 #### Appendix: Backend Trade-off, Noir+Honk vs. Plonky3 (secondary, not current main-body evidence)
 
 **Statement coverage** — neither Plonky3 comparison below proves the deployed circuit's full
