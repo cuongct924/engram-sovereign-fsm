@@ -174,11 +174,17 @@ IsHealthyCondition ==
 (* ======================== SENSOR AGGREGATION / HEALTH CERTIFICATE ========= *)
 \* Numeric observations are clipped to 0..ObsCap so the model stays finite;
 \* the cap only has to exceed the thresholds' relative order, not their value.
+\* CertDetail switches the numeric gaps, honest eclipse and wide forgery on.
+\* The Server-layer refinement runs override it to FALSE (cfg `CertDetail <-
+\* CertDetailOff`): the certificate's numeric fields never feed a Server
+\* transition, so they would only multiply that layer's state space.
+CertDetail == TRUE
+CertDetailOff == FALSE
 ObsCap == 3
-ObsDomain == 0..ObsCap
+ObsDomain == IF CertDetail THEN 0..ObsCap ELSE {0}
 
 \* @type: (Int) => Int;
-ClipObs(x) == IF x > ObsCap THEN ObsCap ELSE x
+ClipObs(x) == IF ~CertDetail THEN 0 ELSE IF x > ObsCap THEN ObsCap ELSE x
 
 \* WeightedMedianOf -- uniform-stake port of vote_extension.go's
 \* weightedMedianUint64: the smallest x with 2 * |{m : vals[m] <= x}| > |members|,

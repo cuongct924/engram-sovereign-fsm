@@ -1,0 +1,200 @@
+---------------- MODULE MC_ConsensusCoreRefinementSafety ----------------
+(*
+ * MC_ConsensusCoreRefinementSafety -- step (a) of the decomposed C1 refinement:
+ * the consensus core (Tendermint + the E/M/C/T-certificate hooks) refines
+ * EngramConsensus with the environment frozen.
+ *
+ * MC_ServerNext is ServerNext without its two environment disjuncts
+ * (ServerUpdateEnvironment, ServerDABackfill), so sensors, heights and the FSM
+ * state stay at their genesis values (ANCHORED, healthy) and every concrete
+ * step is a consensus step. The decision hook still runs ExecuteFSMTransition,
+ * but with a healthy ANCHORED input it rewrites the same values. The
+ * environment actions are covered by the companion step (b).
+ *)
+EXTENDS EngramServer, EngramServerRefinement, TLC, Sequences
+
+CONSTANTS
+    \* @type: Str;
+    n1,
+    \* @type: Str;
+    n2,
+    \* @type: Str;
+    n3,
+    \* @type: Str;
+    n4
+\* CONSTANTS n1, n2, n3, n4, n5, n6, n7
+
+ASSUME QuorumOverlap
+
+
+(* ======================== NETWORK CONFIGURATION ========================== *)
+\* @type: Set(Str);
+MC_Nodes  == {n1, n2, n3, n4}
+\* @type: Set(Str);
+MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
+\* @type: Set(Str);
+MC_Byzantine == {n1}
+\* @type: Set(Str);
+MC_Honest   == MC_Nodes \ MC_Byzantine
+
+\* Symmetry reduction: n2/n3/n4 (the honest nodes) are fully interchangeable
+\* everywhere in this spec -- no invariant, Sanity_* check, or StateSpaceLimit
+\* conjunct below references any of them by identity, only generically via
+\* HonestNodes. MC_NodeSeq/MC_Proposer DO reference them by identity, but
+\* that's still symmetric: TLC re-evaluates these derived expressions under
+\* any candidate permutation of the underlying model values consistently, so
+\* permuting (say) n2<->n3 just relabels which node plays which role at each
+\* round, producing an isomorphic run. n1 (the fixed Byzantine node) is
+\* deliberately excluded from the permutation group -- permuting it would
+\* also change which node is Byzantine relative to the fixed schedule, which
+\* is NOT a relabeling symmetry (it changes observable behavior).
+\* Effect: TLC fingerprints states up to this group action, so up to 3! = 6
+\* concrete states collapse into one for exploration purposes -- this is a
+\* state-space reduction, not a soundness-affecting bound cut like
+\* StateSpaceLimit is.
+SymmetryPerms == Permutations(MC_Honest)
+
+\* MC_Nodes == {n1, n2, n3, n4, n5, n6, n7}
+\* MC_Method == {"TX_NORMAL", "TX_WITHDRAWAL"}
+\* MC_Byzantine == {n6, n7}
+\* MC_Honest   == MC_Nodes \ MC_Byzantine
+
+(* ======================== ROTATIONAL LEADER SCHEDULE ===================== *)
+\* Round-robin proposer: node at position (r mod 4) + 1 in the sequence
+\* @type: Seq(Str);
+MC_NodeSeq  == <<n1, n2, n3, n4>>
+\* @type: Int -> Str;
+MC_Proposer == [r \in 0..5 |-> MC_NodeSeq[(r % 4) + 1]]
+
+\* \* Round-robin proposer: node at position (r mod 7) + 1 in the sequence
+\* MC_NodeSeq == <<n1, n2, n3, n4, n5, n6, n7>>
+\* MC_Proposer == [r \in 0..10 |-> MC_NodeSeq[(r % 7) + 1]]
+
+(* ======================== INIT & NEXT ==================================== *)
+MC_ServerInit == ServerInit
+MC_ServerNext ==
+    \/ ServerAdvanceRealTime
+    \/ /\ SynchronizedLocalClocks
+       /\ \E p \in HonestNodes : ServerMessageProcessing(p)
+    \/ ServerByzantinePull
+    \/ ServerByzantineDataWithholding
+    \/ ServerHonestTimeout
+    \/ \E p \in HonestNodes : ServerHonestRoundSkip(p)
+
+
+(* ======================== SAFETY SANITY CHECKS (EXPECTED TO FAIL) ======================== *)
+
+\* EXPECT FAIL: Proves the FSM successfully explores the SUSPICIOUS warning state.
+Sanity_NeverSuspicious == 
+    \A p \in HonestNodes : 
+        decision[p] /= NilDecision => decision[p].prop.fsm_state /= "SUSPICIOUS"
+
+\* EXPECT FAIL: Proves the Circuit Breaker is triggered and reaches SOVEREIGN.
+Sanity_NeverSovereign == 
+    \A p \in HonestNodes : 
+        decision[p] /= NilDecision => decision[p].prop.fsm_state /= "SOVEREIGN"
+
+\* EXPECT FAIL: Proves the system enters the RECOVERING phase.
+Sanity_NeverRecovering == 
+    \A p \in HonestNodes : 
+        decision[p] /= NilDecision => decision[p].prop.fsm_state /= "RECOVERING"
+
+\* EXPECT FAIL: Proves the Byzantine Data Withholding attack actually fires (E_QC without M_QC).
+Sanity_NoDataWithholding == 
+    \A eqc \in {q \in quorum_certs : q.type = "E_QC"} :
+        \E mqc \in quorum_certs : 
+            /\ mqc.type = "M_QC" 
+            /\ mqc.round = eqc.round 
+            /\ mqc.caller = eqc.caller
+
+\* EXPECT FAIL: Proves the censorship-resistance counter increments under network stress.
+Sanity_NoCensorship == 
+    \A p \in HonestNodes, tx \in Method : tx_ignored_rounds[p][tx] = 0
+
+
+(* ======================== ABLATION SANITY CHECKS (EXPECTED TO FAIL) ======================== *)
+
+\* EXPECT FAIL: Proves the attacker attempts a withdrawal while in SOVEREIGN or RECOVERING state.
+Sanity_NeverAttemptWithdrawalLeakage ==
+    \A r \in Rounds : \A m \in msgs_propose[r] :
+        (m.proposal.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => (m.proposal.value /= "TX_WITHDRAWAL")
+
+\* EXPECT FAIL: Proves the attacker attempts to propose a block with withheld DA (attestation = FALSE).
+Sanity_NeverProposeWithheldData ==
+    \A r \in Rounds : \A m \in msgs_propose[r] :
+        m.proposal.da_receipt.attestation = TRUE
+
+\* EXPECT FAIL: Proves the attacker attempts a cross-mode double spend using a stale BTC checkpoint.
+Sanity_NeverAttemptCrossModeDoubleSpend ==
+    \A r \in Rounds : \A m \in msgs_propose[r] :
+        (m.proposal.fsm_state = "SOVEREIGN") => (m.proposal.btc_receipt.checkpoint_block_height > h_btc_anchored)
+
+\* EXPECT FAIL: Proves the system experiences a network degradation while accumulating safe_blocks (flapping trigger).
+Sanity_NeverFlapInRecovering ==
+    ~(state = "RECOVERING" /\ safe_blocks > 0 /\ ~IsHealthyCondition)
+
+
+(* ======================== STATE SPACE PRUNING CONSTRAINT ================= *)
+\* Bounds are deliberately tighter than Liveness to keep safety runs tractable.
+StateSpaceLimit ==
+    \* Tendermint bounds
+    /\ \A n \in MC_Honest : round[n] <= MAX_ROUND
+    /\ real_time <= MAX_TIMESTAMP
+    /\ h_btc_current <= MAX_BTC_HEIGHT
+    /\ h_engram_current <= MAX_ENGRAM_HEIGHT
+
+    \* Chain height bounds (monotone by construction, but TLC needs explicit caps)
+    /\ h_engram_verified <= h_engram_current
+    /\ h_btc_submitted <= h_btc_current
+    /\ h_btc_anchored <= h_btc_submitted
+
+    \* P2P network size
+    /\ Cardinality(active_peers) \in {2, 3}
+    /\ Cardinality(anchor_peers) <= 3
+    /\ Cardinality(blacklisted_peers) <= 2
+    /\ peer_churn_rate \in {0, MAX_CHURN_RATE} 
+    /\ avg_peer_tenure \in {MIN_AVG_TENURE, MIN_AVG_TENURE + 2} 
+    /\ peer_latency \in {0, MAX_PEER_LATENCY}
+
+    /\ is_anchor_reverification_failed \in BOOLEAN
+    /\ is_das_failed \in BOOLEAN
+    /\ is_attestation_failed \in BOOLEAN
+    /\ state \in {"ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"}
+
+
+
+(* ======================== TRACE LOG FILTER (FLAT MINIMALIST) ======================== *)
+MyTraceView == 
+    [
+        _1_action |-> action,
+        _2_fsm    |-> state,
+        
+        _3_sensors |-> [ 
+            btc_gap    |-> h_btc_current - h_btc_anchored, 
+            reverification_failed |-> is_anchor_reverification_failed,
+            da_failed  |-> is_das_failed, 
+            peers      |-> active_peers 
+        ],
+
+        _4_proposals |-> { [
+            round           |-> m.round,
+            src             |-> m.src, 
+            da_valid        |-> m.proposal.da_receipt.attestation, 
+            btc_anchored    |-> m.proposal.btc_receipt.checkpoint_block_height
+        ] : m \in UNION {msgs_propose[r] : r \in 0..MAX_ROUND} },
+
+        _5_decisions |-> [p \in HonestNodes |-> 
+                            IF decision[p] = NilDecision THEN "PENDING"
+                            ELSE decision[p].prop.value],
+
+        _6_prevotes  |-> { [
+            round |-> m.round, 
+            src   |-> m.src, 
+            vote  |-> m.id.value
+        ] : m \in UNION {msgs_prevote[r] : r \in 0..MAX_ROUND} }
+    ]
+
+(* ======================== REFINEMENT PROPERTIES ========================== *)
+RefinementSafety   == AbstractConsensus!Safety
+
+=============================================================================

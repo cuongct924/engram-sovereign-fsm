@@ -25,10 +25,9 @@ CONSTANTS
     RESET_TIME  \* Pacemaker reset time (passed through to EngramConsensus)
 
 \* Whether an honest validator may report an eclipsed (degraded) observation in
-\* ServerExtendVote. TRUE by default; scale runs that don't exercise the
-\* certificate (the decomposed refinement checks) override it to FALSE.
+\* ServerExtendVote; follows EngramFSM.tla's CertDetail switch.
 \* @type: Bool;
-EclipseModeled == TRUE
+EclipseModeled == CertDetail
 
 \* Aggregate tuple for EngramServer
 serverVars ==
@@ -232,6 +231,11 @@ ServerUponTimeoutCert(p) ==
     /\  LET unique_senders == { m.src : m \in msgs_timeout[round[p]] }
         IN Cardinality(unique_senders) >= THRESHOLD2
     /\ ~\E tqc \in timeout_certs : tqc.round = round[p]
+    \* Only certify the round no honest node has left yet: the abstract
+    \* Timeout(n) stamps the current abstract round, so a T_QC for a round
+    \* already skipped past maps to no abstract step (same guard as
+    \* ServerHonestTimeout). A stale T_QC has no effect on later rounds.
+    /\ \A q \in HonestNodes : round[q] <= round[p]
     \* 2. Emit T_QC for the LiDO abstract pacemaker
     /\  LET new_TQC == [
                type         |-> "T_QC",
@@ -259,7 +263,8 @@ ServerExtendVote(p) ==
                          btc_gap_obs: ObsDomain, da_gap_obs: ObsDomain] :
                 sensor_view' = [sensor_view EXCEPT ![p] = fake]
     /\ UNCHANGED <<health_certs>>
-    /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
+    /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars, censorshipVars>>
+    /\ UNCHANGED <<tendermintCoreVars, temporalVars, bookkeepingVars, invariantVars>>
 
 
 (* ======================== ACTION AGGREGATION ============================== *)
@@ -427,6 +432,10 @@ ServerHonestTimeout ==
         /\ ~\E q \in quorum_certs : q.type = "M_QC" /\ q.round = r /\ q.caller = Proposer[r]
         /\ ~\E tqc \in timeout_certs : tqc.round = r
         /\ \E p \in HonestNodes : round[p] = r
+        \* Abstract Timeout(n) stamps the T-cache with the abstract round, which
+        \* leads the concrete max round by one; once an honest node has moved
+        \* past r (UponfPlusOneTimeoutsAny) a T_QC for r maps to a stale cert_round.
+        /\ \A p \in HonestNodes : round[p] <= r
         /\ \E p \in HonestNodes :
                LET new_TQC == [
                        type         |-> "T_QC",
