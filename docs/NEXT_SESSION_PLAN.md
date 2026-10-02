@@ -65,6 +65,51 @@ Quy tắc chung:
 
 ---
 
+## Checklist: 14 điểm phản hồi mới, đối chiếu hiện trạng
+
+- [x] 1. Định vị Engram là lớp adaptive trên CometBFT, không phải BFT agreement mới —
+  `introduction.tex:32-43` đã nêu rõ proposer selection/prevote/precommit/quorum intersection vẫn
+  do CometBFT cung cấp.
+- [ ] 2. Baseline RQ2 đúng (hard-gated, chặn block khi thiếu BTC/DA receipt) thay cho vanilla
+  CometBFT — chưa làm, trùng mục #12.
+- [ ] 3. Điều kiện RECOVERING→ANCHORED cần thêm "dữ liệu Sovereign interval đã republish lên DA" —
+  `CalculateNextState` (`circuit_breaker.go:82-96`) hiện chỉ kiểm `SafeBlocks`+`ReanchoringProofValid`,
+  chưa có điều kiện DA; trùng mục #17b.
+- [x] 4. Rõ ai verify ZK proof và vai trò Bitcoin — `introduction.tex:73-80` đã ghi "Validators
+  verify each proof inside block execution; Bitcoin timestamps... but does not verify the proof".
+- [ ] 5. Sửa claim "single recursive proof" — wording đã đổi thành chuỗi proof nối bằng root
+  (`introduction.tex:76-78`), nhưng root đó mới nằm trong state Engram (`LastAnchoredRoot`), chưa
+  được ghi vào OP_RETURN Bitcoin thật; trùng mục #15.
+- [ ] 6. Formal verification không overclaim — `formal_verification.tex` đã đánh dấu refinement
+  "(open)" kèm `\pending`, đã có đoạn giải thích `QuorumOverlap`/LiDO + 4 giả định fairness (message
+  delivery, timeout, proposer, FSM progress); nhưng bản thân refinement C1 vẫn chưa hội tụ, trùng
+  mục #19.
+- [ ] 7. Formal hoá health certificate đầy đủ (trường số, stale/missing/conflicting observation,
+  honest validator bị eclipse) — mới có mô hình Boolean (commit `1892bde`), phần số/weighted-median
+  và honest-eclipse chưa có; trùng mục #18.
+- [x] 8. Phân biệt core consensus P2P (phải giữ quorum) và peripheral P2P degradation —
+  `introduction.tex:45-55` đã viết rõ, dùng nhất quán "P2P degradation" theo nghĩa peripheral.
+- [ ] 9. Đo sâu RQ4 (round/height, nil-vote, lý do reject, committed tx/s, latency p50/p95, mempool
+  backlog, tx/block) — chưa có công cụ đo, trùng mục #11.
+- [ ] 10. Hysteresis thích nghi (tăng ngưỡng sau flap liên tiếp, giảm khi ổn định) — chưa làm,
+  trùng mục #16.
+- [ ] 11. Byzantine cộng tác f=2 (N=7) live — hiện chỉ có 1 node Byzantine
+  (`docker/engram-node04-byzantine.yml`); trùng mục #13.
+- [ ] 12. Multi-host experiment (nhiều máy/VM thật) — chưa làm, trùng mục #21.
+- [ ] 13. Related work: cây taxonomy + bảng so sánh theo tiêu chí ("external health agreed by
+  quorum", "in-consensus fallback", v.v.) đã có (`related_work.tex`, 60 `\cite`); "bổ sung thêm
+  literature" là yêu cầu định tính — chưa có cách tự xác nhận đã đủ, cần thầy xem lại trực tiếp.
+- [ ] 14. Dọn trước khi nộp:
+  - [x] Bảng FSM states đã tách cột BFT finality / BTC settlement riêng (`system_design.tex:195`).
+  - [ ] Figure 1 (architecture) — label `fig:architecture` tồn tại, chưa có `\includegraphics`,
+    ảnh chưa làm.
+  - [ ] Placeholder tác giả/affiliation — `main.tex:37-38` còn `TODO` và "Author One/Two".
+  - [ ] Rà số thứ tự figure/table toàn bài — chưa kiểm tra, gộp vào mục #24.
+  - [x] Cụm "we honestly report / explicitly state / we do not claim" — đã rà `sections/*.tex`,
+    không còn xuất hiện.
+
+---
+
 ## Giai đoạn 0 — Chốt quyết định
 
 ### 1. Chốt các quyết định
@@ -476,6 +521,14 @@ timestamp một con số, không gắn với trạng thái nào. Ô P_settle c�
    để kiểm tra hồi quy.
 4. Paper §3.8: bỏ `\pending`, ghi root nào được commit.
 
+Trạng thái code:
+- Đã làm: payload 44 byte (`anchor.EncodePayload`), `VerifyAnchor` so root với block hash CometBFT cục bộ
+  (nguồn: `cometBlockHashSource` trong `cmd/engramd/comet_root.go`), unit test encode/decode và nhánh
+  lệch. Checkpoint là height đã commit gần nhất (`BlockHeight()-1`), vì block đang đề xuất chưa có hash.
+- Chưa làm: checkpoint đầu tiên sau recovery mang `LastAnchoredRoot` (đang commit block hash của
+  height, chưa phải root Poseidon của chứng minh); chạy lại E10; sửa paper.
+- Spec không đổi: spec trừu tượng hoá hash Bitcoin (`ExpectedBlockHash`), không mô hình payload.
+
 ### 16. Hysteresis thích nghi ANCHORED↔SUSPICIOUS [T]
 
 Thay mặc định tĩnh (2, quá thấp dưới jitter WAN theo E5 live) bằng
@@ -546,6 +599,20 @@ RECOVERING về SOVEREIGN. Vì vậy:
   `scripts/e3_failure_matrix/verify_backfill.py` lấy lại mọi height của khoảng từ Celestia
   (`blob.GetAll`) và so tx hash với block Engram (kỳ vọng khớp 100%).
 - Paper: bỏ `\pending` ở §3.8, §5.4; bỏ bullet giới hạn "DA payload".
+
+Trạng thái code:
+- Đã làm 17a: `da.Publisher` publish block data thật theo lô, `ContiguousHeight()` tăng theo thứ tự;
+  nguồn block là `cometBlockDataSource` (RPC CometBFT cục bộ).
+- Đã làm 17b: `PeripheralMetrics.da_contiguous_height` (proto field 15, weighted median),
+  `keeper.RecoveringEntryHeight`, `keeper.DABackfillValid`, điều kiện trong `CalculateNextState`.
+- Đã làm 17c ở mức spec: biến Boolean `da_backfill_valid` thay cho `h_da_contiguous` +
+  `recovering_entry_height` (giữ không gian trạng thái nhỏ), action `DABackfill`,
+  `SovereignDataPublishedSafety`. `MC_FSMSafety` và `MC_FSMLiveness` đã chạy lại, 0 vi phạm; lớp Server chưa chạy lại.
+- Đã làm 17d một phần: unit test publisher, gate, aggregation, e2e `StaysRecoveringUntilSovereignIntervalDataIsPublished`.
+- Chưa làm: ablation bỏ điều kiện (dòng mới trong `tab:ablation`), chạy live S3 + `verify_backfill.py`,
+  chạy lại TLC lớp Server, bỏ `\pending` trong paper.
+- Khác kế hoạch: `da_gap` vẫn là head liveness (`VerifiedHeight` = height lúc lô được xác nhận), nên DA
+  vẫn khoẻ trong lúc backfill; `da_contiguous_height` chỉ gate cạnh RECOVERING→ANCHORED.
 
 ### 18. Mở rộng mô hình TLA+ của health certificate [B]
 
@@ -682,8 +749,6 @@ mainnet), không thêm bảo mật hay hiệu năng.
 - Cách ít rủi ro: container `celestia-light-node0X` chạy cạnh bridge như một thí nghiệm riêng;
   `x/da/publisher.go` vẫn dùng bridge. Báo cáo: bridge = cơ chế production, light client = minh hoạ
   DAS.
-- Ràng buộc tài nguyên: 16 GB RAM, ổ 256 GB gần đầy. Kiểm tra `df -h` và `docker system df` trước;
-  `docker builder prune` / `docker image prune` thu hồi phần lớn cache Docker.
 - Cần đồng ý trước khi làm.
 
 ### 26. Chờ quyết định: validator dùng Bitcoin light client (SPV thật)
