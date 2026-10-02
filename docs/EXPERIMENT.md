@@ -35,7 +35,7 @@ failures.
 | # | Question | What it evaluates |
 |---|---|---|
 | RQ1 | Safety | Does folding peripheral state into the consensus proposal prevent block/FSM-state conflicts, forged receipts, data withholding, and withdrawal leakage? |
-| RQ2 | Liveness | Under Bitcoin/DA/P2P failure, does the system keep committing blocks better than a baseline CometBFT that hard-depends on external preconditions? |
+| RQ2 | Liveness | Under Bitcoin/DA failure or peripheral/partial P2P degradation (core quorum connectivity intact), does the system keep committing blocks where a hard-gated modular baseline (block validity requires BTC/DA receipts) stalls? Vanilla CometBFT is only the control: it never depends on either layer. |
 | RQ3 | Recovery | Once peripherals recover, do hysteresis and the re-anchoring proof bring the chain back to a stable ANCHORED without flapping? |
 | RQ4 | Cost | What overhead do the extended proposal, sensor validation, circuit breaker, and ZK re-anchoring add versus the CometBFT/Cosmos SDK baseline? |
 
@@ -55,6 +55,7 @@ failures.
 | **E8** Attack-resilience scenarios | Demonstrate the security story empirically | Malicious proposer; data withholding; forged BTC receipt; withdrawal during SOVEREIGN; censorship | Accepted/rejected proposals, invalid commit count, forced-inclusion latency |
 | **E9** Scripted composite-fault stress test | Confirm the chain keeps committing under a layered, overlapping multi-fault sequence | Synthetic-only experiment | FSM state timeline, block commit rate, withdrawal-lock/proof-generation status under layered BTC congestion + DA outage + P2P churn |
 | **E10** Bitcoin reorg fork-choice reaction | Test whether the FSM reacts correctly to a real Bitcoin reorg invalidating an anchored checkpoint | Shallow reorg (below `KDeepFinality`) vs. deep reorg (past the anchored checkpoint) | FSM state transition (ANCHORED vs. SOVEREIGN), reaction correctness vs. reorg depth |
+| **E11** Hard-gated baseline liveness | Show Engram keeps committing where a chain that makes BTC/DA receipts part of block validity stalls, without leaking withdrawals | Hard-gated (FSM pinned to ANCHORED) and soft (no withdrawal lock), same binary and fault schedule; vanilla as control | Blocks in fault window, longest block gap, rounds at the stuck height, time to resume, unsafe withdrawals committed |
 
 ---
 
@@ -1354,6 +1355,67 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
   `SOVEREIGN` rather than just *can*; this live test showed one real instance, not a universal
   proof.
 
+**Open questions:**
+
+* Why `btc_gap` widened past `SuspiciousThreshold` at depth=15 but not at depth≤5 is not
+  established — these runs did not log `btc_gap` or `is_anchor_reverification_failed` per block, only `fsm_state`
+  and `suspicious_duration`. The most likely mechanism, unconfirmed: `h_btc_anchored` only advances
+  on a freshly re-confirmed checkpoint, and `bitcoin-miner-loop` was paused for the whole test, so a
+  reorg deep enough to disrupt `AnchorTracker`'s own pending/confirmed submission state would stall
+  `h_btc_anchored` longer than a shallow one, widening the gap over time rather than instantly.
+* Confirming this would need a rerun with `btc_gap` and `is_anchor_reverification_failed` captured every block
+  (e.g. from the `sensor_snapshot` log line in `sensors_refresh.go`, not currently scraped into
+  `results_live/*.csv`), ideally sweeping depth between 5 and 15 to locate the actual crossover.
+
+### E11 — Hard-Gated Baseline Liveness
+
+**Question (RQ2).** When Bitcoin or DA degrades, does Engram keep committing blocks where a chain
+that requires BTC/DA receipts at every height stalls — and does it do so without admitting
+withdrawals the circuit breaker would lock?
+
+**Systems.** One binary, three modes (`x/sovereignty/types/baseline.go`), selected per cluster with
+`make testnet-up MODE=…` (`engramd start --hard-gated|--soft`, or `ENGRAM_MODE`):
+
+| Mode | Behavior | Expected under fault |
+|---|---|---|
+| `engram` | The real protocol | Moves to SOVEREIGN, keeps committing, withdrawals locked |
+| `hard-gated` | FSM pinned to ANCHORED, so `IsValidProposal`'s DA/BTC receipt checks (`EngramTendermint.tla:290-312`) apply at every height; no circuit breaker | No proposal validates: stall |
+| `soft` | Real FSM, withdrawals never locked | Keeps committing, but withdrawals commit while SOVEREIGN |
+
+Vanilla (`--vanilla`) stays as the control: it has no dependency on either layer and so never
+stalls. The baseline modes are experiment configuration, not protocol changes; no `spec/core`
+operator is altered. Hard-gated caps the round fed to the BTC tolerance at 3, because
+`anchor.Tolerance` grows with the round without bound and would otherwise re-admit a stale
+checkpoint and slow down instead of stalling (`da.Tolerance` already caps at round 3).
+
+**Faults.** Checkpoint-submission pause (`ANCHOR_SUBMISSION_PAUSED_FILE`; Bitcoin keeps mining, so
+`btc_gap` grows), DA outage (every validator's Celestia bridge stopped), and both. Slowing or
+pausing the miner does not grow `btc_gap` (see E2's S2).
+
+**Trial.** 60 s healthy, 180 s fault, 120 s recovery, on one continuous chain; the script waits for
+every validator to be back in ANCHORED (hard-gated: blocks advancing) before the next trial. A
+`TX_WITHDRAWAL`-marked tx is broadcast every 2 s throughout. Phase boundaries are recorded as block
+heights, so host/container clock skew cannot misassign a block.
+
+**Metrics.** Blocks committed in the fault window; longest gap between consecutive blocks from the
+last pre-fault block to the first post-heal block (a stall is a gap of at least 30 s, or a chain
+that never resumes); highest consensus round observed during the fault; seconds from heal to the
+first new block; withdrawals committed while the FSM state at the block's own height was SOVEREIGN
+or RECOVERING (`abci_query` at that height).
+
+**Run.**
+
+```bash
+make e11-matrix N=7                     # redeploys each mode, runs 3 faults x 3 trials
+make e11-trial MODE=engram FAULT=da     # one trial on an already-deployed cluster
+make e11-summary                        # e11_summary.md + results/e11_height_timeline.{pdf,png}
+```
+
+Outputs land in `scripts/e11_hard_gated_baseline/results_live/` (`e11_summary.csv`, per-trial
+`*_timeline.csv` and `*_blocks.csv`). Delete or rotate `e11_summary.csv` before a fresh
+measurement: every row in it is aggregated.
+
+**Status.** Implemented; no live measurement recorded yet.
 
 ---
 

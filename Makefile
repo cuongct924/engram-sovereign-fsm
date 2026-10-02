@@ -22,7 +22,8 @@ VERSION=$(shell git describe --tags --always)
 	e7-overhead-scan e7-throughput e7-sensor-mismatch e7-vanilla-comparison \
 	e8-byzantine e8-censorship e8-combined e8-double-signing e8-timeout-flood e8-withdrawal \
 	e9-trace e9-figures \
-	e10-reorg e10-figures
+	e10-reorg e10-figures \
+	e11-trial e11-matrix e11-summary
 
 ENV_FILE := .env
 COMPOSE_FILE := docker-compose.yml
@@ -32,6 +33,10 @@ COMPOSE_FILE := docker-compose.yml
 # and their celestia bridges are Compose-profile-gated rather than always
 # started. Genesis (`testnet init-files --v N`) is generated to match.
 N ?= 7
+# MODE selects RQ2's comparison system for every validator: engram (default),
+# hard-gated or soft (engramd start --hard-gated / --soft, via ENGRAM_MODE).
+MODE ?= engram
+export ENGRAM_MODE := $(MODE)
 # PROVER=container (default) builds/runs docker/reanchoring-prover.yml's
 # service; PROVER=host launches scripts/reanchoring_prover/watch_and_prove.sh
 # in the background instead, logging to /tmp/watch_and_prove.log. The
@@ -387,6 +392,18 @@ e9-trace:
 e9-figures:
 	python3 scripts/e9_composite_fault/live_figure_builder.py
 
+# RQ2: the cluster must already run in the mode under test (make testnet-up MODE=...).
+e11-trial:
+	@test -n "$(MODE)" -a -n "$(FAULT)" || (echo "Usage: make e11-trial MODE=hard-gated|engram|soft FAULT=btc|da|both [TRIALS=3]" && exit 1)
+	python3 -u scripts/e11_hard_gated_baseline/live_hard_gated_vs_engram.py --mode $(MODE) --fault $(FAULT) --trials $(or $(TRIALS),1)
+
+# Redeploys every mode from scratch, then runs all faults (hours of wall-clock).
+e11-matrix:
+	N=$(N) ./scripts/e11_hard_gated_baseline/run_matrix.sh
+
+e11-summary:
+	python3 scripts/e11_hard_gated_baseline/summarize_e11.py
+
 e10-reorg:
 	@test -n "$(DEPTH)" || (echo "Usage: make e10-reorg DEPTH=shallow|deep [REORG_DEPTH=N]" && exit 1)
 	python3 -u scripts/e10_bitcoin_reorg/live_reorg_test.py --depth $(DEPTH) $(if $(REORG_DEPTH),--reorg-depth $(REORG_DEPTH))
@@ -440,3 +457,4 @@ help:
 	@echo "  e8-byzantine ATTACK=... / e8-censorship / e8-combined / e8-double-signing / e8-timeout-flood / e8-withdrawal - Attack resilience"
 	@echo "  e9-trace / e9-figures  - Trace-driven combined-failure capstone"
 	@echo "  e10-reorg DEPTH=shallow|deep / e10-figures - Bitcoin reorg"
+	@echo "  e11-trial MODE=... FAULT=... / e11-matrix / e11-summary - RQ2 hard-gated vs. Engram vs. soft liveness"

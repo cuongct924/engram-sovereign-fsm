@@ -132,6 +132,8 @@ go build -o build/engramd ./cmd/engramd
 ./build/engramd init my-node
 ./build/engramd start              # real path: ExtendVote/PrepareProposal/ProcessProposal/PreBlocker
 ./build/engramd start --vanilla    # baseline comparison, skips all sovereignty ABCI++ hooks
+./build/engramd start --hard-gated # RQ2 baseline: FSM pinned to ANCHORED, BTC/DA receipts always required
+./build/engramd start --soft       # RQ2 baseline: real FSM, withdrawals never locked
 ```
 
 * `start` reads `config.toml` from disk (`loadConfig`, viper-based) — per-node settings (ports,
@@ -141,6 +143,8 @@ go build -o build/engramd ./cmd/engramd
   FSM.
 * `--vanilla` never wires `PreBlocker`, so `FSMState` stays at its genesis value (`ANCHORED`) no
   matter what BTC/DA/P2P health actually is — that's the point of the baseline.
+* `--hard-gated`, `--soft` and `--vanilla` are mutually exclusive; `ENGRAM_MODE=hard-gated|soft` is
+  the equivalent for containers (`make testnet-up MODE=…`). See `docs/EXPERIMENT.md`'s E11.
 
 ---
 

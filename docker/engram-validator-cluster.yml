@@ -47,6 +47,9 @@ x-engram-node-env: &engram-node-env
   # E2's S2 fault-injection phase toggles this by touching/removing this path
   # inside each container -- see AnchorTracker.SetSubmissionPausedFile's doc.
   ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
+  # RQ2 comparison system: engram (default), hard-gated or soft -- see
+  # cmd/engramd's resolveBaselineMode. Set via `make testnet-up MODE=...`.
+  ENGRAM_MODE: ${ENGRAM_MODE:-engram}
 
 # Networks are declared once in the root compose.yml, which owns them --
 # redeclaring them here (even `external: true`) hits "conflicts with
