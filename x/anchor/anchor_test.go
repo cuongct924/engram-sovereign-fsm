@@ -1,7 +1,9 @@
 package anchor
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -93,10 +95,52 @@ func (h *fakeBitcoindHandler) wireConfirmation(confirmations int64, blockHeight 
 	})
 }
 
+// newTestTracker builds a kDeepFinality=2 tracker whose RootSource returns
+// testRoot for every height.
+func newTestTracker(url string) *AnchorTracker {
+	tracker := NewAnchorTracker(NewRPCClient(url, "user", "pass"), 2)
+	tracker.SetRootSource(func(context.Context, uint64) ([]byte, error) { return testRoot, nil })
+	return tracker
+}
+
+// testRoot is a fixed 32-byte stand-in for a CometBFT block hash.
+var testRoot = bytes.Repeat([]byte{0xab}, RootSize)
+
+func TestEncodePayload_Layout(t *testing.T) {
+	payload, err := EncodePayload(42, testRoot)
+	require.NoError(t, err)
+	require.Len(t, payload, 44)
+	require.Equal(t, AnchorTag, payload[:4])
+	require.Equal(t, uint64(42), binary.BigEndian.Uint64(payload[4:12]))
+	require.Equal(t, testRoot, payload[12:])
+}
+
+func TestEncodePayload_RejectsWrongRootSize(t *testing.T) {
+	_, err := EncodePayload(42, []byte{1, 2, 3})
+	require.Error(t, err)
+}
+
+func TestAnchorTracker_MaybeSubmit_SkipsBroadcastOnInvalidRoot(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	tracker := newTestTracker(srv.URL)
+	tracker.SetRootSource(func(context.Context, uint64) ([]byte, error) { return nil, nil })
+
+	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42), "an invalid root degrades like an RPC error, never fails the ABCI call")
+	require.Equal(t, 0, h.callCount("sendrawtransaction"))
+}
+
+func TestAnchorTracker_MaybeSubmit_SkipsBroadcastWithoutRootSource(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+
+	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42))
+	require.Equal(t, 0, h.callCount("sendrawtransaction"))
+}
+
 func TestAnchorTracker_MaybeSubmit_BroadcastsWhenNoPending(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42))
 	require.Equal(t, 1, h.callCount("sendrawtransaction"), "must broadcast exactly one submission")
@@ -109,7 +153,7 @@ func TestAnchorTracker_MaybeSubmit_DoesNotResubmitWhilePending(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")
 	h.wireConfirmation(0, 0) // still unconfirmed in mempool
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42)) // broadcasts
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42)) // pending -> confirmation check only
@@ -124,7 +168,7 @@ func TestAnchorTracker_MaybeSubmit_DoesNotResubmitWhilePending(t *testing.T) {
 func TestAnchorTracker_MaybeSubmit_NotConfirmedBelowKDeepPlusOne(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2) // needs kDeepFinality+1=3
+	tracker := newTestTracker(srv.URL) // needs kDeepFinality+1=3
 
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42))
 	h.wireConfirmation(2, 100) // exactly kDeepFinality, not kDeepFinality+1
@@ -140,7 +184,7 @@ func TestAnchorTracker_MaybeSubmit_NotConfirmedBelowKDeepPlusOne(t *testing.T) {
 func TestAnchorTracker_MaybeSubmit_ConfirmsAndImmediatelySubmitsNextInSameCall(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42)) // submits txid-1
 	h.wireConfirmation(3, 100)                                        // kDeepFinality+1
@@ -154,7 +198,7 @@ func TestAnchorTracker_MaybeSubmit_ConfirmsAndImmediatelySubmitsNextInSameCall(t
 
 func TestAnchorTracker_MaybeSubmit_PausedSkipsNewSubmissionWhenNoneIsPending(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	pauseFile := filepath.Join(t.TempDir(), "paused")
 	require.NoError(t, os.WriteFile(pauseFile, nil, 0o644))
@@ -167,7 +211,7 @@ func TestAnchorTracker_MaybeSubmit_PausedSkipsNewSubmissionWhenNoneIsPending(t *
 func TestAnchorTracker_MaybeSubmit_PausedStillConfirmsAlreadyPendingSubmission(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.wireSuccessfulSubmit("txid-1")
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 	require.NoError(t, tracker.MaybeSubmit(context.Background(), 42)) // broadcasts before pause
 
 	pauseFile := filepath.Join(t.TempDir(), "paused")
@@ -182,31 +226,117 @@ func TestAnchorTracker_MaybeSubmit_PausedStillConfirmsAlreadyPendingSubmission(t
 	require.Equal(t, uint64(100), height)
 }
 
-func TestAnchorTracker_VerifyAnchor_AcceptsRealTaggedKDeepConfirmedBlock(t *testing.T) {
-	srv, h := newFakeBitcoind(t)
-	tagHex := fmt.Sprintf("%x", AnchorTag)
+// wireBlockWithPayload registers a Bitcoin block at depth 5 whose only
+// OP_RETURN carries payload.
+func (h *fakeBitcoindHandler) wireBlockWithPayload(payload []byte) {
 	h.on("getblockcount", func() (any, error) { return 105, nil })
 	h.on("getblockhash", func() (any, error) { return "hash-100", nil })
 	h.on("getblock", func() (any, error) {
 		return map[string]any{
 			"tx": []map[string]any{{
 				"vout": []map[string]any{{
-					"scriptPubKey": map[string]any{"hex": "6a04" + tagHex},
+					"scriptPubKey": map[string]any{"hex": fmt.Sprintf("6a%02x%x", len(payload), payload)},
 				}},
 			}},
 		}, nil
 	})
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2) // 105-100=5 >= kDeepFinality=2
+}
+
+func TestAnchorTracker_VerifyAnchor_AcceptsMatchingRootInKDeepConfirmedBlock(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	payload, err := EncodePayload(42, testRoot)
+	require.NoError(t, err)
+	h.wireBlockWithPayload(payload)
+	tracker := newTestTracker(srv.URL) // 105-100=5 >= kDeepFinality=2
 
 	ok, err := tracker.VerifyAnchor(context.Background(), 100)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
+// A checkpoint whose root differs from this node's own block hash of the
+// height means the timestamped history is not the one this node holds.
+func TestAnchorTracker_VerifyAnchor_RejectsMismatchedRoot(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	forged := bytes.Repeat([]byte{0xcd}, RootSize)
+	payload, err := EncodePayload(42, forged)
+	require.NoError(t, err)
+	h.wireBlockWithPayload(payload)
+	tracker := newTestTracker(srv.URL) // local root is testRoot
+
+	ok, err := tracker.VerifyAnchor(context.Background(), 100)
+	require.NoError(t, err)
+	require.False(t, ok, "same tag and height, different root must not verify")
+}
+
+// Anyone can post an ENGR-tagged OP_RETURN; a bogus one must not fail a block
+// that also holds a genuine checkpoint.
+func TestAnchorTracker_VerifyAnchor_AcceptsGenuineCheckpointAmongBogusOnes(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	bogus, err := EncodePayload(41, bytes.Repeat([]byte{0xcd}, RootSize))
+	require.NoError(t, err)
+	genuine, err := EncodePayload(42, testRoot)
+	require.NoError(t, err)
+	h.on("getblockcount", func() (any, error) { return 105, nil })
+	h.on("getblockhash", func() (any, error) { return "hash-100", nil })
+	h.on("getblock", func() (any, error) {
+		return map[string]any{"tx": []map[string]any{
+			{"vout": []map[string]any{{"scriptPubKey": map[string]any{"hex": fmt.Sprintf("6a%02x%x", len(bogus), bogus)}}}},
+			{"vout": []map[string]any{{"scriptPubKey": map[string]any{"hex": fmt.Sprintf("6a%02x%x", len(genuine), genuine)}}}},
+		}}, nil
+	})
+	tracker := newTestTracker(srv.URL)
+	tracker.SetRootSource(func(_ context.Context, height uint64) ([]byte, error) {
+		if height == 42 {
+			return testRoot, nil
+		}
+		return bytes.Repeat([]byte{0x00}, RootSize), nil
+	})
+
+	ok, err := tracker.VerifyAnchor(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+// The pre-root 12-byte payload (tag + height) commits to no root, so it
+// cannot verify.
+func TestAnchorTracker_VerifyAnchor_RejectsLegacyTagOnlyPayload(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	legacy := append(append([]byte(nil), AnchorTag...), 0, 0, 0, 0, 0, 0, 0, 42)
+	h.wireBlockWithPayload(legacy)
+	tracker := newTestTracker(srv.URL)
+
+	ok, err := tracker.VerifyAnchor(context.Background(), 100)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestAnchorTracker_VerifyAnchor_ReturnsErrorWhenRootSourceFails(t *testing.T) {
+	srv, h := newFakeBitcoind(t)
+	payload, err := EncodePayload(42, testRoot)
+	require.NoError(t, err)
+	h.wireBlockWithPayload(payload)
+	tracker := newTestTracker(srv.URL)
+	tracker.SetRootSource(func(context.Context, uint64) ([]byte, error) { return nil, fmt.Errorf("rpc down") })
+
+	ok, err := tracker.VerifyAnchor(context.Background(), 100)
+	require.Error(t, err, "an unverifiable anchor must surface as an error so btcGapMetric treats it as failed")
+	require.False(t, ok)
+}
+
+func TestDecodePayload_RoundTrip(t *testing.T) {
+	payload, err := EncodePayload(42, testRoot)
+	require.NoError(t, err)
+	cp, ok := DecodePayload(payload)
+	require.True(t, ok)
+	require.Equal(t, uint64(42), cp.Height)
+	require.Equal(t, testRoot, cp.Root)
+}
+
 func TestAnchorTracker_VerifyAnchor_RejectsBelowKDeepFinality(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.on("getblockcount", func() (any, error) { return 101, nil }) // only 1 block ahead
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	ok, err := tracker.VerifyAnchor(context.Background(), 100)
 	require.NoError(t, err)
@@ -216,7 +346,7 @@ func TestAnchorTracker_VerifyAnchor_RejectsBelowKDeepFinality(t *testing.T) {
 func TestAnchorTracker_IsAnchorDeepEnough_TrueOnceKDeepReached(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.on("getblockcount", func() (any, error) { return 105, nil })
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2) // 105-100=5 >= 2
+	tracker := newTestTracker(srv.URL) // 105-100=5 >= 2
 
 	deep, err := tracker.IsAnchorDeepEnough(context.Background(), 100)
 	require.NoError(t, err)
@@ -226,7 +356,7 @@ func TestAnchorTracker_IsAnchorDeepEnough_TrueOnceKDeepReached(t *testing.T) {
 func TestAnchorTracker_IsAnchorDeepEnough_FalseWhilePending(t *testing.T) {
 	srv, h := newFakeBitcoind(t)
 	h.on("getblockcount", func() (any, error) { return 101, nil }) // only 1 block ahead
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	deep, err := tracker.IsAnchorDeepEnough(context.Background(), 100)
 	require.NoError(t, err)
@@ -246,7 +376,7 @@ func TestAnchorTracker_VerifyAnchor_RejectsBlockWithoutOurTag(t *testing.T) {
 			}},
 		}, nil
 	})
-	tracker := NewAnchorTracker(NewRPCClient(srv.URL, "user", "pass"), 2)
+	tracker := newTestTracker(srv.URL)
 
 	ok, err := tracker.VerifyAnchor(context.Background(), 100)
 	require.NoError(t, err)

@@ -9,6 +9,7 @@ package anchor_test
 //	go test -tags btcsmoke ./x/anchor/... -run TestRPCClient_LiveSmoke -v
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"testing"
@@ -18,6 +19,11 @@ import (
 
 	"github.com/cuongct220020/engram-sovereign-fsm/x/anchor"
 )
+
+// smokeRoot is a fixed 32-byte stand-in for a CometBFT block hash.
+var smokeRoot = bytes.Repeat([]byte{0xab}, anchor.RootSize)
+
+func smokeRootSource(context.Context, uint64) ([]byte, error) { return smokeRoot, nil }
 
 func TestRPCClient_LiveSmoke(t *testing.T) {
 	c := anchor.NewRPCClient("http://127.0.0.1:18443", "cuongct", "cuongct123")
@@ -40,6 +46,7 @@ func TestAnchorTracker_LiveSmoke(t *testing.T) {
 	defer cancel()
 
 	tracker := anchor.NewAnchorTracker(c, 2) // kDeepFinality=2, small for a fast test
+	tracker.SetRootSource(smokeRootSource)
 
 	require.NoError(t, tracker.MaybeSubmit(ctx, 42))
 	_, ok := tracker.ConfirmedAnchorHeight()
@@ -79,6 +86,7 @@ func TestAnchorTracker_ConfirmedHeightAlwaysPassesVerifyAnchor(t *testing.T) {
 	defer cancel()
 
 	tracker := anchor.NewAnchorTracker(c, 2) // kDeepFinality=2
+	tracker.SetRootSource(smokeRootSource)
 	require.NoError(t, tracker.MaybeSubmit(ctx, 1000))
 
 	addr := mineBlocks(t, ctx, c, 2) // exactly kDeepFinality confirmations, no more
