@@ -7,7 +7,8 @@ is authoritative; re-grep before relying on a row here if the function may have 
 
 | TLA+ operator | Spec location | Go function | Go file |
 |---|---|---|---|
-| `CalculateNextFSMState` | `EngramFSM.tla:309-329` | `CalculateNextState` | `x/sovereignty/keeper/circuit_breaker.go` |
+| `CalculateNextFSMState` | `EngramFSM.tla:390-451` | `CalculateNextState` | `x/sovereignty/keeper/circuit_breaker.go` |
+| `da_backfill_valid` | `EngramFSM.tla:533-540` | `DABackfillValid` | `x/sovereignty/keeper/circuit_breaker.go` |
 | `safe_blocks` update | `EngramFSM.tla:343-346` | `NextSafeBlocks` | `x/sovereignty/keeper/circuit_breaker.go` |
 | `suspicious_duration` update | `EngramFSM.tla:337-340` | `NextSuspiciousDuration` | `x/sovereignty/keeper/circuit_breaker.go` |
 | `WithdrawLocked` | `EngramFSM.tla` | `WithdrawLocked` | `x/sovereignty/types/state.go` |
@@ -28,7 +29,7 @@ is authoritative; re-grep before relying on a row here if the function may have 
 | `DANormalUpdate`/`DAFailure` | `EngramFSM.tla:196-212` | `(*Publisher).MaybePublish` | `x/da/publisher.go` |
 | `ExpectedBlockHash` | `EngramTendermint.tla:266` | `ExpectedBlockHash` / `BlockHash` | `x/anchor/types.go` |
 | `BTCTolerance` | `EngramTendermint.tla:243-246` | `Tolerance` | `x/anchor/verify.go` |
-| `VerifySPVProof` | `EngramTendermint.tla:271-275` | `VerifySPVProof` | `x/anchor/verify.go` |
+| `VerifyAnchorReceipt` | `EngramTendermint.tla:271-275` | `VerifyAnchorReceipt` | `x/anchor/verify.go` |
 | `IsValidProposal`'s BTC-settlement check | `EngramTendermint.tla:296-298` | `VerifyReceipt` | `x/anchor/verify.go` |
 
 ## Mechanisms with no single operator to cite

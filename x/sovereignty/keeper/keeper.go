@@ -66,6 +66,10 @@ type Keeper struct {
 	// SafeBlocks caps (NextSafeBlocks) -- without it hAnchored could never catch up,
 	// permanently stalling RECOVERING->ANCHORED (reproduced live). Reset on RECOVERING entry/exit.
 	HeuristicProofLatched collections.Item[bool]
+	// RecoveringEntryHeight is the block height at which the current RECOVERING episode began
+	// (SOVEREIGN->RECOVERING). The SOVEREIGN interval's data is backfilled once
+	// PeripheralMetrics.DaContiguousHeight reaches RecoveringEntryHeight-1 (DABackfillValid).
+	RecoveringEntryHeight collections.Item[uint64]
 	// BlockHashByHeight maps a height to its real CometBFT hash (from RequestFinalizeBlock.Hash,
 	// not ctx.BlockHeader().LastBlockId, which carries none) -- with ValidatorSetHash, this is
 	// what circuit/reanchoring's boundary-block proof binds to. A general map, not fixed
@@ -133,6 +137,7 @@ func NewKeeper(storeService store.KVStoreService, cdc codec.Codec) *Keeper {
 		BlockHashByHeight:              collections.NewMap(sb, collections.NewPrefix(27), "block_hash_by_height", collections.Uint64Key, collections.BytesValue),
 		HEngramVerifiedAtRecoveryEntry: collections.NewItem(sb, collections.NewPrefix(28), "h_engram_verified_at_recovery_entry", collections.Uint64Value),
 		HeuristicProofLatched:          collections.NewItem(sb, collections.NewPrefix(29), "heuristic_proof_latched", collections.BoolValue),
+		RecoveringEntryHeight:          collections.NewItem(sb, collections.NewPrefix(30), "recovering_entry_height", collections.Uint64Value),
 	}
 
 	schema, err := sb.Build()

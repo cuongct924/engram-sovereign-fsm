@@ -49,6 +49,12 @@ type Harness struct {
 
 	height   int64
 	timeline []TimelineRow
+
+	// daBackfillHeld freezes the mock DA's contiguous published height at
+	// daContiguousFrozen, standing in for a SOVEREIGN interval whose block data
+	// has not been published yet (see HoldDABackfill).
+	daBackfillHeld     bool
+	daContiguousFrozen uint64
 }
 
 // NewHarness builds an in-memory Keeper and three mock sensors from a healthy
@@ -94,6 +100,14 @@ func (h *Harness) SetReanchoringProofValid(valid bool) {
 	}
 }
 
+// HoldDABackfill freezes (held=true) or resumes (held=false) the mock DA's
+// contiguous published height. While held, the SOVEREIGN interval's data counts
+// as unpublished, so RECOVERING -> ANCHORED stays gated on the DA backfill.
+func (h *Harness) HoldDABackfill(held bool) {
+	h.daBackfillHeld = held
+	h.daContiguousFrozen = uint64(h.height)
+}
+
 // State returns the current FSM state.
 func (h *Harness) State() string {
 	s, err := h.keeper.FSMState.Get(h.sdkCtx)
@@ -113,6 +127,13 @@ func (h *Harness) Advance() {
 	daHealthy := h.DA.IsHealthy()
 	p2pSnap, _ := h.P2P.GetSnapshot(h.sdkCtx)
 
+	// Static DA mock: no block data to backfill, so the SOVEREIGN interval
+	// counts as published unless HoldDABackfill froze it (see RefreshMetrics).
+	daContiguous := uint64(h.height)
+	if h.daBackfillHeld {
+		daContiguous = h.daContiguousFrozen
+	}
+
 	metrics := &types.PeripheralMetrics{
 		BtcGap:              btcGap,
 		DaGap:               daGapMetric(daHealthy),
@@ -124,6 +145,7 @@ func (h *Harness) Advance() {
 		PeerChurnRate:       p2pSnap.ChurnRate,
 		AvgPeerTenure:       p2pSnap.AvgTenure,
 		PeerLatency:         p2pSnap.Latency,
+		DaContiguousHeight:  daContiguous,
 	}
 	if err := h.keeper.Metrics.Set(h.sdkCtx, metrics); err != nil {
 		h.t.Fatalf("Metrics.Set: %v", err)

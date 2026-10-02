@@ -58,6 +58,7 @@ func fsmInputFromMetrics(ctx sdk.Context, k *keeper.Keeper, metrics *types.Perip
 	unhealthyStreak, _ := k.UnhealthyStreak.Get(ctx)
 	failedRecoveryAttempts, _ := k.FailedRecoveryAttempts.Get(ctx)
 	proofValid, _ := k.ReanchoringProofValid.Get(ctx)
+	recoveringEntryHeight, _ := k.RecoveringEntryHeight.Get(ctx)
 
 	return currState, keeper.FSMInput{
 		Metrics:                metrics,
@@ -67,6 +68,7 @@ func fsmInputFromMetrics(ctx sdk.Context, k *keeper.Keeper, metrics *types.Perip
 		UnhealthyStreak:        unhealthyStreak,
 		FailedRecoveryAttempts: failedRecoveryAttempts,
 		ReanchoringProofValid:  proofValid,
+		DABackfillValid:        keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
 	}
 }
 
@@ -165,7 +167,7 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 		hBtcCurrent := metrics.BtcCurrentHeight
 		// Advance h_btc_anchored via the certified median ConfirmedAnchorHeight,
 		// capped at hBtcCurrent (checkpoint_block_height <= h_btc_current,
-		// VerifySPVProof, EngramTendermint.tla:279-283).
+		// VerifyAnchorReceipt, EngramTendermint.tla:279-283).
 		if metrics.ConfirmedAnchorHeight > hBtcAnchored && metrics.ConfirmedAnchorHeight <= hBtcCurrent {
 			hBtcAnchored = metrics.ConfirmedAnchorHeight
 		}

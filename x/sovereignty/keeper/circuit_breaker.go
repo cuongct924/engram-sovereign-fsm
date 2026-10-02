@@ -16,6 +16,23 @@ type FSMInput struct {
 	UnhealthyStreak        uint64
 	FailedRecoveryAttempts uint64
 	ReanchoringProofValid  bool
+	// DABackfillValid mirrors da_backfill_valid (spec/core/EngramFSM.tla:246,533-540):
+	// the SOVEREIGN interval's block data is published to DA and retrievable.
+	DABackfillValid bool
+}
+
+// DABackfillValid is the concrete counterpart of da_backfill_valid
+// (spec/core/EngramFSM.tla:533-540, DABackfill): the spec's Boolean abstracts
+// da_contiguous_height >= recovering_entry_height - 1, i.e. every height of
+// the SOVEREIGN interval (those before RECOVERING was entered) is published.
+// Unlike the spec's latched flag it is recomputed from the certified height, so
+// a lagging certificate can only make it stricter, never looser. A zero
+// recoveringEntryHeight (no RECOVERING episode recorded) imposes no bound.
+func DABackfillValid(daContiguousHeight, recoveringEntryHeight uint64) bool {
+	if recoveringEntryHeight == 0 {
+		return true
+	}
+	return daContiguousHeight >= recoveringEntryHeight-1
 }
 
 // EffectiveDownHysteresisThreshold mirrors the TLA+ operator of the same name
@@ -36,7 +53,7 @@ func EffectiveDownHysteresisThreshold(failedRecoveryAttempts uint64, p types.Par
 	return effective
 }
 
-// CalculateNextState ports CalculateNextFSMState (spec/core/EngramFSM.tla:318-358)
+// CalculateNextState ports CalculateNextFSMState (spec/core/EngramFSM.tla:390-451)
 // branch-for-branch, in the same order. No direct-to-SOVEREIGN shortcut from
 // any state -- StrictFSMTransitionSafety forbids skipping SUSPICIOUS.
 //
@@ -89,10 +106,12 @@ func CalculateNextState(currentState string, in FSMInput, p types.Params) string
 			}
 			return types.StateRecovering // absorb: streak not yet exhausted
 		}
-		if in.SafeBlocks == p.HysteresisWait && in.ReanchoringProofValid {
+		// A recovery proof shows the interval is valid, not that its data is
+		// available, so exit also needs the DA backfill (EngramFSM.tla:444-446).
+		if in.SafeBlocks == p.HysteresisWait && in.ReanchoringProofValid && in.DABackfillValid {
 			return types.StateAnchored
 		}
-		// healthy but hysteresis not yet satisfied or proof still pending: stay RECOVERING
+		// healthy but hysteresis not yet satisfied, proof or DA backfill still pending: stay RECOVERING
 		return types.StateRecovering
 	}
 

@@ -34,7 +34,7 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		return nil
 	}
 
-	btcGap, btcSpvFailed, btcCurrentHeight, err := btcGapMetric(ctx, k, s.BTC, s.Anchor)
+	btcGap, anchorReverificationFailed, btcCurrentHeight, err := btcGapMetric(ctx, k, s.BTC, s.Anchor)
 	if err != nil {
 		return err
 	}
@@ -42,8 +42,13 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		// Idempotent per pending submission -- never double-submits across
 		// the PrepareProposal/ProcessProposal pair in a block (see
 		// AnchorTracker.MaybeSubmit's doc).
-		if err := s.Anchor.MaybeSubmit(ctx, uint64(ctx.BlockHeight())); err != nil {
-			return err
+		//
+		// Checkpoints the last COMMITTED height: the block being proposed has
+		// no hash yet, and the checkpoint commits a block hash as its root.
+		if ctx.BlockHeight() > 1 {
+			if err := s.Anchor.MaybeSubmit(ctx, uint64(ctx.BlockHeight())-1); err != nil {
+				return err
+			}
 		}
 	}
 	if s.DAPublisher != nil {
@@ -74,35 +79,41 @@ func RefreshMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors) error {
 		}
 	}
 	var daVerifiedHeight uint64
+	// Without a live Publisher the DA sensor is a static mock with no block
+	// data to publish, so nothing is left to backfill: report the current
+	// height, the mock analog of DANormalUpdate's verified' = current'.
+	daContiguousHeight := uint64(ctx.BlockHeight())
 	if s.DAPublisher != nil {
 		if verified, ok := s.DAPublisher.VerifiedHeight(); ok {
 			daVerifiedHeight = verified
 		}
+		daContiguousHeight = s.DAPublisher.ContiguousHeight()
 	}
 
 	metrics := &types.PeripheralMetrics{
-		BtcGap:                btcGap,
-		IsBtcSpvFailed:        btcSpvFailed,
-		DaGap:                 daGap,
-		IsDasFailed:           dasFailed,
-		IsAttestationFailed:   attestationFailed,
-		SubnetDiversity:       p2pSnap.SubnetDiversity,
-		ActiveAnchors:         p2pSnap.ActiveAnchors,
-		CleanPeers:            p2pSnap.CleanPeers,
-		PeerChurnRate:         p2pSnap.ChurnRate,
-		AvgPeerTenure:         p2pSnap.AvgTenure,
-		PeerLatency:           p2pSnap.Latency,
-		ConfirmedAnchorHeight: confirmedAnchorHeight,
-		DaVerifiedHeight:      daVerifiedHeight,
-		BtcCurrentHeight:      btcCurrentHeight,
+		BtcGap:                       btcGap,
+		IsAnchorReverificationFailed: anchorReverificationFailed,
+		DaGap:                        daGap,
+		IsDasFailed:                  dasFailed,
+		IsAttestationFailed:          attestationFailed,
+		SubnetDiversity:              p2pSnap.SubnetDiversity,
+		ActiveAnchors:                p2pSnap.ActiveAnchors,
+		CleanPeers:                   p2pSnap.CleanPeers,
+		PeerChurnRate:                p2pSnap.ChurnRate,
+		AvgPeerTenure:                p2pSnap.AvgTenure,
+		PeerLatency:                  p2pSnap.Latency,
+		ConfirmedAnchorHeight:        confirmedAnchorHeight,
+		DaVerifiedHeight:             daVerifiedHeight,
+		DaContiguousHeight:           daContiguousHeight,
+		BtcCurrentHeight:             btcCurrentHeight,
 	}
 
 	// Diagnostic-only, never committed -- this node's own local sensor reads,
 	// scraped from `docker logs` by E9's live figure and E4's A3/A4 tests.
 	// stdout only, no k.*.Set, so it can't affect AppHash or determinism.
 	fmt.Printf(
-		"engramd: sensor_snapshot height=%d btc_gap=%d btc_spv_failed=%t da_gap=%d da_failed=%t attestation_failed=%t active_anchors=%d clean_peers=%d churn_rate=%d avg_tenure=%d peer_latency=%d\n",
-		ctx.BlockHeight(), metrics.BtcGap, metrics.IsBtcSpvFailed, metrics.DaGap, metrics.IsDasFailed, metrics.IsAttestationFailed, metrics.ActiveAnchors, metrics.CleanPeers, metrics.PeerChurnRate, metrics.AvgPeerTenure, metrics.PeerLatency,
+		"engramd: sensor_snapshot height=%d btc_gap=%d anchor_reverification_failed=%t da_gap=%d da_failed=%t attestation_failed=%t active_anchors=%d clean_peers=%d churn_rate=%d avg_tenure=%d peer_latency=%d\n",
+		ctx.BlockHeight(), metrics.BtcGap, metrics.IsAnchorReverificationFailed, metrics.DaGap, metrics.IsDasFailed, metrics.IsAttestationFailed, metrics.ActiveAnchors, metrics.CleanPeers, metrics.PeerChurnRate, metrics.AvgPeerTenure, metrics.PeerLatency,
 	)
 
 	return k.Metrics.Set(ctx, metrics)
@@ -146,7 +157,7 @@ func daGapMetric(ctx sdk.Context, k *keeper.Keeper, sensor *sensors.DASensor) (g
 // btcGapMetric computes btc_gap from h_btc_anchored (spec/core/
 // EngramServer.tla:148), not the abstract min(H_submitted, H_anchored)
 // (EngramFSM.tla:95). spvFailed re-verifies the agreed anchor against our
-// own bitcoind (is_btc_spv_failed, EngramFSM.tla:184). hCurrent is
+// own bitcoind (is_anchor_reverification_failed, EngramFSM.tla:184). hCurrent is
 // returned, not committed here, for quorum certification via
 // PeripheralMetrics.BtcCurrentHeight.
 func btcGapMetric(ctx sdk.Context, k *keeper.Keeper, btc *sensors.BTCSensor, anchorTracker *anchor.AnchorTracker) (gap uint64, spvFailed bool, hCurrent uint64, err error) {

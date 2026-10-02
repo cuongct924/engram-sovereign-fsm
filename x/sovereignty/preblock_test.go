@@ -143,3 +143,31 @@ func TestCommitFSMTransition_HeaderHistory_NoWriteWhileStayingAnchored(t *testin
 	_, err = k.LastAnchoredRoot.Get(ctx)
 	require.Error(t, err, "LastAnchoredRoot must stay unset while staying ANCHORED")
 }
+
+// RecoveringEntryHeight bounds the SOVEREIGN interval whose data the DA
+// backfill must cover (keeper.DABackfillValid): it is written once, on the
+// SOVEREIGN -> RECOVERING block.
+func TestCommitFSMTransition_RecordsRecoveringEntryHeightOnEntry(t *testing.T) {
+	k, ctx := newTestKeeperCtxAt(t, 77, []byte{0x77})
+	require.NoError(t, k.FSMState.Set(ctx, types.StateSovereign))
+	require.NoError(t, k.LastAnchoredRoot.Set(ctx, []byte("rt_last"))) // set when SOVEREIGN was entered
+
+	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, lockedExt(types.StateRecovering)))
+
+	got, err := k.RecoveringEntryHeight.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(77), got)
+}
+
+func TestCommitFSMTransition_RecoveringEntryHeightUnchangedWhileStayingRecovering(t *testing.T) {
+	k, ctx := newTestKeeperCtxAt(t, 90, []byte{0x90})
+	require.NoError(t, k.FSMState.Set(ctx, types.StateRecovering))
+	require.NoError(t, k.LastAnchoredRoot.Set(ctx, []byte("rt_last")))
+	require.NoError(t, k.RecoveringEntryHeight.Set(ctx, 77))
+
+	require.NoError(t, sovereignty.CommitFSMTransition(ctx, k, lockedExt(types.StateRecovering)))
+
+	got, err := k.RecoveringEntryHeight.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(77), got, "a later RECOVERING block must not move the episode's entry height")
+}

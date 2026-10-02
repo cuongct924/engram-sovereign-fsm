@@ -48,6 +48,7 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	if err != nil {
 		proofValid = false
 	}
+	recoveringEntryHeight, _ := k.RecoveringEntryHeight.Get(ctx)
 
 	// 2. Compute the next FSM state (spec/core/EngramFSM.tla's CalculateNextFSMState).
 	in := keeper.FSMInput{
@@ -58,6 +59,7 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 		UnhealthyStreak:        unhealthyStreak,
 		FailedRecoveryAttempts: failedRecoveryAttempts,
 		ReanchoringProofValid:  proofValid,
+		DABackfillValid:        keeper.DABackfillValid(metrics.DaContiguousHeight, recoveringEntryHeight),
 	}
 	nextState := keeper.CalculateNextState(currState, in, k.Params)
 
@@ -65,6 +67,11 @@ func BeginBlocker(ctx context.Context, k *keeper.Keeper) error {
 	if nextState != currState {
 		if err := k.FSMState.Set(ctx, nextState); err != nil {
 			return err
+		}
+		if nextState == types.StateRecovering {
+			if err := k.RecoveringEntryHeight.Set(ctx, uint64(sdkCtx.BlockHeight())); err != nil {
+				return err
+			}
 		}
 
 		sdkCtx.EventManager().EmitEvent(

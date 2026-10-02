@@ -183,7 +183,7 @@ func TestCertificatesFromExtendedCommit_EmptyVotesYieldsEmptyCerts(t *testing.T)
 // --- AggregateHealthCertificates ---
 
 func healthyVoteExtTestMetrics() *types.PeripheralMetrics {
-	return &types.PeripheralMetrics{BtcGap: 3, DaGap: 5, IsBtcSpvFailed: false}
+	return &types.PeripheralMetrics{BtcGap: 3, DaGap: 5, IsAnchorReverificationFailed: false}
 }
 
 func TestAggregateHealthCertificates_FullHonestQuorumSucceeds(t *testing.T) {
@@ -200,7 +200,29 @@ func TestAggregateHealthCertificates_FullHonestQuorumSucceeds(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(3), agg.BtcGap)
 	require.Equal(t, uint64(5), agg.DaGap)
-	require.False(t, agg.IsBtcSpvFailed)
+	require.False(t, agg.IsAnchorReverificationFailed)
+}
+
+// da_contiguous_height is aggregated by weighted median like the other
+// certified heights, so f Byzantine validators cannot pull it outside the
+// honest range -- it gates RECOVERING->ANCHORED.
+func TestAggregateHealthCertificates_DaContiguousHeightIsHonestBoundedMedian(t *testing.T) {
+	k, ctx := newVoteExtTestKeeperCtx(t)
+	vals := registerVoteExtTestValidators(t, k, ctx, 1, 1, 1, 1)
+
+	// One validator lies high; the weighted median stays within honest values.
+	heights := []uint64{40, 41, 42, 1_000_000}
+	var certs []*types.SignedHealthCertificate
+	for i, v := range vals {
+		m := healthyVoteExtTestMetrics()
+		m.DaContiguousHeight = heights[i]
+		certs = append(certs, signVoteExtTestCertificate(t, v, voteExtTestChainID, 10, 0, m))
+	}
+
+	agg, ok := AggregateHealthCertificates(ctx, k, voteExtTestChainID, 10, certs)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, agg.DaContiguousHeight, uint64(40))
+	require.LessOrEqual(t, agg.DaContiguousHeight, uint64(42))
 }
 
 func TestAggregateHealthCertificates_BelowQuorumFails(t *testing.T) {

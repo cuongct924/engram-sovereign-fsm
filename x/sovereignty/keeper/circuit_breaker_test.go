@@ -171,6 +171,7 @@ func TestCalculateNextState_RecoveringStaysWhenHysteresisNotYetSatisfied(t *test
 		Metrics:               healthyMetrics(),
 		SafeBlocks:            0, // < HysteresisWait
 		ReanchoringProofValid: true,
+		DABackfillValid:       true,
 	}, p)
 	require.Equal(t, types.StateRecovering, next, "must not exit RECOVERING before safe_blocks reaches HysteresisWait")
 }
@@ -182,19 +183,69 @@ func TestCalculateNextState_RecoveringStaysWhenProofNotYetValid(t *testing.T) {
 		Metrics:               healthyMetrics(),
 		SafeBlocks:            p.HysteresisWait,
 		ReanchoringProofValid: false,
+		DABackfillValid:       true,
 	}, p)
 	require.Equal(t, types.StateRecovering, next, "must not exit RECOVERING before the reanchoring proof is valid, even if hysteresis is satisfied")
 }
 
-func TestCalculateNextState_RecoveringToAnchoredWhenBothConditionsMet(t *testing.T) {
+// A recovery proof shows the SOVEREIGN interval is valid, not that its data is
+// available (EngramFSM.tla:444-446): the DA backfill is a separate exit gate.
+func TestCalculateNextState_RecoveringStaysWhenDABackfillPending(t *testing.T) {
 	p := types.DefaultParams()
 
 	next := CalculateNextState(types.StateRecovering, FSMInput{
 		Metrics:               healthyMetrics(),
 		SafeBlocks:            p.HysteresisWait,
 		ReanchoringProofValid: true,
+		DABackfillValid:       false,
+	}, p)
+	require.Equal(t, types.StateRecovering, next, "must not exit RECOVERING before the SOVEREIGN interval's data is published to DA")
+}
+
+func TestCalculateNextState_RecoveringToAnchoredWhenAllConditionsMet(t *testing.T) {
+	p := types.DefaultParams()
+
+	next := CalculateNextState(types.StateRecovering, FSMInput{
+		Metrics:               healthyMetrics(),
+		SafeBlocks:            p.HysteresisWait,
+		ReanchoringProofValid: true,
+		DABackfillValid:       true,
 	}, p)
 	require.Equal(t, types.StateAnchored, next)
+}
+
+// The gate only affects the RECOVERING->ANCHORED edge: a critical reading
+// still falls back to SOVEREIGN regardless of backfill progress.
+func TestCalculateNextState_RecoveringCriticalFallsBackEvenWithBackfillPending(t *testing.T) {
+	p := types.DefaultParams()
+	m := healthyMetrics()
+	m.BtcGap = p.SovereignThreshold
+
+	next := CalculateNextState(types.StateRecovering, FSMInput{
+		Metrics:         m,
+		DABackfillValid: false,
+	}, p)
+	require.Equal(t, types.StateSovereign, next)
+}
+
+func TestDABackfillValid(t *testing.T) {
+	tests := []struct {
+		name                  string
+		contiguous, entryHigh uint64
+		want                  bool
+	}{
+		{"no recovering episode recorded imposes no bound", 0, 0, true},
+		{"nothing published yet", 0, 10, false},
+		{"one short of the last interval height", 8, 10, false},
+		{"exactly covers the interval (entry-1)", 9, 10, true},
+		{"covers beyond the interval", 25, 10, true},
+		{"entry at height 1 has an empty interval", 0, 1, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, DABackfillValid(tt.contiguous, tt.entryHigh))
+		})
+	}
 }
 
 func TestNextSafeBlocks_IncrementsWhileStayingRecoveringAndCapsAtHysteresisWait(t *testing.T) {

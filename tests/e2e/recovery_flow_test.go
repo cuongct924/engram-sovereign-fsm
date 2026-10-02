@@ -123,3 +123,39 @@ func TestRecoveryFlow_ReRecoveryRestartsHysteresisFromScratch(t *testing.T) {
 	h.WriteCSV("recovery_flow_re_recovery")
 	t.Log(fmtMetrics("RecoveryFlow-ReRecovery", m))
 }
+
+// TestRecoveryFlow_StaysRecoveringUntilSovereignIntervalDataIsPublished covers
+// the DA backfill exit gate (EngramFSM.tla's SovereignDataPublishedSafety): a
+// satisfied hysteresis and a valid recovery proof are not enough while the
+// SOVEREIGN interval's block data is unpublished -- the proof shows the
+// interval is valid, not available.
+func TestRecoveryFlow_StaysRecoveringUntilSovereignIntervalDataIsPublished(t *testing.T) {
+	h := NewHarness(t)
+	p := types.DefaultParams()
+
+	// A multi-block SOVEREIGN interval whose data stops being published at its start.
+	h.BTC.SetGap(p.SovereignThreshold)
+	h.Advance()
+	require.Equal(t, types.StateSovereign, h.State())
+	h.HoldDABackfill(true)
+	for i := 0; i < 3; i++ {
+		h.Advance()
+	}
+
+	h.BTC.SetGap(0)
+	h.Advance()
+	require.Equal(t, types.StateRecovering, h.State())
+	for i := uint64(0); i < p.HysteresisWait; i++ {
+		h.Advance()
+	}
+	h.SetReanchoringProofValid(true)
+	h.Advance()
+	h.Advance()
+	require.Equal(t, types.StateRecovering, h.State(),
+		"hysteresis and proof satisfied, but the SOVEREIGN interval's data is unpublished")
+	require.True(t, h.Timeline()[len(h.Timeline())-1].WithdrawLocked, "withdrawals must stay locked until the backfill completes")
+
+	h.HoldDABackfill(false)
+	h.Advance()
+	require.Equal(t, types.StateAnchored, h.State(), "RECOVERING -> ANCHORED once the backfill completes")
+}

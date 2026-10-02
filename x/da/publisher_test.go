@@ -199,3 +199,118 @@ func TestPublisher_ProbeHealthy_FalseWhenUnreachable(t *testing.T) {
 	p := NewPublisher(NewRPCClient("http://127.0.0.1:1", "token"), ns) // nothing listens on port 1
 	require.False(t, p.ProbeHealthy(context.Background()))
 }
+
+// constSource returns the same payload for every height.
+func constSource(data string) BlockSource {
+	return func(context.Context, uint64) ([]byte, error) { return []byte(data), nil }
+}
+
+func TestBuildBatch_FramesCommittedHeightsInOrder(t *testing.T) {
+	batch, end := buildBatch(context.Background(), constSource("tx"), 2, 6)
+	require.Equal(t, uint64(5), end, "heights 3..5 are committed; the head height 6 is still being proposed")
+	// Three frames of height(8) + len(4) + "tx"(2).
+	require.Len(t, batch, 3*(8+4+2))
+	require.Equal(t, uint64(3), binary.BigEndian.Uint64(batch[0:8]))
+	require.Equal(t, uint32(2), binary.BigEndian.Uint32(batch[8:12]))
+}
+
+func TestBuildBatch_NoNewHeightsReturnsStart(t *testing.T) {
+	batch, end := buildBatch(context.Background(), constSource("tx"), 5, 6)
+	require.Equal(t, uint64(5), end)
+	require.Empty(t, batch)
+}
+
+// A height the source cannot return ends the batch there: the queue never
+// skips over a gap, so contiguity is preserved.
+func TestBuildBatch_StopsAtFirstUnavailableHeight(t *testing.T) {
+	src := func(_ context.Context, h uint64) ([]byte, error) {
+		if h == 4 {
+			return nil, context.DeadlineExceeded
+		}
+		return []byte("tx"), nil
+	}
+	_, end := buildBatch(context.Background(), src, 0, 10)
+	require.Equal(t, uint64(3), end)
+}
+
+func TestBuildBatch_RespectsMaxBatchBytes(t *testing.T) {
+	big := bytes.Repeat([]byte{1}, maxBatchBytes/2)
+	src := func(context.Context, uint64) ([]byte, error) { return big, nil }
+	_, end := buildBatch(context.Background(), src, 0, 100)
+	require.Equal(t, uint64(1), end, "a second half-size block would exceed the cap")
+}
+
+func TestPublisher_ContiguousHeightAdvancesOnlyOnceBatchIsAvailable(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	p := testPublisher(t, srv)
+	p.SetBlockSource(constSource("tx"))
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("marker")))
+	waitForPendingSubmission(t, p)
+	require.Equal(t, uint64(0), p.ContiguousHeight(), "a submitted but unconfirmed batch is not retrievable yet")
+
+	h.on("blob.GetAll", func() (any, error) {
+		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
+	})
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("marker")))
+
+	require.Equal(t, uint64(9), p.ContiguousHeight(), "heights 1..9 were in the confirmed batch")
+	head, ok := p.VerifiedHeight()
+	require.True(t, ok)
+	require.Equal(t, uint64(10), head, "head liveness tracks the submission height, not the batch end")
+}
+
+// During a DA outage Submit fails and nothing advances; after recovery the next
+// batch resumes from the unchanged contiguous height, covering the whole gap.
+func TestPublisher_BackfillResumesFromContiguousHeightAfterOutage(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	failing := true
+	var mu sync.Mutex
+	h.on("blob.Submit", func() (any, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if failing {
+			return nil, context.DeadlineExceeded
+		}
+		return uint64(50), nil
+	})
+	h.on("blob.GetAll", func() (any, error) {
+		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
+	})
+	p := testPublisher(t, srv)
+	p.SetBlockSource(constSource("tx"))
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, nil))
+	require.Eventually(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return !p.submitting
+	}, time.Second, time.Millisecond)
+	require.True(t, p.Failed())
+	require.Equal(t, uint64(0), p.ContiguousHeight())
+
+	mu.Lock()
+	failing = false
+	mu.Unlock()
+	require.NoError(t, p.MaybePublish(context.Background(), 40, nil))
+	waitForPendingSubmission(t, p)
+	require.NoError(t, p.MaybePublish(context.Background(), 41, nil))
+
+	require.Equal(t, uint64(39), p.ContiguousHeight(), "the post-outage batch covers 1..39 in one blob")
+}
+
+func TestPublisher_WithoutBlockSourceNeverAdvancesContiguousHeight(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	h.on("blob.GetAll", func() (any, error) {
+		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
+	})
+	p := testPublisher(t, srv)
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("marker")))
+	waitForPendingSubmission(t, p)
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("marker")))
+
+	require.Equal(t, uint64(0), p.ContiguousHeight(), "markers carry no block data, so nothing is published")
+}

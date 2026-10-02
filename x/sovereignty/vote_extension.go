@@ -165,20 +165,21 @@ func AggregateHealthCertificates(ctx sdk.Context, k *keeper.Keeper, chainID stri
 	}
 
 	return &types.PeripheralMetrics{
-		BtcGap:                weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.BtcGap }), powers),
-		IsBtcSpvFailed:        weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsBtcSpvFailed }), powers),
-		DaGap:                 weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaGap }), powers),
-		IsDasFailed:           weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsDasFailed }), powers),
-		IsAttestationFailed:   weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsAttestationFailed }), powers),
-		SubnetDiversity:       weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.SubnetDiversity }), powers),
-		ActiveAnchors:         weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.ActiveAnchors }), powers),
-		CleanPeers:            weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.CleanPeers }), powers),
-		PeerChurnRate:         weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.PeerChurnRate }), powers),
-		AvgPeerTenure:         weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.AvgPeerTenure }), powers),
-		PeerLatency:           weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.PeerLatency }), powers),
-		ConfirmedAnchorHeight: weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.ConfirmedAnchorHeight }), powers),
-		DaVerifiedHeight:      weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaVerifiedHeight }), powers),
-		BtcCurrentHeight:      weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.BtcCurrentHeight }), powers),
+		BtcGap:                       weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.BtcGap }), powers),
+		IsAnchorReverificationFailed: weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsAnchorReverificationFailed }), powers),
+		DaGap:                        weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaGap }), powers),
+		IsDasFailed:                  weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsDasFailed }), powers),
+		IsAttestationFailed:          weightedMajorityBool(mapBool(metrics, func(m *types.PeripheralMetrics) bool { return m.IsAttestationFailed }), powers),
+		SubnetDiversity:              weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.SubnetDiversity }), powers),
+		ActiveAnchors:                weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.ActiveAnchors }), powers),
+		CleanPeers:                   weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.CleanPeers }), powers),
+		PeerChurnRate:                weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.PeerChurnRate }), powers),
+		AvgPeerTenure:                weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.AvgPeerTenure }), powers),
+		PeerLatency:                  weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.PeerLatency }), powers),
+		ConfirmedAnchorHeight:        weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.ConfirmedAnchorHeight }), powers),
+		DaVerifiedHeight:             weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaVerifiedHeight }), powers),
+		BtcCurrentHeight:             weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.BtcCurrentHeight }), powers),
+		DaContiguousHeight:           weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaContiguousHeight }), powers),
 	}, true
 }
 

@@ -27,8 +27,8 @@ const (
 type PeripheralMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Bitcoin settlement sensor.
-	BtcGap         uint64 `protobuf:"varint,1,opt,name=btc_gap,json=btcGap,proto3" json:"btc_gap,omitempty"`
-	IsBtcSpvFailed bool   `protobuf:"varint,2,opt,name=is_btc_spv_failed,json=isBtcSpvFailed,proto3" json:"is_btc_spv_failed,omitempty"`
+	BtcGap                       uint64 `protobuf:"varint,1,opt,name=btc_gap,json=btcGap,proto3" json:"btc_gap,omitempty"`
+	IsAnchorReverificationFailed bool   `protobuf:"varint,2,opt,name=is_anchor_reverification_failed,json=isAnchorReverificationFailed,proto3" json:"is_anchor_reverification_failed,omitempty"`
 	// Celestia DA sensor.
 	DaGap               uint64 `protobuf:"varint,3,opt,name=da_gap,json=daGap,proto3" json:"da_gap,omitempty"`
 	IsDasFailed         bool   `protobuf:"varint,4,opt,name=is_das_failed,json=isDasFailed,proto3" json:"is_das_failed,omitempty"`
@@ -40,31 +40,27 @@ type PeripheralMetrics struct {
 	PeerChurnRate   uint64 `protobuf:"varint,9,opt,name=peer_churn_rate,json=peerChurnRate,proto3" json:"peer_churn_rate,omitempty"`
 	AvgPeerTenure   uint64 `protobuf:"varint,10,opt,name=avg_peer_tenure,json=avgPeerTenure,proto3" json:"avg_peer_tenure,omitempty"`
 	PeerLatency     uint64 `protobuf:"varint,11,opt,name=peer_latency,json=peerLatency,proto3" json:"peer_latency,omitempty"`
-	// Sensor-confirmed heights (RefreshMetrics), carried here so
-	// NewPrepareProposalHandler/NewProcessProposalHandler can advance
+	// Sensor-confirmed heights, carried here so ProcessProposal can advance
 	// h_btc_anchored/h_engram_verified from the quorum-certified median
-	// instead of a live per-validator sensor read -- see
-	// x/sovereignty/vote_extension.go's AggregateHealthCertificates. 0 means
-	// "no live Source wired" (see x/anchor.AnchorTracker.ConfirmedAnchorHeight
-	// / x/da.Publisher.VerifiedHeight's ok=false case), not "height zero
-	// confirmed" -- callers must still gate on it being > the committed floor.
+	// instead of a live per-validator read. 0 means "no live source wired",
+	// not "height zero confirmed" -- callers must gate on > the committed floor.
 	ConfirmedAnchorHeight uint64 `protobuf:"varint,12,opt,name=confirmed_anchor_height,json=confirmedAnchorHeight,proto3" json:"confirmed_anchor_height,omitempty"`
 	DaVerifiedHeight      uint64 `protobuf:"varint,13,opt,name=da_verified_height,json=daVerifiedHeight,proto3" json:"da_verified_height,omitempty"`
 	// btc_current_height is this validator's own live BTC RPC read of the
-	// current regtest tip (x/sovereignty/sensors_refresh.go's btcGapMetric).
-	// Certified into AggregatedHealthCertificate's h_btc_current the same way
-	// as confirmed_anchor_height/da_verified_height above -- committing it
-	// directly from a live per-validator ExtendVote read (the pre-vote-
-	// extension design) is dead state: ExtendVote's context is a throwaway
-	// CacheMultiStore never written back to the committed multistore, so
-	// h_btc_current would otherwise stay frozen at its genesis value forever
-	// once no other path updates it, and every anchor.VerifyReceipt call
-	// would reject any real (growing) checkpoint height as "too far in the
-	// future" -- reproduced live (a real 7-node cluster round-skipped forever
-	// once ConfirmedAnchorHeight first exceeded the frozen h_btc_current=0).
+	// current regtest tip, certified the same way as the two fields above --
+	// committing it directly from ExtendVote is dead state (that context's
+	// CacheMultiStore is never written back), which froze h_btc_current
+	// forever and round-skipped a real cluster permanently, reproduced live.
 	BtcCurrentHeight uint64 `protobuf:"varint,14,opt,name=btc_current_height,json=btcCurrentHeight,proto3" json:"btc_current_height,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// da_contiguous_height is the highest Engram height h such that the block
+	// data of every height <= h has been published to DA and is retrievable
+	// (x/da.Publisher.ContiguousHeight). Separate from da_verified_height,
+	// which tracks head liveness: a long SOVEREIGN interval makes this lag
+	// behind while the DA layer itself is healthy. Quorum-certified like the
+	// fields above; gates RECOVERING->ANCHORED (EngramFSM.tla's da_backfill_valid).
+	DaContiguousHeight uint64 `protobuf:"varint,15,opt,name=da_contiguous_height,json=daContiguousHeight,proto3" json:"da_contiguous_height,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PeripheralMetrics) Reset() {
@@ -104,9 +100,9 @@ func (x *PeripheralMetrics) GetBtcGap() uint64 {
 	return 0
 }
 
-func (x *PeripheralMetrics) GetIsBtcSpvFailed() bool {
+func (x *PeripheralMetrics) GetIsAnchorReverificationFailed() bool {
 	if x != nil {
-		return x.IsBtcSpvFailed
+		return x.IsAnchorReverificationFailed
 	}
 	return false
 }
@@ -195,14 +191,21 @@ func (x *PeripheralMetrics) GetBtcCurrentHeight() uint64 {
 	return 0
 }
 
+func (x *PeripheralMetrics) GetDaContiguousHeight() uint64 {
+	if x != nil {
+		return x.DaContiguousHeight
+	}
+	return 0
+}
+
 var File_engram_sovereignty_v1_state_proto protoreflect.FileDescriptor
 
 const file_engram_sovereignty_v1_state_proto_rawDesc = "" +
 	"\n" +
-	"!engram/sovereignty/v1/state.proto\x12\x15engram.sovereignty.v1\"\xc0\x04\n" +
+	"!engram/sovereignty/v1/state.proto\x12\x15engram.sovereignty.v1\"\x8e\x05\n" +
 	"\x11PeripheralMetrics\x12\x17\n" +
-	"\abtc_gap\x18\x01 \x01(\x04R\x06btcGap\x12)\n" +
-	"\x11is_btc_spv_failed\x18\x02 \x01(\bR\x0eisBtcSpvFailed\x12\x15\n" +
+	"\abtc_gap\x18\x01 \x01(\x04R\x06btcGap\x12E\n" +
+	"\x1fis_anchor_reverification_failed\x18\x02 \x01(\bR\x1cisAnchorReverificationFailed\x12\x15\n" +
 	"\x06da_gap\x18\x03 \x01(\x04R\x05daGap\x12\"\n" +
 	"\ris_das_failed\x18\x04 \x01(\bR\visDasFailed\x122\n" +
 	"\x15is_attestation_failed\x18\x05 \x01(\bR\x13isAttestationFailed\x12)\n" +
@@ -216,7 +219,8 @@ const file_engram_sovereignty_v1_state_proto_rawDesc = "" +
 	"\fpeer_latency\x18\v \x01(\x04R\vpeerLatency\x126\n" +
 	"\x17confirmed_anchor_height\x18\f \x01(\x04R\x15confirmedAnchorHeight\x12,\n" +
 	"\x12da_verified_height\x18\r \x01(\x04R\x10daVerifiedHeight\x12,\n" +
-	"\x12btc_current_height\x18\x0e \x01(\x04R\x10btcCurrentHeightBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
+	"\x12btc_current_height\x18\x0e \x01(\x04R\x10btcCurrentHeight\x120\n" +
+	"\x14da_contiguous_height\x18\x0f \x01(\x04R\x12daContiguousHeightBCZAgithub.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/typesb\x06proto3"
 
 var (
 	file_engram_sovereignty_v1_state_proto_rawDescOnce sync.Once

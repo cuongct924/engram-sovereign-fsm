@@ -195,3 +195,17 @@ func TestDaGapMetric_NeverVerifiedReportsMaxGap(t *testing.T) {
 	require.GreaterOrEqual(t, gap, k.Params.DAThreshold,
 		"a source that has never verified anything must report a gap >= DAThreshold (unhealthy), not hCurrent-0")
 }
+
+// fsmInputFromMetrics ties the certified da_contiguous_height to the committed
+// RecoveringEntryHeight: the gate stays closed until the SOVEREIGN interval's
+// data is published.
+func TestFsmInputFromMetrics_DABackfillValidTracksCertifiedContiguousHeight(t *testing.T) {
+	k, ctx := newVoteExtTestKeeperCtx(t)
+	require.NoError(t, k.RecoveringEntryHeight.Set(ctx, 10))
+
+	_, in := fsmInputFromMetrics(ctx, k, &types.PeripheralMetrics{DaContiguousHeight: 8})
+	require.False(t, in.DABackfillValid, "8 < entry-1 = 9: part of the SOVEREIGN interval is unpublished")
+
+	_, in = fsmInputFromMetrics(ctx, k, &types.PeripheralMetrics{DaContiguousHeight: 9})
+	require.True(t, in.DABackfillValid)
+}

@@ -678,6 +678,15 @@ func wirePeerFilter(engramApp *app.EngramApp, n *node.Node) {
 	engramApp.SovereigntyKeeper.SetPeerFilterSource(&vanillaP2PHealthAdapter{sw: sw})
 }
 
+// cometRPCURL is this node's own CometBFT RPC (COMET_RPC_URL), where the BTC
+// checkpoint root and the DA backfill block data are read from.
+func cometRPCURL() string {
+	if url := os.Getenv("COMET_RPC_URL"); url != "" {
+		return url
+	}
+	return "http://127.0.0.1:26657"
+}
+
 // wireBTCSensor upgrades engramApp's BTC sensor from its static SetGap mock
 // to a real bitcoind JSON-RPC connection, and wires an AnchorTracker against
 // it so h_btc_anchored has a real submit-and-confirm pipeline -- when
@@ -709,6 +718,7 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 	if pauseFile := os.Getenv("ANCHOR_SUBMISSION_PAUSED_FILE"); pauseFile != "" {
 		tracker.SetSubmissionPausedFile(pauseFile)
 	}
+	tracker.SetRootSource(cometBlockHashSource(cometRPCURL()))
 	engramApp.Sensors.Anchor = tracker
 }
 
@@ -738,5 +748,9 @@ func wireDASensor(engramApp *app.EngramApp) {
 
 	client := da.NewRPCClient(url, authToken)
 	engramApp.Sensors.DAPublisher = da.NewPublisher(client, ns)
+	// Same local CometBFT RPC the BTC checkpoint root is read from (see
+	// wireBTCSensor): the DA backfill queue publishes the committed blocks it
+	// returns.
+	engramApp.Sensors.DAPublisher.SetBlockSource(cometBlockDataSource(cometRPCURL()))
 	engramApp.Sensors.DA.SetSource(engramApp.Sensors.DAPublisher)
 }

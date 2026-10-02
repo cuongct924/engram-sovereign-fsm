@@ -131,6 +131,11 @@ func CommitFSMTransition(ctx sdk.Context, k *keeper.Keeper, ext *types.Aggregate
 		if err := k.HEngramVerifiedAtRecoveryEntry.Set(ctx, hEngramVerifiedBefore); err != nil {
 			return err
 		}
+		// Heights before this block form the SOVEREIGN interval whose data the
+		// DA backfill must cover (keeper.DABackfillValid).
+		if err := k.RecoveringEntryHeight.Set(ctx, uint64(ctx.BlockHeight())); err != nil {
+			return err
+		}
 		// HeuristicProofLatched.doc: fresh episode, nothing latched yet.
 		if err := k.HeuristicProofLatched.Set(ctx, false); err != nil {
 			return err

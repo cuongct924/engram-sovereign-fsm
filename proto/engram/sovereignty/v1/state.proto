@@ -11,7 +11,7 @@ option go_package = "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty
 message PeripheralMetrics {
   // Bitcoin settlement sensor.
   uint64 btc_gap = 1;
-  bool   is_btc_spv_failed = 2;
+  bool   is_anchor_reverification_failed = 2;
 
   // Celestia DA sensor.
   uint64 da_gap = 3;
@@ -39,4 +39,12 @@ message PeripheralMetrics {
   // CacheMultiStore is never written back), which froze h_btc_current
   // forever and round-skipped a real cluster permanently, reproduced live.
   uint64 btc_current_height = 14;
+
+  // da_contiguous_height is the highest Engram height h such that the block
+  // data of every height <= h has been published to DA and is retrievable
+  // (x/da.Publisher.ContiguousHeight). Separate from da_verified_height,
+  // which tracks head liveness: a long SOVEREIGN interval makes this lag
+  // behind while the DA layer itself is healthy. Quorum-certified like the
+  // fields above; gates RECOVERING->ANCHORED (EngramFSM.tla's da_backfill_valid).
+  uint64 da_contiguous_height = 15;
 }
