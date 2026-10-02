@@ -1265,25 +1265,30 @@ Fresh 7-node run (2026-09-04) covering every depth that matters in one pass: {1,
 | Shallow (depth=1, < `KDeepFinality`=2) | all 7 validators stay ANCHORED throughout ([`results_live/reorg_shallow_20260904T005405.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_shallow_20260904T005405.csv)) |
 | Boundary (depth=2, = `KDeepFinality`) | real reorg confirmed (`actually_reorged=True`), all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260904T005602.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005602.csv)) |
 | Boundary (depth=3, = `KDeepFinality`+1) | real reorg confirmed, all 7 validators stay ANCHORED throughout ([`results_live/reorg_deep_20260904T005801.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005801.csv)) |
-| Deep (depth=5, near `SuspiciousThreshold`=4) | real reorg confirmed, all 7 validators **still stay ANCHORED throughout** — no `SUSPICIOUS` transition at all ([`results_live/reorg_deep_20260904T005958.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005958.csv)) |
+| Deep (depth=5) | real reorg confirmed, all 7 validators **still stay ANCHORED throughout** — no `SUSPICIOUS` transition at all ([`results_live/reorg_deep_20260904T005958.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T005958.csv)) |
 | Deep (depth=15, well past the anchored checkpoint) | all 7 validators transition ANCHORED→SUSPICIOUS (t=43s)→SOVEREIGN (t=56s) in lockstep ([`results_live/reorg_deep_20260904T010155.csv`](../scripts/e10_bitcoin_reorg/results_live/reorg_deep_20260904T010155.csv)) |
 
 Every trial above shows unanimous 7/7 agreement at every one of 181 polled rounds, 0 RPC errors
 across all 5 CSVs combined (1267 total samples).
 
 `AnchorTracker.VerifyAnchor` re-derives `BlockContainsTag` fresh via `getblockhash` on every call,
-so a deep-enough reorg is caught on the next check, `is_btc_spv_failed` goes true,
-`IsCriticalCondition` fires.
+so it is capable of catching a deep-enough reorg on the next check -- but whether `is_btc_spv_failed`
+actually went true in a committed certificate during this run is not established by the logs below;
+only `fsm_state` and `suspicious_duration` were captured, not the raw sensor value.
 
 ![E10 FSM reaction to real Bitcoin reorgs by depth, 5 trials](../scripts/e10_bitcoin_reorg/results/figure8_reorg_depth_reaction_live.png)
 
 *Boundary finding, now measured up to depth=5, not just depth=3:* depths 2, 3, and 5 all orphan
 real blocks (`invalidateblock` + longer competing chain confirmed via `getblockhash`, not assumed
-from height) but never trip the FSM — the tolerance band extends further than depth=3 alone would
-suggest. `x/sovereignty/types/params.go` requires `SuspiciousThreshold > KDeepFinality+1` (i.e. ≥4),
-so a `btc_gap` in the low single digits sits below the threshold that would flip
-`IsWarningCondition`/`IsCriticalCondition`; the exact boundary between "no reaction" (depth=5) and
-"reaction" (depth=15) remains uncharacterized between those two points.
+from height) but produced no FSM reaction within the observation window. `is_btc_spv_failed` has no
+threshold in `IsCriticalCondition` (`x/sovereignty/types/predicates.go`) -- unlike `btc_gap`, which
+is gated by `SuspiciousThreshold` (5 by default) -- so if the committed certificate's
+`is_btc_spv_failed` had gone true at any of these depths, the FSM would have jumped straight from
+`ANCHORED` to `SOVEREIGN`, skipping `SUSPICIOUS`. That jump did not happen at depths 2, 3, or 5, so
+the committed certificate's `is_btc_spv_failed` stayed false throughout those trials; whether the
+raw per-validator sensor ever flipped true transiently is not established by these logs. The exact
+boundary between "no reaction" (depth=5) and "reaction" (depth=15) remains uncharacterized between
+those two points.
 
 **B. Recovery mechanism (ZK proof)**
 
@@ -1324,15 +1329,17 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
 
 * The shallow case matches the spec's own safety claim exactly (`IsKDeep` structurally can't
   re-elect a certificate lost this shallow).
-* The deep case is a real, positive finding beyond what the spec promises (`spec/README.md` §7.3
-  leaves deep reorgs out of scope) — `VerifyAnchor`'s no-cache re-derivation is real
-  defense-in-depth.
-* The precise boundary is wider than `KDeepFinality` alone predicts, and wider than depth=3 alone
-  suggested — real reorgs at depth 2, 3, and now 5 are all caught by `VerifyAnchor`
-  (`is_btc_spv_failed` sensor still fires) but none cross the FSM's own `SuspiciousThreshold`, so no
-  state transition follows. Defense-in-depth (sensor-level detection) and FSM reaction (state
-  transition) are two different layers with two different tolerances, and that gap is now measured
-  up to depth=5, not assumed. The exact crossover between depth=5 (no reaction) and depth=15
+* The deep case (depths 2, 3, 5) produced no FSM reaction within the observation window. Because
+  `is_btc_spv_failed` has no threshold -- it forces an immediate `ANCHORED`→`SOVEREIGN` jump when
+  true (`IsCriticalCondition`) -- this means the committed certificate's `is_btc_spv_failed` stayed
+  false throughout those trials. Whether `VerifyAnchor`'s no-cache re-derivation ever caught the
+  reorg at the raw, per-validator sensor level is not established by these logs; only `fsm_state`
+  and `suspicious_duration` were captured, not the raw sensor value.
+* At depth=15, the FSM transitioned `ANCHORED`→`SUSPICIOUS`→`SOVEREIGN` rather than jumping
+  directly to `SOVEREIGN`, ruling out a direct critical-condition cause for the first transition.
+  The `suspicious_duration` counter reached 23 of the 24-block `MaxSuspiciousTime` bound in the
+  last sample before the `SOVEREIGN` transition, consistent with a duration-based escalation, not
+  anchor re-verification failing. The exact crossover between depth=5 (no reaction) and depth=15
   (reaction) is still uncharacterized.
 * The ZK re-anchoring proof pipeline is real and reliable under proof-only conditions (16/16 proofs
   accepted, 0 rejected, across three runs), and drove a full
