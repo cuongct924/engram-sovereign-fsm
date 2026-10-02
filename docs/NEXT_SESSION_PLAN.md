@@ -34,7 +34,7 @@ Quy tắc chung:
 | 10 | Smoke test live bản sửa sub-quorum certificate | 2 | không | 0,5 ngày | — |
 | 11 | Công cụ đo RQ4 (round, committed throughput, độ trễ tx) | 2 | không | 1–2 ngày | — |
 | 12 | Baseline hard-gated (+ soft/optimistic) | 2 | chế độ baseline | 1–2 ngày | 1, 11 |
-| 13 | Bộ tấn công cộng tác f=2 (B1–B8) + sweep Byzantine b = 0…3 (B9) + replay checker | 2 | hook Byzantine | 4–5 ngày | 11 |
+| 13 | Bộ tấn công cộng tác f=2 (B1–B8) + sweep Byzantine b = 0…3 (B9) + replay checker (code xong, đang chạy live) | 2 | hook Byzantine | 4–5 ngày | 11 |
 | 14 | Làm lại A3, A4, A7, A10 để phòng thủ thực sự kích hoạt | 2 | không | 1–2 ngày | 13 |
 | 15 | State root trong checkpoint Bitcoin | 3 | có | 1 ngày | — |
 | 16 | Hysteresis thích nghi ANCHORED↔SUSPICIOUS | 3 | có | 3 ngày | 4 |
@@ -93,8 +93,8 @@ Quy tắc chung:
   backlog, tx/block) — chưa có công cụ đo, trùng mục #11.
 - [ ] 10. Hysteresis thích nghi (tăng ngưỡng sau flap liên tiếp, giảm khi ổn định) — chưa làm,
   trùng mục #16.
-- [ ] 11. Byzantine cộng tác f=2 (N=7) live — hiện chỉ có 1 node Byzantine
-  (`docker/engram-node04-byzantine.yml`); trùng mục #13.
+- [ ] 11. Byzantine cộng tác f=2 (N=7) live — code và replay checker xong, suite live đang chạy
+  (2026-10-02); chưa có số liệu vào paper; trùng mục #13.
 - [ ] 12. Multi-host experiment (nhiều máy/VM thật) — chưa làm, trùng mục #21.
 - [ ] 13. Related work: cây taxonomy + bảng so sánh theo tiêu chí ("external health agreed by
   quorum", "in-consensus fallback", v.v.) đã có (`related_work.tex`, 60 `\cite`); "bổ sung thêm
@@ -488,6 +488,30 @@ Mới: `engramd debug replay-fsm --rpc <url> --from 1 --to <h> --honest node01,�
 - Báo vi phạm: `FsmState` đã commit ≠ giá trị tính lại; aggregate số nằm ngoài [min, max] của các
   certificate honest trong tập; có tx withdrawal khi SOVEREIGN/RECOVERING.
 - Kết quả `replay_violations.csv`; paper báo số dòng mỗi case (kỳ vọng 0).
+
+Trạng thái code:
+- Đã làm 13a: `x/sovereignty/byzantine.go` (`false_observation`, `bias_certificate[:best]`,
+  `omit_certs:<k>`, `stale_receipt`, `include_withdrawal`; ghép bằng `;`),
+  `docker/engram-byzantine.yml` (biến `ENGRAM_BYZANTINE_BEHAVIOR_NODE0X` mỗi node, rỗng = trung thực)
+  và dịch vụ double-sign thứ hai cho node05. Khác kế hoạch: dùng biến theo từng node thay cho
+  `ENGRAM_BYZANTINE_NODES`; B8 không cần hook.
+- Đã làm 13c: `x/sovereignty/replay.go` + `engramd debug replay-fsm` (`--honest`/`--byzantine`,
+  `--report-from`, `--check-committed`). Chạy ngoài container validator (đã ~80% giới hạn 512 MiB),
+  lấy `reanchoring_proof_valid` từ chuỗi vì proof ZK thật không tái hiện được từ byte của block.
+  Kiểm tra trên 726 block có một lần SOVEREIGN→RECOVERING→ANCHORED thật: 0 vi phạm.
+- Đã làm 13b ở mức in-process: `collusion_test.go` phủ B1–B3, B5, B6 và đối chứng âm B9 ở n=7
+  (b ≤ 2 nằm trong khoảng honest; b = 3 với leader Byzantine thoát khỏi khoảng đó).
+- Đã làm `scripts/e8_attack_resilience/live_collusion_suite.py` (B1–B9, eclipse thật, DA outage,
+  double-sign hai node, replay mỗi case).
+- Lỗi tìm thấy khi chạy live: `k.Params` chỉ gán trong `InitChainer`, nên validator khởi động lại
+  dùng `DefaultParams()` thay vì Params genesis và lệch AppHash (panic `wrong Block.Header.AppHash`).
+  Đã sửa bằng `EngramApp.LoadGenesisParams` (commit `cb7458b`); kết quả live trước bản sửa không dùng.
+- Đang chạy (bắt đầu 2026-10-02 22:35, dự kiến xong khoảng 06:00 hôm sau): B1–B7 3 trial,
+  B8 1 trial, B9 5 trial, 120 s tấn công mỗi case (kế hoạch ban đầu 180 s).
+- Chưa làm: cập nhật `docs/EXPERIMENT.md` và paper bằng số liệu live (`evaluation.tex`,
+  `experimental_setup.tex`, `system_design.tex`), hình B9, chạy lại A1/A2 ở n=7, mục 14.
+- Giới hạn: B7/B8 chỉ đo, không khẳng định chuyển trạng thái; thông số n=1 (B8) và n=3/5 chỉ đủ
+  báo số lần đạt, không báo độ lệch chuẩn.
 
 ### 14. Làm lại A3, A4, A7, A10 [M]
 
