@@ -119,7 +119,7 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, ba
 	if !vanilla {
 		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, byzantineBehavior))
 		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper))
-		bApp.SetExtendVoteHandler(sovereignty.NewExtendVoteHandler(sovKeeper, sensorBundle))
+		bApp.SetExtendVoteHandler(sovereignty.NewExtendVoteHandler(sovKeeper, sensorBundle, byzantineBehavior))
 		bApp.SetVerifyVoteExtensionHandler(sovereignty.NewVerifyVoteExtensionHandler(sovKeeper))
 		bApp.SetPreBlocker(sovereignty.NewPreBlocker(sovKeeper))
 	}

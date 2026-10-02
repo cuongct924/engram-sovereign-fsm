@@ -352,7 +352,7 @@ func TestAggregateHealthCertificates_WrongHeightSignatureRejected(t *testing.T) 
 
 func TestNewExtendVoteHandler_NilSensorsStillProducesDecodableExtension(t *testing.T) {
 	k, ctx := newVoteExtTestKeeperCtx(t)
-	handler := NewExtendVoteHandler(k, nil)
+	handler := NewExtendVoteHandler(k, nil, "")
 
 	resp, err := handler(ctx, &abci.RequestExtendVote{})
 	require.NoError(t, err)

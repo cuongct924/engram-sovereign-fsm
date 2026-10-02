@@ -42,8 +42,9 @@ import (
 // for the AppHash-divergence risk this avoids). The resulting metrics
 // snapshot becomes this validator's signed vote extension; PrepareProposal
 // aggregates >=2f+1 of these into a certificate that everyone else reads
-// instead of touching a live sensor again.
-func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors) sdk.ExtendVoteHandler {
+// instead of touching a live sensor again. byzantineBehavior (E8 only, "" on
+// every real validator) lets a colluding node sign a false observation.
+func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 		if err := RefreshMetrics(ctx, k, s); err != nil {
 			return nil, err
@@ -51,6 +52,9 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors) sdk.ExtendVoteHandler {
 		metrics, err := k.Metrics.Get(ctx)
 		if err != nil {
 			metrics = &types.PeripheralMetrics{}
+		}
+		if byzantineBehavior != "" {
+			metrics = applyByzantineObservation(byzantineBehavior, metrics)
 		}
 		ext, err := proto.Marshal(metrics)
 		if err != nil {
@@ -135,29 +139,15 @@ func AggregateHealthCertificates(ctx sdk.Context, k *keeper.Keeper, chainID stri
 		if seen[addr] {
 			continue // one certificate per validator; extras never add power
 		}
-		vi, err := k.ValidatorPubKeys.Get(ctx, addr)
-		if err != nil {
-			continue // not a genesis validator -- never counted
-		}
-
-		signBytes := cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{
-			Height:    height,
-			Round:     cert.Round,
-			Extension: cert.MetricsExtension,
-		})
-		if !ed25519.PubKey(vi.PubKey).VerifySignature(signBytes, cert.ExtensionSignature) {
-			continue // forged/mismatched signature -- excluded, not fatal
-		}
-
-		var m types.PeripheralMetrics
-		if err := proto.Unmarshal(cert.MetricsExtension, &m); err != nil {
-			continue
+		m, power, ok := verifiedCertificate(ctx, k, chainID, height, cert)
+		if !ok {
+			continue // not a genesis validator, forged signature, or undecodable -- excluded, not fatal
 		}
 
 		seen[addr] = true
-		metrics = append(metrics, &m)
-		powers = append(powers, vi.Power)
-		verifiedPower += vi.Power
+		metrics = append(metrics, m)
+		powers = append(powers, power)
+		verifiedPower += power
 	}
 
 	if verifiedPower < quorum {
@@ -181,6 +171,29 @@ func AggregateHealthCertificates(ctx sdk.Context, k *keeper.Keeper, chainID stri
 		BtcCurrentHeight:             weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.BtcCurrentHeight }), powers),
 		DaContiguousHeight:           weightedMedianUint64(mapUint64(metrics, func(m *types.PeripheralMetrics) uint64 { return m.DaContiguousHeight }), powers),
 	}, true
+}
+
+// verifiedCertificate checks cert's signer is a genesis validator and its
+// extension signature covers (chainID, height, round, extension), returning
+// the decoded metrics and the signer's voting power.
+func verifiedCertificate(ctx sdk.Context, k *keeper.Keeper, chainID string, height int64, cert *types.SignedHealthCertificate) (*types.PeripheralMetrics, int64, bool) {
+	vi, err := k.ValidatorPubKeys.Get(ctx, string(cert.ValidatorAddress))
+	if err != nil {
+		return nil, 0, false
+	}
+	signBytes := cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{
+		Height:    height,
+		Round:     cert.Round,
+		Extension: cert.MetricsExtension,
+	})
+	if !ed25519.PubKey(vi.PubKey).VerifySignature(signBytes, cert.ExtensionSignature) {
+		return nil, 0, false
+	}
+	m := &types.PeripheralMetrics{}
+	if err := proto.Unmarshal(cert.MetricsExtension, m); err != nil {
+		return nil, 0, false
+	}
+	return m, vi.Power, true
 }
 
 func mapUint64(metrics []*types.PeripheralMetrics, f func(*types.PeripheralMetrics) uint64) []uint64 {

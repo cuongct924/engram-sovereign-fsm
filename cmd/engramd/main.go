@@ -70,6 +70,7 @@ func main() {
 	rootCmd.AddCommand(publishRecoveryWitnessCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
 	rootCmd.AddCommand(txSubmitForcedTxCmd())
+	rootCmd.AddCommand(debugCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -1,0 +1,27 @@
+# Multi-node Byzantine override for the f=2 collusion suite (docs/EXPERIMENT.md,
+# E8 B1-B9). Deliberately NOT in docker-compose.yml's `include:` (would be
+# always active) and no top-level `name:`. One variable per validator; empty
+# (the default) means honest, so the suite recreates exactly the nodes whose
+# assignment changed:
+#
+#   ENGRAM_BYZANTINE_BEHAVIOR_NODE04='false_observation:{"btc_gap":"6"}' \
+#   ENGRAM_BYZANTINE_BEHAVIOR_NODE05=bias_certificate \
+#     docker compose -f docker-compose.yml -f docker/engram-byzantine.yml \
+#       up -d --no-deps --force-recreate engram-node04 engram-node05
+#
+# Valid values: x/sovereignty/proposal.go (applyByzantineBehavior) and
+# x/sovereignty/byzantine.go; join several with ';'. Never set on a real validator.
+
+services:
+  engram-node04:
+    environment:
+      - ENGRAM_BYZANTINE_BEHAVIOR=${ENGRAM_BYZANTINE_BEHAVIOR_NODE04:-}
+  engram-node05:
+    environment:
+      - ENGRAM_BYZANTINE_BEHAVIOR=${ENGRAM_BYZANTINE_BEHAVIOR_NODE05:-}
+  engram-node06:
+    environment:
+      - ENGRAM_BYZANTINE_BEHAVIOR=${ENGRAM_BYZANTINE_BEHAVIOR_NODE06:-}
+  engram-node07:
+    environment:
+      - ENGRAM_BYZANTINE_BEHAVIOR=${ENGRAM_BYZANTINE_BEHAVIOR_NODE07:-}

@@ -93,8 +93,8 @@ func degradedMetrics(params types.Params) *types.PeripheralMetrics {
 
 // byzantineFakeFSMStatePrefix / byzantineForgeBTCHash / byzantineFalseDA /
 // byzantineCensorTxPrefix are ENGRAM_BYZANTINE_BEHAVIOR's recognized values
-// (docs/EXPERIMENT.md's E8 A3/A4/A6/A7 rows) -- only engram-node04-
-// byzantine.yml ever sets this env var.
+// (docs/EXPERIMENT.md's E8 A3/A4/A6/A7 rows); byzantine.go adds the f=2
+// collusion hooks. Only the byzantine compose overrides ever set this env var.
 const (
 	byzantineFakeFSMStatePrefix = "fake_fsm_state:"
 	byzantineForgeBTCHash       = "forge_btc_hash"
@@ -120,6 +120,15 @@ func applyByzantineBehavior(behavior string, cert *types.AggregatedHealthCertifi
 		// A3: claim DA attestation succeeded without a real submission backing it.
 		cert.DaAttestation = true
 		cert.DaPublishedBlockHeight++
+	case behavior == byzantineStaleReceipt:
+		// B6: authentic but old DA/BTC receipts (byzantine.go).
+		applyByzantineStaleReceipt(cert)
+	case behavior == byzantineIncludeWithdrawal:
+		// B5: a withdrawal inside a block whose own claimed state locks
+		// withdrawals; ProcessProposal's check #4 must reject it.
+		if types.WithdrawLocked(cert.FsmState) {
+			txs = append(txs, byzantineWithdrawalPayload(cert.Height+1))
+		}
 	case strings.HasPrefix(behavior, byzantineCensorTxPrefix):
 		// A7: omit one specific tx despite it being in the mempool/
 		// ForcedTxQueue, exercising IsCensoring against a real adversary.
@@ -150,6 +159,9 @@ func applyByzantineBehavior(behavior string, cert *types.AggregatedHealthCertifi
 func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
 		certs := certificatesFromExtendedCommit(req.LocalLastCommit)
+		if byzantineBehavior != "" {
+			certs = applyByzantineCertificates(ctx, k, byzantineBehavior, certs)
+		}
 		extHeight := req.Height - 1
 		metrics, ok := AggregateHealthCertificates(ctx, k, ctx.ChainID(), extHeight, certs)
 		if !ok {
@@ -220,7 +232,8 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 		innerTxs := req.Txs
 		// Filter withdrawal transactions early to avoid proposing rejected TXs
 		// and deadlocking rounds when withdrawals are locked (EngramTendermint.tla:332).
-		if types.WithdrawLocked(targetState) && !k.Baseline.SkipsCircuitBreaker() {
+		if types.WithdrawLocked(targetState) && !k.Baseline.SkipsCircuitBreaker() &&
+			!hasByzantineBehavior(splitByzantineBehaviors(byzantineBehavior), byzantineIncludeWithdrawal) {
 			filtered := innerTxs[:0:0]
 			for _, tx := range innerTxs {
 				if containsWithdrawal(tx) {
@@ -230,8 +243,13 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 			}
 			innerTxs = filtered
 		}
+		for _, behavior := range splitByzantineBehaviors(byzantineBehavior) {
+			innerTxs = applyByzantineBehavior(behavior, cert, innerTxs)
+		}
 		if byzantineBehavior != "" {
-			innerTxs = applyByzantineBehavior(byzantineBehavior, cert, innerTxs)
+			// One line per proposal this node leads: E8's B9 sweep counts the
+			// share of heights a Byzantine proposer controls from it.
+			fmt.Printf("engramd: BYZANTINE PrepareProposal height=%d behavior=%s\n", req.Height, byzantineBehavior)
 		}
 
 		encoded, err := EncodeAggregatedHealthCertificate(cert)

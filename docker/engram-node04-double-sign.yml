@@ -42,5 +42,36 @@ services:
         exec engramd start --home /root/.engramd
     restart: "no"
 
+
+# Second impersonated identity for the f=2 collusion suite (B4): node05's key,
+# its own fresh signing state. Same staging contract as node04's above
+# (scripts/testnet_double_sign_toggle.sh / live_collusion_suite.py).
+  engram-node05-double-sign:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      additional_contexts:
+        - cometbft-fork=../../engram-consensus-core
+    hostname: engram-node05-double-sign
+    container_name: engram-node05-double-sign
+    profiles: [double-sign-harness]
+    networks:
+      engram-net:
+        ipv4_address: 172.28.0.221
+    volumes:
+      - ../testnet-data/engram-node05-double-sign:/root/.engramd
+    environment:
+      - PERSISTENT_PEERS=${DUPLICATE_PERSISTENT_PEERS:-SET_DUPLICATE_PERSISTENT_PEERS_BEFORE_USE}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        engramd init engram-node05-double-sign --home /root/.engramd || true
+        sed -i "s#^persistent_peers *=.*#persistent_peers = \"$$PERSISTENT_PEERS\"#" /root/.engramd/config/config.toml
+        sed -i "s#^addr_book_strict *=.*#addr_book_strict = false#" /root/.engramd/config/config.toml
+        sed -i "s#^allow_duplicate_ip *=.*#allow_duplicate_ip = true#" /root/.engramd/config/config.toml
+        echo "engram-node05-double-sign: holding node05's real validator key, own independent state"
+        exec engramd start --home /root/.engramd
+    restart: "no"
+
 # engram-net is owned by the root compose.yml -- redeclaring it here would
 # hit "conflicts with imported resource".
