@@ -1,0 +1,13 @@
+[package]
+name = "reanchoring_aggregator"
+type = "bin"
+authors = ["CuongCT <cuongct0902@gmail.com>"]
+compiler_version = ">=0.31.0"
+
+[dependencies]
+# Pinned to the tag matching the local `bb` (5.0.0-nightly.20260522); see
+# reanchoring_recursion_spike_aggregator/Nargo.toml.
+bb_proof_verification = { git = "https://github.com/AztecProtocol/aztec-packages", tag = "v5.0.0-nightly.20260522", directory = "barretenberg/noir/bb_proof_verification" }
+
+[bin]
+name = "reanchoring_aggregator"

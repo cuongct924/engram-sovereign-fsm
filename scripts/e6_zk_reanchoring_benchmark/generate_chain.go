@@ -9,7 +9,17 @@
 // no cross-binding here (the real chain ties them together via keeper
 // lookups this benchmark doesn't exercise).
 //
-// Usage: go run generate_chain.go <count> <n_max> > Prover.toml
+// Optional third argument <start>: emit the chunk covering global headers
+// [start, start+count) of one deterministic chain (fixed validator keys, height-derived block
+// hashes), so consecutive chunks chain through rt_last/rt_new and share a validator set --
+// the fixture circuit/reanchoring_aggregator is tested against.
+//
+// Chunk-mode negative fixtures (circuit/reanchoring_aggregator/negative_tests.sh): env
+// ENGRAM_FIXTURE_HEIGHT_SKEW=<n> shifts the boundary heights (a gap between chunks) and
+// ENGRAM_FIXTURE_KEY_SEED=<s> swaps the validator keys (a different validator set); both leave the
+// header chain intact, so only the aggregator's cross-chunk checks can catch them.
+//
+// Usage: go run generate_chain.go <count> <n_max> [<start>] > Prover.toml
 package main
 
 import (
@@ -37,9 +47,18 @@ const (
 )
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: generate_chain.go <count> <n_max>")
+	if len(os.Args) != 3 && len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "usage: generate_chain.go <count> <n_max> [<start>]")
 		os.Exit(1)
+	}
+	chunked := len(os.Args) == 4
+	start := 0
+	if chunked {
+		var serr error
+		if start, serr = strconv.Atoi(os.Args[3]); serr != nil || start < 0 {
+			fmt.Fprintln(os.Stderr, "start must be a non-negative integer:", serr)
+			os.Exit(1)
+		}
 	}
 	count, err := strconv.Atoi(os.Args[1])
 	if err != nil || count < 1 {
@@ -55,6 +74,11 @@ func main() {
 	// --- header-chain half (unrelated to the boundary half -- see doc) ---
 	rtLast := types.ReduceToField(big.NewInt(111).Bytes())
 	prevHash := rtLast
+	// Chunk mode: replay the global chain up to `start` so rt_last is the real accumulator there.
+	for g := 0; g < start; g++ {
+		prevHash = types.HashHeader(prevHash, globalFSM(g), true, globalStateRoot(g))
+	}
+	rtLast = prevHash
 
 	type header struct {
 		prevHash, stateRoot []byte
@@ -62,23 +86,27 @@ func main() {
 	}
 	headers := make([]header, count)
 	for i := 0; i < count; i++ {
-		fsm := types.StateSovereign
-		if i%2 == 1 {
-			fsm = types.StateRecovering
-		}
-		stateRoot := types.ReduceToField(big.NewInt(int64(1000 + i)).Bytes())
+		fsm := globalFSM(start + i)
+		stateRoot := globalStateRoot(start + i)
 		headers[i] = header{prevHash, stateRoot, fsm}
 		prevHash = types.HashHeader(prevHash, fsm, true, stateRoot)
 	}
 	rtNew := prevHash
 
 	// --- boundary-signature half ---
-	firstHeight := uint64(1)
+	firstHeight := uint64(1 + start)
+	if skew, _ := strconv.Atoi(os.Getenv("ENGRAM_FIXTURE_HEIGHT_SKEW")); chunked && skew > 0 {
+		firstHeight += uint64(skew)
+	}
 	lastHeight := firstHeight + uint64(count) - 1
 
 	privs := make([]cmted25519.PrivKey, numValidators)
 	for i := 0; i < numValidators; i++ {
-		privs[i] = cmted25519.GenPrivKey()
+		if chunked {
+			privs[i] = cmted25519.GenPrivKeyFromSecret([]byte(fmt.Sprintf("engram-chunk-fixture-validator-%d%s", i, os.Getenv("ENGRAM_FIXTURE_KEY_SEED"))))
+		} else {
+			privs[i] = cmted25519.GenPrivKey()
+		}
 	}
 	// cmttypes.NewValidatorSet sorts by address before hashing -- the
 	// circuit's leaf order must match, or validator_set_hash_7 disagrees
@@ -94,6 +122,10 @@ func main() {
 
 	firstBlockHash := fabricatedBlockHash(1)
 	lastBlockHash := fabricatedBlockHash(2)
+	if chunked {
+		firstBlockHash = heightBlockHash(firstHeight)
+		lastBlockHash = heightBlockHash(lastHeight)
+	}
 
 	firstBlock := buildBoundaryBlockWitness(firstHeight, firstBlockHash, privs, "first_block")
 	lastBlock := buildBoundaryBlockWitness(lastHeight, lastBlockHash, privs, "last_block")
@@ -148,6 +180,27 @@ func main() {
 		fmt.Println("[[headers]]")
 		fmt.Print("prev_hash = \"0\"\nfsm_state = \"0\"\nwithdrawal_locked = \"0\"\nstate_root = \"0\"\n")
 	}
+}
+
+func globalFSM(g int) string {
+	if g%2 == 1 {
+		return types.StateRecovering
+	}
+	return types.StateSovereign
+}
+
+func globalStateRoot(g int) []byte {
+	return types.ReduceToField(big.NewInt(int64(1000 + g)).Bytes())
+}
+
+// heightBlockHash is the chunk-mode block hash: a pure function of height, so a block that is
+// one chunk's last boundary and the next chunk's neighbour is signed identically wherever it appears.
+func heightBlockHash(height uint64) []byte {
+	h := make([]byte, 32)
+	for i := range h {
+		h[i] = byte(height>>(8*(i%8))) ^ byte(i*7+1)
+	}
+	return h
 }
 
 // fabricatedBlockHash returns a deterministic, distinguishable 32-byte
