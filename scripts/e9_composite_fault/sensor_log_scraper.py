@@ -6,8 +6,13 @@ No timestamp to parse (height-keyed) -- a caller correlates height to wall-clock
 own RPC-sampled timeline instead.
 """
 
+import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
+from cluster import CLUSTER  # noqa: E402
 
 SENSOR_SNAPSHOT_RE = re.compile(
     r"engramd: sensor_snapshot height=(\d+) btc_gap=(\d+) btc_spv_failed=(true|false) "
@@ -17,16 +22,14 @@ SENSOR_SNAPSHOT_RE = re.compile(
 
 
 def scrape_sensor_snapshots(container: str) -> list:
-    """Pulls and parses every sensor_snapshot line in `container`'s log history. Returns [] on
-    any docker/log failure -- best-effort diagnostic data, never required.
+    """Pulls and parses every sensor_snapshot line in validator `container`'s log history (local
+    docker logs, or over SSH under ENGRAM_CLUSTER=ssh). Returns [] on any docker/log failure --
+    best-effort diagnostic data, never required.
     """
     try:
-        proc = subprocess.run(
-            ["docker", "logs", container], capture_output=True, text=True, timeout=30
-        )
+        text = CLUSTER.logs(container)
     except (subprocess.TimeoutExpired, OSError):
         return []
-    text = proc.stdout + proc.stderr
     out = []
     for m in SENSOR_SNAPSHOT_RE.finditer(text):
         (

@@ -141,14 +141,35 @@ ansible-playbook site.yml ...                            # fresh deploy
 - **Infra is a single point.** One host serves Bitcoin and `celestia-app` to all validators, as in the
   single-host testnet; the per-validator bridges keep DA observations independent, Bitcoin's are not.
 
-## What is not here yet
+## Running the experiments on this cluster
 
-The experiment scripts under `scripts/` inject faults with `docker exec`, `docker stop` and `docker`
-Pumba profiles, which only reach containers on the machine running them. Running E9's composite fault
-or E11 on this cluster still needs a remote adapter in `scripts/framework/` (the same fault actions
-over SSH: stop/start the bridge, create/remove `/tmp/anchor_submission_paused` in the `engramd`
-container). Until then this deployment gives you the cluster and `status.yml`; the faults themselves
-cannot yet be driven remotely.
+The fault-injection scripts talk to the cluster through `scripts/framework/cluster.py`. Select the
+deployment with environment variables; without them everything runs on the local Docker testnet as before.
+
+```bash
+export ENGRAM_CLUSTER=ssh                       # default: docker
+# export ENGRAM_INVENTORY=...                   # default: deploy/ansible/inventory/hosts.yml
+python3 -u scripts/e9_composite_fault/live_combined_trace.py     # the composite fault
+make e11-trial MODE=engram FAULT=da TRIALS=3                     # RQ2 baseline comparison
+```
+
+Needs on the controller: `ansible-inventory` (ansible-core), key-based SSH to every host (the
+inventory's `ansible_ssh_private_key_file`), passwordless sudo for non-root users, and an
+`operator_cidrs` entry for this machine (RPC goes straight to each validator's public address).
+For `make e11-trial`, `MODE` must match the `engram_mode` the cluster was deployed with; the script
+checks and refuses otherwise.
+
+| Fault | SSH-mode implementation |
+|---|---|
+| DA outage | `docker stop celestia-bridge` on all validators at once |
+| Checkpoint-submission pause | `touch` the pause file in each `engramd` container |
+| BTC congestion (`btc_delay`) | `tc netem delay 500 ms ± 100` on `infra01`, only for traffic from Bitcoin's RPC port |
+| P2P churn (`p2p_loss`) | `tc netem loss 5%` on node01/node02, only for CometBFT P2P (26656) traffic |
+| WAN-realism profile | skipped: the links are already a real WAN (`--wan-profile` defaults to `none`) |
+
+Scripts that are not yet routed through `CLUSTER` (E2, E3, E4, E5, E7, E8, E10 and the sensor-mismatch
+and throughput scripts) still use `docker`/Pumba directly and only work on the local testnet. E9 and
+E11 are the ones the multi-host question needs.
 
 ## What was verified
 
@@ -156,7 +177,9 @@ The Ansible playbooks pass `--syntax-check`; the controller role was run end to 
 generates the 7-validator genesis with the public addresses and 500 ms latency bound, archives the
 sources); both compose templates render and pass `docker compose config`; all four Terraform stacks
 pass `terraform validate`. **Nothing has been applied to a real cloud account or run on real hosts**,
-so expect to fix provider- or distribution-specific details on the first live deploy.
+so expect to fix provider- or distribution-specific details on the first live deploy. The SSH adapter's
+command construction, inventory parsing and failure handling are tested against the example inventory
+with a stubbed `ssh`; no real remote command has been executed.
 
 ## Troubleshooting
 

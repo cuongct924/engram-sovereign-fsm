@@ -6,7 +6,8 @@ The cluster must already be deployed in the mode under test (`make testnet-up MO
 script reads ENGRAM_MODE from the running container and refuses to run on a mismatch. One trial is
 three phases on one continuous chain: healthy baseline -> fault -> recovery.
 
-Faults (all keep Bitcoin mining; see docs/DEVELOPMENT.md):
+Faults (all keep Bitcoin mining; see docs/DEVELOPMENT.md). Under ENGRAM_CLUSTER=ssh they run on
+the deploy/ hosts (scripts/framework/cluster.py):
   btc   checkpoint-submission pause: BTC keeps advancing, no new checkpoint, so btc_gap grows
         (the only mechanism confirmed live to grow it -- see live_scenario_matrix.py's S2)
   da    docker stop of every validator's Celestia bridge
@@ -31,27 +32,19 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "framework"))
-from logger import (  # noqa: E402
-    NODE_RPC_PORTS,
-    QUERY_STATE_PATH,
-    _decode_query_state,
-    query_node,
-    start_all_da_bridges,
-    stop_all_da_bridges,
-)
+from cluster import CLUSTER  # noqa: E402
+from logger import QUERY_STATE_PATH, _decode_query_state, query_node  # noqa: E402
 
 RESULTS_DIR = os.path.join(HERE, "results_live")
 SUMMARY_CSV = os.path.join(RESULTS_DIR, "e11_summary.csv")
-PAUSE_FILE = "/tmp/anchor_submission_paused"  # ANCHOR_SUBMISSION_PAUSED_FILE in the cluster compose
-NODES = list(NODE_RPC_PORTS.keys())
+NODES = list(CLUSTER.nodes)
 OBSERVER = NODES[0]
-OBSERVER_PORT = NODE_RPC_PORTS[OBSERVER]
+OBSERVER_URL = f"http://{CLUSTER.rpc_host(OBSERVER)}:{CLUSTER.rpc_port(OBSERVER)}"
 UNSAFE_STATES = ("SOVEREIGN", "RECOVERING")
 STALL_GAP_S = 30.0  # a longest block gap above this inside the fault window counts as a stall
 SUMMARY_FIELDS = [
@@ -67,8 +60,8 @@ def now() -> str:
     return time.strftime("%H:%M:%S", time.gmtime())
 
 
-def rpc(path: str, port: int = OBSERVER_PORT, timeout: float = 5.0) -> dict:
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=timeout) as r:
+def rpc(path: str, timeout: float = 5.0) -> dict:
+    with urllib.request.urlopen(f"{OBSERVER_URL}{path}", timeout=timeout) as r:
         return json.load(r)["result"]
 
 
@@ -83,28 +76,20 @@ def latest_height() -> int:
 
 
 def container_mode(node: str) -> str:
-    out = subprocess.run(["docker", "exec", node, "printenv", "ENGRAM_MODE"],
-                         capture_output=True, text=True, timeout=15).stdout.strip()
-    return out or "engram"
-
-
-def docker_exec(node: str, *args: str) -> None:
-    subprocess.run(["docker", "exec", node, *args], capture_output=True, text=True, timeout=30)
+    return CLUSTER.container_env(node, "ENGRAM_MODE") or "engram"
 
 
 def inject(fault: str) -> None:
     if fault in ("btc", "both"):
-        for n in NODES:
-            docker_exec(n, "touch", PAUSE_FILE)
+        CLUSTER.anchor_pause(True)
     if fault in ("da", "both"):
-        stop_all_da_bridges()
+        CLUSTER.da_stop_all()
 
 
 def heal() -> None:
     """Idempotent: restores every fault regardless of which one ran."""
-    for n in NODES:
-        docker_exec(n, "rm", "-f", PAUSE_FILE)
-    start_all_da_bridges()
+    CLUSTER.anchor_pause(False)
+    CLUSTER.da_start_all()
 
 
 class Sampler(threading.Thread):
@@ -305,7 +290,11 @@ def main() -> int:
     ap.add_argument("--engramd", default=os.environ.get("ENGRAMD_BIN", os.path.join(HERE, "..", "..", "build", "engramd")))
     args = ap.parse_args()
 
-    deployed = container_mode(OBSERVER)
+    try:
+        deployed = container_mode(OBSERVER)
+    except RuntimeError as e:
+        print(f"refusing to run: {e}", file=sys.stderr)
+        return 2
     if deployed != args.mode:
         print(f"refusing to run: --mode {args.mode} but {OBSERVER} runs ENGRAM_MODE={deployed} "
               f"(redeploy with `make testnet-up MODE={args.mode}`)", file=sys.stderr)

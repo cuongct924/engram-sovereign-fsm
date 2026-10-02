@@ -14,19 +14,18 @@ import urllib.error
 from dataclasses import dataclass, asdict
 from typing import List, Optional
 
-# Must match whichever `make testnet-up N=4|7` topology is actually running --
-# the ONE place to change when switching cluster sizes. A too-high count
-# doesn't crash outright (query_node() returns error-flagged samples for
-# unreachable nodes), just silently hangs any wait_for_state() check.
-VALIDATOR_COUNT = int(os.environ.get("ENGRAM_VALIDATOR_COUNT", "7"))
+from cluster import CLUSTER
 
-# engram-node01..NN's host-mapped RPC ports: node01=26657, +100 per node.
-# Some E2-E10 scripts still hardcode their own node list for topology
-# reasons (a named byzantine/eclipse target) -- this only sets
-# sample_all_nodes()'s default.
-NODE_RPC_PORTS = {
-    f"engram-node{i:02d}": 26657 + (i - 1) * 100 for i in range(1, VALIDATOR_COUNT + 1)
-}
+# The node list comes from CLUSTER: ENGRAM_VALIDATOR_COUNT (default 7) for the local Docker
+# testnet -- must match whichever `make testnet-up N=4|7` topology is running; a too-high count
+# doesn't crash (query_node() returns error-flagged samples for unreachable nodes), it silently
+# hangs any wait_for_state() check -- or the deploy/ inventory under ENGRAM_CLUSTER=ssh.
+VALIDATOR_COUNT = len(CLUSTER.nodes)
+
+# engram-node01..NN's RPC ports (Docker: node01=26657, +100 per node; ssh: 26657 on each host,
+# addressed by CLUSTER.rpc_host). Some E2-E10 scripts still hardcode their own node list for
+# topology reasons (a named byzantine/eclipse target) -- this only sets sample_all_nodes()'s default.
+NODE_RPC_PORTS = {n: CLUSTER.rpc_port(n) for n in CLUSTER.nodes}
 
 # Each validator's own independent Celestia bridge -- a real cluster-wide DA
 # outage means stopping ALL of them, since AggregateHealthCertificates'
@@ -35,19 +34,17 @@ CELESTIA_BRIDGES = [f"celestia-bridge-node{i:02d}" for i in range(1, VALIDATOR_C
 
 
 def stop_all_da_bridges(timeout: float = 30.0) -> None:
-    for name in CELESTIA_BRIDGES:
-        subprocess.run(["docker", "stop", name], capture_output=True, text=True, timeout=timeout)
+    CLUSTER.da_stop_all()
 
 
 def start_all_da_bridges(timeout: float = 30.0) -> None:
-    for name in CELESTIA_BRIDGES:
-        subprocess.run(["docker", "start", name], capture_output=True, text=True, timeout=timeout)
+    CLUSTER.da_start_all()
 
 QUERY_STATE_PATH = "/engram.sovereignty.v1.Query/State"
 
 
-def _rpc_get(port: int, path: str, timeout: float = 3.0) -> dict:
-    url = f"http://localhost:{port}{path}"
+def _rpc_get(port: int, path: str, timeout: float = 3.0, host: str = "localhost") -> dict:
+    url = f"http://{host}:{port}{path}"
     with urllib.request.urlopen(url, timeout=timeout) as resp:
         return json.loads(resp.read())
 
@@ -120,15 +117,16 @@ def query_node(node: str, port: Optional[int] = None) -> NodeSample:
     committed state, not recomputed here.
     """
     port = port or NODE_RPC_PORTS[node]
+    host = CLUSTER.rpc_host(node) if node in CLUSTER.nodes else "localhost"
     ts = time.time()
     try:
-        status = _rpc_get(port, "/status")
+        status = _rpc_get(port, "/status", host=host)
         sync_info = status["result"]["sync_info"]
         height = int(sync_info["latest_block_height"])
         app_hash = sync_info["latest_app_hash"]
         catching_up = bool(sync_info["catching_up"])
 
-        abci = _rpc_get(port, f"/abci_query?path=%22{QUERY_STATE_PATH}%22&data=0x")
+        abci = _rpc_get(port, f"/abci_query?path=%22{QUERY_STATE_PATH}%22&data=0x", host=host)
         resp = abci["result"]["response"]
         if resp.get("code", 0) != 0:
             raise RuntimeError(f"abci_query error: {resp.get('log')}")

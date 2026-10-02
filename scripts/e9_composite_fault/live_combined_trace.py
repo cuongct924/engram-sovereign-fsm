@@ -32,14 +32,8 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
+from cluster import CLUSTER  # noqa: E402
 from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
-from injector import (
-    start_pumba_profile,
-    cleanup_profile,
-    wait_for_no_active_netem,
-    start_pumba_wan_profile,
-    cleanup_wan_profile,
-)  # noqa: E402
 from sensor_log_scraper import scrape_sensor_snapshots, nearest_timestamp  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
@@ -126,16 +120,19 @@ def main():
     parser.add_argument(
         "--wan-profile",
         choices=["none", "chaos-wan-latency", "chaos-wan-loss"],
-        default="chaos-wan-latency",
+        default=None,
         help="per-validator WAN-realism baseline (each of the 7 validators gets a DIFFERENT "
         "delay/jitter or loss%%, approximating distinct real regions) held for the whole trace "
         "EXCEPT Phase 4 -- chaos-wan-* and chaos-loss both add a root netem qdisc on the same "
         "interfaces, so the WAN baseline is paused before Phase 4 and resumed after. 'none' "
         "reproduces the old uniform-LAN behavior. The profile's own --duration is 10 minutes; a "
         "slow Phase 7 can outlast it, silently reverting to uniform-LAN for the remainder -- not "
-        "fatal, Phase 7 only waits for recovery.",
+        "fatal, Phase 7 only waits for recovery. Default: chaos-wan-latency on the Docker testnet, "
+        "none under ENGRAM_CLUSTER=ssh (a real WAN needs no emulation).",
     )
     args = parser.parse_args()
+    if args.wan_profile is None:
+        args.wan_profile = "chaos-wan-latency" if CLUSTER.name == "docker" else "none"
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     tr = Tracker()
@@ -143,15 +140,14 @@ def main():
     wan_active = False
     if args.wan_profile != "none":
         print(f"[{now()}] >>> starting {args.wan_profile} (WAN-realism baseline)")
-        start_pumba_wan_profile(args.wan_profile)
+        CLUSTER.wan_start(args.wan_profile)
         wan_active = True
 
     print("=== Phase 1: baseline ===")
     tr.poll(15, phase="P1_baseline")
 
     print("=== Phase 2: BTC pressure begins (chaos-btc-delay) ===")
-    wait_for_no_active_netem()
-    start_pumba_profile("chaos-btc-delay")
+    CLUSTER.btc_delay(True)
     tr.mark("chaos-btc-delay started (BTC congestion pressure)")
     tr.poll(60, interval=3.0, phase="P2_btc_pressure_building")
 
@@ -170,25 +166,23 @@ def main():
         # on the same engram-node01/02 interfaces -- a second root qdisc add
         # fails outright, so the WAN baseline must step aside for this phase.
         print(f"[{now()}] >>> pausing {args.wan_profile} for Phase 4 (root qdisc conflict with chaos-loss)")
-        cleanup_wan_profile(args.wan_profile)
+        CLUSTER.wan_stop(args.wan_profile)
     tr.mark("chaos-loss churn burst starting (3rd simultaneous fault class)")
     for i in range(3):
-        wait_for_no_active_netem()
-        start_pumba_profile("chaos-loss")
+        CLUSTER.p2p_loss(True)
         tr.poll(20, interval=2.0, phase=f"P4_triple_fault_churn_cycle_{i + 1}_on")
-        cleanup_profile("chaos-loss")
+        CLUSTER.p2p_loss(False)
         tr.poll(10, interval=2.0, phase=f"P4_triple_fault_churn_cycle_{i + 1}_off")
     tr.mark("P2P churn burst complete")
     if wan_active:
         print(f"[{now()}] >>> resuming {args.wan_profile} after Phase 4")
-        wait_for_no_active_netem()
-        start_pumba_wan_profile(args.wan_profile)
+        CLUSTER.wan_resume(args.wan_profile)
 
     print("=== Phase 5: hold at peak triple-fault state briefly ===")
     tr.poll(30, phase="P5_peak_triple_fault")
 
     print("=== Phase 6: heal in reverse order ===")
-    cleanup_profile("chaos-btc-delay")
+    CLUSTER.btc_delay(False)
     tr.mark("chaos-btc-delay cleaned up")
     start_all_da_bridges()
     tr.mark("all 7 celestia bridges restarted")
@@ -201,7 +195,7 @@ def main():
 
     if wan_active:
         print(f"[{now()}] >>> stopping {args.wan_profile} (WAN-realism baseline)")
-        cleanup_wan_profile(args.wan_profile)
+        CLUSTER.wan_stop(args.wan_profile)
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
     csv_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}.csv")
