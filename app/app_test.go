@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -39,4 +40,23 @@ func TestNewEngramApp_VanillaSkipsPreBlocker(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A restarted node never runs InitChain; LoadGenesisParams must restore the
+// genesis Params or it computes transitions with DefaultParams and diverges.
+func TestLoadGenesisParamsRestoresNonDefaultParams(t *testing.T) {
+	engramApp := NewEngramApp(log.NewNopLogger(), dbm.NewMemDB(), "engram-test-1", false, sovereigntytypes.BaselineEngram, "")
+	require.Equal(t, sovereigntytypes.DefaultParams(), engramApp.SovereigntyKeeper.Params)
+
+	p := sovereigntytypes.DefaultParams()
+	p.DownHysteresisThreshold = 8
+	p.SuspiciousHysteresisWait = 8
+	raw, err := json.Marshal(map[string]any{"sovereignty": sovereigntytypes.DefaultGenesisWithParams(p)})
+	require.NoError(t, err)
+
+	require.NoError(t, engramApp.LoadGenesisParams(raw))
+	require.Equal(t, p, engramApp.SovereigntyKeeper.Params)
+
+	require.NoError(t, engramApp.LoadGenesisParams(nil), "no app_state falls back to defaults")
+	require.Equal(t, sovereigntytypes.DefaultParams(), engramApp.SovereigntyKeeper.Params)
 }

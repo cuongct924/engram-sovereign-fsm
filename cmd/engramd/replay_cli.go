@@ -9,9 +9,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	rpcclient "github.com/cometbft/cometbft/rpc/client"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty"
 	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
@@ -63,7 +65,7 @@ func replayFSMCmd() *cobra.Command {
 			}
 
 			if to == 0 {
-				st, err := client.Status(ctx)
+				st, err := rpcRetry(func() (*coretypes.ResultStatus, error) { return client.Status(ctx) })
 				if err != nil {
 					return err
 				}
@@ -76,13 +78,21 @@ func replayFSMCmd() *cobra.Command {
 			var violations []sovereignty.ReplayViolation
 			committedWarned := false
 			for h := from; h <= to; h++ {
-				blk, err := client.Block(ctx, &h)
+				blk, err := rpcRetry(func() (*coretypes.ResultBlock, error) { return client.Block(ctx, &h) })
 				if err != nil {
 					return fmt.Errorf("block %d: %w", h, err)
 				}
 				txs := make([][]byte, len(blk.Block.Txs))
 				for i, tx := range blk.Block.Txs {
 					txs[i] = tx
+				}
+				if checkCommitted && !committedWarned && h > 1 {
+					// State before this block = committed state at h-1.
+					if before, qerr := committedStateAt(ctx, client, h-1); qerr == nil {
+						if err := replayer.SetReanchoringProofValid(before.ReanchoringProofValid); err != nil {
+							return err
+						}
+					}
 				}
 				vs, err := replayer.ApplyBlock(h, blk.Block.AppHash, txs)
 				if err != nil {
@@ -91,7 +101,11 @@ func replayFSMCmd() *cobra.Command {
 				violations = append(violations, vs...)
 
 				if checkCommitted {
-					onChain, qerr := committedStateAt(ctx, client, h)
+					after, qerr := committedStateAt(ctx, client, h)
+					onChain := ""
+					if after != nil {
+						onChain = after.FsmState
+					}
 					switch {
 					case qerr != nil:
 						if !committedWarned {
@@ -220,23 +234,39 @@ func honestAddresses(validators []cmttypes.GenesisValidator, honestList, byzanti
 	return out, nil
 }
 
-func committedStateAt(ctx context.Context, client *rpchttp.HTTP, height int64) (string, error) {
+// rpcRetry retries a transient RPC failure: a replay over tens of thousands of
+// blocks must not die on one dropped connection.
+func rpcRetry[T any](call func() (T, error)) (T, error) {
+	var out T
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		if out, err = call(); err == nil {
+			return out, nil
+		}
+		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+	}
+	return out, err
+}
+
+func committedStateAt(ctx context.Context, client *rpchttp.HTTP, height int64) (*sovereigntytypes.QueryStateResponse, error) {
 	reqBytes, err := proto.Marshal(&sovereigntytypes.QueryStateRequest{})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	resp, err := client.ABCIQueryWithOptions(ctx, "/engram.sovereignty.v1.Query/State", reqBytes, rpcclient.ABCIQueryOptions{Height: height})
+	resp, err := rpcRetry(func() (*coretypes.ResultABCIQuery, error) {
+		return client.ABCIQueryWithOptions(ctx, "/engram.sovereignty.v1.Query/State", reqBytes, rpcclient.ABCIQueryOptions{Height: height})
+	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if resp.Response.Code != 0 {
-		return "", fmt.Errorf("query failed: %s", resp.Response.Log)
+		return nil, fmt.Errorf("query failed: %s", resp.Response.Log)
 	}
 	var out sovereigntytypes.QueryStateResponse
 	if err := proto.Unmarshal(resp.Response.Value, &out); err != nil {
-		return "", err
+		return nil, err
 	}
-	return out.FsmState, nil
+	return &out, nil
 }
 
 func writeViolationsCSV(path string, violations []sovereignty.ReplayViolation) error {

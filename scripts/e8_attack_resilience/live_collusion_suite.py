@@ -216,13 +216,17 @@ def byzantine_proposed_heights(byz, since: float) -> set:
 
 
 def replay(byz, report_from: int) -> dict:
-    """Run the semantic replay inside an honest node (its image carries the new engramd)."""
+    """Run the semantic replay with the host binary (build/engramd) against an honest node's RPC.
+    Not `docker exec`: the validators sit at ~80% of their 512 MiB limit, and an OOM kill of
+    the replay's host container would take the validator down with it."""
     honest0 = next(n for n in NODE_RPC_PORTS if n not in byz)
-    args = ["docker", "exec", honest0, "engramd", "debug", "replay-fsm", "--rpc", "http://localhost:26657",
-            "--out", "/tmp/replay_violations.csv", "--report-from", str(report_from)]
+    binary = os.path.join(REPO_ROOT, "build", "engramd")
+    out_csv = os.path.join(RESULTS_DIR, "replay_violations_latest.csv")
+    args = [binary, "debug", "replay-fsm", "--rpc", f"http://localhost:{NODE_RPC_PORTS[honest0]}",
+            "--out", out_csv, "--report-from", str(report_from)]
     # No Byzantine node (b8, b9's b=0): every validator is honest, so the range check still applies.
     args += ["--byzantine", ",".join(byz)] if byz else ["--honest", ",".join(NODE_RPC_PORTS)]
-    p = run(args, timeout=900)
+    p = run(args, timeout=3600)
     out = p.stdout + p.stderr
     kinds = collections.Counter(k for _, k in VIOLATION_RE.findall(out))
     m = re.search(r"heights (\d+)\.\.(\d+),.*final state (\S+), (\d+) violations", out)

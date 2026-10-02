@@ -149,22 +149,52 @@ func newConsensusParamStore(storeService store.KVStoreService) collections.Item[
 	return item
 }
 
+// genesisStateFromAppState parses the sovereignty section of genesis app_state,
+// falling back to types.DefaultGenesis when it is absent.
+func genesisStateFromAppState(appState []byte) (*sovereigntytypes.GenesisState, error) {
+	gs := sovereigntytypes.DefaultGenesis()
+	if len(appState) == 0 {
+		return gs, nil
+	}
+	var parsed struct {
+		Sovereignty json.RawMessage `json:"sovereignty"`
+	}
+	if err := json.Unmarshal(appState, &parsed); err != nil || len(parsed.Sovereignty) == 0 {
+		return gs, nil
+	}
+	gs = &sovereigntytypes.GenesisState{}
+	if err := json.Unmarshal(parsed.Sovereignty, gs); err != nil {
+		return nil, err
+	}
+	return gs, nil
+}
+
+// LoadGenesisParams re-applies the genesis-supplied Params. InitChain only runs
+// on a fresh chain, so a restarted node would otherwise fall back to
+// DefaultParams and compute different transitions than its peers (a live
+// restart diverged AppHash this way). Params are fixed by genesis, so every
+// validator loads the same value.
+func (a *EngramApp) LoadGenesisParams(appState []byte) error {
+	gs, err := genesisStateFromAppState(appState)
+	if err != nil {
+		return err
+	}
+	params := gs.Params.ToParams()
+	if err := params.Validate(); err != nil {
+		return fmt.Errorf("invalid genesis params: %w", err)
+	}
+	a.SovereigntyKeeper.Params = params
+	return nil
+}
+
 // newInitChainer seeds FSM genesis state (types.DefaultGenesis, unless
 // AppState overrides it) and echoes req.Validators back as-is: BaseApp's
 // handshake requires ResponseInitChain.Validators to match genesis exactly.
 func newInitChainer(k *sovereigntykeeper.Keeper) sdk.InitChainer {
 	return func(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
-		gs := sovereigntytypes.DefaultGenesis()
-		if len(req.AppStateBytes) > 0 {
-			var parsed struct {
-				Sovereignty json.RawMessage `json:"sovereignty"`
-			}
-			if err := json.Unmarshal(req.AppStateBytes, &parsed); err == nil && len(parsed.Sovereignty) > 0 {
-				gs = &sovereigntytypes.GenesisState{}
-				if err := json.Unmarshal(parsed.Sovereignty, gs); err != nil {
-					return nil, err
-				}
-			}
+		gs, err := genesisStateFromAppState(req.AppStateBytes)
+		if err != nil {
+			return nil, err
 		}
 
 		if err := k.FSMState.Set(ctx, gs.FsmState); err != nil {

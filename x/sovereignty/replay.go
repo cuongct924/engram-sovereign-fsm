@@ -40,8 +40,8 @@ type ReplayViolation struct {
 // each block's Txs[0], starting from genesis. It shares those functions with
 // the live handlers, so "AppHash agrees" (every validator ran the same code)
 // is separated from "the committed transition is legal" (the code's own
-// answer for those inputs). It applies no transactions: a SOVEREIGN recovery
-// that relies on a real SubmitRecoveryProof tx cannot be reproduced.
+// answer for those inputs). It applies no transactions; the effect of a real
+// SubmitRecoveryProof is taken from the chain via SetReanchoringProofValid.
 type Replayer struct {
 	k       *keeper.Keeper
 	ctx     sdk.Context
@@ -86,6 +86,15 @@ func NewReplayer(chainID string, gs *types.GenesisState, validators []cmttypes.G
 		r.honest[string(a)] = true
 	}
 	return r, nil
+}
+
+// SetReanchoringProofValid overrides the one input the replay cannot derive
+// from block bytes: a real SubmitRecoveryProof tx latches the proof earlier
+// than the heuristic path would. Callers feed the committed value from before
+// the block (the State query at height-1); the rest of the transition is still
+// recomputed.
+func (r *Replayer) SetReanchoringProofValid(valid bool) error {
+	return r.k.ReanchoringProofValid.Set(r.ctx, valid)
 }
 
 // FSMState is the replayed state after the last applied block.

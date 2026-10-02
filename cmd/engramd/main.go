@@ -476,6 +476,11 @@ func runStart(home string, vanilla bool, baseline sovereigntytypes.BaselineMode)
 			"(this node will deliberately misbehave; never set this on a real validator)")
 	}
 	engramApp := app.NewEngramApp(sdkLogger, db, genDoc.ChainID, vanilla, baseline, byzantineBehavior)
+	// InitChain does not run on a restart; without this the node would use
+	// DefaultParams instead of the genesis ones and diverge from its peers.
+	if err := engramApp.LoadGenesisParams(genDoc.AppState); err != nil {
+		return err
+	}
 
 	pv := privval.LoadFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile())
 	nodeKey, err := p2p.LoadNodeKey(config.NodeKeyFile())
