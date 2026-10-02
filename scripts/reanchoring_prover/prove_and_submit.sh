@@ -58,6 +58,12 @@ if [ "$TOTAL_N" -lt 1 ]; then
   exit 1
 fi
 
+# Opt-in: an interval longer than N_MAX is proven as ONE aggregate proof (up to K*N_MAX headers)
+# by prove_aggregate_and_submit.sh instead of being capped to the oldest N_MAX here.
+if [ "${ENGRAM_AGGREGATE:-0}" = "1" ] && [ "$TOTAL_N" -gt "$N_MAX" ]; then
+  exec "$SCRIPT_DIR/prove_aggregate_and_submit.sh"
+fi
+
 # COUNT = min(TOTAL_N, N_MAX) -- any COUNT from 1 to N_MAX is provable in
 # one proof, so no waiting for an exact/minimum count; a longer interval is
 # capped to the oldest N_MAX headers per proof.

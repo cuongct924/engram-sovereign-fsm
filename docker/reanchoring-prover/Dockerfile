@@ -31,7 +31,7 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates bash curl git xz-utils && \
+    ca-certificates bash curl git xz-utils python3 && \
     rm -rf /var/lib/apt/lists/*
 
 # Pin the SAME bb version the root Dockerfile and this repo's off-chain
@@ -69,6 +69,8 @@ COPY circuit ./circuit
 # either doesn't invalidate this layer's cache.
 RUN cd circuit/reanchoring_witness && nargo compile
 RUN cd circuit/reanchoring && nargo compile
+# Chunk-aggregation mode (ENGRAM_AGGREGATE=1, prove_aggregate_and_submit.sh).
+RUN cd circuit/reanchoring_aggregator && nargo compile
 
 COPY scripts/reanchoring_prover ./scripts/reanchoring_prover
 COPY x/sovereignty/keeper/zk_assets ./x/sovereignty/keeper/zk_assets

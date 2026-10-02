@@ -31,7 +31,7 @@ const numValidators = 7
 // ValidatorSetWitness/BoundaryBlockWitness parameters.
 func buildBoundaryWitnessCmd() *cobra.Command {
 	var nodeURL, chainID, outFile string
-	var lastHeight uint64
+	var firstHeightFlag, lastHeight uint64
 	cmd := &cobra.Command{
 		Use:   "build-boundary-witness",
 		Short: "Build the boundary-block Prover.toml fragment for the ZK re-anchoring circuit's boundary-signature binding",
@@ -63,9 +63,16 @@ func buildBoundaryWitnessCmd() *cobra.Command {
 					"expected %d genesis validators (circuit/reanchoring/src/main.nr's NUM_VALIDATORS is hardcoded), chain has %d -- recompile the circuit (and this tool) if this deployment's validator count differs",
 					numValidators, len(q.Validators))
 			}
-			// first_height is LastAnchoredHeight+1 (headers[0]'s own height) --
-			// LastAnchoredHeight itself never gets a BlockHashByHeight entry.
+			// first_height defaults to LastAnchoredHeight+1 (headers[0]'s own height) --
+			// LastAnchoredHeight itself never gets a BlockHashByHeight entry. --first-height
+			// selects a later chunk's start when one aggregate proof covers several chunks.
 			firstHeight := uint64(q.LastAnchoredHeight) + 1
+			if firstHeightFlag != 0 {
+				if firstHeightFlag < firstHeight {
+					return fmt.Errorf("--first-height=%d precedes the tracked interval (starts at %d)", firstHeightFlag, firstHeight)
+				}
+				firstHeight = firstHeightFlag
+			}
 			firstBlockHash, ok := q.BlockHashes[firstHeight]
 			if !ok {
 				return fmt.Errorf("no tracked block hash for first_height=%d yet (BlockHashByHeight not populated -- interval may not have started, or hasn't been recorded yet)", firstHeight)
@@ -131,6 +138,7 @@ func buildBoundaryWitnessCmd() *cobra.Command {
 	cmd.Flags().StringVar(&nodeURL, "node", "http://127.0.0.1:26657", "CometBFT RPC endpoint")
 	cmd.Flags().StringVar(&chainID, "chain-id", "engram-dev-1", "chain ID -- must match circuit/reanchoring/src/main.nr's CHAIN_ID constant exactly")
 	cmd.Flags().StringVar(&outFile, "out", "", "path to write the Prover.toml fragment (required)")
+	cmd.Flags().Uint64Var(&firstHeightFlag, "first-height", 0, "height of this chunk's first header (default: LastAnchoredHeight+1, the interval's start)")
 	cmd.Flags().Uint64Var(&lastHeight, "last-height", 0, "checkpoint height to prove up to (default: the highest height BlockHashByHeight already has data for)")
 	_ = cmd.MarkFlagRequired("out")
 	return cmd
