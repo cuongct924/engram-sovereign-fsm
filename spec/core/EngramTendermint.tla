@@ -196,7 +196,7 @@ THRESHOLD2 == 2 * T + 1   \* 2f+1: quorum (requires N > 3T)
 \* spec; membership in HonestNodes \union ByzantineNodes is implicit since
 \* ServerExtendVote (EngramServer.tla) only ever writes sensor_view for
 \* processes in that set.
-\* @type: ({ is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int }) => Bool;
+\* @type: ({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int, quorum_weight: Int }) => Bool;
 IsWellFormedHealthCertificate(cert) == cert.quorum_weight >= THRESHOLD2
 
 (* ======================== BASIC MATH HELPERS ============================= *)

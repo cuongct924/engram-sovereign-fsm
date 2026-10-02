@@ -62,6 +62,7 @@ MC_TendermintInit ==
     /\ sensor_view = [p \in HonestNodes \union ByzantineNodes |-> TrueSensorReading]
     /\ health_certs = { [type |-> "H_QC", round |-> r, is_healthy |-> IsHealthyCondition,
                           is_warning |-> IsWarningCondition, is_critical |-> IsCriticalCondition,
+                          btc_gap_obs |-> ClipObs(btc_gap), da_gap_obs |-> ClipObs(da_gap),
                           quorum_weight |-> N] : r \in Rounds }
 
 \* TendermintNext's own actions (e.g. AdvanceRealTime) don't mention

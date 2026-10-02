@@ -172,28 +172,67 @@ IsHealthyCondition ==
 
 
 (* ======================== SENSOR AGGREGATION / HEALTH CERTIFICATE ========= *)
-\* AggregateHealthCertificate -- weighted-majority-per-field aggregation over
-\* `members` (mirrors x/sovereignty/vote_extension.go's
-\* AggregateHealthCertificates + weightedMajorityBool: a field is TRUE in the
-\* aggregate iff strictly more than half of `members` reported TRUE for it).
+\* Numeric observations are clipped to 0..ObsCap so the model stays finite;
+\* the cap only has to exceed the thresholds' relative order, not their value.
+ObsCap == 3
+ObsDomain == 0..ObsCap
+
+\* @type: (Int) => Int;
+ClipObs(x) == IF x > ObsCap THEN ObsCap ELSE x
+
+\* WeightedMedianOf -- uniform-stake port of vote_extension.go's
+\* weightedMedianUint64: the smallest x with 2 * |{m : vals[m] <= x}| > |members|,
+\* which equals the Go "cum > total/2" rule for every |members| (integer
+\* halving included). The predicate is monotone in x, so that smallest x is
+\* the number of values in ObsDomain for which it fails -- no CHOOSE or
+\* recursion, which keeps the operator Apalache-compatible.
+\* @type: (Set(Str), Str -> Int) => Int;
+WeightedMedianOf(members, vals) ==
+    Cardinality({ x \in ObsDomain :
+        2 * Cardinality({ m \in members : vals[m] <= x }) <= Cardinality(members) })
+
+\* AggregateHealthCertificate -- weighted median (numeric) / weighted majority
+\* (Boolean) aggregation over `members` (mirrors x/sovereignty/
+\* vote_extension.go's AggregateHealthCertificates + weightedMedianUint64 +
+\* weightedMajorityBool: a Boolean field is TRUE in the aggregate iff strictly
+\* more than half of `members` reported TRUE for it).
 \* `members` is the caller-selected quorum subset (EngramServer.tla decides
 \* whether Cardinality(members) clears the real 2f+1 threshold via
 \* EngramTendermint.tla's THRESHOLD2) -- this operator itself is pure and
 \* knows nothing about quorum sizing, matching EngramFSM.tla's role as the
 \* lowest layer (see spec/CLAUDE.md's four-layer refinement hierarchy).
-\* @type: (Set(Str), Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool }) => { is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int };
+\* @type: (Set(Str), Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int }) => { is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int, quorum_weight: Int };
 AggregateHealthCertificate(members, view) ==
     [ is_healthy    |-> 2 * Cardinality({ m \in members : view[m].is_healthy })  > Cardinality(members),
       is_warning    |-> 2 * Cardinality({ m \in members : view[m].is_warning })  > Cardinality(members),
       is_critical   |-> 2 * Cardinality({ m \in members : view[m].is_critical }) > Cardinality(members),
+      btc_gap_obs   |-> WeightedMedianOf(members, [m \in members |-> view[m].btc_gap_obs]),
+      da_gap_obs    |-> WeightedMedianOf(members, [m \in members |-> view[m].da_gap_obs]),
       quorum_weight |-> Cardinality(members) ]
 
 \* The signed observation a correct, non-eclipsed validator reports for
 \* itself (ServerExtendVote's honest branch, EngramServer.tla) -- equal to
-\* the true global predicates it can currently see.
-\* @type: { is_healthy: Bool, is_warning: Bool, is_critical: Bool };
+\* the true global predicates and gaps it can currently see.
+\* @type: { is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int };
 TrueSensorReading ==
-    [ is_healthy |-> IsHealthyCondition, is_warning |-> IsWarningCondition, is_critical |-> IsCriticalCondition ]
+    [ is_healthy  |-> IsHealthyCondition,
+      is_warning  |-> IsWarningCondition,
+      is_critical |-> IsCriticalCondition,
+      btc_gap_obs |-> ClipObs(btc_gap),
+      da_gap_obs  |-> ClipObs(da_gap) ]
+
+\* What an honest validator whose P2P layer is eclipsed may report: it sees its
+\* peer set as degraded while the Bitcoin/DA gaps still come from the shared
+\* external chains (EngramVars.tla's sensorAggVars note). Modelling choice:
+\* eclipse can only make a node look worse (never healthier) -- it may or may
+\* not also escalate to is_critical (e.g. zero reachable anchors).
+\* @type: Set({ is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int });
+EclipsedReadings ==
+    { [ is_healthy  |-> FALSE,
+        is_warning  |-> TRUE,
+        is_critical |-> c,
+        btc_gap_obs |-> ClipObs(btc_gap),
+        da_gap_obs  |-> ClipObs(da_gap) ] : c \in BOOLEAN }
 
 
 (* ======================== TYPE INVARIANT & SANITY CHECK ================================== *)

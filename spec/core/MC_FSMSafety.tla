@@ -53,7 +53,8 @@ MC_MockInit ==
     /\ quorum_certs = {} /\ timeout_certs = {}
     \* sensor_view/health_certs: Tendermint/Server-layer bookkeeping the FSM
     \* layer never touches, same treatment as quorum_certs/timeout_certs above.
-    /\ sensor_view = [p \in NoProcs |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE]]
+    /\ sensor_view = [p \in NoProcs |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE,
+                                          btc_gap_obs |-> 0, da_gap_obs |-> 0]]
     /\ health_certs = {}
 
 MC_FSMInit ==

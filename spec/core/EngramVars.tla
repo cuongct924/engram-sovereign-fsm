@@ -256,28 +256,24 @@ certificateVars == <<quorum_certs, timeout_certs>>
 \* AggregateHealthCertificate and EngramServer.tla's ServerExtendVote/
 \* ServerInsertProposal.
 \*
-\* Modeling simplification (spec/README.md's Future Work "Sensor Aggregation
-\* Pre-Consensus Phase" scoped this as an open item): heterogeneity is
-\* modeled at the three-predicate boundary (is_healthy/is_warning/
-\* is_critical) that CLAUDE.md's own architecture note identifies as "the
-\* only integration surface between sensors and the FSM transition
-\* function" -- not by giving each of the ~14 raw sensor fields (btc_gap,
-\* da_gap, individual P2P counters, ...) independent per-validator values.
-\* Modeling raw-field heterogeneity would multiply TLC's state space by that
-\* field count per validator with no additional insight: btc_gap/da_gap
-\* already come from a shared external chain (README.md SS7.4: "consistent
-\* across validators up to propagation delay"), and P2P health is already
-\* the one flagged genuinely-subjective signal -- exactly what the boolean
-\* triple below captures.
+\* Modeling scope: each observation carries the three predicates the FSM
+\* consumes (is_healthy/is_warning/is_critical -- CLAUDE.md's "only
+\* integration surface between sensors and the FSM transition function") plus
+\* the two numeric gaps the weighted median aggregates (btc_gap_obs/
+\* da_gap_obs, clipped to EngramFSM.tla's ObsDomain). The remaining raw P2P
+\* counters stay folded into the predicates: btc_gap/da_gap come from shared
+\* external chains (README.md SS7.4: "consistent across validators up to
+\* propagation delay") and P2P health is the one genuinely subjective signal,
+\* which a per-validator counter would only multiply in TLC's state space.
 VARIABLES
-    \* @type: Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool };
+    \* @type: Str -> { is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int };
     sensor_view,        \* Each validator's own signed observation this round
                          \* (ExtendVote analogue) -- equals the true global
-                         \* IsHealthyCondition/IsWarningCondition/
-                         \* IsCriticalCondition for a correct, non-eclipsed
-                         \* validator; may diverge under P2P eclipse or
-                         \* Byzantine forgery.
-    \* @type: Set({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, quorum_weight: Int });
+                         \* reading for a correct, non-eclipsed validator; an
+                         \* honest validator under P2P eclipse reports a
+                         \* degraded one (EngramFSM.tla's EclipsedReadings),
+                         \* a Byzantine one may report anything.
+    \* @type: Set({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int, quorum_weight: Int });
     health_certs        \* Aggregated health certificates (one per round,
                          \* built by the proposer from a >=2f+1-weighted
                          \* subset of sensor_view) -- mirrors quorum_certs/

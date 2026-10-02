@@ -24,6 +24,11 @@ CONSTANTS
     \* @type: Int;
     RESET_TIME  \* Pacemaker reset time (passed through to EngramConsensus)
 
+\* Whether an honest validator may report an eclipsed (degraded) observation in
+\* ServerExtendVote. TRUE by default; scale runs that don't exercise the
+\* certificate (the decomposed refinement checks) override it to FALSE.
+\* @type: Bool;
+EclipseModeled == TRUE
 
 \* Aggregate tuple for EngramServer
 serverVars ==
@@ -100,6 +105,8 @@ ServerInsertProposal(p) ==
                           is_healthy    |-> cert.is_healthy,
                           is_warning    |-> cert.is_warning,
                           is_critical   |-> cert.is_critical,
+                          btc_gap_obs   |-> cert.btc_gap_obs,
+                          da_gap_obs    |-> cert.da_gap_obs,
                           quorum_weight |-> cert.quorum_weight ]
                       prop ==
                           IF valid_value[p] /= NilProposal
@@ -238,18 +245,18 @@ ServerUponTimeoutCert(p) ==
 
 
 \* Hook 5: validator signs its own health observation as an ABCI++ vote
-\* extension (ExtendVote analogue, x/sovereignty/vote_extension.go) -- the
-\* pre-consensus phase spec/README.md SS7.4 flags as "implemented, not
-\* modeled" until now. A correct process reports the true global predicates
-\* (this spec keeps btc_gap/da_gap/P2P health as global variables -- see
-\* EngramVars.tla's sensorAggVars comment on that modeling simplification,
-\* carried over unchanged from the base spec); a Byzantine process may sign
+\* extension (ExtendVote analogue, x/sovereignty/vote_extension.go). A correct
+\* process reports the true global reading; an honest process whose P2P layer
+\* is eclipsed reports a degraded one (EngramFSM.tla's EclipsedReadings,
+\* switched off by EclipseModeled for scale runs); a Byzantine process may sign
 \* any observation, modeling a forged vote extension.
 \* @type: (Str) => Bool;
 ServerExtendVote(p) ==
     /\ IF p \in HonestNodes
-       THEN sensor_view' = [sensor_view EXCEPT ![p] = TrueSensorReading]
-       ELSE \E fake \in [is_healthy: BOOLEAN, is_warning: BOOLEAN, is_critical: BOOLEAN] :
+       THEN \E r \in { TrueSensorReading } \cup (IF EclipseModeled THEN EclipsedReadings ELSE {}) :
+                sensor_view' = [sensor_view EXCEPT ![p] = r]
+       ELSE \E fake \in [is_healthy: BOOLEAN, is_warning: BOOLEAN, is_critical: BOOLEAN,
+                         btc_gap_obs: ObsDomain, da_gap_obs: ObsDomain] :
                 sensor_view' = [sensor_view EXCEPT ![p] = fake]
     /\ UNCHANGED <<health_certs>>
     /\ UNCHANGED <<certificateVars, fsmVars, networkSensorVars>>
@@ -314,7 +321,8 @@ ServerInit ==
     \* Genesis: no observation signed yet -- an all-healthy placeholder
     \* matches FSMInit's own genesis state (ANCHORED, every sensor green).
     /\ sensor_view = [p \in HonestNodes \union ByzantineNodes |->
-                          [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE]]
+                          [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE,
+                           btc_gap_obs |-> 0, da_gap_obs |-> 0]]
     /\ health_certs = {}
 
 \* Pure clock tick: advances real_time/local_clock/local_rem_time only,
@@ -571,6 +579,44 @@ ZKProofConsistency ==
 HealthyConsistency ==
     \A p \in HonestNodes :
         decision[p] /= NilDecision => decision[p].prop.healthy = IsHealthyCondition
+
+\* AggWithinHonestRange -- Lemma 1 (docs/paper system_design.tex): for every
+\* well-formed quorum member set `members` with at most T Byzantine members,
+\* each numeric aggregate lies within [min, max] of the honest members'
+\* observations, and a Boolean field on which all honest members agree keeps
+\* that value. Eclipsed honest validators are honest here: their degraded
+\* readings define the range, they are not an extra adversary.
+\* @type: Bool;
+AggWithinHonestRange ==
+    \A members \in SUBSET (HonestNodes \union ByzantineNodes) :
+        (Cardinality(members) >= THRESHOLD2
+         /\ Cardinality(members \intersect ByzantineNodes) <= T) =>
+            LET honest == members \ ByzantineNodes
+                cert   == AggregateHealthCertificate(members, sensor_view)
+            IN /\ \E lo, hi \in honest :
+                      /\ sensor_view[lo].btc_gap_obs <= cert.btc_gap_obs
+                      /\ cert.btc_gap_obs <= sensor_view[hi].btc_gap_obs
+               /\ \E lo, hi \in honest :
+                      /\ sensor_view[lo].da_gap_obs <= cert.da_gap_obs
+                      /\ cert.da_gap_obs <= sensor_view[hi].da_gap_obs
+               /\ (\A h \in honest : sensor_view[h].is_healthy)   => cert.is_healthy
+               /\ (\A h \in honest : ~sensor_view[h].is_healthy)  => ~cert.is_healthy
+               /\ (\A h \in honest : sensor_view[h].is_warning)   => cert.is_warning
+               /\ (\A h \in honest : ~sensor_view[h].is_warning)  => ~cert.is_warning
+               /\ (\A h \in honest : sensor_view[h].is_critical)  => cert.is_critical
+               /\ (\A h \in honest : ~sensor_view[h].is_critical) => ~cert.is_critical
+
+\* Same claim without the Byzantine-count guard: expected to fail once more than
+\* T Byzantine members can sit in a quorum, which shows the guard is load-bearing.
+\* @type: Bool;
+Sanity_AggWithinHonestRange_NoByzantineBound ==
+    \A members \in SUBSET (HonestNodes \union ByzantineNodes) :
+        Cardinality(members) >= THRESHOLD2 =>
+            LET honest == members \ ByzantineNodes
+                cert   == AggregateHealthCertificate(members, sensor_view)
+            IN \E lo, hi \in honest :
+                   /\ sensor_view[lo].btc_gap_obs <= cert.btc_gap_obs
+                   /\ cert.btc_gap_obs <= sensor_view[hi].btc_gap_obs
 
 \* Master hybrid invariant — checked together with CoreTendermintInvariant in TLC
 \* @type: Bool;
