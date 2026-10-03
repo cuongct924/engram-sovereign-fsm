@@ -20,7 +20,8 @@ cd "$HERE/../.."
 
 export ENGRAM_VALIDATOR_COUNT="$N"
 
-for mode in $MODES; do
+deploy_mode() { # $1 = mode: fresh cluster, engram first, then switch the validators' mode (state kept)
+	local mode="$1"
 	echo "=== E11: deploying a fresh $N-validator cluster in mode $mode ==="
 	make testnet-down || true
 	if [ "${WIPE_DATA:-0}" = "1" ]; then
@@ -36,7 +37,7 @@ import sys
 sys.path.insert(0, "scripts/framework")
 from logger import sample_all_nodes
 import time
-deadline = time.time() + 1200
+deadline = time.time() + 1800
 while time.time() < deadline:
     s = sample_all_nodes()
     if s and all(x.fsm_state == "ANCHORED" for x in s):
@@ -50,8 +51,26 @@ PY
 		ENGRAM_MODE="$mode" docker compose --env-file .env -f docker-compose.yml --profile seven-node up -d --no-deps --force-recreate $svcs
 		sleep 45
 	fi
+}
+
+for mode in $MODES; do
+	first=1
 	for fault in $FAULTS; do
-		python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials "$TRIALS"
+		# A hard-gated chain that stalls under a fault does not resume by itself after the fault ends (the
+		# fresh checkpoint it needs is derived from blocks it can no longer commit), so every fault, and
+		# every trial, starts from a fresh deployment. The other modes recover and share one deployment.
+		if [ "$first" = "1" ] || [ "$mode" = "hard-gated" ]; then
+			deploy_mode "$mode"
+			first=0
+		fi
+		if [ "$mode" = "hard-gated" ]; then
+			for t in $(seq 1 "$TRIALS"); do
+				python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials 1 || true
+				[ "$t" -lt "$TRIALS" ] && deploy_mode "$mode"
+			done
+		else
+			python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials "$TRIALS"
+		fi
 	done
 done
 
