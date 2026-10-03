@@ -23,11 +23,11 @@ x-engram-node-base: &engram-node-base
   deploy:
     resources:
       limits:
-        cpus: '1.0'
-        memory: 512M
+        cpus: '${ENGRAM_NODE_CPU_LIMIT:-1.0}'
+        memory: ${ENGRAM_NODE_MEM_LIMIT:-1G}
       reservations:
         cpus: '0.2'
-        memory: 192M
+        memory: 384M
 
 # Shared env wiring the live BTC/DA sensors: all 7 validators point at the
 # same bitcoin-node01 (2 bitcoind for 7 validators -- prototype
