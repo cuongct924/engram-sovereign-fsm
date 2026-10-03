@@ -1089,6 +1089,7 @@ where applicable.
 | A8 Combined | A6 + an A1 swarm simultaneously |
 | A9 Double-signing | 2 processes sharing one real validator key but not `priv_validator_state.json`; detected via CometBFT's stock evidence pool (`RequestFinalizeBlock.Misbehavior`, no `x/evidence` needed) and `preblock.go`'s `recordDetectedEvidence` |
 | A10 Timeout-flood | `ENGRAM_TIMEOUT_FLOOD_INTERVAL_MS` re-broadcasts signed Timeouts every 50ms, rate-limited by `PeerState.allowTimeoutMessage` (20 msgs/s/peer) and bounded round acceptance in `handleTimeoutMessage` |
+| A11 Round-replay certificate | A proposer builds the certificate from observations signed in an earlier round of the previous height. `ProcessProposal` rejects it (`certificate_not_bound_to_commit`). Unit-tested (`TestProcessProposal_RejectsCertificateFromEarlierRound`); not yet measured live. |
 
 **Results:**
 

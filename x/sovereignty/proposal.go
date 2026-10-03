@@ -345,6 +345,13 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 			}
 		}
 
+		// Observations must come from the round that committed ext.Height,
+		// by validators in that commit (certificatesBoundToCommit).
+		if voteExtensionsAvailableAt(ctx, ext.Height) && !certificatesBoundToCommit(ext.Certificates, req.ProposedLastCommit) {
+			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=certificate_not_bound_to_commit commitRound=%d certs=%d\n", req.Height, req.Round, req.ProposedLastCommit.Round, len(ext.Certificates))
+			return reject, nil
+		}
+
 		// Recompute the SAME deterministic aggregation the leader claims to
 		// have derived -- pure function over ext.Certificates, no live read.
 		metrics, aggOk := AggregateHealthCertificates(ctx, k, ctx.ChainID(), ext.Height, ext.Certificates)

@@ -91,6 +91,16 @@ func (f *collusionFixture) extendedCommit(t *testing.T, extHeight int64) abci.Ex
 	return abci.ExtendedCommitInfo{Round: 0, Votes: votes}
 }
 
+// proposedLastCommit is the validators' view (ProposedLastCommit) of the
+// extended commit the leader received: same round and signers, no extensions.
+func proposedLastCommit(ec abci.ExtendedCommitInfo) abci.CommitInfo {
+	votes := make([]abci.VoteInfo, len(ec.Votes))
+	for i, v := range ec.Votes {
+		votes[i] = abci.VoteInfo{Validator: v.Validator, BlockIdFlag: v.BlockIdFlag}
+	}
+	return abci.CommitInfo{Round: ec.Round, Votes: votes}
+}
+
 // propose runs the leader (behavior "" = honest) then every honest
 // validator's ProcessProposal over the same bytes.
 func (f *collusionFixture) propose(t *testing.T, behavior string, txs [][]byte) (*types.AggregatedHealthCertificate, *abci.ResponsePrepareProposal, bool) {
@@ -105,7 +115,9 @@ func (f *collusionFixture) propose(t *testing.T, behavior string, txs [][]byte) 
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	resp, err := NewProcessProposalHandler(f.k)(f.ctx, &abci.RequestProcessProposal{Height: collusionReqHeight, Txs: prep.Txs})
+	resp, err := NewProcessProposalHandler(f.k)(f.ctx, &abci.RequestProcessProposal{
+		Height: collusionReqHeight, Txs: prep.Txs, ProposedLastCommit: proposedLastCommit(f.extendedCommit(t, collusionReqHeight-1)),
+	})
 	require.NoError(t, err)
 	return cert, prep, resp.IsAccepted()
 }
@@ -201,11 +213,12 @@ func TestCollusion_B6_StaleReceiptIsRejected(t *testing.T) {
 
 	// Baseline for the test itself: with these heights an honest proposal is valid.
 	req := func(behavior string) bool {
+		ec := f.extendedCommit(t, 100)
 		prep, err := NewPrepareProposalHandler(f.k, behavior)(f.ctx, &abci.RequestPrepareProposal{
-			Height: 101, LocalLastCommit: f.extendedCommit(t, 100),
+			Height: 101, LocalLastCommit: ec,
 		})
 		require.NoError(t, err)
-		resp, err := NewProcessProposalHandler(f.k)(f.ctx, &abci.RequestProcessProposal{Height: 101, Txs: prep.Txs})
+		resp, err := NewProcessProposalHandler(f.k)(f.ctx, &abci.RequestProcessProposal{Height: 101, Txs: prep.Txs, ProposedLastCommit: proposedLastCommit(ec)})
 		require.NoError(t, err)
 		return resp.IsAccepted()
 	}

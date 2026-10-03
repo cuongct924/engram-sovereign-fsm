@@ -63,9 +63,15 @@ func newTestValidators(t *testing.T, k *keeper.Keeper, ctx sdk.Context, n int) [
 // AggregateHealthCertificates' signature check passes.
 func signCertificates(t *testing.T, vals []testValidator, chainID string, height int64, metrics *types.PeripheralMetrics) []*types.SignedHealthCertificate {
 	t.Helper()
+	return signCertificatesAtRound(t, vals, chainID, height, 0, metrics)
+}
+
+// signCertificatesAtRound is signCertificates for a commit round other than 0.
+func signCertificatesAtRound(t *testing.T, vals []testValidator, chainID string, height int64, round int32, metrics *types.PeripheralMetrics) []*types.SignedHealthCertificate {
+	t.Helper()
 	ext, err := proto.Marshal(metrics)
 	require.NoError(t, err)
-	signBytes := cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{Height: height, Round: 0, Extension: ext})
+	signBytes := cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{Height: height, Round: round, Extension: ext})
 
 	certs := make([]*types.SignedHealthCertificate, len(vals))
 	for i, v := range vals {
@@ -73,7 +79,7 @@ func signCertificates(t *testing.T, vals []testValidator, chainID string, height
 		require.NoError(t, err)
 		certs[i] = &types.SignedHealthCertificate{
 			ValidatorAddress:   v.addr,
-			Round:              0,
+			Round:              round,
 			MetricsExtension:   ext,
 			ExtensionSignature: sig,
 		}
@@ -86,6 +92,13 @@ func signCertificates(t *testing.T, vals []testValidator, chainID string, height
 // (committed heights at 0, healthy metrics, ANCHORED state).
 func healthyAggregatedCertificate(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) *types.AggregatedHealthCertificate {
 	t.Helper()
+	return healthyAggregatedCertificateAtRound(t, k, ctx, reqHeight, 0)
+}
+
+// healthyAggregatedCertificateAtRound signs the observations at commitRound of
+// height reqHeight-1, as when that height needed more than one round to commit.
+func healthyAggregatedCertificateAtRound(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64, commitRound int32) *types.AggregatedHealthCertificate {
+	t.Helper()
 	p := k.Params
 	metrics := &types.PeripheralMetrics{
 		SubnetDiversity: p.MinSubnetDiversity,
@@ -95,7 +108,7 @@ func healthyAggregatedCertificate(t *testing.T, k *keeper.Keeper, ctx sdk.Contex
 	}
 	vals := newTestValidators(t, k, ctx, 4)
 	extHeight := reqHeight - 1
-	certs := signCertificates(t, vals, testChainID, extHeight, metrics)
+	certs := signCertificatesAtRound(t, vals, testChainID, extHeight, commitRound, metrics)
 
 	return &types.AggregatedHealthCertificate{
 		Height:                       extHeight,
@@ -392,27 +405,42 @@ func withVoteExtensionsEnabledAt(ctx sdk.Context, height int64) sdk.Context {
 	})
 }
 
+// commitInfoOf is the ProposedLastCommit every validator sees when all of
+// certs' signers precommitted the previous height in the given round.
+func commitInfoOf(certs []*types.SignedHealthCertificate, round int32) abci.CommitInfo {
+	votes := make([]abci.VoteInfo, len(certs))
+	for i, c := range certs {
+		votes[i] = abci.VoteInfo{
+			Validator:   abci.Validator{Address: c.ValidatorAddress, Power: 1},
+			BlockIdFlag: cmtproto.BlockIDFlagCommit,
+		}
+	}
+	return abci.CommitInfo{Round: round, Votes: votes}
+}
+
 // omittedQuorumProposal is a proposer keeping only 2 of 4 equal-power
 // certificates (below the 2f+1=3 quorum) and claiming the SOVEREIGN state a
-// maximally degraded aggregate would imply.
-func omittedQuorumProposal(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) []byte {
+// maximally degraded aggregate would imply. The returned commit info still
+// lists all 4 precommitters, as the real LastCommit would.
+func omittedQuorumProposal(t *testing.T, k *keeper.Keeper, ctx sdk.Context, reqHeight int64) ([]byte, abci.CommitInfo) {
 	t.Helper()
 	cert := healthyAggregatedCertificate(t, k, ctx, reqHeight)
+	lastCommit := commitInfoOf(cert.Certificates, 0)
 	cert.Certificates = cert.Certificates[:2]
 	cert.FsmState = types.StateSovereign
 	cert.Healthy = false
 	cert.Critical = true // the degraded fallback (BtcGap at SovereignThreshold) is critical
 	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
-	return tx
+	return tx, lastCommit
 }
 
 func TestProcessProposal_RejectsSubQuorumCertificateOnceExtensionsExist(t *testing.T) {
 	k, ctx := newTestKeeperCtx(t)
 	ctx = withVoteExtensionsEnabledAt(ctx, 1)
-	tx := omittedQuorumProposal(t, k, ctx, 2)
+	tx, lastCommit := omittedQuorumProposal(t, k, ctx, 2)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 2})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 2, ProposedLastCommit: lastCommit})
 	require.NoError(t, err)
 	require.False(t, resp.IsAccepted(),
 		"a proposer omitting observations below 2f+1 must not be able to force SOVEREIGN via the degraded fallback")
@@ -425,7 +453,9 @@ func TestProcessProposal_AcceptsFullQuorumCertificateOnceExtensionsExist(t *test
 	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
 	require.NoError(t, err)
 
-	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 2})
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs: [][]byte{tx}, Height: 2, ProposedLastCommit: commitInfoOf(cert.Certificates, 0),
+	})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted())
 }
@@ -435,9 +465,56 @@ func TestProcessProposal_AcceptsDegradedFallbackBeforeExtensionsExist(t *testing
 	ctx = withVoteExtensionsEnabledAt(ctx, 1)
 	// Height 1's LocalLastCommit (height 0) has no extensions at all, so no
 	// proposer can reach quorum -- the degraded fallback is the only option.
-	tx := omittedQuorumProposal(t, k, ctx, 1)
+	tx, _ := omittedQuorumProposal(t, k, ctx, 1)
 
 	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 1})
 	require.NoError(t, err)
 	require.True(t, resp.IsAccepted())
+}
+
+func processWithCommit(t *testing.T, k *keeper.Keeper, ctx sdk.Context, cert *types.AggregatedHealthCertificate, last abci.CommitInfo) bool {
+	t.Helper()
+	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
+	require.NoError(t, err)
+	resp, err := sovereignty.NewProcessProposalHandler(k)(ctx, &abci.RequestProcessProposal{
+		Txs: [][]byte{tx}, Height: cert.Height + 1, ProposedLastCommit: last,
+	})
+	require.NoError(t, err)
+	return resp.IsAccepted()
+}
+
+func TestProcessProposal_AcceptsCertificateSignedInTheCommitRound(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	cert := healthyAggregatedCertificateAtRound(t, k, ctx, 2, 2)
+
+	require.True(t, processWithCommit(t, k, ctx, cert, commitInfoOf(cert.Certificates, 2)),
+		"an honest proposal after a round-skip at the previous height must stay valid")
+}
+
+func TestProcessProposal_RejectsCertificateFromEarlierRound(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	// Correctly signed at round 0, but round 1 is the one that committed.
+	cert := healthyAggregatedCertificateAtRound(t, k, ctx, 2, 0)
+
+	require.False(t, processWithCommit(t, k, ctx, cert, commitInfoOf(cert.Certificates, 1)),
+		"observations signed in an earlier round of the previous height must not count")
+}
+
+func TestProcessProposal_RejectsCertificateFromValidatorOutsideTheCommit(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	ctx = withVoteExtensionsEnabledAt(ctx, 1)
+	cert := healthyAggregatedCertificate(t, k, ctx, 2)
+
+	last := commitInfoOf(cert.Certificates, 0)
+	last.Votes[0].BlockIdFlag = cmtproto.BlockIDFlagNil // precommitted nil: no extension in the commit
+	require.False(t, processWithCommit(t, k, ctx, cert, last))
+
+	last = commitInfoOf(cert.Certificates, 0)
+	last.Votes[1].BlockIdFlag = cmtproto.BlockIDFlagAbsent
+	require.False(t, processWithCommit(t, k, ctx, cert, last))
+
+	require.False(t, processWithCommit(t, k, ctx, cert, commitInfoOf(cert.Certificates[1:], 0)),
+		"a validator missing from the last commit cannot contribute an observation")
 }

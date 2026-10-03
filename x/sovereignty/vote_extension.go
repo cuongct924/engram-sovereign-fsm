@@ -109,6 +109,28 @@ func certificatesFromExtendedCommit(extCommit abci.ExtendedCommitInfo) []*types.
 	return certs
 }
 
+// certificatesBoundToCommit reports whether every certificate was signed in
+// the round that committed the previous height, by a validator whose
+// precommit is in that commit. Height binding alone lets a proposer mix in a
+// validator's observation from an earlier round of the same height; the
+// commit round and signer set are fixed by the block's LastCommit, which
+// every validator verifies. Implementation-level strengthening: the spec
+// abstracts the quorum subset (EngramServer.tla's `members`) as drawn from it.
+func certificatesBoundToCommit(certs []*types.SignedHealthCertificate, last abci.CommitInfo) bool {
+	committed := make(map[string]bool, len(last.Votes))
+	for _, v := range last.Votes {
+		if v.BlockIdFlag == cmtproto.BlockIDFlagCommit {
+			committed[string(v.Validator.Address)] = true
+		}
+	}
+	for _, c := range certs {
+		if c.Round != last.Round || !committed[string(c.ValidatorAddress)] {
+			return false
+		}
+	}
+	return true
+}
+
 // validatorTotalPower sums k.ValidatorPubKeys' genesis-fixed power (this app
 // has no x/staking rotation -- see types.ValidatorInfo's doc).
 func validatorTotalPower(ctx sdk.Context, k *keeper.Keeper) (int64, error) {
