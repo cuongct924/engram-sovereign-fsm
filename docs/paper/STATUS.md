@@ -61,5 +61,5 @@ Items marked P0 block a claim the paper makes; P1 strengthens it; P2 is reproduc
 | Chain stays live during an external failure | Protocol argument | Hard-gated baseline, composite traces | Baseline open |
 | Recovery restores Anchored mode safely | Exit-gate invariant; `SovereignDataPublishedSafety` | Proof run, DA backfill runs | Proof-only runs not identified |
 | Backfill gate resists false reports | Quorum argument | Negative controls | Text open |
-| Overhead is small | none | Table 15 against seven vanilla validators | Throughput ceiling open |
+| Overhead is small | none | `tab:overhead` against seven vanilla validators | Throughput ceiling open |
 | End-to-end formal verification | none | none | Not claimed: cross-layer refinement is open, and the fast-forward liveness ablation has not completed |
