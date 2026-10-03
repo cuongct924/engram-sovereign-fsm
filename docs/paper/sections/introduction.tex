@@ -132,7 +132,7 @@ Engram targets this combination.
     \item \textbf{Layered formal specification.} A four-layer TLA+
     specification. Bounded model checking of each layer's safety and liveness
     properties found zero violations at $N{\le}4$; the largest single run
-    explored 3.39 million distinct states. In a five-mechanism ablation study,
+    explored 4.54 million distinct states. In a four-mechanism ablation study,
     removing each mechanism reproduces a distinct predicted counterexample. The
     cross-layer refinement obligation is specified but open
     (Section~\ref{sec:formal}).
@@ -152,7 +152,7 @@ Engram targets this combination.
 \toprule
 \textbf{RQ} & \textbf{Question} \\
 \midrule
-RQ1 & \textbf{Safety.} Under up to $f$ colluding Byzantine validators, does
+RQ1 & \textbf{Safety.} Under Byzantine voting power below one third (two of the seven testbed validators), does
 certifying peripheral health by quorum prevent conflicting FSM states,
 forged or stale receipts, false health claims, and withdrawal leakage? \\
 RQ2 & \textbf{Liveness.} When Bitcoin or DA becomes unavailable, or the

@@ -15,13 +15,13 @@ locked. When health returns, recovery hysteresis, DA backfill of the
 interval gate the return to \textsc{Anchored}.
 
 Per-layer bounded model checking found no violations (the largest run, the
-FSM safety check, explored 3.39 million distinct states), and a five-mechanism ablation reproduced a distinct
+FSM safety check, explored 4.54 million distinct states), and a four-mechanism ablation reproduced a distinct
 counterexample for each removed mechanism. On a seven-validator testbed with
 live Bitcoin and Celestia networks, the chain kept committing blocks under a
 layered composite fault and completed a full recovery cycle with complete
 AppHash agreement. The extended object costs +228 bytes and 18.25\,$\mu$s per
 proposal. Against seven vanilla validators on the same hosts, it
-lengthens the block interval by about 2\% (1.262\,s against 1.233\,s), and every
+lengthens the block interval by about 2\% (1.262\,s against 1.233\,s; approximate 95\% interval 0.3--4.4\%), and every
 height commits in the first round with no nil precommit or rejected proposal.
 
 \subsection*{Future Work}

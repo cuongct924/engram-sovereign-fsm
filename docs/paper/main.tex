@@ -23,9 +23,13 @@
 \usepackage{titlesec}
 \usepackage{parskip}
 
-% \pending{...} marks text that depends on an experiment or implementation
-% step not yet completed; grep for it before submission -- none may remain.
-\newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
+% Build switches. \drafttrue renders \pending{...} in red; with \draftfalse an
+% unresolved \pending stops the build, so none can reach a submission PDF.
+% \testbedBtrue adds the Testbed B text once those experiments exist.
+\newif\ifdraft \drafttrue
+\newif\iftestbedB \testbedBfalse
+\newcommand{\pending}[1]{\ifdraft\textcolor{red}{[PENDING: #1]}\else
+  \PackageError{engram}{Unresolved pending: #1}{Resolve it before a final build.}\fi}
 
 % Single-column, prose-first layout: numbered sections in small caps,
 % generous paragraph spacing instead of two-column IEEE formatting.

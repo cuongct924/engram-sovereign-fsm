@@ -262,18 +262,18 @@ must therefore stay below the \textsc{Suspicious} timeout, which bounds
 $k_{\max}$. 
 
 \textbf{Adaptive hysteresis.} We therefore extend the backoff already used on
-\textsc{Recovering} to the \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious}
-boundary. The effective threshold is
-$k_{\text{eff}} = \min(k_{\max},\, k_0 \cdot 2^{c})$, where the flap counter $c$ is
-incremented at every \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Anchored}
-round trip and decremented after every $W$ consecutive flap-free blocks. $k_{\text{eff}}$ depends
-only on committed state, so it remains deterministic across validators. It
-starts at the responsive value $k_0$ and rises only when the network
-proves noisy, which also raises the cost of the repeated-trigger attack
-discussed in Section~\ref{sec:discussion}.
-\pending{implement $k_{\text{eff}}$ (TLA+ and Go), re-run the live down-edge
-sweep, and compare flaps, uptime, and detection delay against static
-$k\in\{2,6\}$.}
+\textsc{Recovering} to the down threshold $k_{\downarrow}$ of both demotion
+edges (Section~\ref{subsec:transitions}). The effective threshold is
+$k_{\downarrow} = \min(k_{\max},\, k_0 \cdot 2^{c})$, where the flap level $c$
+rises by one at each such demotion and falls by one after $T_{\text{stable}}$
+healthy \textsc{Anchored} blocks. $k_{\downarrow}$ depends only on committed
+state, so it remains deterministic across validators. It starts at the
+responsive value $k_0$ and rises only when the network proves noisy, which
+also raises the cost of the repeated-trigger attack discussed in
+Section~\ref{sec:discussion}. The mechanism is implemented in the
+specification and in the prototype.
+\pending{re-run the live down-edge sweep with the adaptive threshold and
+compare flaps, uptime, and detection delay against static $k\in\{2,6\}$.}
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
@@ -376,12 +376,15 @@ network, genesis and load produce a block every 1.233\,s with vote extensions
 disabled and every 1.229\,s with empty extensions, within 0.03\,s of Engram
 (95\% CIs of 0.015--0.023\,s). Hence the 0.2\,s is the price of running a
 seven-validator BFT network on one host, and vote extensions as such add no
-measurable time. Engram's own addition is 0.03\,s or less per height (about
+measurable time. Engram's own addition is about 0.03\,s per height (about
 2\%), consistent with the 16.6\,ms \texttt{ExtendVote} time. In all four arms every
 height committed in the first round with no nil precommit and no rejected
 proposal, so extra rounds do not contribute at 20\,tx/s without faults. A
-mean over $n{=}5$ cannot resolve a difference of a few milliseconds, so we
-claim an upper bound of about 2\% on Engram's cost, not an exact value. The
+mean over $n{=}5$ cannot resolve a difference of a few milliseconds. The
+difference to the seven-validator arm without extensions is 0.029\,s;
+combining the two reported 95\% intervals (0.020 and 0.015\,s) gives an
+approximate 95\% interval of 0.004--0.054\,s (0.3--4.4\%). The data show an
+addition of a few percent at most, not a more precise value. The
 arms ran on separate deployments except the first Engram and the
 extensions-on arm, which shared one chain (Engram first); the Engram arm was
 repeated on a fresh deployment to check for an order effect and moved by

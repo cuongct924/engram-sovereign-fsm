@@ -23,36 +23,36 @@ Section~\ref{subsec:rq1}.}
 \label{subsec:environment}
 
 All results come from one environment, Testbed~A: the seven-validator Docker
-deployment above on a single host. A second environment, Testbed~B, with one
-validator on each of seven cloud virtual machines, is planned for the
-experiments that depend on real wide-area conditions. Every table and figure
-in Section~\ref{sec:evaluation} is a Testbed~A measurement unless its
-caption says otherwise, and results from the two environments are never
-pooled into one number. Table~\ref{tab:environment} lists the configuration.
+deployment above on a single host. Every table and figure in
+Section~\ref{sec:evaluation} is a Testbed~A measurement.
+\iftestbedB A second environment, Testbed~B, with one validator on each of
+seven cloud virtual machines, serves the experiments that depend on real
+wide-area conditions; results from the two environments are never pooled into
+one number.\fi{} Table~\ref{tab:environment} lists the configuration.
 
 \begin{table}[h]
 \caption{Testbed Configuration and Software Versions}
 \label{tab:environment}
 \centering
 \footnotesize
-\begin{tabular}{@{}p{0.2\linewidth}p{0.45\linewidth}p{0.2\linewidth}@{}}
+\begin{tabular}{@{}p{0.2\linewidth}p{0.7\linewidth}@{}}
 \toprule
-\textbf{Component} & \textbf{Testbed A} & \textbf{Testbed B} \\
+\textbf{Component} & \textbf{Testbed A} \\
 \midrule
-Host & Apple M1 Pro (10 cores: 8P + 2E), 32\,GB RAM, 1\,TB SSD; macOS 27.0 & \pending{} \\
-Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM & \pending{} \\
-Validators (7) & No CPU or memory limit per container & \pending{} \\
+Host & Apple M1 Pro (10 cores: 8P + 2E), 32\,GB RAM, 1\,TB SSD; macOS 27.0 \\
+Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM \\
+Validators (7) & No CPU or memory limit per container \\
 Consensus core & CometBFT v0.39.3 module path, replaced by the fork
-\texttt{engram-consensus-core} at commit \texttt{493a20121} & Same commit \\
-Application & Cosmos SDK v0.54.3; this repository at \pending{results commit} & Same commit \\
-Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) & \pending{} \\
+\texttt{engram-consensus-core} at commit \texttt{493a20121} \\
+Application & Cosmos SDK v0.54.3; this repository at \pending{results commit} \\
+Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) \\
 Celestia & celestia-app v1.11.0 (0.5 CPU, 1\,GB); seven celestia-node
-v0.14.1 bridges (0.3 CPU, 512\,MB each) & \pending{} \\
+v0.14.1 bridges (0.3 CPU, 512\,MB each) \\
 Prover & nargo 1.0.0-beta.22, \texttt{bb} 5.0.0-nightly.20260522
-(6 CPU, 8\,GB limit) & \pending{} \\
+(6 CPU, 8\,GB limit) \\
 Fault injection & Pumba (image tag \texttt{latest}) driving kernel
-\texttt{tc netem} & Real network \\
-Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 & --- \\
+\texttt{tc netem} \\
+Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
@@ -286,11 +286,9 @@ production deployment.
   \item \emph{Single physical host.} All Testbed~A containers share one
   machine's CPU and memory, so resource contention can affect every validator
   at once; wide-area conditions are emulated with \texttt{tc netem} rather
-  than real geographic distribution. Testbed~B removes both limitations for
-  the experiments repeated on it.
-  \pending{repeat the composite-fault experiment on Testbed~B (seven hosts in
-  at least three regions, $\geq 3$ trials) and report the measured
-  inter-region round-trip times.}
+  than real geographic distribution.
+  \iftestbedB Testbed~B removes both limitations for the experiments repeated
+  on it.\fi
   \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
   faster than on mainnet. Height-based thresholds are unaffected, but
   wall-clock durations scale accordingly.
