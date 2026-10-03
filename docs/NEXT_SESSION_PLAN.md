@@ -24,7 +24,7 @@ Quy tắc chung:
 
 | # | Việc | Trạng thái | Cần làm tiếp |
 |---|---|---|---|
-| 1 | Chốt các quyết định | 🟡 | 1a, 1g, proof-only, Testbed B (xem mục 1) |
+| 1 | Chốt các quyết định | 🟡 | 1g, Testbed B (xem mục 1) |
 | 2 | Đặt trước tiêu chí thành công cho từng RQ | ⬜ | Viết vào `docs/EXPERIMENT.md` **trước** khi chạy lại |
 | 3 | Điều tra bất thường reorg | ✅ | — |
 | 4 | Phân tích lại dữ liệu | ⬜ | Làm trên dữ liệu của lượt chạy cuối |
@@ -101,7 +101,7 @@ E1 (formal) chạy tách riêng, trước hoặc sau toàn bộ phần live:
 
 ### Sau khi chạy xong
 Cập nhật `docs/paper/results/result_macros.tex`, các bảng, và thay các `\pending`: baseline hard-gated,
-B1–B6 ở n=7, sweep hysteresis, nhánh proof-only, negative control backfill, hash commit kết quả.
+B1–B6 ở n=7, sweep hysteresis, ghi nhận lượt nào dùng proof-only, negative control backfill, hash commit kết quả.
 Cập nhật bảng claim–evidence trong `docs/paper/STATUS.md`.
 
 ---
