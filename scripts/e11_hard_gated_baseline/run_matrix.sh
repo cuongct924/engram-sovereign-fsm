@@ -67,7 +67,7 @@ for mode in $MODES; do
 				[ "$t" -lt "$TRIALS" ] && { deploy_mode "$mode" || true; }
 			done
 		else
-			python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials "$TRIALS"
+			python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --first-trial "$FIRST_TRIAL" --trials "$TRIALS" --ready-timeout-s 1800
 		fi
 	done
 done
