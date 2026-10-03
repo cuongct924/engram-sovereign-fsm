@@ -294,6 +294,10 @@ when all validators were honest. They cover a total DA outage on one host
 with $n{=}3$ per length. Runs under the earlier 512\,MiB bridge limit are
 excluded; at that limit the bridges crash-looped and the 600\,s outage never
 returned to \textsc{Recovering}.
+These runs kept the heuristic fallback of Section~\ref{subsec:reanchoring}
+enabled (proof-only recovery off), so the time in \textsc{Recovering} does not
+isolate the cost of the recovery proof; the data-availability results are
+independent of that choice.
 A gate that always opens would pass the runs above, so we also withheld
 data. A test hook makes a validator publish only head markers: its DA liveness
 stays healthy, so the chain can reach \textsc{Recovering}, but its contiguous
