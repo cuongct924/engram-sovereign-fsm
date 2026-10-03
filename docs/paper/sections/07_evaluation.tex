@@ -115,16 +115,58 @@ every honest validator must move it.
 
 \textbf{Engram versus a hard-gated modular chain.} The hard-gated baseline
 (Section~\ref{subsec:baselines}) enforces Bitcoin and DA receipts at every
-height. Under a DA outage, no proposal after the last retrievable height can
-carry a valid DA receipt; under checkpoint suspension, the Bitcoin receipt
-falls outside tolerance once the gap exceeds it. In both cases every
-proposal fails the validity predicate and the baseline commits no further
-blocks until the layer returns, while Engram moves to \textsc{Sovereign} and
-continues. We run both systems through the same fault schedule and report
-blocks committed during each outage window and time to first commit after
-recovery.
-\pending{hard-gated vs.\ Engram: blocks committed per outage window (BTC
-suspension, DA outage, both), stall duration, and time to resume.}
+height; the soft baseline keeps Engram's FSM but never locks withdrawals. We
+ran each system through three faults: Bitcoin checkpoint submission suspended,
+all seven Celestia bridges stopped, and both. A trial is 60\,s healthy, 180\,s
+of fault and 120\,s of recovery, with a withdrawal-marked transaction sent every
+2\,s; each cell of Table~\ref{tab:rq2} has three trials. The hard-gated chain
+is redeployed for every trial because it does not recover on its own (below).
+Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
+(Section~\ref{subsec:reanchoring}).
+
+\begin{table}[h]
+\caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
+$n$ trials per cell, mean and range). Rate is the fault-window block rate as a
+share of the same trial's healthy rate; ``No resume'' counts trials in which the
+chain committed no block in the 120\,s after the fault ended (``---'' in the gap
+column: it never resumed). The last two columns count withdrawals committed
+after and before the moment Engram's circuit breaker locks, 117\,s (checkpoint
+pause), 41\,s (DA outage) and 43\,s (both) after the fault begins; the same
+window is applied to every system.}
+\label{tab:rq2}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{\input{results/rq2_table}}
+\end{table}
+
+Under a DA outage the hard-gated chain commits 23 blocks in 180\,s, 16\% of
+its healthy rate, with proposals reaching round 21, and commits nothing in the
+120\,s after the layer returns in all three trials; the combined fault is the
+same. Under checkpoint suspension it slows to 56\% (74 blocks, round 12): the
+receipt tolerance widens with the round, so stale checkpoints are admitted for
+a while, but it then stops resuming as well. In one trial we kept watching and
+the chain was still stuck after twelve minutes, with proposals rejected at
+round 57 and above; the other trials were observed only through the recovery
+window. The stall persists because the checkpoint a proposal needs is derived
+from blocks the chain can no longer commit, so in this implementation it takes
+a manual restart. Engram commits 147--153 blocks (96--102\% of its healthy
+rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
+and resumes within two seconds of the fault ending.
+
+The withdrawal columns separate the systems on safety. After the circuit
+breaker has locked, Engram committed none; this count is a consistency check of
+the breaker, because the window opens when Engram's own FSM reaches
+\textsc{Sovereign}. The hard-gated chain, which has no breaker, committed 3
+withdrawals after that moment under DA faults and 6--9 under checkpoint
+suspension, few only because it commits few blocks. Engram's cost shows in the
+last column: it committed 18--19 withdrawals before locking under DA faults and
+45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
+leave \textsc{Anchored} for \textsc{Sovereign}. The hard-gated chain's
+withdrawals in that window carry receipts that are at most as stale as its
+tolerance allows.
+\pending{add the soft baseline (live but never locks): its rows and withdrawals
+after the lock.}
 
 \textbf{Composite fault.} Engram was then run through a continuous, scripted
 composite-fault sequence under a standing wide-area latency profile
