@@ -294,10 +294,20 @@ when all validators were honest. They cover a total DA outage on one host
 with $n{=}3$ per length. Runs under the earlier 512\,MiB bridge limit are
 excluded; at that limit the bridges crash-looped and the 600\,s outage never
 returned to \textsc{Recovering}.
-\pending{report the negative controls: with four of seven validators
-publishing no block data the chain must remain in \textsc{Recovering}, with
-three it must exit, and two validators signing an inflated contiguous height must
-not open the gate.}
+A gate that always opens would pass the runs above, so we also withheld
+data. A test hook makes a validator publish only head markers: its DA liveness
+stays healthy, so the chain can reach \textsc{Recovering}, but its contiguous
+height never advances. The certified height is a weighted median over the
+certificates, so the gate should hold when four or more of the seven
+validators withhold data and open when three or fewer do. Table~\ref{tab:backfill-controls}
+shows that it did in all seven runs. In a third control, two validators signed
+a contiguous height of $10^{12}$ while the five honest ones withheld data; the
+median stayed at zero and the gate held, as it should against $f{=}2$
+misreporting validators. These controls use $n{=}2$--3 runs per setting, each
+on a freshly deployed cluster, and the withholding validators are a test
+configuration, not a modelled adversary. A first attempt at the third control
+ran with only two of its five withholding validators because the override
+file omitted three nodes; it is excluded.
 
 \begin{table}[h]
 \caption{Republication of the \textsc{Sovereign} interval after a total DA
@@ -312,6 +322,23 @@ outage ($n{=}3$ per outage length; range over runs)}
 120 & 75--77 & 36.6--61.1 & 229 / 229 \\
 300 & 217--219 & 60.9--67.3 & 655 / 655 \\
 600 & 465--475 & 49.0--61.2 & 1407 / 1407 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Backfill-gate controls after a 120\,s DA outage (validators withholding
+block data; the gate must hold for 300\,s or open)}
+\label{tab:backfill-controls}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\textbf{Setting} & \textbf{Runs} & \textbf{Interval (blocks)} & \textbf{Outcome} \\
+\midrule
+4 of 7 withhold data & 3 & 201--208 & held in \textsc{Recovering} 3 / 3 \\
+3 of 7 withhold data & 2 & 67--72 & left \textsc{Recovering} after 34 and 43\,s; data identical \\
+2 inflated claims + 5 withhold & 2 & 202--208 & held in \textsc{Recovering} 2 / 2 \\
 \bottomrule
 \end{tabular}
 \end{table}

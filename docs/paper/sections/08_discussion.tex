@@ -64,6 +64,14 @@ straddling an FSM threshold (e.g.\ three versus four validators on each side)
 has not been tested live; the RQ4 scan shows no extra rounds in the unfaulted case, and the
 split case itself remains untested.
 
+\textbf{Restart after a long chain.} The publisher's contiguous height is
+kept in memory. A validator that restarts therefore republishes the chain from
+height 0 and reports DA as failed until it has caught up. In one run, four
+validators restarted on a chain of about 7{,}400 heights; the certified DA
+health stayed failed and the chain remained in \textsc{Sovereign} for more than
+half an hour. Persisting the contiguous height would remove the dependence on
+chain length; the prototype does not.
+
 \textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the
 ordering of blocks rests on the validator quorum alone. A coalition
 exceeding $f$ could produce a \textsc{Sovereign} history that differs from
