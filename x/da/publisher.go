@@ -130,8 +130,10 @@ func (p *Publisher) persistLocked(celestiaHeight uint64, payload []byte) {
 		return
 	}
 	sum := sha256.Sum256(payload)
-	raw, err := json.Marshal(progressFile{ChainID: p.chainID, ContiguousHeight: p.contiguousHeight,
-		CelestiaHeight: celestiaHeight, BatchSHA256: hex.EncodeToString(sum[:])})
+	raw, err := json.Marshal(progressFile{
+		ChainID: p.chainID, ContiguousHeight: p.contiguousHeight,
+		CelestiaHeight: celestiaHeight, BatchSHA256: hex.EncodeToString(sum[:]),
+	})
 	if err != nil {
 		return
 	}
