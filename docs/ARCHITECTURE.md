@@ -163,3 +163,82 @@ No per-validator "Celestia Light RPC" port exists -- there's no light-client hop
 deployment; `x/da`'s `Publisher`/`RPCClient` on each validator talk directly to that validator's own
 `celestia-bridge-node0N` (matching its own node number, via that node's `CELESTIA_BRIDGE_URL`) --
 never a shared bridge.
+
+## 3. System Architecture
+
+Logical overview of one block height; it shows the control flow and trust boundary, not containers
+or ports. It mirrors the paper's Figure 2 (`docs/images/figure2_system_architecture.drawio`), which
+answers who produces the decision, in what order, and across which trust boundary. The paper's
+Figure 3 (`docs/images/figure3_fsm_transitions.drawio`) is the separate view of the FSM itself: its
+four states, the transitions between them, and what each state permits. This diagram stops at the
+committed state and does not repeat the transitions.
+
+Live sensor reads enter consensus only as signed vote extensions; everything from certificate
+aggregation downward is a pure function of data every validator holds, so the committed FSM state is
+deterministic. Engram is a Cosmos SDK module (`x/sovereignty`, `x/da`, `x/anchor`) layered on
+CometBFT; grey nodes are unchanged.
+
+```mermaid
+flowchart TB
+    subgraph PERIPH["Peripheral layers (outside consensus)"]
+        direction LR
+        BTC["Bitcoin<br/>settlement"]
+        DA["Celestia DA<br/>(own bridge per validator)"]
+        P2P["Peripheral P2P<br/>peer quality"]
+    end
+
+    subgraph LIVE["Validator i (x7) - live, local"]
+        direction TB
+        SENS["Local sensors<br/>BTC gap, anchor re-verification,<br/>DA gap, P2P profile"]
+        EV["ExtendVote<br/>signed, height-bound observation"]
+        SENS -->|"2"| EV
+    end
+
+    subgraph PURE["Block h - pure and deterministic, same inputs on every validator"]
+        direction TB
+        PREP["PrepareProposal (proposer)<br/>Agg of >= 2f+1 voting power<br/>health certificate = Txs[0]"]
+        PROC["ProcessProposal (all validators)<br/>re-verify signatures, re-run Agg,<br/>check transition and receipts"]
+        BFT["CometBFT prevote / precommit<br/>unchanged BFT core"]
+        MSG["SubmitRecoveryProof (tx execution)<br/>verify UltraHonk proof (embedded wasm),<br/>bind it to committed state"]
+        PRE["PreBlocker<br/>refreshReanchoringProofValid,<br/>CommitFSMTransition, circuit breaker"]
+        PREP -->|"4 proposal"| PROC
+        PROC -->|"5 validate, vote"| BFT
+        BFT --> PRE
+        MSG -->|"RealProofSubmittedHeight"| PRE
+    end
+
+    FSMS["Committed FSM state s<sup>h</sup><br/>transition function: paper Fig. 3"]
+
+    subgraph OFF["Off-chain (untrusted, anyone may run it)"]
+        PROVER["ZK re-anchoring prover<br/>RPC headers, nargo + bb prove,<br/>broadcast proof tx"]
+    end
+
+    BTC -->|"1 RPC"| SENS
+    DA -->|"1 blob / RPC"| SENS
+    P2P -->|"1 peer stats"| SENS
+    EV -->|"3 vote extensions of height h-1"| PREP
+    PRE -->|"commit"| FSMS
+    FSMS -.->|"6 committed headers (RPC)"| PROVER
+    PROVER -.->|"7 proof tx"| MSG
+
+    classDef ext fill:#eceff1,stroke:#607d8b,color:#263238
+    classDef engram fill:#e3f2fd,stroke:#1565c0,color:#0d1b3d
+    classDef core fill:#f5f5f5,stroke:#9e9e9e,color:#424242
+    classDef off fill:#f4e1ec,stroke:#9e4a7c,color:#3b1230
+    class BTC,DA,P2P ext
+    class SENS,EV,PREP,PROC,MSG,PRE,FSMS engram
+    class BFT core
+    class PROVER off
+```
+
+| Step | Meaning |
+|---|---|
+| 1-2 | Each validator reads its own Bitcoin/Celestia/P2P view; only `ExtendVote` may touch live sensors or RPC |
+| 3 | Signed observations of height `h-1` reach the next proposer |
+| 4 | The proposer aggregates >= 2f+1 voting power into a health certificate and prepends it as `Txs[0]` |
+| 5 | Validators re-verify and re-run the same aggregation, then vote through unchanged CometBFT |
+| 6-7 | Dashed: the prover reads committed headers over RPC and broadcasts a recovery proof tx; every validator verifies it in `SubmitRecoveryProof`, never the prover or Bitcoin |
+
+`SubmitRecoveryProof` never sets the FSM state: it only latches `RealProofSubmittedHeight`, which
+`PreBlocker` reads to set `ReanchoringProofValid`. RECOVERING -> ANCHORED additionally needs the DA
+backfill and `RecoveryHysteresisWait` healthy blocks (`keeper/circuit_breaker.go`'s `CalculateNextState`).
