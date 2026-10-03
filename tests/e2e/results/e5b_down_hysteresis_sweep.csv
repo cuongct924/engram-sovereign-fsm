@@ -1,9 +1,9 @@
 down_hysteresis_threshold,environment,final_state,flapping_count,total_transitions,withdrawal_blocked,anchored_uptime,time_outside_anchored,demotion_count,absorbed_events,absorption_rate
 1,stable,ANCHORED,0,0,0,1.0000,0,0,21,1.0000
-1,warning_btc,ANCHORED,31,32,0,0.6139,39,16,0,0.0000
-1,noisy_da,ANCHORED,31,32,0,0.6139,39,16,0,0.0000
-1,noisy_p2p,ANCHORED,31,32,0,0.6139,39,16,0,0.0000
-1,combined_warning,ANCHORED,31,32,0,0.6139,39,16,0,0.0000
+1,warning_btc,ANCHORED,5,6,0,0.9208,8,3,16,0.8421
+1,noisy_da,ANCHORED,5,6,0,0.9208,8,3,16,0.8421
+1,noisy_p2p,ANCHORED,5,6,0,0.9208,8,3,16,0.8421
+1,combined_warning,ANCHORED,5,6,0,0.9208,8,3,16,0.8421
 2,stable,ANCHORED,0,0,0,1.0000,0,0,21,1.0000
 2,warning_btc,ANCHORED,1,2,0,0.9604,4,1,18,0.9474
 2,noisy_da,ANCHORED,1,2,0,0.9604,4,1,18,0.9474

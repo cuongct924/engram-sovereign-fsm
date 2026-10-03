@@ -1,6 +1,6 @@
 **E5 -- Hysteresis Sweep (measured, real tests/e2e data, 5 environments, 100-block window):**
 
-| HYSTERESIS_WAIT | Environment | Reached ANCHORED | First at (blocks) | Final State | Flapping | ANCHORED uptime |
+| RECOVERY_HYSTERESIS_WAIT | Environment | Reached ANCHORED | First at (blocks) | Final State | Flapping | ANCHORED uptime |
 | ---: | --- | :---: | ---: | --- | ---: | ---: |
 | 0 | stable | yes | 3 | ANCHORED | 0 | 33.3% |
 | 0 | noisy_btc | yes | 3 | SOVEREIGN | 10 | 59.8% |

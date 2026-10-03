@@ -1,0 +1,4 @@
+outage_s,anchored_height,error,interval_blocks,recovering_height,seconds_heal_to_recovering,seconds_in_recovering,seconds_to_sovereign,sovereign_height,verify_heights,verify_match_pct,verify_published_pct
+120,3547,,124,3523,111.4,36.1,46.5,3399,124,100.0,100.0
+300,4004,,308,3918,182.2,141.0,49.3,3610,308,100.0,100.0
+600,,never reached RECOVERING,,,,,47.6,4061,,,

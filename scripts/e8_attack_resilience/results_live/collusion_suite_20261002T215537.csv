@@ -1,0 +1,6 @@
+case,pass,trial,blocks_advanced,byz_proposed_heights,byz_proposer_share,byzantine,checks,divergence_events,rejects,replay_kinds,replay_violations,replayed_blocks,transitions
+b1,True,1,120,0,0.0,"engram-node04,engram-node05","{""liveness"": true, ""no_honest_transition"": true, ""replay_clean"": true, ""safety_held"": true}",0,{},{},0,595,
+b2,True,1,119,0,0.0,"engram-node04,engram-node05","{""liveness"": true, ""no_honest_transition"": true, ""replay_clean"": true, ""safety_held"": true}",0,"{""fsm_state_mismatch"": 10}",{},0,747,
+b3a,True,1,117,0,0.0,engram-node04,"{""liveness"": true, ""no_honest_transition"": true, ""replay_clean"": true, ""safety_held"": true}",0,"{""fsm_state_mismatch"": 14}",{},0,905,
+b3b,True,1,104,0,0.0,engram-node04,"{""byzantine_proposal_rejected"": true, ""liveness"": true, ""no_honest_transition"": true, ""replay_clean"": true, ""safety_held"": true}",0,"{""fsm_state_mismatch"": 4, ""sub_quorum_certificate"": 66}",{},0,1052,
+b6,True,1,91,0,0.0,"engram-node04,engram-node05","{""byzantine_proposal_rejected"": true, ""liveness"": true, ""no_honest_transition"": true, ""replay_clean"": true, ""safety_held"": true}",0,"{""btc_verify_receipt"": 45, ""da_verify_receipt"": 50, ""fsm_state_mismatch"": 11}",{},0,1175,

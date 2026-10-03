@@ -26,6 +26,6 @@ hysteresis_wait,environment,reached_anchored,first_anchored_at,final_state,flapp
 10,combined_adversarial,true,38,SOVEREIGN,35,40,0.0098
 20,stable,true,23,ANCHORED,0,3,0.0435
 20,noisy_btc,false,-1,SOVEREIGN,37,39,0.0000
-20,noisy_da,true,46,ANCHORED,3,7,0.5392
-20,noisy_p2p,true,46,ANCHORED,3,7,0.5392
+20,noisy_da,true,46,ANCHORED,2,5,0.5588
+20,noisy_p2p,true,46,ANCHORED,2,5,0.5588
 20,combined_adversarial,false,-1,SOVEREIGN,37,39,0.0000
