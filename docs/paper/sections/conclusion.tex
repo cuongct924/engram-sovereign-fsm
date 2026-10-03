@@ -2,15 +2,17 @@
 \label{sec:conclusion}
 
 Modular chains that make settlement and DA receipts part of block validity
-halt when those layers fail. Engram removes this coupling without giving up
-the guarantees it provides. It leaves CometBFT's agreement core unchanged
-and extends the consensus object with a quorum-certified health
-certificate, whose aggregate is bounded by honest observations, and a
-four-state FSM evaluated deterministically on that certificate. When a
-quorum certifies a peripheral layer as unhealthy, the corresponding receipt
-requirement is relaxed and cross-chain withdrawals are locked; when health
-returns, a validator-verified recovery proof over the \textsc{Sovereign}
-interval, together with DA backfill, gates the return to \textsc{Anchored}.
+halt when those layers fail. Engram keeps such a chain live by suspending the
+external dependency together with the operations whose safety relied on it, and
+by making that suspension part of deterministic replicated state. It leaves
+CometBFT's agreement core unchanged and extends the consensus object with a
+quorum-backed health certificate, whose aggregate is bounded by honest
+observations, and a four-state FSM evaluated deterministically on that
+certificate. When the certificate reports a peripheral layer as unhealthy, the
+corresponding receipt requirement is relaxed and cross-chain withdrawals are
+locked. When health returns, recovery hysteresis, DA backfill of the
+\textsc{Sovereign} interval, and a validator-verified recovery proof over that
+interval gate the return to \textsc{Anchored}.
 
 Per-layer bounded model checking found no violations (the largest run, the
 FSM safety check, explored 3.39 million distinct states), and a five-mechanism ablation reproduced a distinct

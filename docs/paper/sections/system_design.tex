@@ -142,8 +142,9 @@ Table~\ref{tab:mode-security} lists which properties hold in each state.
 \begin{table}[h]
 \caption{Properties by FSM state. $^\dagger$ holds only if the checkpoint
 commits the state root and the recovery exit gate includes DA backfill
-(Section~\ref{subsec:reanchoring}); the prototype implements neither, so
-these entries are target properties.}
+(Section~\ref{subsec:reanchoring}). The prototype implements both; the proof
+half of the exit gate is subject to the limitation in
+Section~\ref{subsec:limitations}.}
 \label{tab:mode-security}
 \centering
 \footnotesize
@@ -199,10 +200,15 @@ Theorem~1 states the exit condition with its exposure window: the $\tau$
 most recent blocks are neither settled nor available when the withdrawal
 commits. Liveness comes from relaxing the receipt checks in
 \textsc{Sovereign}; user safety comes from tying withdrawals to the settled
-and available prefix. The theorem depends on (M2) and (M3), which the
-prototype does not implement, so it describes the target design and is not
-a statement about the current implementation. (M1) is implemented in the
-validity predicate and the ante handler.
+and available prefix. The prototype implements the three
+assumptions as follows. (M1) is enforced in the validity predicate and the
+ante handler. (M2) holds because each checkpoint payload carries the CometBFT
+block hash at its height. (M3) holds in the DA half: the exit edge requires
+the backfill condition, which the FSM safety run checks as an action
+property. The proof half of (M3) holds only when the heuristic recovery path
+is disabled (Section~\ref{subsec:limitations}). The theorem is a pen-and-paper
+argument over these assumptions, not a mechanized statement about the
+implementation.
 
 \subsection{Health Certificates}
 \label{subsec:health-certificate}
@@ -499,13 +505,18 @@ timestamping from the recovery point forward.
 proof shows the interval is \emph{valid}, not that its data is
 \emph{available}. We therefore strengthen the exit condition:
 \textsc{Recovering}$\to$\textsc{Anchored} requires (1) a verified recovery
-proof and (2) a DA backfill certificate -- a quorum-certified statement, in
-the health certificate, that the block data for every height of the
-\textsc{Sovereign} interval has been published to the DA layer and is
-retrievable. During \textsc{Sovereign}, each validator keeps the interval's
+proof and (2) a DA backfill certificate -- a statement, backed by the
+quorum of signed observations in the health certificate, that the block data
+for every height of the \textsc{Sovereign} interval has been published to the
+DA layer and is retrievable. During \textsc{Sovereign}, each validator keeps the interval's
 blocks in its own store (they are ordinary committed CometBFT blocks) and
 queues them for publication; on recovery the queue is drained in height
-order, and the DA verified height advances only over contiguous,
-confirmed-retrievable heights.
-The prototype implements the queue and the gate; its live validation is
-described in Section~\ref{subsec:sim-to-real}.
+order. Each validator reports a contiguous height: the highest height such
+that every height up to it has been confirmed retrievable. The certificate
+takes the weighted median of these reports, and the exit edge requires the
+median to reach the height at which \textsc{Recovering} was entered, less one.
+The DA gap sensor keeps measuring head liveness, so the DA layer stays
+healthy while the backfill drains. The specification abstracts the condition
+as a Boolean, \texttt{da\_backfill\_valid}. The prototype implements the queue
+and the gate; Section~\ref{subsec:sim-to-real} describes the remaining live
+validation.

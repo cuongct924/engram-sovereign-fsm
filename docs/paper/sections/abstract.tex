@@ -1,27 +1,27 @@
-Modular blockchains decompose execution, settlement, and data availability (DA)
-across separate layers. A chain whose block validity is gated on Bitcoin
-settlement receipts and DA receipts inherits the liveness of those layers:
-when either stalls, no proposal satisfies the validity predicate and the chain
-halts. We present \emph{Engram Hybrid Adaptive Consensus}, a protocol layer
-that runs on top of a CometBFT agreement core and
-extends its consensus object, proposal-validation predicate, and
-state-transition logic so that peripheral-layer health is decided by the same
-quorum that orders transactions. Engram does not replace BFT agreement:
-proposer selection, voting, quorum intersection, and deterministic finality
-remain CometBFT's. What it adds is (i) a \emph{health certificate} -- a
-deterministic aggregate of $\geq 2f{+}1$ voting power's height-bound, signed
-peripheral observations carried as vote extensions -- whose aggregate provably
-stays within the range of honest observations, and (ii) a four-state finite
-state machine (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
+Modular blockchains obtain settlement and data availability (DA) from
+independently operated layers. A chain whose block validity requires Bitcoin
+settlement receipts and DA receipts inherits the liveness of those layers: when
+either stalls, no proposal satisfies the validity predicate and the chain
+halts, although its validators are connected and correct. Dropping the
+requirement restores progress but suspends the guarantees it provided. We
+present \emph{Engram Hybrid Adaptive Consensus}, a protocol layer on a CometBFT
+agreement core that makes this suspension an agreed, deterministic state
+transition. Proposer selection, voting, quorum intersection, and deterministic
+finality remain CometBFT's. Engram adds (i) a \emph{health certificate} -- a
+deterministic aggregate of the height-bound, signed peripheral observations of
+$\geq 2f{+}1$ voting power, carried as vote extensions and bounded by the range
+of honest observations (Lemma~1) -- and (ii) a four-state finite state machine
+(\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
 \textsc{Recovering}) evaluated deterministically on that certificate. When
 Bitcoin or DA degrades, or the peripheral P2P view degrades while the core
-consensus network retains quorum connectivity, the chain continues producing
-blocks in \textsc{Sovereign} mode with cross-chain withdrawals locked, and
-returns to \textsc{Anchored} once a validator-verified zero-knowledge recovery
-proof (Noir/UltraHonk, 256 headers per proof, chained for longer
-intervals) attests to header continuity,
-FSM-transition legality, and withdrawal-lock adherence over the
-\textsc{Sovereign} interval. We give a layered TLA+ specification and
+consensus network retains quorum connectivity, the chain keeps producing blocks
+in \textsc{Sovereign} mode under the validator quorum, relaxes the receipt
+requirement of the unhealthy layer, and locks cross-chain withdrawals. It
+returns to \textsc{Anchored} after recovery hysteresis, DA backfill of the
+\textsc{Sovereign} interval, and a validator-verified zero-knowledge recovery
+proof (Noir/UltraHonk, 256 headers per proof, chained for longer intervals)
+that attests to header continuity, FSM-transition legality, and withdrawal-lock
+adherence over the interval. We give a layered TLA+ specification and
 check each layer in isolation with bounded model checking (zero violations at
 $N{\le}4$;
 the largest run, the FSM safety check, explored 3.39 million distinct

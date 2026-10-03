@@ -47,7 +47,7 @@ that ignores its periphery, but not relative to a hard-gated chain: the same
 attacker halts the hard-gated chain entirely, whereas Engram freezes only
 withdrawals. Lemma~1 prevents a minority of validators from causing the
 freeze, so the attacker must degrade the peripheral links of at least
-$2f{+}1$ validators; in a design without a quorum-certified health input,
+$2f{+}1$ validators; in a design without a quorum-backed health input,
 one node's view suffices. The freeze is the intended response to an
 unverifiable periphery, not a safety violation. We do not quantify its
 economic cost to users or the attacker's cost of sustaining it.
@@ -105,11 +105,9 @@ certifies the history's internal legality and quorum signatures, not its
 uniqueness beyond the $f$ bound. The withdrawal lock limits what such a
 history can extract.
 
-\textbf{Data availability of the \textsc{Sovereign} interval.} Until the
-backfill gate of Section~\ref{subsec:reanchoring} is in place, a
-\textsc{Sovereign} interval's block data is held by the validators' own
-block stores but is not published to the DA layer, so its recoverability
-depends on those validators. The backfill gate turns this into an explicit
+\textbf{Data availability of the \textsc{Sovereign} interval.} During \textsc{Sovereign}, the interval's block data is held by the validators' own block stores, so its
+recoverability depends on those validators until it is published. The
+backfill gate of Section~\ref{subsec:reanchoring} makes publication a
 precondition for returning to \textsc{Anchored}.
 
 \subsection{Limitations}
@@ -122,9 +120,15 @@ precondition for returning to \textsc{Anchored}.
   \item \emph{Accelerated Bitcoin.} Wall-clock durations show the ordering
   of recovery steps, not mainnet latencies; height-based thresholds are
   unaffected.
-  \item \emph{DA prototype.} The DA publisher submits height markers rather
-  than block contents, and each validator trusts its own bridge rather than
-  sampling (Section~\ref{subsec:sim-to-real}).
+  \item \emph{DA trust.} Each validator trusts its own bridge rather than
+  sampling, and the backfill gate rests on a quorum-reported contiguous
+  height, not on a proof of retrievability (Section~\ref{subsec:sim-to-real}).
+  \item \emph{Proof gate.} The recovery-validity flag holds if a verified
+  proof was submitted within the permitted unproven tail of the tracked tip,
+  or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
+  the anchored depth. A protocol parameter disables the heuristic, so that
+  only a verified proof satisfies the gate.
+  \pending{state which reported recovery runs used proof-only recovery.}
   \item \emph{Byzantine scale.} The live attacks reported so far involve one
   Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
   collusion suite (Section~\ref{subsec:rq1}) addresses this.

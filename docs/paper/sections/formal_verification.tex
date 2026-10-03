@@ -97,7 +97,7 @@ only by the open refinement obligation.
 \subsection{Safety Invariants and Attack Resilience Lemmas}
 \label{subsec:formal-invariants}
 
-Five state invariants are specified and model-checked.
+Six state invariants are specified and model-checked.
 \begin{itemize}
   \item \emph{Circuit Breaker Isolation:} withdrawals are locked if and only
   if the state is \textsc{Sovereign} or \textsc{Recovering}.
@@ -108,6 +108,10 @@ Five state invariants are specified and model-checked.
   \item \emph{Strict FSM Transition Safety:} only transitions drawn in
   Fig.~\ref{fig:fsm} occur.
   \item \emph{Monotonicity Safety:} heights and time never decrease.
+  \item \emph{Sovereign-Data Publication:} every
+  \textsc{Recovering}$\to$\textsc{Anchored} transition occurs with the DA
+  backfill condition true. This is an action property, checked in the FSM
+  safety run; the Server-layer drivers have not been re-run with it.
 \end{itemize}
 Five attack-specific properties are enforced by the validity predicate:
 resistance to data withholding; resistance to forged or reorganized anchors
