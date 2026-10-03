@@ -235,6 +235,12 @@ def main():
         "(label only, not enforced)",
     )
     parser.add_argument("--env", choices=list(ENVIRONMENTS.keys()), required=True)
+    parser.add_argument(
+        "--label",
+        default="",
+        help="overrides the run label (file names): needed when the configuration is not a single "
+        "number, e.g. the adaptive threshold (k0=2, kmax=8) of run_adaptive_sweep.py",
+    )
     parser.add_argument("--duration-s", type=float, default=300.0)
     parser.add_argument("--interval-s", type=float, default=3.0)
     parser.add_argument(
@@ -292,7 +298,7 @@ def main():
         )
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    label = f"{args.edge}{args.value}_{args.env}"
+    label = args.label or f"{args.edge}{args.value}_{args.env}"
     print(f"=== E5{'b' if args.edge == 'down' else 'c'} live spot-check: edge={args.edge} value={args.value} env={args.env} ({ENVIRONMENTS[args.env]['description']}) wan_profile={args.wan_profile} ===")
     print(
         "NOTE: this script does NOT verify the deployed cluster actually has this "
@@ -388,6 +394,12 @@ def main():
         summary_path, args.edge, args.value, args.env, metrics,
         duration_s=args.duration_s, interval_s=args.interval_s, wan_profile=args.wan_profile,
     )
+
+    with open(summary_path.replace("_summary.md", "_metrics.json"), "w") as mf:
+        import json
+
+        json.dump({"label": label, "edge": args.edge, "value": args.value, "env": args.env,
+                   "duration_s": args.duration_s, "wan_profile": args.wan_profile, "nodes": metrics}, mf, indent=1)
 
     print(f"\nwrote {len(all_samples)} samples to {csv_path}")
     print(f"wrote summary to {summary_path}")
