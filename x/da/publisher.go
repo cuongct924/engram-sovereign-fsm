@@ -136,7 +136,7 @@ func (p *Publisher) persistLocked(celestiaHeight uint64, payload []byte) {
 		return
 	}
 	tmp := p.progressPath + ".tmp"
-	if os.MkdirAll(filepath.Dir(p.progressPath), 0o755) != nil || os.WriteFile(tmp, raw, 0o644) != nil {
+	if os.MkdirAll(filepath.Dir(p.progressPath), 0o755) != nil || os.WriteFile(tmp, raw, 0o600) != nil {
 		return
 	}
 	_ = os.Rename(tmp, p.progressPath)
