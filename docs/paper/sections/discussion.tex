@@ -45,10 +45,15 @@ withdrawals for as long as the degradation lasts (P4,
 Section~\ref{subsec:rq1}). This is a new attack surface relative to a chain
 that ignores its periphery, but not relative to a hard-gated chain: the same
 attacker halts the hard-gated chain entirely, whereas Engram freezes only
-withdrawals. Lemma~1 prevents a minority of validators from causing the
-freeze, so the attacker must degrade the peripheral links of at least
-$2f{+}1$ validators; in a design without a quorum-backed health input,
-one node's view suffices. The freeze is the intended response to an
+withdrawals. Lemma~1 prevents Byzantine validators from causing the freeze
+alone: honest validators whose peripheral view is degraded must supply the
+rest of the majority. Together with the Byzantine validators they must hold
+more than half of the certificate weight, and the proposer's choice of quorum
+subset sets that weight. At $n{=}7$ with two colluders, an honest proposer that
+includes all seven observations requires two degraded honest validators, and a
+Byzantine proposer that selects a minimal quorum of five requires one.
+In a design without a quorum-backed health input, one node's view
+suffices. The freeze is the intended response to an
 unverifiable periphery, not a safety violation. We do not quantify its
 economic cost to users or the attacker's cost of sustaining it.
 
@@ -83,8 +88,8 @@ threshold closes this asymmetry.
 
 \textbf{Core versus peripheral network.} Engram tolerates degradation of
 the peripheral layers (Bitcoin, Celestia, and the peripheral or partial P2P
-view) only while the core consensus network keeps $2f{+}1$ voting power
-mutually connected. If CometBFT's own quorum is partitioned, no FSM can
+view) only while the core consensus network keeps a quorum (more than two
+thirds of the voting power) mutually connected. If CometBFT's own quorum is partitioned, no FSM can
 restore liveness; this is the standard BFT assumption, not a limitation
 specific to Engram, and none of our experiments cross it.
 
@@ -93,8 +98,8 @@ straddle a threshold, a proposer can choose which honest value the
 certificate selects (Section~\ref{subsec:health-certificate}). This cannot
 produce a transition that no honest view supports, but a sequence of
 Byzantine proposers can bias the timing of transitions. A persistent split
-straddling the $2f{+}1$ boundary (e.g.\ three versus four validators) has not
-been tested live; the RQ4 scan shows no extra rounds in the unfaulted case, and the
+straddling an FSM threshold (e.g.\ three versus four validators on each side)
+has not been tested live; the RQ4 scan shows no extra rounds in the unfaulted case, and the
 split case itself remains untested.
 
 \textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the

@@ -79,18 +79,19 @@ certificate explicitly. Each validator's observation holds three Booleans
 (healthy, warning, critical) and the Bitcoin and DA gaps clipped to $0..3$,
 written to \texttt{sensor\_view} by \texttt{ServerExtendVote}. A Byzantine
 validator may sign any observation; an honest validator with an eclipsed P2P
-layer may report a degraded one, never a healthier one. The proposer may
-choose any member set of at least $2f{+}1$. The aggregate
-(\texttt{AggregateHealthCertificate}) is a per-field majority for the
-Booleans and a weighted median for the gaps, and \texttt{IsValidProposal}
-rejects a certificate below $2f{+}1$.
+layer may report a degraded one, never a healthier one, which is a
+sensor-soundness assumption of the model. Every validator has the same voting
+power. The proposer may choose any member set that forms a quorum. The
+aggregate (\texttt{AggregateHealthCertificate}) is a per-field majority for
+the Booleans and a weighted median for the gaps, and \texttt{IsValidProposal}
+rejects a certificate below a quorum.
 
 Lemma~1 is checked as \texttt{AggWithinHonestRange} with Apalache, with the
 observation vector left symbolic so that one check covers every vector. For
 $N{=}4$ and $f{=}1$ it reported no violation (22\,s). With two Byzantine
 validators in the same network it reports a violation (25\,s), so the bound
-on Byzantine members is necessary. Signatures, height binding, and the
-individual P2P counters are not modelled. The check covers the aggregate as a
+on Byzantine members is necessary. Signatures, height and round binding,
+and the individual P2P counters are not modelled. The check covers the aggregate as a
 function; the certificate's role inside \texttt{IsValidProposal} is covered
 only by the open refinement obligation.
 

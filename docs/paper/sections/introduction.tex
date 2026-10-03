@@ -61,7 +61,7 @@ prevote/precommit protocol, quorum intersection, and deterministic finality
 unchanged, and modifies the object and the validity policy that this pipeline
 carries. At height $h{-}1$, each validator signs its sensor snapshot as a vote
 extension; the sensors are read only there. The proposer of height $h$ includes
-the signed snapshots of at least $2f{+}1$ voting power in a \emph{health
+the signed snapshots of a quorum (more than two thirds of the voting power) in a \emph{health
 certificate} $C^{h}$. Every validator verifies $C^{h}$, recomputes a
 deterministic weighted-median/majority aggregate $\mathsf{Agg}(C^{h})$, and
 accepts a proposal only if its target state satisfies
@@ -89,7 +89,7 @@ gate is qualified in Section~\ref{subsec:limitations}).
 \textbf{Scope.} Engram handles degradation of Bitcoin, Celestia, and the
 peripheral P2P interfaces while the CometBFT quorum remains live. It does not
 address loss of the core quorum: like any BFT protocol, it needs at least
-$2f{+}1$ validators to communicate after global stabilization time.
+a quorum (more than two thirds of the voting power) to communicate after global stabilization time.
 ``P2P degradation'' in this paper always means partial, peripheral degradation
 (Section~\ref{subsec:threat-model}).
 
@@ -105,9 +105,9 @@ Engram targets this combination.
 \textbf{Contributions.}
 \begin{itemize}
     \item \textbf{Quorum-backed external-health agreement.} A height-bound
-    certificate of signed observations from at least $2f{+}1$ voting power,
+    certificate of signed observations from a quorum,
     carried in vote extensions, and a deterministic weighted-median/majority
-    aggregation rule. Under $f < n/3$, every numeric aggregate stays within
+    aggregation rule. When Byzantine validators hold less than one third of the voting power, every numeric aggregate stays within
     the range of the honest observations in a well-formed certificate,
     whichever observations a Byzantine proposer includes or omits
     (Section~\ref{subsec:health-certificate}).

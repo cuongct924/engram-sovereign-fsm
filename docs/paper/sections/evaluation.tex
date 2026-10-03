@@ -29,8 +29,8 @@ $f{=}2$ colluding validators at $n{=}7$. We therefore define a collusion
 suite in which two validators act jointly: (B1) both report coordinated
 false health observations; (B2) one reports false observations while the
 other, as proposer, builds its certificate to favor them; (B3) the proposer
-omits honest observations, both down to exactly $2f{+}1$ voting power and
-below it; (B4) both double-sign at the same height; (B5) both attempt to
+omits honest observations, both down to the smallest quorum (five of
+seven validators) and below it; (B4) both double-sign at the same height; (B5) both attempt to
 include a withdrawal while in \textsc{Sovereign}; and (B6) the proposer
 attaches a stale or forged Bitcoin or DA receipt. AppHash agreement is
 necessary but not sufficient evidence of safety, since honest validators
@@ -56,6 +56,7 @@ diagnostic attacks live.
 \label{tab:p2p-detector}
 \centering
 \footnotesize
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
  & \multicolumn{2}{c}{\textbf{Six-bound profiler}} & \multicolumn{2}{c}{\textbf{Peer-count-only}} \\
@@ -86,8 +87,7 @@ detector detects none of the 300 ramps in any cell. The live runs show what happ
 (churn-based rotation: eight restart cycles on two of seven validators,
 29\% of voting power), the churn metric on both attacked validators crossed
 its threshold, yet no FSM transition was committed: two validators' signed
-observations cannot move a certified aggregate backed by $\geq 2f{+}1$
-voting power. In P4 (a sustained 350$\pm$50\,ms delay on all of one
+observations cannot move a certified aggregate backed by a quorum. In P4 (a sustained 350$\pm$50\,ms delay on all of one
 validator's P2P interfaces, observed by all seven validators), the chain
 moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} at
 +39\,s and +72\,s, held \textsc{Sovereign} for the 244-second attack, and

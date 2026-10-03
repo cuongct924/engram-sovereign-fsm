@@ -14,7 +14,8 @@ Several building blocks of Engram exist in prior work: vote extensions that carr
 signed external data, weighted-median aggregation, and protocol-defined
 fallback for DA and sequencing failures. Engram differs in what the aggregated
 observation controls. Table~\ref{tab:comparison} compares representative systems
-by trigger, decision authority, and behavior under failure, and
+by trigger, decision authority, behavior under failure, recovery, assumption,
+and reported assurance, and
 Section~\ref{subsec:rw-gap} states the combination that the comparison leaves open.
 
 \begin{figure}[p]
@@ -182,8 +183,8 @@ example~\cite{cosmos_adr064}. Slinky applies this pattern to off-chain price
 data and aggregates the extensions with a stake-weighted
 median~\cite{slinky_oracle}. Engram uses the same transport: sensor snapshots
 taken at height $H$ reach the proposer at $H{+}1$, where the
-deterministic aggregation of at least $2f{+}1$ voting power's worth of signed
-snapshots forms the health certificate. The difference lies in what the
+deterministic aggregation of the signed snapshots of a quorum (more than two
+thirds of the voting power) forms the health certificate. The difference lies in what the
 aggregate controls. A price oracle supplies a value to the application. The health
 certificate describes the infrastructure on which block validity depends, and it
 determines the receipt requirements, the withdrawal policy, and the entry into
@@ -324,45 +325,6 @@ engineering~\cite{basiri2016chaos} injects faults into production systems.
 Engram's evaluation combines network-level and application-level fault
 injection against live Bitcoin and Celestia networks.
 
-\begin{table}[!t]
-\caption{Failure-handling semantics of representative systems, assessed from
-each design's primary publication or specification. Each row states what
-triggers the response, which observation supports it, who decides, and what
-happens to execution, withdrawals, and recovery. ``n/a'' marks a column the
-design does not address.}
-\label{tab:comparison}
-\centering
-\scriptsize
-\renewcommand{\arraystretch}{1.15}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.10\linewidth}>{\raggedright\arraybackslash}p{0.12\linewidth}>{\raggedright\arraybackslash}p{0.14\linewidth}>{\raggedright\arraybackslash}p{0.11\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.13\linewidth}>{\raggedright\arraybackslash}p{0.13\linewidth}@{}}
-\toprule
-\textbf{System} & \textbf{Trigger} & \textbf{Observation} & \textbf{Decision authority} & \textbf{Degraded behavior} & \textbf{Withdrawals} & \textbf{Recovery} \\
-\midrule
-Ebb-and-flow~\cite{neu2021ebbflow} & Internal participation or partition & Consensus participation & Validator protocol & Available ledger keeps growing; finalized prefix lags & n/a & Finalized prefix catches up \\
-Casper FFG leak~\cite{buterin2017casper} & Loss of $>\!\tfrac13$ voting participation & Missing votes & Validator protocol & Non-voting stake is drained & n/a & Voting validators regain a supermajority \\
-Vote-extension oracle~\cite{cosmos_adr064,slinky_oracle} & External data update & Signed vote extensions, stake-weighted median & Validator consensus pipeline & No fallback mode & Application-defined & Continuous \\
-Babylon~\cite{tas2023bitcoinpos} & PoS censorship or stall & Bitcoin checkpoints and liveness transactions & Clients and Bitcoin\textsuperscript{a} & Bitcoin orders PoS blocks & n/a & n/a \\
-Escape hatch~\cite{figueira2025escapehatch} & Operator stops & L1 state root & Users & Exit through L1 & Users withdraw through L1 & n/a \\
-AnyTrust~\cite{arbitrum_anytrust,arbitrum_orbit_anytrust} & Too few committee signatures & DAC certificate and timeout & Sequencer & Full batch posted to L1 & Standard rollup delay & Committee path resumes \\
-OP Alt-DA~\cite{optimism_altda} & External DA input unavailable & L1 challenge & L1 contract and derivation rules & Data resolved on L1, or affected L2 blocks reorged & Standard rollup & Challenge resolution \\
-\midrule
-\textbf{Engram} & Bitcoin, DA, or peripheral-P2P health & Quorum of signed validator observations & Validator BFT pipeline & Receipt requirements relaxed for the failed layer & Locked in \textsc{Sovereign} and \textsc{Recovering} & Proof and DA-backfill gate, hysteresis\textsuperscript{b} \\
-\bottomrule
-\end{tabular}
-\par\medskip
-\begin{minipage}{\linewidth}
-\scriptsize\raggedright
-\textit{Note.}
-(a)~The emergency break and the fallback to Bitcoin are client-side rules, not
-validator consensus. The guarantees assume that Bitcoin is safe and live.
-AnyTrust cells follow its public documentation, not a peer-reviewed paper.
-(b)~The DA-backfill condition is enforced in the prototype. The proof
-condition can be satisfied by a heuristic unless proof-only recovery is
-enabled (Section~\ref{subsec:limitations}).
-\end{minipage}
-\end{table}
-
 \subsection{Research Gap}
 \label{subsec:rw-gap}
 Prior work supplies the following elements: consensus that adapts to internal
@@ -388,3 +350,49 @@ agreement protocol, and Sections~\ref{sec:design}--\ref{sec:evaluation}
 evaluate the combination. The adaptive-fallback idea first appeared as a sketch in an unpublished
 whitepaper~\cite{engram2026whitepaper}; the storage and slashing layers of that
 system are outside this paper.
+
+\begin{table}[!tbp]
+\caption{Failure handling in representative systems, from each system's
+primary publication or specification; ``n/a'': not stated by the source. The
+assurance column does not rank the designs.}
+\label{tab:comparison}
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.03}
+\setlength{\tabcolsep}{3pt}
+\newcommand{\rc}[1]{\raggedright\arraybackslash #1}
+\newcommand{\grp}[1]{\cmidrule(l{0pt}r{0pt}){1-6}\multicolumn{6}{@{}l}{\textbf{#1}}\\[1pt]}
+\begin{tabular}{@{}>{\rc}p{0.135\linewidth}>{\rc}p{0.16\linewidth}>{\rc}p{0.10\linewidth}>{\rc}p{0.20\linewidth}>{\rc}p{0.155\linewidth}>{\rc}p{0.14\linewidth}@{}}
+\toprule
+\textbf{System} & \textbf{Trigger and observation} & \textbf{Decided by} & \textbf{Behavior under failure and recovery} & \textbf{Assumption} & \textbf{Assurance reported} \\
+\midrule
+\multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
+Hard-gated chain\textsuperscript{a} & Missing Bitcoin or DA receipt & Validity predicate & Chain halts until the receipt returns & External layers live & n/a \\
+\grp{Degradation inside consensus}
+Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
+Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
+\grp{External data in consensus}
+Vote-extension oracle~\mbox{\cite{cosmos_adr064,slinky_oracle}} & External data update; signed vote extensions & Validator consensus pipeline & Stake-weighted median goes to the application; fallback not specified & Signatures from at least two thirds of voting power & Design record; open-source code \\
+\grp{Bitcoin anchoring}
+Babylon~\mbox{\cite{tas2023bitcoinpos}} & Transaction censorship; liveness transactions & Clients and Bitcoin\textsuperscript{c} & Bitcoin orders PoS block hashes (rollup mode); the chain later exits rollup mode & Bitcoin safe and live & Security proofs; measured Bitcoin checkpoint latency \\
+\grp{Rollup fallback}
+Escape hatch~\mbox{\cite{figueira2025escapehatch}} & No new state root within a time limit & Users & Users bypass the bridge and withdraw with a Merkle proof; a nullifier blocks a second escape & L1 live; users submit proofs & Design and use cases \\
+AnyTrust~\mbox{\cite{arbitrum_anytrust,arbitrum_orbit_anytrust}} & Too few committee signatures & Sequencer & Full batch posted to the L1 with standard rollup delay; the committee path resumes & L1 live & Public documentation \\
+OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 challenge & L1 contract & Data resolved on the L1, or affected L2 blocks reorged & L1 live; some party challenges & Experimental specification \\
+Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arranger & Honest agent and L1 contract & Fraud proof settles on the L1; liveness violations cannot be proved there & L1 safe and live; one honest agent & Fraud-proof games mechanized in Lean~4 \\
+\midrule
+\textbf{Engram} & Bitcoin, DA, or peripheral-P2P health; signed validator observations & Validator BFT pipeline & Receipt rules relaxed for the failed layer and withdrawals locked; proof, DA backfill, and hysteresis restore\textsuperscript{d} & CometBFT quorum connected; Byzantine power under $1/3$ & Per-layer bounded model checking; live fault injection (one host) \\
+\bottomrule
+\end{tabular}
+\par\medskip
+{\scriptsize\raggedright
+\textit{Notes.}
+(a)~Engram's binary with the FSM pinned to \textsc{Anchored}
+(Section~\ref{subsec:baselines}).
+(b)~The finalized ledger tolerates under $1/3$ adversarial nodes, the
+available ledger under $1/2$.
+(c)~Clients force the switch to rollup mode and apply the emergency break.
+(d)~The prototype enforces DA backfill; a heuristic can satisfy the proof
+condition unless proof-only recovery is on; the refinement is open
+(Sections~\ref{subsec:limitations} and~\ref{sec:formal}).\par}
+\end{table}

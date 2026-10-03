@@ -9,7 +9,7 @@ agreement core that makes this suspension an agreed, deterministic state
 transition. Proposer selection, voting, quorum intersection, and deterministic
 finality remain CometBFT's. Engram adds (i) a \emph{health certificate} -- a
 deterministic aggregate of the height-bound, signed peripheral observations of
-$\geq 2f{+}1$ voting power, carried as vote extensions and bounded by the range
+a quorum (more than two thirds of the voting power), carried as vote extensions and bounded by the range
 of honest observations (Lemma~1) -- and (ii) a four-state finite state machine
 (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
 \textsc{Recovering}) evaluated deterministically on that certificate. When
