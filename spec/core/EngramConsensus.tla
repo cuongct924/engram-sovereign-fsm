@@ -114,6 +114,15 @@ TimeoutSkipNext ==
     /\ UNCHANGED <<tree, local_times>>
     /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
 
+\* Round advance driven by a quorum of nil precommits (Tendermint's failed
+\* round): no timeout, early-start or T-cache is involved, so none of the
+\* three actions above matches. Changes only the pacemaker, never the tree.
+NilQuorumSkipNext ==
+    /\ round' = round + 1
+    /\ rem_time' = RESET_TIME
+    /\ UNCHANGED <<tree, local_times>>
+    /\ UNCHANGED <<fsm_state, h_btc_current, h_btc_anchored>>
+
 
 (********************* FORK-CHOICE & CAN_ELECT ********************)
 \* Find the latest CCache block that node s supports.
@@ -272,6 +281,7 @@ Next ==
     \/ TimeoutStartNext
     \/ EarlyStartNext
     \/ TimeoutSkipNext
+    \/ NilQuorumSkipNext
     \/ \E n \in Nodes : Pull(n)
     \/ \E n \in Nodes, m \in Method : Invoke(n, m)
     \/ \E n \in Nodes : Push(n)

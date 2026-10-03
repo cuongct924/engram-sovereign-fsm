@@ -27,12 +27,24 @@ kept apart.
   is therefore \emph{not} formally verified end-to-end; its whole-system
   evidence in this paper is empirical (Section~\ref{sec:evaluation}).
 \end{itemize}
-The route we take to make C1 tractable is to decompose the refinement into
-per-action obligations (each server action maps to an abstract action or a stutter step,
-checked as an inductive invariant with Apalache), with symmetry reduction
-over validator identities and a bounded round horizon.
-\pending{report C1 result of the decomposed refinement check, or state
-that it did not complete.}
+To make C1 tractable we split it by which actions may fire and check each
+part with TLC under symmetry reduction over the three honest validators. With
+the consensus core frozen, the environment part (sensor updates, clock ticks,
+DA backfill) completed: 17{,}500 distinct states, depth 10, 10\,m\,35\,s, no
+violation. With the environment frozen, the consensus-core part did not
+complete: it was stopped after 1\,h\,41\,m at 19{,}848{,}141 distinct states
+(depth 15, 13{,}542{,}792 states still queued) with no violation. Neither part
+covers the interleaving of environment and consensus steps, and no
+composition argument is established, so C1 is not claimed.
+
+Running these parts exposed a defect in the server layer: the vote-extension
+action left the Tendermint variables unconstrained, so no earlier
+server-layer run could have passed its first such step. The fix, two guards
+that stop the server from certifying a timeout for a round an honest
+validator has already left, and one added abstract action for a round ended
+by a quorum of nil precommits are changes to the checked model. The last
+weakens the target specification. An inductive check of every server action
+with Apalache would avoid the composition gap; it has not been attempted.
 
 \textbf{Safety versus liveness.} The linking invariant \emph{QuorumOverlap}
 -- any two valid quorums share at least one honest validator -- is a
