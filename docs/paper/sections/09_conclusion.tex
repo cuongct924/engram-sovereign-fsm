@@ -22,6 +22,18 @@ validators on the same hosts, Engram lengthens the block interval by about
 
 \subsection*{Artifact Availability}
 
-\pending{repository URL, license, and availability date.}
-The implementation, TLA+ specifications, and experiment scripts are
-publicly available.
+The implementation, TLA+ specifications, and experiment scripts are in three
+repositories:
+\begin{itemize}
+  \item \texttt{engram-sovereign-fsm}: the Cosmos SDK application, the TLA+
+  specifications, the recovery circuits, the experiment scripts, and this
+  manuscript. \url{https://github.com/cuongct924/engram-sovereign-fsm}
+  \item \texttt{engram-consensus-core}: the CometBFT fork used as the agreement
+  core (Section~\ref{subsec:implementation} lists its four differences from
+  upstream). \url{https://github.com/cuongct924/engram-consensus-core}
+  \item \texttt{engram-barretenberg-wasm}: the build of the UltraHonk verifier
+  embedded in the application; it is provenance only, not a build dependency.
+  \url{https://github.com/cuongct924/engram-barretenberg-wasm}
+\end{itemize}
+The first two repositories are released under the Apache License 2.0.
+\pending{release tag or commit of each repository that produced the reported results.}
