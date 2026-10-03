@@ -272,8 +272,12 @@ responsive value $k_0$ and rises only when the network proves noisy, which
 also raises the cost of the repeated-trigger attack discussed in
 Section~\ref{sec:discussion}. The mechanism is implemented in the
 specification and in the prototype.
-\pending{re-run the live down-edge sweep with the adaptive threshold and
-compare flaps, uptime, and detection delay against static $k\in\{2,6\}$.}
+\pending{report the live down-edge sweep: static $k\in\{2,4,6,8\}$ and the
+adaptive threshold ($k_0{=}2$, $k_{\max}{=}8$) under WAN jitter, under DA blips
+and under a sustained DA outage, comparing flaps, uptime, demotions and
+detection delay; each static value is its own cap, and the adaptive
+configuration is redeployed for every run because its flap level lives on the
+chain.}
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
