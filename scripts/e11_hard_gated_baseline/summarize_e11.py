@@ -37,6 +37,45 @@ def load_rows():
         return list(csv.DictReader(f))
 
 
+def _timeline(r):
+    with open(os.path.join(RESULTS_LIVE, r["timeline_csv"]), newline="") as f:
+        return [(float(x["t"]), int(x["height"]), x["fsm_state"]) for x in csv.DictReader(f)]
+
+
+def lock_times(rows):
+    """Per fault, seconds after fault onset at which Engram's own FSM first reached SOVEREIGN (the largest over
+    its trials): the moment a correct circuit breaker has locked withdrawals. It is the window opener for
+    every system, so Engram's own count in the window is a consistency check of the breaker, not independent
+    evidence; the informative counts are those of hard-gated and soft."""
+    lock = {}
+    for fault in FAULTS:
+        ts = []
+        for r in rows:
+            if r["mode"] == "engram" and r["fault"] == fault:
+                tf = float(r["t_fault_start"])
+                hit = next((t for t, _, st in _timeline(r) if t >= tf and st == "SOVEREIGN"), None)
+                if hit is not None:
+                    ts.append(hit - tf)
+        if ts:
+            lock[fault] = max(ts)
+    return lock
+
+
+def withdrawals_around_lock(r, lock_s):
+    """(committed before the lock time, committed from the lock time to heal) within the fault window."""
+    tl = _timeline(r)
+
+    def t_of(h):
+        return next(t for t, hh, _ in tl if hh >= h)
+
+    tf, th = float(r["t_fault_start"]), float(r["t_heal"])
+    with open(os.path.join(RESULTS_LIVE, r["blocks_csv"]), newline="") as f:
+        blocks = list(csv.DictReader(f))
+    before = sum(int(b["withdrawals"]) for b in blocks if tf < t_of(int(b["height"])) <= tf + lock_s)
+    after = sum(int(b["withdrawals"]) for b in blocks if tf + lock_s < t_of(int(b["height"])) <= th)
+    return before, after
+
+
 def rng(values):
     vals = [v for v in values if v is not None]
     if not vals:
@@ -49,15 +88,22 @@ def write_table(rows):
     groups = defaultdict(list)
     for r in rows:
         groups[(r["fault"], r["mode"])].append(r)
+    lock = lock_times(rows)
     lines = [
         "# E11 -- liveness under peripheral degradation (hard-gated vs. Engram vs. soft)",
         "",
-        "Cells are mean [min, max] over trials. `Stalled` counts trials whose longest block gap in",
-        "the fault window reached 30 s or whose chain never resumed. `Unsafe wd.` is withdrawals",
-        "committed while the FSM state at that height was SOVEREIGN/RECOVERING (committed in total).",
+        "Cells are mean [min, max] over trials. `Rate` is blocks/s in the fault window as a share of the",
+        "same trial's healthy rate. `Stalled` counts trials whose longest block gap reached 30 s or whose chain",
+        "never resumed within the 120 s recovery window. `Wd. after lock` is withdrawals committed from the",
+        "moment Engram's circuit breaker locks (per fault: "
+        + ", ".join(f"{FAULT_LABEL[f]} {lock[f]:.0f} s" for f in FAULTS if f in lock)
+        + " after onset) until the fault ends, the same window for every system; `Wd. before lock` is those",
+        "committed earlier in the fault window (exposure before detection). `Wd. while locked` counts",
+        "withdrawals committed while the FSM state was SOVEREIGN/RECOVERING: a check of the breaker itself,",
+        "always 0 for hard-gated because its FSM never leaves ANCHORED.",
         "",
-        "| Fault | System | Trials | Blocks in fault | Longest gap (s) | Max round | Resume after heal (s) | Stalled | Unsafe wd. (of committed) |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Fault | System | Trials | Blocks in fault | Rate vs healthy | Longest gap (s) | Max round | Resume after heal (s) | Stalled | Wd. after lock | Wd. before lock | Wd. while locked |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for fault in FAULTS:
         for mode in MODES:
@@ -66,11 +112,13 @@ def write_table(rows):
                 continue
             stalled = sum(1 for r in g if r["stalled"] == "True")
             unsafe = sum(int(r["withdrawals_unsafe"]) for r in g)
-            committed = sum(int(r["withdrawals_committed"]) for r in g)
+            ratio = [num(r["fault_blocks_per_s"]) / num(r["baseline_blocks_per_s"]) * 100 for r in g]
+            around = [withdrawals_around_lock(r, lock[fault]) for r in g] if fault in lock else []
             lines.append(
                 f"| {FAULT_LABEL[fault]} | {mode} | {len(g)} | {rng([num(r['fault_blocks']) for r in g])} "
-                f"| {rng([num(r['longest_gap_s']) for r in g])} | {rng([num(r['max_round_in_fault']) for r in g])} "
-                f"| {rng([num(r['resume_after_heal_s']) for r in g])} | {stalled}/{len(g)} | {unsafe} ({committed}) |"
+                f"| {rng(ratio)}% | {rng([num(r['longest_gap_s']) for r in g])} | {rng([num(r['max_round_in_fault']) for r in g])} "
+                f"| {rng([num(r['resume_after_heal_s']) for r in g])} | {stalled}/{len(g)} "
+                f"| {rng([a for _, a in around]) if around else 'n/a'} | {rng([b for b, _ in around]) if around else 'n/a'} | {unsafe} |"
             )
     path = os.path.join(RESULTS_LIVE, "e11_summary.md")
     with open(path, "w") as f:
