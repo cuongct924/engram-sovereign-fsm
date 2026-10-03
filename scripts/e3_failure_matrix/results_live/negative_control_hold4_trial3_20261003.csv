@@ -1,0 +1,2 @@
+outage_s,held_in_recovering,hold_s,interval_blocks,liars,no_backfill_validators,recovering_height,seconds_to_sovereign,sovereign_height,trial
+120,True,300.0,208,0,4,536,42.7,328,1
