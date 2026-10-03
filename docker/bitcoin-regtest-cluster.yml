@@ -52,11 +52,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    # CPU weight under contention: validators > celestia-app/bitcoind > bridges > prover.
+    cpu_shares: 1024
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
     deploy:
       resources:
         limits:
           cpus: '0.5'
-          memory: 1G
+          memory: 512M
         reservations:
           cpus: '0.1'
           memory: 256M
@@ -104,11 +111,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    # CPU weight under contention: validators > celestia-app/bitcoind > bridges > prover.
+    cpu_shares: 1024
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
     deploy:
       resources:
         limits:
           cpus: '0.5'
-          memory: 1G
+          memory: 512M
         reservations:
           cpus: '0.1'
           memory: 256M

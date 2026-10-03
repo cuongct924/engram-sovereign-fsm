@@ -24,6 +24,14 @@ services:
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
     restart: unless-stopped
     init: true
+    # CPU weight under contention: validators > celestia-app/bitcoind > bridges > prover.
+    cpu_shares: 256
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
     deploy:
       resources:
         limits:
