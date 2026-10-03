@@ -20,10 +20,9 @@ counterexample for each removed mechanism. On a seven-validator testbed with
 live Bitcoin and Celestia networks, the chain kept committing blocks under a
 layered composite fault and completed a full recovery cycle with complete
 AppHash agreement. The extended object costs +228 bytes and 18.25\,$\mu$s per
-proposal. Its lower block rate is not caused by extra consensus rounds: every height
-commits in the first round with no nil precommit or rejected proposal, and each
-block takes a near-constant 0.24\,s longer than vanilla's (1.27\,s against
-1.03\,s).
+proposal. Against seven vanilla validators on the same hosts, it
+lengthens the block interval by about 2\% (1.262\,s against 1.233\,s), and every
+height commits in the first round with no nil precommit or rejected proposal.
 
 \subsection*{Future Work}
 

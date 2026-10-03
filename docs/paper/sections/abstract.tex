@@ -32,9 +32,8 @@ testnet with live Bitcoin regtest and Celestia networks, under a layered
 composite fault the chain keeps committing blocks and completes a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
 100\% AppHash agreement. The extended consensus object adds +228 bytes per
-proposal and 18.25\,$\mu$s of validation per block, yet lowers the
-block-production rate by roughly 20\% relative to vanilla CometBFT. Scanning
-every height shows that this is not extra consensus rounds: all heights commit
-in the first round, with no nil precommit and no rejected proposal. Every block
-instead takes a near-constant 0.24\,s longer (1.27\,s against 1.03\,s).
+proposal and 18.25\,$\mu$s of validation per block. Against seven vanilla
+CometBFT validators on the same hosts and load, Engram's block interval is
+1.262\,s against 1.233\,s, an addition of about 2\%; every height commits in the
+first round with no nil precommit and no rejected proposal.
 \pending{add the hard-gated-baseline stall result.}

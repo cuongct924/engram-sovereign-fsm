@@ -190,8 +190,7 @@ Two further observations stand out. First, S2 contains two brief
 absorbing live rather than synthetic noise. Second, block production
 stayed close to baseline: block-interval means ranged 1.30--1.93\,s
 across all seven scenarios (vs.\ 1.34\,s at the S1 healthy baseline; all
-intervals in this paragraph are Engram's, and 1.34\,s corresponds to the
-0.743 blocks/s of Table~\ref{tab:overhead}), and the
+intervals in this paragraph are Engram's), and the
 largest p95 intervals occurred in S4 (4.27\,s) and S7 (3.10\,s). Engram therefore keeps committing blocks both under overlapping faults
 and under each failure mode in isolation, and returns to \textsc{Anchored}
 in every case.
@@ -279,78 +278,117 @@ $k\in\{2,6\}$.}
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
 
+\textbf{Data availability of the \textsc{Sovereign} interval.} The exit
+condition of Section~\ref{subsec:reanchoring} requires the interval's block
+data to be republished before \textsc{Recovering}$\to$\textsc{Anchored}. We
+stopped all seven Celestia bridges for 120, 300 and 600\,s, restarted them, and
+after the chain returned to \textsc{Anchored} re-fetched every height of the
+interval from Celestia through \texttt{blob.GetAll}, comparing the bytes with
+the Engram block. Table~\ref{tab:backfill} shows that all 2{,}291 heights over
+nine runs were found and identical. The chain entered \textsc{Sovereign}
+46--49\,s after the bridges stopped, and the time in \textsc{Recovering} did
+not grow with the interval: 37--61\,s for 75--77 blocks and 49--61\,s for
+465--475 blocks. The check is external to the chain: the gate itself rests on the
+quorum-reported contiguous height, and these runs show that height was truthful
+when all validators were honest. They cover a total DA outage on one host
+with $n{=}3$ per length. Runs under the earlier 512\,MiB bridge limit are
+excluded; at that limit the bridges crash-looped and the 600\,s outage never
+returned to \textsc{Recovering}.
+\pending{report the negative controls: with four of seven validators
+publishing no block data the chain must remain in \textsc{Recovering}, with
+three it must exit, and two validators signing an inflated contiguous height must
+not open the gate.}
+
+\begin{table}[h]
+\caption{Republication of the \textsc{Sovereign} interval after a total DA
+outage ($n{=}3$ per outage length; range over runs)}
+\label{tab:backfill}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+\textbf{Outage (s)} & \textbf{Interval (blocks)} & \textbf{Time in \textsc{Recovering} (s)} & \textbf{Heights found, identical} \\
+\midrule
+120 & 75--77 & 36.6--61.1 & 229 / 229 \\
+300 & 217--219 & 60.9--67.3 & 655 / 655 \\
+600 & 465--475 & 49.0--61.2 & 1407 / 1407 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{RQ4: Cost}
 \label{subsec:rq4}
 
 \begin{table}[h]
 \caption{Overhead of the Extended Consensus Object vs.\ Vanilla CometBFT
-(20 tx/s, $n{=}5$ repeats, mean $\pm$ 95\% CI)}
+(20 tx/s, 60\,s per repeat, mean $\pm$ 95\% CI)}
 \label{tab:overhead}
 \centering
 \footnotesize
-\begin{tabular}{@{}lrr@{}}
+\begin{tabular}{@{}lrrrr@{}}
 \toprule
-\textbf{Metric} & \textbf{Vanilla} & \textbf{Engram} \\
+ & \multicolumn{3}{c}{\textbf{Vanilla}} & \textbf{Engram} \\
+\cmidrule(lr){2-4}
+\textbf{Metric} & 1 process & 7 val., no ext. & 7 val., ext.\ on & 7 val. \\
 \midrule
-Proposal overhead (steady state) & 0 B & +228 B \\
-Proposal validation CPU & --- & 18.25\,$\mu$s \\
-Blocks/s & 0.953 $\pm$ 0.007 & 0.743 $\pm$ 0.008 \\
-Steady blocks/s (1/mean interval) & 1.000 $\pm$ 0.000 & 0.993 $\pm$ 0.023 \\
-Gap fraction & 0.046 $\pm$ 0.006 & 0.251 $\pm$ 0.016 \\
-p95 block interval & 1.017 s & 1.021 s \\
-Tx accepted to mempool/s & 20.00 $\pm$ 0.00 & 19.99 $\pm$ 0.00 \\
-\midrule
-Rounds per height & 1.000 & 1.000 \\
-Proposals rejected / height & 0 & 0 \\
-Nil precommits / height & 0 & 0 \\
-Block interval, mean (p50 / p95) & 1.034 (1.032 / 1.042) s & 1.271 (1.257 / 1.342) s \\
-Committed tx/s & 20.00 $\pm$ 0.00 & 20.00 $\pm$ 0.00 \\
-Tx commit latency (p50 / p95) & 0.67 / 1.16 s & 1.03 / 1.64 s \\
-Mempool backlog (mean / max) & 8.2 / 24 & 15.7 / 46 \\
-Tx per block (mean) & 17.6 & 21.8 \\
+Repeats $n$ & 5 & 5 & 3 & 5 \\
+Rounds per height & 1.000 & 1.000 & 1.000 & 1.000 \\
+Proposals rejected / height & 0 & 0 & 0 & 0 \\
+Nil precommits / height & 0 & 0 & 0 & 0 \\
+Block interval, mean (s) & 1.034 $\pm$ 0.001 & 1.233 $\pm$ 0.015 & 1.229 $\pm$ 0.023 & 1.262 $\pm$ 0.020 \\
+Block interval p50 / p95 (s) & 1.032 / 1.042 & 1.220 / 1.313 & 1.217 / 1.300 & 1.241 / 1.335 \\
+Blocks/s & 0.967 & 0.811 & 0.814 & 0.793 \\
+Committed tx/s & 20.00 & 20.00 & 20.00 & 20.00 \\
+Tx commit latency p50 / p95 (s) & 0.67 / 1.16 & 0.99 / 1.57 & 0.99 / 1.56 & 1.03 / 1.63 \\
+Mempool backlog, mean / max & 8.2 / 24 & 14.5 / 31 & 14.6 / 31 & 15.5 / 44 \\
+Tx per block (mean) & 17.6 & 21.1 & 21.1 & 21.5 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
-\footnotesize Blocks/s, steady blocks/s, and gap fraction are defined in
-Section~\ref{subsec:metrics}; each is a mean over $n{=}5$ runs of 60\,s. The rows below the rule come
-from a separate $n{=}5$ pass at 20\,tx/s that scans \emph{every} committed
-height (commit round, nil precommits, block time) instead of polling; nil
-prevotes are not stored on chain, and rejected proposals (distinct
-height/round/reason in the validators' logs) are the proxy for why a validator
-would prevote nil. Transaction counts exclude the health certificate in
-\texttt{Txs[0]}. Latency runs from submission to the first 0.25\,s poll that
-sees the transaction in a block. The vanilla arm is one local process, so its
-round and nil-vote rows are trivially 1 and 0.
+\begin{minipage}{\linewidth}
+\raggedright
+\footnotesize Per-height values come from scanning \emph{every} committed
+height (commit round, nil precommits, block time). Nil prevotes are not stored
+on chain; rejected proposals (distinct height/round/reason in the validators'
+logs) are the proxy for why a validator would prevote nil. ``ext.\ on'' keeps
+vote extensions enabled in the genesis with empty extensions; ``no ext.'' is a
+fresh genesis without them. The Engram arm is a fresh deployment; a first
+deployment gave 1.242\,$\pm$\,0.005\,s ($n{=}3$). Transaction counts exclude
+the health certificate in \texttt{Txs[0]}. Latency runs from submission to the
+first 0.25\,s poll that sees the transaction in a block. The 1-process arm is a
+local single node.
+\end{minipage}
 \end{table}
 
 \textbf{Where the cost is not.} The extended object adds a near-constant
 +228 bytes per proposal (live: 247--270 bytes across states, 100\% of 376
 sampled blocks), and the one proof-carrying block observed was 14.9\,KB,
 consistent with the 14.7\,KB proof. Full proposal validation costs
-18.25\,$\mu$s per steady-state block. Neither the byte overhead nor the
-validation time is large enough to explain a lower block rate at a
-$\sim$1\,s block interval.
+18.25\,$\mu$s per steady-state block, and \texttt{ExtendVote}, which reads
+the live Bitcoin and Celestia sensors before a validator can precommit, took
+16.6\,ms on average (p95 51\,ms, $n{=}5$ repeats). None of these is large
+enough to explain a lower block rate at a $\sim$1\,s block interval.
 
-\textbf{Where the cost is.} Engram's block rate is lower than
-vanilla's (0.743 against 0.953 blocks/s in the polled runs above; 0.788
-against 0.968 when every height is scanned). The scan identifies the cause
-by elimination. All 276 scanned Engram heights committed in the first round,
-none carried a nil precommit, and no proposal was rejected, so extra
-consensus rounds, \texttt{ProcessProposal} rejections and nil votes are
-ruled out. The interval distribution is also not a few long stalls:
-Engram's blocks arrive every 1.27\,s (p50 1.257, p95 1.342) and only 0.8\% are
-slower than 1.5 times the median, against 1.03\,s for vanilla. Each height is
-therefore about 0.24\,s longer, a constant per-height cost. The earlier
-reading that the gap fraction signals extra rounds was an artefact of
-polling, which cannot resolve intervals this close. The extra time sits on the
-critical path of every height, and the vote-extension step is the natural
-candidate: \texttt{ExtendVote} reads the live Bitcoin and Celestia sensors
-and each validator signs and gossips one more message. We did not isolate it,
-for example by replacing the extension with a no-op, so we state the
-constant, not its source.
+\textbf{Where the cost is.} Against a single local process, Engram's blocks
+arrive 0.23\,s later (1.262 against 1.034\,s). Table~\ref{tab:overhead} shows
+that this gap is not Engram's. Seven vanilla validators on the same hosts,
+network, genesis and load produce a block every 1.233\,s with vote extensions
+disabled and every 1.229\,s with empty extensions, within 0.03\,s of Engram
+(95\% CIs of 0.015--0.023\,s). Hence the 0.2\,s is the price of running a
+seven-validator BFT network on one host, and vote extensions as such add no
+measurable time. Engram's own addition is 0.03\,s or less per height (about
+2\%), consistent with the 16.6\,ms \texttt{ExtendVote} time. In all four arms every
+height committed in the first round with no nil precommit and no rejected
+proposal, so extra rounds do not contribute at 20\,tx/s without faults. A
+mean over $n{=}5$ cannot resolve a difference of a few milliseconds, so we
+claim an upper bound of about 2\% on Engram's cost, not an exact value. The
+arms ran on separate deployments except the first Engram and the
+extensions-on arm, which shared one chain (Engram first); the Engram arm was
+repeated on a fresh deployment to check for an order effect and moved by
+0.02\,s.
 
-\textbf{Load.} Between 5 and 100 tx/s, both modes accepted every submitted
-transaction into the mempool and the p95 block interval stayed at
-1.01--1.02\,s. Mempool acceptance is not throughput; committed throughput
-and its ceiling are measured separately (Table~\ref{tab:overhead}, lower
-rows).
+\textbf{Load.} Table~\ref{tab:overhead} is measured at 20\,tx/s. Both
+systems accepted every submitted transaction into the mempool across an
+earlier 5--100\,tx/s ramp, but mempool acceptance is not throughput.
+\pending{repeat the ramp with the four arms of Table~\ref{tab:overhead} to find
+the committed-throughput ceiling.}

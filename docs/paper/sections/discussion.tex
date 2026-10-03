@@ -59,13 +59,12 @@ economic cost to users or the attacker's cost of sustaining it.
 
 \textbf{Unexpected results.} Three results need a causal account.
 \begin{itemize}
-  \item \emph{Block rate.} Engram's rate is 22\% below vanilla's
-  (Section~\ref{subsec:rq4}). The per-height scan rules out extra rounds,
-  rejections and nil votes: they are absent. What remains is a constant
-  0.24\,s per height. The vote-extension path (a live sensor read in
-  \texttt{ExtendVote} and one more signed message per validator) sits on every
-  height's critical path and is the natural candidate, but we did not isolate
-  it, for example by timing \texttt{ExtendVote} against a no-op extension.
+  \item \emph{Block rate.} Against a single local vanilla process,
+  Engram's block interval is 0.23\,s longer (Section~\ref{subsec:rq4}), which
+  at first suggested a cost of the extended object. Seven vanilla validators
+  on the same hosts produce the same interval within 0.03\,s, with vote
+  extensions on or off, so the gap is the cost of the seven-validator network.
+  Engram's own addition is at most about 2\%.
   \item \emph{Hysteresis threshold.} The default threshold of 2 flapped under
   wide-area jitter, and only thresholds $\geq 6$ were clean
   (Section~\ref{subsec:rq3}). We attribute this to latency variance in the

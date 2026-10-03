@@ -300,9 +300,8 @@ production deployment.
   Section~\ref{subsec:reanchoring} requires that height to cover the
   \textsc{Sovereign} interval. The gate rests on a quorum-reported
   contiguous height, not on a cryptographic proof of retrievability.
-  \pending{measure the time in \textsc{Recovering} against the interval length
-  under a live DA outage and re-fetch every height of the interval from
-  Celestia, comparing transaction hashes with the Engram blocks.}
+  Section~\ref{subsec:rq3} reports the republication of the interval after a
+  live DA outage.
   \item \emph{Single-bridge trust.} Each validator trusts its own bridge
   node, which downloads and verifies full Celestia blocks, rather than
   sampling across independent peers; our DA-outage results measure bridge
