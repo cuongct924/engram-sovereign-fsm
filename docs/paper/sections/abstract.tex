@@ -18,8 +18,8 @@ Bitcoin or DA degrades, or the peripheral P2P view degrades while the core
 consensus network retains quorum connectivity, the chain continues producing
 blocks in \textsc{Sovereign} mode with cross-chain withdrawals locked, and
 returns to \textsc{Anchored} once a validator-verified zero-knowledge recovery
-proof (Noir/UltraHonk, 256 headers per proof, aggregated into one
-proof for up to 1024 headers and chained beyond that) attests to header continuity,
+proof (Noir/UltraHonk, 256 headers per proof, chained for longer
+intervals) attests to header continuity,
 FSM-transition legality, and withdrawal-lock adherence over the
 \textsc{Sovereign} interval. We give a layered TLA+ specification and
 check each layer in isolation with bounded model checking (zero violations at

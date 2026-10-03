@@ -150,6 +150,17 @@ leaf cost. Aggregate prove includes the leaf proofs. At $L{=}256$ a single
 leaf proof is submitted and the aggregate row is shown for the overhead only.
 \end{table}
 
+The aggregator verifies the chunk proofs in-circuit and checks that chunk
+$i$ starts at the root and height where chunk $i{-}1$ ended, under the same
+validator-set hash. It exposes the same public inputs as a single chunk, so an
+aggregate proof stands in for a leaf proof, and its capacity $K{=}4$ is fixed
+at compile time. Unbounded incremental recursion would require the step circuit
+to receive its own verification-key hash as a public input, which we did not
+implement. Recursion is applied at the chunk level because in-circuit
+verification of one UltraHonk proof costs about 0.7 million gates, whereas
+hashing one header costs about 12 opcodes: recursion over per-header proofs
+measured 650--1{,}200$\times$ slower than direct hashing at matched sizes.
+
 Table~\ref{tab:aggregation} shows that submitted bytes and verification time of
 the aggregate do not depend on $L$ up to $K \cdot 256 = 1024$, while the
 one-by-one cost grows linearly. The price is one extra proof: the aggregator

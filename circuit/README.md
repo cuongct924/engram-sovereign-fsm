@@ -124,7 +124,8 @@ padding-logic cost from the hash/signature choices above):
 `scripts/e6_zk_reanchoring_benchmark/benchmark_aggregate.sh` (nargo 1.0.0-beta.22, bb
 5.0.0-nightly.20260522, 10-core / 32 GiB macOS workstation; synthetic chain with real ed25519
 precommits; aggregate prove/verify over 5 trials, leaf prove once per chunk). Results:
-`results/table6e_aggregate.csv`.
+`results/table6e_aggregate.csv`. §1's timings come from a different host, so compare absolute
+times only within one table.
 
 | L (headers) | Chunks | Chaining: prove | Chaining: proofs | Aggregate: total prove | Aggregate: proof |
 |---:|---:|---:|---:|---:|---:|

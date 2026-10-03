@@ -460,28 +460,14 @@ target verifier of this paper is an external light client that accepts
 a re-anchoring checkpoint only with a valid proof; the prototype does not
 include such a client.
 
-\textbf{Longer intervals: chunk aggregation.} The leaf circuit has a fixed
-capacity and does not verify other proofs. An interval of $L$ headers is split
-into $\lceil L/256 \rceil$ chunks, each proven by the leaf circuit. An
-aggregator circuit of fixed capacity $K{=}4$ verifies those chunk proofs
-in-circuit and checks that chunk $i$ starts at the root and height where chunk
-$i{-}1$ ended, under the same validator-set hash. It exposes the same public
-inputs as a single chunk, so one aggregate proof stands in for a leaf proof.
-A validator verifies one 14{,}656-byte proof in about 20\,ms on the measurement workstation for any
-$L \leq K \cdot 256 = 1024$ (Appendix~\ref{app:aggregation}). An interval beyond
-1024 headers is covered by a sequence of aggregate proofs: each accepted proof
-advances the on-chain $\mathit{rt}_{\text{last}}$ to its
-$\mathit{rt}_{\text{new}}$, and the next must start from that root, so the
-cost is $\lceil L/1024 \rceil$ proofs. A circuit cannot embed its own
-verification key, so $K$ is a compile-time constant and the construction is
-fixed-arity aggregation, not unbounded incremental recursion. Aggregation adds
-one proof to the leaf proofs and gives no benefit for $L \leq 256$.
-Recursion is applied only at the chunk level. In-circuit verification of one
-UltraHonk proof costs about 0.7 million gates, whereas hashing one header costs
-about 12 opcodes; recursion over per-header proofs measured
-650--1{,}200$\times$ slower than direct hashing at matched sizes. A leaf proof
-is 3.2 million gates, so verifying it in-circuit raises the proving time of an
-interval by 22\% at $L{=}1024$.
+\textbf{Longer intervals.} An interval longer than 256 headers is covered by
+a sequence of proofs: each accepted proof advances the on-chain
+$\mathit{rt}_{\text{last}}$ to its $\mathit{rt}_{\text{new}}$, and the next
+proof must start from that root. This costs $\lceil L/256 \rceil$ proofs for
+$L$ blocks. An aggregator circuit can fold up to four chunk proofs into one
+proof of the same size, which makes verification cost independent of $L$ up to
+1024 headers at the price of one extra proof
+(Appendix~\ref{app:aggregation}).
 
 \textbf{Who verifies what.} The recovery proof is submitted as a
 transaction and verified by \emph{every Engram validator} during block
