@@ -130,7 +130,7 @@ def one_repeat(arm: str, ports: list, duration_s: float, rate_hz: float, repeat:
         hw = csv.DictWriter(hf, fieldnames=list(rows[0]))
         hw.writeheader()
         hw.writerows(rows)
-    rejects = cm.collect_rejects(containers, start_height + 1, end_height) if containers else None
+    rejects = cm.collect_rejects(containers, start_height + 1, end_height, since=start - 5) if containers else None
     s = cm.summarize(rows, rejects)
     heights = max(len(rows), 1)
     distinct_rejects = sum(s.get("rejects_distinct_by_reason", {}).values())

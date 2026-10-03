@@ -1,0 +1,93 @@
+{
+  "arm": "vanilla",
+  "repeats": 5,
+  "duration_s": 60.0,
+  "rate_hz": 20.0,
+  "metrics": {
+    "accepted": {
+      "mean": 1200.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "committed": {
+      "mean": 1200.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "committed_tx_per_s": {
+      "mean": 20.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "latency_p50_s": {
+      "mean": 0.6739285945892334,
+      "stdev": 0.016540566407359125,
+      "ci95": 0.014498445702296156
+    },
+    "latency_p95_s": {
+      "mean": 1.1580430507659911,
+      "stdev": 0.02027872459377534,
+      "ci95": 0.017775085821961956
+    },
+    "mempool_mean": {
+      "mean": 8.24,
+      "stdev": 1.376159993071522,
+      "ci95": 1.2062574186300365
+    },
+    "mempool_max": {
+      "mean": 24.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "heights": {
+      "mean": 68.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "rounds_per_height": {
+      "mean": 1.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "nil_precommits_per_height": {
+      "mean": 0.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "rejected_per_height": {
+      "mean": 0.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "tx_per_block": {
+      "mean": 17.647058823529413,
+      "stdev": 0.0,
+      "ci95": 0.0
+    },
+    "blocks_per_s": {
+      "mean": 0.9674952241837289,
+      "stdev": 0.001064805255231648,
+      "ci95": 0.0009333429579308155
+    },
+    "interval_mean_s": {
+      "mean": 1.033597835142221,
+      "stdev": 0.0011377982729460342,
+      "ci95": 0.0009973241589317633
+    },
+    "interval_p50_s": {
+      "mean": 1.0324109554290772,
+      "stdev": 0.0008274600697092666,
+      "ci95": 0.0007253007300983608
+    },
+    "interval_p95_s": {
+      "mean": 1.0421599864959716,
+      "stdev": 0.004678359497934881,
+      "ci95": 0.004100762905341159
+    },
+    "slow_interval_fraction": {
+      "mean": 0.0,
+      "stdev": 0.0,
+      "ci95": 0.0
+    }
+  }
+}
