@@ -114,6 +114,12 @@ class Assignment:
         print(f"[{now()}] >>> recreating {sorted(changed)} with {wanted or 'honest'}")
         run(COMPOSE + ["up", "-d", "--no-deps", "--force-recreate", *sorted(changed)], env=env, check=True, timeout=300)
         self.current = dict(wanted)
+        # A node missing from docker/engram-byzantine.yml silently stays honest and would invalidate the
+        # case (a control once ran with only 2 of its 5 intended faulty validators): read the env back.
+        for n in changed:
+            got = run(["docker", "exec", n, "printenv", "ENGRAM_BYZANTINE_BEHAVIOR"], check=False).stdout.strip()
+            if got != wanted.get(n, ""):
+                raise RuntimeError(f"{n} runs ENGRAM_BYZANTINE_BEHAVIOR={got!r}, wanted {wanted.get(n, '')!r}")
 
     def clear(self) -> None:
         self.set({})
