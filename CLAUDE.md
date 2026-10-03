@@ -6,7 +6,7 @@ Guidance for Claude Code when working in this repository.
 
 A Cosmos SDK + CometBFT prototype implementing **Engram Hybrid Adaptive Consensus** — a
 blockchain consensus protocol that treats peripheral network health (Bitcoin settlement finality,
-Celestia data availability, P2P health) as a first-class consensus variable, degrading gracefully
+Celestia data availability, peripheral P2P health) as a first-class consensus variable, degrading gracefully
 into a local-PoS "Sovereign" fallback instead of halting when those layers fail.
 
 The formal TLA+ specification and its TLC/Apalache proofs live in `spec/` (see `spec/CLAUDE.md`).
@@ -20,7 +20,7 @@ traceability is load-bearing — see "Spec fidelity" below.
 x/sovereignty/      -- FSM engine (Cosmos SDK module): state machine, sensors, circuit breaker,
                         ABCI++ hooks (PrepareProposal/ProcessProposal/PreBlocker)
 x/da/                -- Celestia DA receipt type + verification
-x/anchor/         -- Bitcoin settlement receipt type + SPV verification
+x/anchor/         -- Bitcoin settlement receipt type + anchor re-verification
 app/                 -- EngramApp: BaseApp wiring (codec, KVStoreKey, ante handler, ABCI++ hooks);
                         no bank/auth/staking module mounted
 cmd/engramd/         -- node binary: `engramd init`, `start [--vanilla]`, `testnet init-files --v N`

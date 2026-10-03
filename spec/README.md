@@ -174,7 +174,7 @@ stateDiagram-v2
 
 - **Self-aware consensus.** The FSM transition is not an out-of-band governance action; it is agreed upon within the standard Tendermint consensus pipeline. The FSM state is embedded in each proposal and validated by every prevoting node.
 
-- **Hysteresis.** Recovery from `SOVEREIGN` back to `ANCHORED` requires a sustained healthy period of `HYSTERESIS_WAIT` consecutive blocks and a valid ZK-Proof. This prevents state oscillation ("flapping") caused by intermittent connectivity.
+- **Hysteresis.** Recovery from `SOVEREIGN` back to `ANCHORED` requires a sustained healthy period of `RECOVERY_HYSTERESIS_WAIT` consecutive blocks and a valid ZK-Proof. This prevents state oscillation ("flapping") caused by intermittent connectivity.
 
 - **ZK-based re-anchoring.** Blocks produced in SOVEREIGN mode are secured by local PoS. When connectivity is restored, a fixed-capacity SNARK proves up to 256 sovereign headers at constant cost; a longer interval is covered by a chain of such proofs, each starting from the root the previous one committed. No re-execution of sovereign blocks is required. See [`circuit/README.md`](../circuit/README.md).
 
@@ -401,7 +401,7 @@ CalculateNextFSMState ==
       [] state = "RECOVERING" /\ ~IsHealthyCondition
                                /\ unhealthy_streak + 1 >= EffectiveDownHysteresisThreshold -> "SOVEREIGN"
       [] state = "RECOVERING" /\ ~IsHealthyCondition -> "RECOVERING"
-      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE
+      [] state = "RECOVERING" /\ IsHealthyCondition  /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE
                                /\ da_backfill_valid = TRUE -> "ANCHORED"
       [] state = "RECOVERING" /\ IsHealthyCondition  -> "RECOVERING"
 
@@ -413,7 +413,7 @@ Read state-by-state:
 * **From ANCHORED:** `IsCriticalCondition` drops straight to `SOVEREIGN`; `IsWarningCondition` alone only demotes to `SUSPICIOUS` after `unhealthy_streak+1 >= DOWN_HYSTERESIS_THRESHOLD` consecutive blocks (absorbs single-block noise) — never jumps directly to/from `RECOVERING`.
 * **From SUSPICIOUS:** escalates to `SOVEREIGN` on `IsCriticalCondition` or once `suspicious_duration >= MAX_SUSPICIOUS_TIME` (gray-failure timeout). Recovers to `ANCHORED` only after `suspicious_safe_blocks+1 >= SUSPICIOUS_HYSTERESIS_WAIT` consecutive healthy blocks (closes the one-block reset arbitrage).
 * **From SOVEREIGN:** moves to `RECOVERING` once `IsHealthyCondition` holds; `ExecuteFSMTransition` (below) then governs how long it must stay healthy before exiting.
-* **From RECOVERING:** `IsCriticalCondition` falls straight back to `SOVEREIGN`; a non-critical failure is absorbed like ANCHORED's but against `EffectiveDownHysteresisThreshold` (doubles per failed attempt, capped at `MAX_DOWN_HYSTERESIS_THRESHOLD`). Exit to `ANCHORED` needs `IsHealthyCondition`, `safe_blocks = HYSTERESIS_WAIT`, `reanchoring_proof_valid = TRUE`, and `da_backfill_valid = TRUE` together (§5.2 "Re-anchoring via ZK-Proof of Recovery" below).
+* **From RECOVERING:** `IsCriticalCondition` falls straight back to `SOVEREIGN`; a non-critical failure is absorbed like ANCHORED's but against `EffectiveDownHysteresisThreshold` (doubles per failed attempt, capped at `MAX_DOWN_HYSTERESIS_THRESHOLD`). Exit to `ANCHORED` needs `IsHealthyCondition`, `safe_blocks = RECOVERY_HYSTERESIS_WAIT`, `reanchoring_proof_valid = TRUE`, and `da_backfill_valid = TRUE` together (§5.2 "Re-anchoring via ZK-Proof of Recovery" below).
   * `da_backfill_valid` is set by the `DABackfill` action, enabled only in `RECOVERING` while the DA layer is healthy, and cleared by any transition into or out of `RECOVERING`.
   * It abstracts "the block data of every height in the `SOVEREIGN` interval is published to DA and retrievable". A recovery proof shows the interval is valid, not that its data is available.
 
@@ -427,7 +427,7 @@ See [`circuit/README.md`'s "Formal Definition: Proof of Recovery"](../circuit/RE
 
 Three counters guard the three edges against single-block noise, each requiring N consecutive blocks rather than reacting to one:
 
-- **`safe_blocks`** (RECOVERING → ANCHORED): needs `HYSTERESIS_WAIT` consecutive healthy blocks; a critical failure hard-resets it to 0, a non-critical one only leaks it down by one.
+- **`safe_blocks`** (RECOVERING → ANCHORED): needs `RECOVERY_HYSTERESIS_WAIT` consecutive healthy blocks; a critical failure hard-resets it to 0, a non-critical one only leaks it down by one.
 - **`unhealthy_streak`** (ANCHORED → SUSPICIOUS, RECOVERING → SOVEREIGN): needs `DOWN_HYSTERESIS_THRESHOLD` consecutive non-critical unhealthy blocks (RECOVERING uses the exponentially-backed-off `EffectiveDownHysteresisThreshold` instead); resets on any healthy block.
 - **`suspicious_safe_blocks`** (SUSPICIOUS → ANCHORED): needs `SUSPICIOUS_HYSTERESIS_WAIT` consecutive healthy blocks -- closes the one-block gray-failure-timeout arbitrage.
 
@@ -473,7 +473,7 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 - The DA receipt is valid and within `DATolerance(r)`'s round-adaptive gap, whenever `fsm_state \in {ANCHORED, RECOVERING}` or `IsDAHealthy`.
 - `btc_receipt.checkpoint_block_height` is monotonic non-decreasing within `BTCTolerance(r)`, and `VerifyAnchorReceipt(btc_receipt)` passes, under the same condition as the DA receipt -- so a proposal degrading away from `ANCHORED`/`RECOVERING` because BTC is down isn't also forced to carry a checkpoint no leader could produce during that outage.
 - Withdrawals are blocked when `fsm_state \in {SOVEREIGN, RECOVERING}` (same scope as §7.1's `CircuitBreakerSafety`).
-- A ZK-Proof (`VerifyZkProof`) is mandatory when `fsm_state = RECOVERING` and `safe_blocks = HYSTERESIS_WAIT`.
+- A ZK-Proof (`VerifyZkProof`) is mandatory when `fsm_state = RECOVERING` and `safe_blocks = RECOVERY_HYSTERESIS_WAIT`.
 
 ### 6.3 Consensus State Machine Diagram
 
@@ -599,7 +599,7 @@ Formally specified in `EngramFSM.tla` as `CircuitBreakerSafety`. Checked in `MC_
 ```tlaplus
 HysteresisSafety ==
     [][ (state = "RECOVERING" /\ state' = "ANCHORED")
-        => (safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
+        => (safe_blocks = RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid) ]_fsmVars
 ```
 
 Formally specified in `EngramFSM.tla` as `HysteresisSafety`. Checked as a `PROPERTIES` entry in `MC_FSMSafety.cfg`; also listed in `MC_ServerRefinementSafety` (open).
@@ -786,7 +786,7 @@ RecoveryAttemptLiveness ==
     ~> (state = "RECOVERING" \/ ~IsHealthyCondition)
 ```
 
-**Property L4 (Complete Re-anchoring).** Once a valid ZK-Proof and the DA backfill are available and conditions remain healthy, the system must eventually return to `ANCHORED`. Under these conditions `CalculateNextFSMState`'s `state = "RECOVERING" /\ IsHealthyCondition /\ safe_blocks = HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE /\ da_backfill_valid = TRUE -> "ANCHORED"` branch (§5.2) is the only enabled FSM transition; weak fairness guarantees it fires.
+**Property L4 (Complete Re-anchoring).** Once a valid ZK-Proof and the DA backfill are available and conditions remain healthy, the system must eventually return to `ANCHORED`. Under these conditions `CalculateNextFSMState`'s `state = "RECOVERING" /\ IsHealthyCondition /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT /\ reanchoring_proof_valid = TRUE /\ da_backfill_valid = TRUE -> "ANCHORED"` branch (§5.2) is the only enabled FSM transition; weak fairness guarantees it fires.
 
 ```tlaplus
 CompleteRecoveryLiveness ==
@@ -877,7 +877,7 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 | Layer | Config | Key Parameters | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
 | Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2; numeric certificate observations, 10 workers | 3,772,809 | 537,536 | 25 | 1m01s | 0 |
-| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, HysteresisWait=2, DownHysteresisThreshold=2; re-run with the numeric certificate observations, 10 workers | 1,371,377,696 | 4,542,271 | 23 | 10m19s | 0 |
+| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, RecoveryHysteresisWait=2, DownHysteresisThreshold=2; re-run with the numeric certificate observations, 10 workers | 1,371,377,696 | 4,542,271 | 23 | 10m19s | 0 |
 | FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above; re-run with the numeric certificate observations, 10 workers | 17,986,105 | 31,105 | 23 | 3m45s | 0 |
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety would be established only via `RefinementSafety` in `MC_ServerRefinementSafety`, which is open, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
@@ -1010,7 +1010,7 @@ sequenceDiagram
 
 ##### B. Remove Hysteresis
 
-* **Ablated:** the `safe_blocks = HYSTERESIS_WAIT` condition in `CalculateNextFSMState`'s `RECOVERING -> ANCHORED` branch (`core/EngramFSM_Ablation_NoHysteresis.tla`).
+* **Ablated:** the `safe_blocks = RECOVERY_HYSTERESIS_WAIT` condition in `CalculateNextFSMState`'s `RECOVERING -> ANCHORED` branch (`core/EngramFSM_Ablation_NoHysteresis.tla`).
 * **Result:** violation at depth **6**, in **117.0s** (`apalache-mc check --inv=Sanity_NoIllegalHysteresisExit --length=15`, `core/MC_Ablation_NoHysteresisSafety_FSMOnly_Apalache.tla`). Trace: `spec/traces/ablation_no_hysteresis.{itf.json,trace.tla}`.
 * **How it's checked:** `--inv` only sees current-state predicates, but the real `HysteresisSafety` is a next-state property, so the driver latches a ghost variable (`illegal_early_exit`) the instant an illegal `RECOVERING -> ANCHORED` move fires. A control run of the same driver against the non-ablated `EngramFSM.tla` reached depth 8 with no violation, confirming this is a real consequence of the ablation, not a driver artifact.
 
@@ -1023,7 +1023,7 @@ sequenceDiagram
 
     Note over FSM: state = RECOVERING, safe_blocks = 0
     ZK->>FSM: reanchoring_proof_valid -> TRUE
-    Note over FSM: safe_blocks = HYSTERESIS_WAIT condition removed
+    Note over FSM: safe_blocks = RECOVERY_HYSTERESIS_WAIT condition removed
     FSM->>FSM: state' = ANCHORED (safe_blocks still 0)
     FSM->>Chk: illegal_early_exit' = TRUE
     Chk-->>Chk: Sanity_NoIllegalHysteresisExit violated

@@ -337,8 +337,8 @@ e4-figures:
 	python3 scripts/e4_p2p_eclipse_detection/live_figure_builder.py
 
 e5-spot-check:
-	@test -n "$(HYSTERESIS_WAIT)" && test -n "$(ENV)" || (echo "Usage: make e5-spot-check HYSTERESIS_WAIT=... ENV=stable|noisy_da -- set ENGRAM_PARAM_HYSTERESIS_WAIT and redeploy first, see README.md" && exit 1)
-	python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait $(HYSTERESIS_WAIT) --env $(ENV)
+	@test -n "$(RECOVERY_HYSTERESIS_WAIT)" && test -n "$(ENV)" || (echo "Usage: make e5-spot-check RECOVERY_HYSTERESIS_WAIT=... ENV=stable|noisy_da -- set ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT and redeploy first, see README.md" && exit 1)
+	python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait $(RECOVERY_HYSTERESIS_WAIT) --env $(ENV)
 
 e5-absorb-sweep:
 	python3 -u scripts/e5_hysteresis_flapping/run_absorb_sweep.py
@@ -451,7 +451,7 @@ help:
 	@echo "  e2 / e2-figures / e2-timeline       - Fault-injection scenario matrix (S1-S7)"
 	@echo "  e3-lifecycle / e3-p2p-lifecycle / e3-recovery / e3-latency - Full-lifecycle failure matrix"
 	@echo "  e4-sybil LEG=a1|a2 / e4-churn / e4-relay-latency / e4-figures - P2P eclipse-detection attacks"
-	@echo "  e5-spot-check HYSTERESIS_WAIT=... ENV=... / e5-absorb-sweep - Hysteresis flapping"
+	@echo "  e5-spot-check RECOVERY_HYSTERESIS_WAIT=... ENV=... / e5-absorb-sweep - Hysteresis flapping"
 	@echo "  e6-prover-bench / e6-plonky3-bench / e6-stats / e6-table6c - ZK re-anchoring benchmark"
 	@echo "  e7-overhead-scan / e7-throughput / e7-sensor-mismatch / e7-vanilla-comparison - Consensus overhead"
 	@echo "  e8-byzantine ATTACK=... / e8-censorship / e8-combined / e8-double-signing / e8-timeout-flood / e8-withdrawal - Attack resilience"

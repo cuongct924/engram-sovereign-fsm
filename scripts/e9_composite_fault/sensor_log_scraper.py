@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "framework"))
 from cluster import CLUSTER  # noqa: E402
 
 SENSOR_SNAPSHOT_RE = re.compile(
-    r"engramd: sensor_snapshot height=(\d+) btc_gap=(\d+) btc_spv_failed=(true|false) "
+    r"engramd: sensor_snapshot height=(\d+) btc_gap=(\d+) anchor_reverification_failed=(true|false) "
     r"da_gap=(\d+) da_failed=(true|false) attestation_failed=(true|false) "
     r"active_anchors=(\d+) clean_peers=(\d+) churn_rate=(\d+) avg_tenure=(\d+) peer_latency=(\d+)"
 )
@@ -35,7 +35,7 @@ def scrape_sensor_snapshots(container: str) -> list:
         (
             height,
             btc_gap,
-            btc_spv_failed,
+            anchor_reverification_failed,
             da_gap,
             da_failed,
             attestation_failed,
@@ -50,7 +50,7 @@ def scrape_sensor_snapshots(container: str) -> list:
                 "node": container,
                 "height": int(height),
                 "btc_gap": int(btc_gap),
-                "btc_spv_failed": btc_spv_failed == "true",
+                "anchor_reverification_failed": anchor_reverification_failed == "true",
                 "da_gap": int(da_gap),
                 "da_failed": da_failed == "true",
                 "attestation_failed": attestation_failed == "true",

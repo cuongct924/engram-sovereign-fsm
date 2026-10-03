@@ -49,7 +49,7 @@ failures.
 | **E2** Fault-injection end-to-end prototype | Show the fallback keeps the chain alive under BTC/DA failure or peripheral/partial P2P degradation (core quorum connectivity intact) | Static circuit breaker; FSM without hysteresis; peer-count-only P2P sensor. The liveness comparison against a chain that hard-requires BTC/DA receipts is **E11** | Block commit rate, time-to-SOVEREIGN, committed tx during outage, downtime, recovery time |
 | **E3** External-dependency failure matrix | Evaluate each failure and combinations | Same as E2 | Expected FSM state, withdrawal policy, block-production mode per health combination (a lookup table, not a scalar metric — see §4) |
 | **E4** P2P eclipse/Sybil detection | Test whether the tri-interface profiler beats a peer-count sensor | Peer-count-only detector | FPR/FNR, detection delay, incorrect recovery attempts |
-| **E5** FSM transition stability across all absorb edges | Show every hysteresis-gated edge (RECOVERING→ANCHORED, ANCHORED→SUSPICIOUS, SUSPICIOUS→ANCHORED) resists flapping under natural noise | Each sweep's own floor value (`HYSTERESIS_WAIT=0`, `DownHysteresisThreshold=1`, `SuspiciousHysteresisWait=1`) — the edge transitions on a single reading, no absorption | Anchored uptime, flapping/transition counts, withdrawal-locked time, absorption rate, time-outside-ANCHORED |
+| **E5** FSM transition stability across all absorb edges | Show every hysteresis-gated edge (RECOVERING→ANCHORED, ANCHORED→SUSPICIOUS, SUSPICIOUS→ANCHORED) resists flapping under natural noise | Each sweep's own floor value (`RECOVERY_HYSTERESIS_WAIT=0`, `DownHysteresisThreshold=1`, `SuspiciousHysteresisWait=1`) — the edge transitions on a single reading, no absorption | Anchored uptime, flapping/transition counts, withdrawal-locked time, absorption rate, time-outside-ANCHORED |
 | **E6** Re-anchoring feasibility | Show the recovery proof is practical and scalable | Noir+Honk vs. Plonky3; no-ZK baseline (re-execute) | Constraint count, proving/verification time, proof size, backend trade-off |
 | **E7** Consensus overhead benchmark | Measure the cost of the extended proposal fields | Vanilla proposal | Proposal size, CPU validation cost, throughput, block latency |
 | **E8** Attack-resilience scenarios | Demonstrate the security story empirically | Malicious proposer; data withholding; forged BTC receipt; withdrawal during SOVEREIGN; censorship | Accepted/rejected proposals, invalid commit count, forced-inclusion latency |
@@ -504,7 +504,7 @@ container's `bitcoin-net` `eth0` instead (`live_relay_latency_attack.py`'s modul
 **Objective:** Show that all 3 hysteresis-gated FSM transitions resist "flapping" (fast, repeated
 state switching) under normal per-block noise:
 
-* `HYSTERESIS_WAIT` on `RECOVERING` $\rightarrow$ `ANCHORED`.
+* `RECOVERY_HYSTERESIS_WAIT` on `RECOVERING` $\rightarrow$ `ANCHORED`.
 * `DownHysteresisThreshold` on `ANCHORED` $\rightarrow$ `SUSPICIOUS`.
 * `SuspiciousHysteresisWait` on `SUSPICIOUS` $\rightarrow$ `ANCHORED` (in `CalculateNextState`).
 
@@ -550,16 +550,16 @@ apply, on another:
 
 #### 5a. Up-hysteresis (RECOVERING to ANCHORED)
 
-* *Method:* `TestE5_HysteresisSweep` sweeps `HYSTERESIS_WAIT` over {0,1,3,5,10,20} × 5 environments
+* *Method:* `TestE5_HysteresisSweep` sweeps `RECOVERY_HYSTERESIS_WAIT` over {0,1,3,5,10,20} × 5 environments
   (critical: `noisy_btc`/`combined_adversarial`; warning: `noisy_da`/`noisy_p2p`; `stable`),
   fixed-seed 20%-per-block noise. Live: each value gets its own genesis
-  (`ENGRAM_PARAM_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md` §3), real 300s window.
+  (`ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT`, `docs/DEVELOPMENT.md` §3), real 300s window.
 
 * *Results:* ([`tests/e2e/results/e5_hysteresis_sweep.csv`](../tests/e2e/results/e5_hysteresis_sweep.csv), Figure 4a) `noisy_da`/`noisy_p2p` and
   `noisy_btc`/`combined_adversarial` give identical numbers at every HW — real data, only 3
   distinct behaviors exist among the 5 environments:
 
-  | HYSTERESIS_WAIT | Environment | ReachedAnchored | FirstAnchoredAt | FinalState | Flapping | Transitions | AnchoredUptime |
+  | RECOVERY_HYSTERESIS_WAIT | Environment | ReachedAnchored | FirstAnchoredAt | FinalState | Flapping | Transitions | AnchoredUptime |
   |---:|---|---|---:|---|---:|---:|---:|
   | 0 | stable | true | 3 | ANCHORED | 0 | 3 | 33.33% |
   | 0 | noisy_da / noisy_p2p | true | 3 | ANCHORED | 3 | 7 | 94.12% |
@@ -587,7 +587,7 @@ apply, on another:
   Live spot-check (5×2: HW ∈ {0,2,5,10,20} × {stable, noisy_da}, 300s/run, all 4 validators agreed
   every sample; [`scripts/e5_hysteresis_flapping/results_live/`](../scripts/e5_hysteresis_flapping/results_live/)):
 
-  | HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
+  | RECOVERY_HYSTERESIS_WAIT | Environment | Flapping (300s) | Transitions | Anchored uptime |
   |---:|---|---:|---:|---:|
   | 0 | stable | 0 | 0 | 100.00% |
   | 0 | noisy_da | 4 | 17 | 11.70% |
@@ -604,7 +604,7 @@ apply, on another:
   unlike the in-process curve.
 
 * *Conclusion:* a negative result, by design — `IsCriticalCondition` is checked before any
-  absorption happens, so critical-level noise skips hysteresis entirely. A bigger `HYSTERESIS_WAIT`
+  absorption happens, so critical-level noise skips hysteresis entirely. A bigger `RECOVERY_HYSTERESIS_WAIT`
   is strictly worse against this noise class; not a bug, this is how the mechanism is meant to work.
 
 #### 5b. Down-hysteresis (ANCHORED to SUSPICIOUS)
@@ -1306,7 +1306,7 @@ Every trial above shows unanimous 7/7 agreement at every one of 181 polled round
 across all 5 CSVs combined (1267 total samples).
 
 `AnchorTracker.VerifyAnchor` re-derives `BlockContainsTag` fresh via `getblockhash` on every call,
-so it is capable of catching a deep-enough reorg on the next check -- but whether `is_btc_spv_failed`
+so it is capable of catching a deep-enough reorg on the next check -- but whether `is_anchor_reverification_failed`
 actually went true in a committed certificate during this run is not established by the logs below;
 only `fsm_state` and `suspicious_duration` were captured, not the raw sensor value.
 
@@ -1314,12 +1314,12 @@ only `fsm_state` and `suspicious_duration` were captured, not the raw sensor val
 
 *Boundary finding, now measured up to depth=5, not just depth=3:* depths 2, 3, and 5 all orphan
 real blocks (`invalidateblock` + longer competing chain confirmed via `getblockhash`, not assumed
-from height) but produced no FSM reaction within the observation window. `is_btc_spv_failed` has no
+from height) but produced no FSM reaction within the observation window. `is_anchor_reverification_failed` has no
 threshold in `IsCriticalCondition` (`x/sovereignty/types/predicates.go`) -- unlike `btc_gap`, which
 is gated by `SuspiciousThreshold` (5 by default) -- so if the committed certificate's
-`is_btc_spv_failed` had gone true at any of these depths, the FSM would have jumped straight from
+`is_anchor_reverification_failed` had gone true at any of these depths, the FSM would have jumped straight from
 `ANCHORED` to `SOVEREIGN`, skipping `SUSPICIOUS`. That jump did not happen at depths 2, 3, or 5, so
-the committed certificate's `is_btc_spv_failed` stayed false throughout those trials; whether the
+the committed certificate's `is_anchor_reverification_failed` stayed false throughout those trials; whether the
 raw per-validator sensor ever flipped true transiently is not established by these logs. The exact
 boundary between "no reaction" (depth=5) and "reaction" (depth=15) remains uncharacterized between
 those two points.
@@ -1364,8 +1364,8 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
 * The shallow case matches the spec's own safety claim exactly (`IsKDeep` structurally can't
   re-elect a certificate lost this shallow).
 * The deep case (depths 2, 3, 5) produced no FSM reaction within the observation window. Because
-  `is_btc_spv_failed` has no threshold -- it forces an immediate `ANCHORED`→`SOVEREIGN` jump when
-  true (`IsCriticalCondition`) -- this means the committed certificate's `is_btc_spv_failed` stayed
+  `is_anchor_reverification_failed` has no threshold -- it forces an immediate `ANCHORED`→`SOVEREIGN` jump when
+  true (`IsCriticalCondition`) -- this means the committed certificate's `is_anchor_reverification_failed` stayed
   false throughout those trials. Whether `VerifyAnchor`'s no-cache re-derivation ever caught the
   reorg at the raw, per-validator sensor level is not established by these logs; only `fsm_state`
   and `suspicious_duration` were captured, not the raw sensor value.
@@ -1383,7 +1383,7 @@ isolated witness-solving alone measured ~60s, making 25s implausible. The 4-samp
 
 * The containerized prover still OOMs proving a full N=256 batch (past 8192M); host-side execution
   (`make testnet-up PROVER=host`) remains the reliable path.
-* TLC only checks `is_btc_spv_failed` as a free variable — it can't verify `VerifyAnchor`'s Go code
+* TLC only checks `is_anchor_reverification_failed` as a free variable — it can't verify `VerifyAnchor`'s Go code
   sets that flag correctly against real `bitcoind`, or that a reorg *always* eventually triggers
   `SOVEREIGN` rather than just *can*; this live test showed one real instance, not a universal
   proof.

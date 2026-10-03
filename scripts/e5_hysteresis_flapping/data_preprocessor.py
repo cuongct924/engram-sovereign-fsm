@@ -4,21 +4,21 @@ E5 -- Hysteresis and Flapping Sensitivity (docs/EXPERIMENT.md's E5, Figure 4).
 
 Consumes REAL data from tests/e2e/results/e5_hysteresis_sweep.csv, produced
 by `go test ./tests/e2e/... -run TestE5_HysteresisSweep`, which sweeps
-HysteresisWait in {0,1,3,5,10,20} through the real Harness/BeginBlocker path
+RecoveryHysteresisWait in {0,1,3,5,10,20} through the real Harness/BeginBlocker path
 under 5 environments: stable (control) and 4 noisy (noisy_btc, noisy_da,
 noisy_p2p, combined_adversarial), each with a per-block 20% chance of a
 1-block disturbance, using a fixed RNG seed shared across all values so the
-"weather" is identical and only HysteresisWait's filtering differs.
+"weather" is identical and only RecoveryHysteresisWait's filtering differs.
 
 Real finding (differs from docs/EXPERIMENT.md's aspirational
-"HYSTERESIS_WAIT=3-5 sweet spot" -- reported as measured): under sustained
-noise, anchored_uptime decreases MONOTONICALLY as HYSTERESIS_WAIT increases
+"RECOVERY_HYSTERESIS_WAIT=3-5 sweet spot" -- reported as measured): under sustained
+noise, anchored_uptime decreases MONOTONICALLY as RECOVERY_HYSTERESIS_WAIT increases
 for noisy_btc (0.60 at HW=0 down to 0.00 at HW=20) -- no interior sweet spot.
 Architectural reason, not a tuning artifact: HysteresisSafety's gate only
 applies to RECOVERING->ANCHORED; once in ANCHORED a single bad reading drops
 the FSM out (ANCHORED has zero hysteresis of its own), and SUSPICIOUS->
 ANCHORED has no gate at all (CalculateNextState's SUSPICIOUS case returns
-ANCHORED unconditionally when healthy). So a larger HYSTERESIS_WAIT only
+ANCHORED unconditionally when healthy). So a larger RECOVERY_HYSTERESIS_WAIT only
 delays reaching ANCHORED without making it stickier -- a real design
 property worth stating explicitly.
 
@@ -60,7 +60,7 @@ ENVIRONMENTS = ["stable", "noisy_btc", "noisy_da", "noisy_p2p", "combined_advers
 # Sparse by construction (live is slow; in-process is the dense sweep).
 # LIVE_5A is still 4-node (not yet rerun); LIVE_5B/5C are the real 7-node
 # cluster.
-LIVE_5A = {  # HYSTERESIS_WAIT -> {env: AnchoredUptime}
+LIVE_5A = {  # RECOVERY_HYSTERESIS_WAIT -> {env: AnchoredUptime}
     0: {"stable": 1.0000, "noisy_da": 0.1170},
     2: {"stable": 1.0000, "noisy_da": 0.1529},
     5: {"stable": 1.0000, "noisy_da": 0.1875},
@@ -173,7 +173,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
             axes[0].scatter(xs, [LIVE_5A[x][env] for x in xs], marker="D", s=26,
                              color=color, edgecolor="black", linewidth=1.0, zorder=5)
     axes[0].axvline(LIVE_HYSTERESIS_WAIT, color="0.35", linestyle="--", linewidth=1.1, zorder=1)
-    axes[0].set_xlabel("HysteresisWait", fontsize=9)
+    axes[0].set_xlabel("RecoveryHysteresisWait", fontsize=9)
     axes[0].set_ylabel("ANCHORED uptime", fontsize=9)
     axes[0].set_title("(a) Up-Hysteresis:\nMitigating Flapping", fontsize=9.5, fontweight="bold")
     # ylim extends well past the real data ceiling (1.0) to carve out
@@ -310,7 +310,7 @@ def build_table(rows):
     lines = [
         "**E5 -- Hysteresis Sweep (measured, real tests/e2e data, 5 environments, 100-block window):**",
         "",
-        "| HYSTERESIS_WAIT | Environment | Reached ANCHORED | First at (blocks) | Final State | Flapping | ANCHORED uptime |",
+        "| RECOVERY_HYSTERESIS_WAIT | Environment | Reached ANCHORED | First at (blocks) | Final State | Flapping | ANCHORED uptime |",
         "| ---: | --- | :---: | ---: | --- | ---: | ---: |",
     ]
     for r in sorted(

@@ -23,7 +23,7 @@ Two scenarios, matching spec/README.md SS7.3's own split:
         by AnchorTracker.VerifyAnchor (x/anchor/anchor.go), which re-derives
         BlockContainsTag fresh via getblockhash(height) every call -- no
         caching, so a reorg that replaces the block at a previously-verified
-        height is caught on the very next re-check. Expect: is_btc_spv_failed
+        height is caught on the very next re-check. Expect: is_anchor_reverification_failed
         goes true, FSM reacts (IsCriticalCondition), no silent bad-anchor
         acceptance.
     Deep (reorg depth >= KDeepFinality): spec/README.md SS7.3 says this is

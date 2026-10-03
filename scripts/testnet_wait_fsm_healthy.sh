@@ -5,7 +5,7 @@
 #
 # Deliberately does NOT use `engramd query-state`: its committed Metrics
 # snapshot lags the real per-block sensor read for BTC/DA fields (confirmed
-# live: query-state reported is_btc_spv_failed=false while the same
+# live: query-state reported is_anchor_reverification_failed=false while the same
 # validator's own sensor_snapshot log line, moments later, still read true)
 # and never carries P2P fields at all (CleanPeers/SubnetDiversity/
 # ActiveAnchors are never written into committed state -- see
@@ -36,7 +36,7 @@ last_line=""
 while [ "$elapsed" -lt "$TIMEOUT" ]; do
   last_line=$(docker logs "$CONTAINER" --tail 500 2>&1 | grep "sensor_snapshot" | tail -1 || true)
   if [ -n "$last_line" ]; then
-    if echo "$last_line" | grep -q "btc_spv_failed=false" && \
+    if echo "$last_line" | grep -q "anchor_reverification_failed=false" && \
        echo "$last_line" | grep -q "da_failed=false" && \
        echo "$last_line" | grep -q "attestation_failed=false"; then
       echo "[testnet_wait_fsm_healthy] $CONTAINER's sensors are healthy after ${elapsed}s: $last_line"

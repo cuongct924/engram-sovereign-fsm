@@ -2,15 +2,15 @@
 """LIVE hysteresis spot-check against the real 7-node testnet -- docs/EXPERIMENT.md's E5, a small
 confirmatory check (2 values x 2 environments), NOT a full sweep. Confirms under REAL consensus
 timing noise what the in-process sweep (tests/e2e/hysteresis_sweep_test.go) already found:
-anchored_uptime falls and flapping_count rises monotonically as HysteresisWait grows.
+anchored_uptime falls and flapping_count rises monotonically as RecoveryHysteresisWait grows.
 
-Each HysteresisWait value needs its own fresh genesis + redeploy (ENGRAM_PARAM_HYSTERESIS_WAIT in
+Each RecoveryHysteresisWait value needs its own fresh genesis + redeploy (ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT in
 .env, read at genesis time). This script only measures ONE already-deployed cluster per
 invocation -- set the env var, regenerate genesis, redeploy, THEN run matching --hysteresis-wait:
 
-    # after setting ENGRAM_PARAM_HYSTERESIS_WAIT=2 and regenerating genesis:
+    # after setting ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT=2 and regenerating genesis:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 2 --env noisy_da
-    # after setting ENGRAM_PARAM_HYSTERESIS_WAIT=10 and regenerating genesis:
+    # after setting ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT=10 and regenerating genesis:
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env stable
     python3 -u scripts/e5_hysteresis_flapping/live_spot_check.py --hysteresis-wait 10 --env noisy_da
 
@@ -94,7 +94,7 @@ def main():
         "--hysteresis-wait",
         type=int,
         required=True,
-        help="the HysteresisWait value params.go was rebuilt+redeployed with (label only, not enforced)",
+        help="the RecoveryHysteresisWait value params.go was rebuilt+redeployed with (label only, not enforced)",
     )
     parser.add_argument("--env", choices=list(ENVIRONMENTS.keys()), required=True)
     parser.add_argument("--duration-s", type=float, default=300.0)
@@ -132,12 +132,12 @@ def main():
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     print(
-        f"=== E5 live spot-check: HysteresisWait={args.hysteresis_wait} env={args.env} "
+        f"=== E5 live spot-check: RecoveryHysteresisWait={args.hysteresis_wait} env={args.env} "
         f"({ENVIRONMENTS[args.env]['description']}) wan_profile={args.wan_profile} ==="
     )
     print(
-        "NOTE: this script does NOT verify the deployed cluster actually has this HysteresisWait "
-        "value -- confirm ENGRAM_PARAM_HYSTERESIS_WAIT + genesis regeneration + redeploy matched "
+        "NOTE: this script does NOT verify the deployed cluster actually has this RecoveryHysteresisWait "
+        "value -- confirm ENGRAM_PARAM_RECOVERY_HYSTERESIS_WAIT + genesis regeneration + redeploy matched "
         "--hysteresis-wait before trusting this run's label."
     )
 
@@ -198,7 +198,7 @@ def main():
     )
     with open(summary_path, "w") as f:
         f.write(
-            f"# LIVE E5 spot-check: HysteresisWait={args.hysteresis_wait}, env={args.env}\n\n"
+            f"# LIVE E5 spot-check: RecoveryHysteresisWait={args.hysteresis_wait}, env={args.env}\n\n"
         )
         f.write(
             f"{ENVIRONMENTS[args.env]['description']}. Duration: {args.duration_s:.0f}s, "

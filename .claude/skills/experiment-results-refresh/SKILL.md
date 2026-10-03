@@ -74,7 +74,7 @@ retraction).
 
 ## Worked example
 
-Re-running E5's live spot-check at 5 `HysteresisWait` values (2026-08-13) superseded E5's old
+Re-running E5's live spot-check at 5 `RecoveryHysteresisWait` values (2026-08-13) superseded E5's old
 2026-08-08 `hw2`/`hw10` files (both scenario+param combinations re-measured) — those got deleted,
 `docs/EXPERIMENT.md`'s E5 table and `figure4_hysteresis_live.{png,pdf}` were regenerated from all 10
 current files via `live_figure_builder.py`. In the same pass, E3/E8/E9's own 2026-08-07/08-08

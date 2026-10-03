@@ -164,7 +164,7 @@ def main() -> None:
             # the first. EXCEPT suspicious_exit: its "stable" env
             # deliberately drives ANCHORED->SUSPICIOUS and holds until
             # MaxSuspiciousTime exhausts (by design, not a failure), which
-            # leaves FailedRecoveryAttempts' backoff-doubled
+            # leaves FlapLevel' backoff-doubled
             # DownHysteresisThreshold hardened on that genesis -- a later
             # env's own drive-to-SUSPICIOUS phase then falls straight
             # through to SOVEREIGN before the poll ever catches SUSPICIOUS

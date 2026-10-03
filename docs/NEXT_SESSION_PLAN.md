@@ -275,7 +275,7 @@ Chỉ sửa paper; làm song song với code.
 - Timeline tiêm lỗi cho composite và S1–S7: thời điểm bật/tắt, cường độ, thời lượng (bảng hoặc
   Gantt).
 - Bảng tham số FSM dùng trong mỗi thí nghiệm: ngưỡng sensor, chu kỳ polling,
-  `MAX_SUSPICIOUS_TIME`, `HysteresisWait`, `DownHysteresisThreshold`, `MaxDownHysteresisThreshold`.
+  `MAX_SUSPICIOUS_TIME`, `RecoveryHysteresisWait`, `DownHysteresisThreshold`, `MaxDownHysteresisThreshold`.
 
 **Định nghĩa chỉ số** (công thức, mẫu số, độ dài run)
 - Flapping, absorption rate, Anchored uptime, gap fraction, steady blocks/s.
@@ -297,7 +297,7 @@ Chỉ sửa paper; làm song song với code.
 - Bảng P2P: tiêu đề có "vs." nhưng chỉ một cột → thêm cột peer-count-only.
 - Cạnh RECOVERING→ANCHORED: giải thích "uptime 59,8% → 0% là thiết kế" — trong RECOVERING, critical
   đẩy thẳng về SOVEREIGN (`CalculateNextState`, `x/sovereignty/keeper/circuit_breaker.go:82-85`), nên
-  chuỗi healthy phải bắt đầu lại; `HysteresisWait` càng lớn càng khó đạt giữa hai lần critical.
+  chuỗi healthy phải bắt đầu lại; `RecoveryHysteresisWait` càng lớn càng khó đạt giữa hai lần critical.
 - Làm rõ "0,953 blocks/s vs. 1,34 s/block" không mâu thuẫn: 1,34 s là *Engram* ở S1, khớp với
   0,743 blocks/s của Engram trong E7; vanilla chỉ có trong E7.
 - Bitcoin congestion: nói rõ là dừng submit checkpoint (mô phỏng hệ quả), không phải nghẽn mempool.
@@ -574,7 +574,7 @@ Go (quy tắc `go-spec-fidelity`):
   `k_max ≥ DownHysteresisThreshold`.
 - `keeper/circuit_breaker.go`: `EffectiveAnchoredDownHysteresisThreshold` cạnh
   `EffectiveDownHysteresisThreshold`; hàm thuần `NextFlapState(prev, next, count, freeBlocks, p)` theo
-  mẫu `NextFailedRecoveryAttempts` (dòng 167).
+  mẫu `NextFlapLevel` (dòng 167).
 - Nhánh ANCHORED của `CalculateNextState` dùng hàm mới; `FSMInput` thêm `FlapCount`;
   `CommitFSMTransition` lưu bộ đếm. Mọi đầu vào là committed state → tất định.
 - Unit test: nhân đôi, chặn trên, giảm dần, không đổi khi transition không phải flap.

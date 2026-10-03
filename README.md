@@ -2,7 +2,7 @@
 
 A Cosmos SDK + CometBFT prototype implementing **Engram Hybrid Adaptive Consensus** — a modular
 consensus protocol that treats peripheral network health (Bitcoin settlement finality, Celestia
-data availability, P2P health) as a first-class consensus variable, degrading gracefully into a
+data availability, peripheral P2P health) as a first-class consensus variable, degrading gracefully into a
 local-PoS "Sovereign" fallback mode instead of halting when those layers fail.
 
 This is the reference implementation of the formal specification in [`spec/core`](spec/core) (TLA+, with
@@ -14,7 +14,7 @@ CometBFT core: **[cuongct924/engram-consensus-core](https://github.com/cuongct92
 ```
 x/sovereignty/         FSM engine: state machine, sensors, circuit breaker, ABCI++ hooks
 x/da/                  Celestia DA receipt type + verification
-x/anchor/              Bitcoin settlement receipt type + SPV verification
+x/anchor/              Bitcoin settlement receipt type + anchor re-verification
 app/                   EngramApp (real BaseApp wiring)
 cmd/engramd/           Node binary -- init/start, testnet bootstrap, CLI tooling
 circuit/               Noir ZK circuit for the re-anchoring recovery proof
@@ -53,7 +53,7 @@ make e1-fsm-safety TLA_JAR=/path/to/tla2tools.jar   # or e1-fsm-liveness, e1-ten
 | E2 | `e2`, `e2-figures`, `e2-timeline` |
 | E3 | `e3-lifecycle`, `e3-p2p-lifecycle`, `e3-recovery`, `e3-latency` |
 | E4 | `e4-sybil LEG=a1\|a2`, `e4-churn`, `e4-relay-latency` |
-| E5 | `e5-spot-check HYSTERESIS_WAIT=... ENV=...`, `e5-absorb-sweep` |
+| E5 | `e5-spot-check RECOVERY_HYSTERESIS_WAIT=... ENV=...`, `e5-absorb-sweep` |
 | E6 | `e6-prover-bench`, `e6-plonky3-bench`, `e6-stats`, `e6-table6c` |
 | E7 | `e7-overhead-scan`, `e7-throughput`, `e7-sensor-mismatch`, `e7-vanilla-comparison` |
 | E8 | `e8-byzantine ATTACK=...`, `e8-censorship`, `e8-combined`, `e8-double-signing`, `e8-timeout-flood`, `e8-withdrawal` |

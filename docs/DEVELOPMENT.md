@@ -25,7 +25,7 @@ Three companion documents hold the parts this one doesn't:
 | §6 ZK re-anchoring pipeline | How RECOVERING → ANCHORED actually happens |
 | §7 How consensus works | The sensor model, the quorum-certificate mechanism, the four ABCI++ hooks, wiring diagrams |
 | §8 Experiments & fault injection | Chaos profiles, byzantine/attacker infra, experiment scripts |
-| §9 Debug Bitcoin regtest in isolation | Fork/reorg/double-spend walkthrough for `x/anchor` SPV |
+| §9 Debug Bitcoin regtest in isolation | Fork/reorg/double-spend walkthrough for `x/anchor` anchor re-verification |
 | §10 Troubleshooting quick reference | Symptom → where to look |
 
 ---
@@ -33,7 +33,7 @@ Three companion documents hold the parts this one doesn't:
 ## 1. What this system is
 
 Engram is a Cosmos SDK + CometBFT prototype implementing **Hybrid Adaptive Consensus**: peripheral
-network health — Bitcoin settlement finality, Celestia DA availability, P2P health — is treated as
+network health — Bitcoin settlement finality, Celestia DA availability, peripheral P2P health — is treated as
 a first-class consensus variable. When those layers degrade, the chain does not halt; it degrades
 gracefully through an FSM into a local-PoS "Sovereign" fallback, then recovers via a ZK
 re-anchoring proof.
@@ -587,7 +587,7 @@ for those E8 rows — it must never be set on a real validator.
 
 ## 9. Debug Bitcoin regtest in isolation (fork / reorg / double-spend)
 
-Lower-level, not tied to `engramd` at all — useful for debugging `x/anchor`'s SPV logic in
+Lower-level, not tied to `engramd` at all — useful for debugging `x/anchor`'s anchor re-verification logic in
 isolation. Assumes `docker/bitcoin-regtest-cluster.yml` is up (§5.3.2), or run standalone from
 `docker/`. It uses its own `sharedwallet`, separate from §5's `engramwallet` — stop
 `bitcoin_miner_loop.sh` first if running this against a live cluster, or its steady mining will
