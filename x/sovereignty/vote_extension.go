@@ -1,7 +1,9 @@
 package sovereignty
 
 import (
+	"fmt"
 	"sort"
+	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/crypto/ed25519"
@@ -46,6 +48,12 @@ import (
 // every real validator) lets a colluding node sign a false observation.
 func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
+		// ExtendVote runs before this validator can send its precommit, so its
+		// duration is on every height's critical path; RQ4 reads this line.
+		started := time.Now()
+		defer func() {
+			fmt.Printf("engramd: extend_vote height=%d ms=%.1f\n", req.Height, float64(time.Since(started).Microseconds())/1000)
+		}()
 		if err := RefreshMetrics(ctx, k, s); err != nil {
 			return nil, err
 		}

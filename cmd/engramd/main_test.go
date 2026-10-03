@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cometbft/cometbft/p2p"
+	sovereigntytypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,4 +128,21 @@ func TestTestnetInitFilesDefaultsToPairwiseLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, cfg.P2P.PersistentPeers, "@172.40.0.3:26656")
 	require.Empty(t, cfg.P2P.ExternalAddress)
+}
+
+func TestResolveBaselineModeAcceptsEnvVanilla(t *testing.T) {
+	mode, err := resolveBaselineMode(false, false, false, "vanilla")
+	require.NoError(t, err)
+	require.Equal(t, sovereigntytypes.BaselineEngram, mode, "vanilla bypasses the hooks, so the baseline policy stays the default")
+
+	_, err = resolveBaselineMode(false, false, false, "bogus")
+	require.Error(t, err)
+}
+
+func TestEngramConsensusParamsVoteExtensionsToggle(t *testing.T) {
+	t.Setenv("ENGRAM_DISABLE_VOTE_EXTENSIONS", "")
+	require.Equal(t, int64(1), engramConsensusParams().ABCI.VoteExtensionsEnableHeight)
+
+	t.Setenv("ENGRAM_DISABLE_VOTE_EXTENSIONS", "1")
+	require.Equal(t, int64(0), engramConsensusParams().ABCI.VoteExtensionsEnableHeight, "pure-vanilla genesis has no vote extensions")
 }

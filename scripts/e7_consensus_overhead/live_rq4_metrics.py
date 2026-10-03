@@ -2,9 +2,13 @@
 """RQ4 consensus-overhead rows that live_throughput_latency.py does not produce
 (docs/NEXT_SESSION_PLAN.md item 11; paper Table `tab:overhead`, lower block).
 
-One timed load phase per repeat (default 60 s at 20 tx/s, 5 repeats), against either the running
-7-validator cluster (--arm engram) or a local single-process vanilla node (--arm vanilla; the same
-asymmetric arm live_throughput_latency.py uses). Per repeat it records, on the host clock:
+One timed load phase per repeat (default 60 s at 20 tx/s, 5 repeats), against one of:
+  --arm engram    the running 7-validator cluster in engram mode
+  --arm vanilla7  the SAME 7-validator cluster with every validator started --vanilla
+                  (ENGRAM_MODE=vanilla): same topology and load, no Engram hooks -- the fair baseline
+  --arm vanilla   a local single-process vanilla node (the asymmetric arm of
+                  live_throughput_latency.py: a lower bound, not a like-for-like comparison)
+The arm is checked against the validators' ENGRAM_MODE so a mismatched cluster cannot be mislabelled. Per repeat it records, on the host clock:
   * committed tx/s            our txs found in blocks / load window
   * commit latency p50 / p95  send time -> first poll (0.25 s) that sees the tx in a block
   * mempool backlog mean/max  /num_unconfirmed_txs once per second on the sampled node
@@ -23,6 +27,7 @@ import base64
 import csv
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -34,6 +39,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "framework"))
 import consensus_metrics as cm  # noqa: E402
 import live_throughput_latency as ltl  # noqa: E402
+from cluster import CLUSTER  # noqa: E402
 from logger import NODE_RPC_PORTS  # noqa: E402
 
 RESULTS_DIR = os.path.join(HERE, "results_live")
@@ -79,6 +85,15 @@ class Watcher(threading.Thread):
 def pct(vals, q):
     vals = sorted(vals)
     return vals[min(len(vals) - 1, int(len(vals) * q))] if vals else None
+
+
+EXTEND_RE = re.compile(r"extend_vote height=\d+ ms=([0-9.]+)")
+
+
+def extend_vote_ms(since: float) -> list:
+    """ExtendVote durations logged by node01 since `since` (x/sovereignty/vote_extension.go)."""
+    p = subprocess.run(["docker", "logs", "--since", str(int(since)), "engram-node01"], capture_output=True, text=True, timeout=300)
+    return [float(x) for x in EXTEND_RE.findall(p.stdout + p.stderr)]
 
 
 def one_repeat(arm: str, ports: list, duration_s: float, rate_hz: float, repeat: int, containers: list) -> dict:
@@ -132,6 +147,7 @@ def one_repeat(arm: str, ports: list, duration_s: float, rate_hz: float, repeat:
         hw.writerows(rows)
     rejects = cm.collect_rejects(containers, start_height + 1, end_height, since=start - 5) if containers else None
     s = cm.summarize(rows, rejects)
+    ev = extend_vote_ms(start - 5) if arm == "engram" else []
     heights = max(len(rows), 1)
     distinct_rejects = sum(s.get("rejects_distinct_by_reason", {}).values())
     return {
@@ -153,13 +169,15 @@ def one_repeat(arm: str, ports: list, duration_s: float, rate_hz: float, repeat:
         "interval_p50_s": s["interval_p50_s"],
         "interval_p95_s": s["interval_p95_s"],
         "slow_interval_fraction": s["slow_interval_fraction"],
+        "extend_vote_ms_mean": sum(ev) / len(ev) if ev else None,
+        "extend_vote_ms_p95": pct(ev, 0.95),
         "reject_reasons": json.dumps(s.get("rejects_distinct_by_reason", {}), sort_keys=True),
     }
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arm", choices=["engram", "vanilla"], required=True)
+    ap.add_argument("--arm", choices=["engram", "vanilla7", "vanilla"], required=True)
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--duration-s", type=float, default=60.0)
     ap.add_argument("--rate-hz", type=float, default=20.0)
@@ -170,9 +188,14 @@ def main():
 
     proc = None
     ltl.build_binary()  # the forced-tx CLI builds the load payloads in both arms
-    if args.arm == "engram":
+    if args.arm in ("engram", "vanilla7"):
+        want = "engram" if args.arm == "engram" else "vanilla"
+        for node in NODE_RPC_PORTS:
+            got = CLUSTER.container_env(node, "ENGRAM_MODE") or "engram"
+            if got != want:
+                sys.exit(f"{node} runs ENGRAM_MODE={got}, but --arm {args.arm} needs {want}")
         ports = [list(NODE_RPC_PORTS.values())[i % len(NODE_RPC_PORTS)] for i in range(args.senders)]
-        containers = list(NODE_RPC_PORTS)
+        containers = list(NODE_RPC_PORTS) if args.arm == "engram" else []
     else:
         ltl.init_home(ltl.HOME_VANILLA, "rq4-vanilla", shift_ports=True)
         proc = ltl.start_node(ltl.HOME_VANILLA, True, "/tmp/engramd-rq4-vanilla.log")

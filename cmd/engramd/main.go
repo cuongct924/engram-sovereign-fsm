@@ -39,9 +39,15 @@ import (
 // without this, CometBFT never calls ExtendVote/VerifyVoteExtension and
 // AggregateHealthCertificates never reaches quorum (x/sovereignty/
 // vote_extension.go).
+//
+// ENGRAM_DISABLE_VOTE_EXTENSIONS=1 leaves them off: the genesis of the
+// pure-vanilla CometBFT arm of RQ4 (docs/EXPERIMENT.md), which then pays no
+// vote-extension protocol cost at all. Never set it for an Engram chain.
 func engramConsensusParams() *cmttypes.ConsensusParams {
 	cp := cmttypes.DefaultConsensusParams()
-	cp.ABCI.VoteExtensionsEnableHeight = 1
+	if os.Getenv("ENGRAM_DISABLE_VOTE_EXTENSIONS") != "1" {
+		cp.ABCI.VoteExtensionsEnableHeight = 1
+	}
 	return cp
 }
 
@@ -391,6 +397,9 @@ func startCmd(homeFlag *string) *cobra.Command {
 		Use:   "start",
 		Short: "Start the node",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// ENGRAM_MODE=vanilla is how docker compose selects --vanilla for all
+			// validators (RQ4's 7-node vanilla arm).
+			vanilla = vanilla || os.Getenv("ENGRAM_MODE") == "vanilla"
 			baseline, err := resolveBaselineMode(vanilla, hardGated, soft, os.Getenv("ENGRAM_MODE"))
 			if err != nil {
 				return err
@@ -422,6 +431,9 @@ func resolveBaselineMode(vanilla, hardGated, soft bool, envMode string) (soverei
 	case soft:
 		return sovereigntytypes.BaselineSoft, nil
 	case vanilla:
+		return sovereigntytypes.BaselineEngram, nil
+	}
+	if envMode == "vanilla" {
 		return sovereigntytypes.BaselineEngram, nil
 	}
 	return sovereigntytypes.ParseBaselineMode(envMode)
