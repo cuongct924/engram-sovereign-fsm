@@ -282,6 +282,7 @@ def main() -> int:
     ap.add_argument("--mode", required=True, choices=["hard-gated", "engram", "soft"])
     ap.add_argument("--fault", required=True, choices=["btc", "da", "both"])
     ap.add_argument("--trials", type=int, default=1)
+    ap.add_argument("--first-trial", type=int, default=1, help="resume a series: number of the first trial to run")
     ap.add_argument("--baseline-s", type=float, default=60)
     ap.add_argument("--fault-s", type=float, default=180)
     ap.add_argument("--recovery-s", type=float, default=120)
@@ -301,7 +302,7 @@ def main() -> int:
         return 2
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    for trial in range(1, args.trials + 1):
+    for trial in range(args.first_trial, args.trials + 1):
         if not wait_ready(args.mode, args.ready_timeout_s):
             print(f"[{now()}] cluster not ready for trial {trial} within {args.ready_timeout_s}s; stopping", file=sys.stderr)
             return 1

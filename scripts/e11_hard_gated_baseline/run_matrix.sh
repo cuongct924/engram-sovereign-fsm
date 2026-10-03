@@ -14,6 +14,7 @@ set -euo pipefail
 MODES="${MODES:-hard-gated engram soft}"
 FAULTS="${FAULTS:-btc da both}"
 TRIALS="${TRIALS:-3}"
+FIRST_TRIAL="${FIRST_TRIAL:-1}"
 N="${N:-7}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE/../.."
@@ -31,7 +32,15 @@ deploy_mode() { # $1 = mode: fresh cluster, engram first, then switch the valida
 	# A hard-gated chain cannot start from genesis: with the FSM pinned to ANCHORED, block 1 needs a DA
 	# receipt that does not exist yet, so no proposal ever validates. Every mode therefore starts as
 	# engram, reaches a healthy ANCHORED, and only then is the validators' mode switched (state kept).
-	make testnet-up MODE=engram N="$N" || echo "--> testnet-up's health wait failed; checking the chain directly"
+	# testnet-up also builds the validator images, which needs the Docker registry; a transient network error
+	# leaves the validators unstarted. Retry until engram-node01 is running (the health-wait failure that
+	# the proof-only start-up legitimately causes is tolerated).
+	for attempt in 1 2 3 4; do
+		make testnet-up MODE=engram N="$N" || echo "--> testnet-up's health wait failed; checking the chain directly"
+		[ -n "$(docker ps -q --filter name=^engram-node01$)" ] && break
+		echo "--> validators are not running (attempt $attempt), retrying in 60 s"
+		sleep 60
+	done
 	python3 - <<'PY'
 import sys
 sys.path.insert(0, "scripts/framework")
@@ -64,8 +73,8 @@ for mode in $MODES; do
 			first=0
 		fi
 		if [ "$mode" = "hard-gated" ]; then
-			for t in $(seq 1 "$TRIALS"); do
-				python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials 1 || true
+			for t in $(seq "$FIRST_TRIAL" "$TRIALS"); do
+				python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --first-trial "$t" --trials "$t" || true
 				[ "$t" -lt "$TRIALS" ] && deploy_mode "$mode"
 			done
 		else
