@@ -24,26 +24,26 @@ that feed the P2P sensor, per-peer rate limiting and bounded round acceptance
 for timeout messages, and the proposal round passed to the application
 through \texttt{PrepareProposal} and \texttt{ProcessProposal}.
 
-Bitcoin and Celestia are live dependencies: a Bitcoin Core regtest network and
-a Celestia network with one bridge node per validator. The recovery proof is
-a Noir circuit proved with Barretenberg (Section~\ref{subsec:reanchoring}); a
-prover process builds it from committed headers and submits it as a
-transaction that every validator verifies during block execution.
-Section~\ref{subsec:environment} lists the versions.
+Bitcoin and Celestia are live dependencies, deployed as described in
+Section~\ref{subsec:testbed}. The recovery proof is a Noir circuit proved with
+Barretenberg (Section~\ref{subsec:reanchoring}); a prover process watches for
+a \textsc{Sovereign} backlog, builds the proof from committed headers, and
+submits it as a transaction that every validator verifies during block
+execution. Section~\ref{subsec:environment} lists the versions.
 
 \subsection{Testbed}
+\label{subsec:testbed}
 
-The testbed runs the reference implementation -- a Cosmos SDK application on
-a forked CometBFT core -- as seven validators with equal voting power
-($n{=}7$, $f{=}2$), each in its own container. Validator gossip uses a
+The testbed runs the reference implementation of Section~\ref{subsec:implementation}
+as seven validators with equal voting power ($n{=}7$, $f{=}2$), each in its
+own container. Validator gossip uses a
 dedicated full mesh of pairwise links, separate from the network that
 carries Bitcoin, Celestia, and RPC traffic; this separation lets us degrade
 peripheral connectivity without partitioning the core consensus network.
 The peripheral layers are real software, not simulators: a two-node Bitcoin
 regtest network mined continuously at roughly one block per 20\,s, and a
 Celestia network with seven bridge nodes, one per validator, so that each
-validator forms its own DA view. A prover process (Noir/Barretenberg)
-watches for a \textsc{Sovereign} backlog and submits recovery proofs. The
+validator forms its own DA view. The
 eclipse and Sybil rows (A1 and A2) of Appendix~\ref{app:attacks} predate the
 move to seven validators and ran on a four-validator cluster ($f{=}1$).
 \pending{re-run A1/A2 at $n{=}7$, and run the $f{=}2$ collusion suite of
