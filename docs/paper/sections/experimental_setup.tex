@@ -39,8 +39,8 @@ pooled into one number. Table~\ref{tab:environment} lists the configuration.
 \toprule
 \textbf{Component} & \textbf{Testbed A} & \textbf{Testbed B} \\
 \midrule
-Host & Apple M1, 16\,GB RAM, 256\,GB SSD; macOS \pending{version} & \pending{} \\
-Container runtime & Docker \pending{version}; VM allocation \pending{} & \pending{} \\
+Host & Apple M1 Pro (10 cores: 8P + 2E), 32\,GB RAM, 1\,TB SSD; macOS 27.0 & \pending{} \\
+Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM & \pending{} \\
 Validators (7) & No CPU or memory limit per container & \pending{} \\
 Consensus core & CometBFT v0.39.3 module path, replaced by the fork
 \texttt{engram-consensus-core} at commit \texttt{493a20121} & Same commit \\
@@ -52,7 +52,7 @@ Prover & nargo 1.0.0-beta.22, \texttt{bb} 5.0.0-nightly.20260522
 (6 CPU, 8\,GB limit) & \pending{} \\
 Fault injection & Pumba (image tag \texttt{latest}) driving kernel
 \texttt{tc netem} & Real network \\
-Formal tools & TLC \pending{version}; Apalache v0.58.3 on JDK 17 & --- \\
+Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 & --- \\
 \bottomrule
 \end{tabular}
 \\[2pt]
@@ -159,7 +159,7 @@ packet-loss cycles of C4). Blocks arrive about once per second.
 \texttt{MaxChurnRate} & 5 & Peer churn events \\
 \texttt{MinAvgTenure} & 300 & Mean peer tenure, s \\
 \texttt{MaxPeerLatency} & 200 & Round-trip time, ms \\
-\texttt{HysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
+\texttt{RecoveryHysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
 \texttt{DownHysteresisThreshold} & 2 & \textsc{Anchored}$\to$\textsc{Suspicious}, blocks \\
 \texttt{MaxDownHysteresisThreshold} & 8 & Cap on the backed-off threshold \\
 \texttt{SuspiciousHysteresisWait} & 2 & \textsc{Suspicious}$\to$\textsc{Anchored}, blocks \\
@@ -294,15 +294,15 @@ production deployment.
   \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
   faster than on mainnet. Height-based thresholds are unaffected, but
   wall-clock durations scale accordingly.
-  \item \emph{DA payload.} The prototype's DA publisher submits a fixed
-  height marker (a tag and the Engram height) per confirmed submission,
-  with at most one submission in flight, rather than the block's
-  transaction data. The DA sensor therefore measures the liveness and
-  retrievability path of Celestia faithfully, but DA-layer availability of
-  Engram block \emph{contents} -- including backfill of the
-  \textsc{Sovereign} interval (Section~\ref{subsec:reanchoring}) -- is not
-  yet exercised.
-  \pending{publish block data and implement the backfill gate.}
+  \item \emph{DA payload.} The DA publisher submits the transactions of
+  committed blocks in height-ordered batches of at most 1.5\,MB and tracks
+  the highest contiguous published height; the exit gate of
+  Section~\ref{subsec:reanchoring} requires that height to cover the
+  \textsc{Sovereign} interval. The gate rests on a quorum-reported
+  contiguous height, not on a cryptographic proof of retrievability.
+  \pending{measure the time in \textsc{Recovering} against the interval length
+  under a live DA outage and re-fetch every height of the interval from
+  Celestia, comparing transaction hashes with the Engram blocks.}
   \item \emph{Single-bridge trust.} Each validator trusts its own bridge
   node, which downloads and verifies full Celestia blocks, rather than
   sampling across independent peers; our DA-outage results measure bridge

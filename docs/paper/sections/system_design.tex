@@ -507,6 +507,5 @@ blocks in its own store (they are ordinary committed CometBFT blocks) and
 queues them for publication; on recovery the queue is drained in height
 order, and the DA verified height advances only over contiguous,
 confirmed-retrievable heights.
-\pending{implement the backfill queue and gate (2); the prototype does not
-yet publish Sovereign-interval block data, see
-Section~\ref{subsec:sim-to-real}.}
+The prototype implements the queue and the gate; its live validation is
+described in Section~\ref{subsec:sim-to-real}.

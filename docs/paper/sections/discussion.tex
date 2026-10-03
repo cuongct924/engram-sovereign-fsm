@@ -5,8 +5,8 @@
 
 The formal and empirical results cover complementary ground. The TLA+
 results establish, per layer and within bounded configurations, that the
-FSM's safety invariants hold and that each defensive mechanism is
-individually necessary; Lemma~1 establishes that the certified health input
+FSM's safety invariants hold and that removing any of four defensive
+mechanisms reproduces the violation it targets; Lemma~1 establishes that the certified health input
 to the FSM is bounded by honest observations. The live evaluation
 establishes that the composed implementation behaves as specified under
 real peripheral failures. Because the cross-layer refinement is open, the
@@ -19,16 +19,60 @@ distributions.
 
 \subsection{Security Implications of the Fallback}
 
-\textbf{Withdrawal freeze as a griefing target.} An adversary that degrades
-the peripheral view of \emph{all} honest validators -- for example by
-delaying their Bitcoin connectivity -- can drive the chain into
-\textsc{Sovereign} and freeze withdrawals for as long as the degradation
-lasts (P4, Section~\ref{subsec:rq1}). Lemma~1 prevents a minority of
-validators from achieving this, so the attack requires network-level
-control over a quorum's peripheral connectivity. The freeze is the intended
-safe response to an unverifiable periphery, not a safety violation, but its
-economic cost to users should be weighed against the attacker's cost of
-sustaining the degradation; we do not quantify either here.
+The fallback trades cross-chain withdrawals for in-chain liveness. We
+discuss the trade along three axes: liveness inside the chain, safety of
+cross-chain assets, and the cost of griefing.
+
+\textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
+in-chain transactions, application logic, and the forced-transaction queue
+continue. Cross-chain withdrawals stop. A hard-gated chain under the same
+degradation commits no blocks at all (Section~\ref{subsec:rq2}).
+\pending{blocks committed per outage window for Engram versus the hard-gated
+baseline (BTC suspension, DA outage, both).}
+
+\textbf{Safety of cross-chain assets.} The prototype has no bridge and no
+real assets: the application mounts neither \texttt{x/auth} nor
+\texttt{x/bank}, transactions are unsigned envelopes, and a withdrawal is
+recognized by the substring \texttt{TX\_WITHDRAWAL} in the transaction bytes.
+The circuit breaker is therefore evaluated as a policy: it shows that the
+decision to admit or reject withdrawals is agreed by all validators and
+applied identically, not that any economic loss is prevented.
+
+\textbf{Cost of griefing.} An adversary that degrades the peripheral view of
+\emph{all} honest validators -- for example by delaying their Bitcoin
+connectivity -- can drive the chain into \textsc{Sovereign} and freeze
+withdrawals for as long as the degradation lasts (P4,
+Section~\ref{subsec:rq1}). This is a new attack surface relative to a chain
+that ignores its periphery, but not relative to a hard-gated chain: the same
+attacker halts the hard-gated chain entirely, whereas Engram freezes only
+withdrawals. Lemma~1 prevents a minority of validators from causing the
+freeze, so the attacker must degrade the peripheral links of at least
+$2f{+}1$ validators; in a design without a quorum-certified health input,
+one node's view suffices. The freeze is the intended response to an
+unverifiable periphery, not a safety violation. We do not quantify its
+economic cost to users or the attacker's cost of sustaining it.
+
+\textbf{Unexpected results.} Three results need a causal account.
+\begin{itemize}
+  \item \emph{Block rate.} Engram's rate is 22\% below vanilla's
+  (Section~\ref{subsec:rq4}). The per-height scan rules out extra rounds,
+  rejections and nil votes: they are absent. What remains is a constant
+  0.24\,s per height. The vote-extension path (a live sensor read in
+  \texttt{ExtendVote} and one more signed message per validator) sits on every
+  height's critical path and is the natural candidate, but we did not isolate
+  it, for example by timing \texttt{ExtendVote} against a no-op extension.
+  \item \emph{Hysteresis threshold.} The default threshold of 2 flapped under
+  wide-area jitter, and only thresholds $\geq 6$ were clean
+  (Section~\ref{subsec:rq3}). We attribute this to latency variance in the
+  Bitcoin sensor crossing the threshold in consecutive samples; a run with
+  the jitter profile removed would test this.
+  \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
+  without a reaction, while depth 15 escalated through the
+  suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the
+  anchor-reverification flag was ever set is not established, because the
+  per-validator sensor value was not captured; logging it and sweeping depths
+  6--14 would locate the boundary.
+\end{itemize}
 
 \textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
 \textsc{Recovering} already raises the price of forcing repeated failed
@@ -37,14 +81,21 @@ recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
 protection beyond the bounded forced-transaction queue; the adaptive
 threshold closes this asymmetry.
 
+\textbf{Core versus peripheral network.} Engram tolerates degradation of
+the peripheral layers (Bitcoin, Celestia, and the peripheral or partial P2P
+view) only while the core consensus network keeps $2f{+}1$ voting power
+mutually connected. If CometBFT's own quorum is partitioned, no FSM can
+restore liveness; this is the standard BFT assumption, not a limitation
+specific to Engram, and none of our experiments cross it.
+
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the
 certificate selects (Section~\ref{subsec:health-certificate}). This cannot
 produce a transition that no honest view supports, but a sequence of
 Byzantine proposers can bias the timing of transitions. A persistent split
 straddling the $2f{+}1$ boundary (e.g.\ three versus four validators) has not
-been tested live; it is a candidate source of extra rounds and is covered by
-the RQ4 instrumentation.
+been tested live; the RQ4 scan shows no extra rounds in the unfaulted case, and the
+split case itself remains untested.
 
 \textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the
 ordering of blocks rests on the validator quorum alone. A coalition

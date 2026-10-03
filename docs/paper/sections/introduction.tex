@@ -4,49 +4,61 @@
 Modular blockchain architectures separate execution, settlement, and data
 availability into distinct layers, each maintained by a different network. A
 rollup or sovereign chain typically settles finality claims on a base layer
-such as Bitcoin and publishes transaction data to a dedicated DA network such
-as Celestia~\cite{albassam2019lazyledger}. When such a chain makes its block
-validity depend on those layers -- a block is valid only if it carries a
-fresh settlement checkpoint and a DA inclusion receipt -- it inherits their
-liveness. If Bitcoin settlement is congested or censored, or the DA network
-is unavailable, no proposal can satisfy the validity predicate, and the BFT
-consensus layer~\cite{buchman2016tendermint,buchman2018gossip} built on top
-of them stalls even though the validator set itself is fully connected and
-correct. Dropping the dependency altogether avoids the stall but gives up the
-settlement and availability guarantees that motivated the modular design.
+such as Bitcoin and publishes transaction data to a DA network such as
+Celestia~\cite{albassam2019lazyledger}. Suppose such a chain makes block
+validity depend on those layers: a block is valid only if it carries a fresh
+settlement checkpoint and a DA inclusion receipt. The chain then inherits
+their liveness. If Bitcoin settlement is congested or censored, or the DA
+network is unavailable, no proposal can satisfy the validity predicate. The
+BFT consensus layer~\cite{buchman2016tendermint,buchman2018gossip} built on
+top stalls even though the validator set is fully connected and correct.
+Dropping the dependency avoids the stall but gives up the settlement and
+availability guarantees that motivated the modular design.
 
 \textbf{The gap.} Existing designs resolve this tension outside the
-validator set's own agreement. Health is either ignored (the chain assumes
-the periphery is always available), handled out-of-band (operators intervene
-manually), or -- for L2 rollups -- delegated to an asynchronous fallback path
-on another chain that users trigger once the primary path has already
-stalled (escape hatches and forced inclusion,
-Section~\ref{sec:related}). Protocols that trade finality for availability
-inside consensus~\cite{neu2021ebbflow,buterin2020gasper} do so in response to
-\emph{internal} participation, not to the health of \emph{external}
-infrastructure. No design we are aware of lets the validator quorum agree on
-external-layer health as part of the same vote that orders transactions, and
-then change the chain's validity rules and withdrawal policy on the basis of
-that agreement.
+validator set's own agreement. Some ignore health and assume the periphery is
+always available. Others handle it out of band, with operators intervening
+manually. L2 rollups delegate it to an asynchronous fallback path on another
+chain, which users trigger only after the primary path has stalled (escape
+hatches and forced inclusion, Section~\ref{sec:related}). Protocols that
+trade finality for availability inside
+consensus~\cite{neu2021ebbflow,buterin2020gasper} respond to \emph{internal}
+participation, not to the health of \emph{external} infrastructure. To our
+knowledge, no design lets the validator quorum agree on external-layer health
+in the same vote that orders transactions, and then change the chain's
+validity rules and withdrawal policy on the basis of that agreement.
+
+\textbf{Why the decision belongs in consensus.} The circuit breaker and the
+relaxation of receipt requirements change two things that every validator
+must agree on: whether a block is valid, and whether a withdrawal executes.
+Suppose each validator applied a local policy to its own peripheral view.
+Validators with different views would then disagree on validity, so proposals
+would collect nil votes and rounds would repeat, or they would execute
+withdrawals differently and produce diverging \texttt{AppHash} values.
+Engram therefore reads sensors only inside vote extensions and writes FSM
+state only from a certificate that a quorum has already agreed on
+(Section~\ref{subsec:health-certificate}). An escape hatch does not provide
+this property: it runs on another chain, is triggered by users or watchers
+after the chain has stalled, and does not keep the chain live.
 
 \textbf{What Engram is -- and is not.} Engram is not a new BFT agreement
 algorithm. Proposer selection, the prevote/precommit protocol, quorum
 intersection, and deterministic finality are provided unchanged by a
 CometBFT core, and Engram inherits their safety and liveness conditions.
-Engram's contribution sits one level above: it extends (i) the
-\emph{consensus object} with a quorum-certified health certificate and an FSM
-state, (ii) the \emph{proposal-validation predicate} so that a proposal is
-valid only if that state follows deterministically from the certificate, and
-(iii) the \emph{state-transition logic} so that the chain's validity
-requirements (Bitcoin and DA receipts) and its withdrawal policy change with
-that state. We use ``Hybrid Adaptive Consensus'' in this sense: an adaptive
+Engram's contribution sits one level above and extends three things:
+(i) the \emph{consensus object}, with a quorum-certified health certificate
+and an FSM state; (ii) the \emph{proposal-validation predicate}, so that a
+proposal is valid only if that state follows deterministically from the
+certificate; and (iii) the \emph{state-transition logic}, so that the chain's
+validity requirements (Bitcoin and DA receipts) and its withdrawal policy
+change with that state. We use ``Hybrid Adaptive Consensus'' in this sense: an adaptive
 layer integrated into the consensus pipeline, not a replacement for it.
 
 \textbf{Scope of ``degradation''.} We distinguish two kinds of network.
-The \emph{core consensus network} carries CometBFT's own votes; like any
-BFT protocol, Engram requires that at least $2f{+}1$ validators remain able
-to communicate after global stabilization time, and no state machine can
-restore liveness if that fails. The \emph{peripheral networks} are Bitcoin,
+The \emph{core consensus network} carries CometBFT's own votes. Like any BFT
+protocol, Engram requires that at least $2f{+}1$ validators can communicate
+after global stabilization time; no state machine can restore liveness if
+that fails. The \emph{peripheral networks} are Bitcoin,
 Celestia, and the P2P interfaces validators use to reach them, together with
 peer-quality signals (churn, latency, subnet diversity) on the Engram P2P
 interface that fall short of breaking core quorum connectivity. Engram
@@ -56,11 +68,11 @@ never to a partition of the core quorum.
 
 \textbf{Contributions.}
 \begin{itemize}
-    \item \textbf{Quorum-certified peripheral health.} A health-certificate
-    object built from $\geq 2f{+}1$ voting power's signed, height-bound
-    observations carried in CometBFT vote extensions, aggregated by a
-    deterministic weighted-median/majority function whose output is bounded by
-    honest observations regardless of which observations a Byzantine
+    \item \textbf{Quorum-certified peripheral health.} A health certificate
+    built from signed, height-bound observations of at least $2f{+}1$ voting
+    power, carried in CometBFT vote extensions. A deterministic
+    weighted-median/majority function aggregates them, and its output is
+    bounded by honest observations whichever observations a Byzantine
     proposer includes or omits
     (Section~\ref{subsec:health-certificate}).
     \item \textbf{Adaptive fallback state machine.} A four-state FSM
@@ -74,17 +86,18 @@ never to a partition of the core quorum.
     that proves header-chain continuity, FSM-transition legality,
     withdrawal-lock adherence, and boundary-validator signatures for up to
     256 \textsc{Sovereign}-interval headers at constant proving and
-    verification cost; longer intervals are covered by a sequence of proofs
-    linked through an on-chain committed root. Validators verify each proof
-    inside block execution; Bitcoin timestamps the resulting checkpoint but
-    does not verify the proof (Section~\ref{subsec:reanchoring}).
+    verification cost. Longer intervals use a sequence of proofs linked
+    through an on-chain committed root, optionally folded by an aggregator
+    (Appendix~\ref{app:aggregation}). Validators verify each proof inside
+    block execution; Bitcoin timestamps the resulting checkpoint but does not
+    verify the proof (Section~\ref{subsec:reanchoring}).
     \item \textbf{Layered formal specification.} A four-layer TLA+
-    specification with bounded model checking of each layer's safety and
-    liveness properties (zero violations at $N{\le}4$; the largest run
-    explored 3.39 million distinct states) and a five-mechanism ablation study in which each removed
-    mechanism reproduces a distinct predicted counterexample. The
-    cross-layer refinement obligation is specified but open
-    (Section~\ref{sec:formal}).
+    specification. Bounded model checking of each layer's safety and liveness
+    properties found zero violations at $N{\le}4$; the largest single run
+    explored 3.39 million distinct states. In a five-mechanism ablation
+    study, removing each mechanism reproduces a distinct predicted
+    counterexample. The cross-layer refinement obligation is specified but
+    open (Section~\ref{sec:formal}).
     \item \textbf{Live evaluation.} A 7-validator Cosmos SDK testnet against
     live Bitcoin regtest and Celestia networks with network- and
     application-level fault injection, comparing Engram against a

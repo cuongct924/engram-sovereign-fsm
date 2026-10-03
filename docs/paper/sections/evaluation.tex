@@ -43,7 +43,7 @@ withdrawal commits while $s^{h} \in \{\textsc{Sovereign},
 \pending{run B1--B6 at $n{=}7$ and report per-case AppHash agreement,
 semantic-replay violations, and the honest-range check.}
 
-\textbf{P2P quorum gate.} A P2P detector is useful for safety only if its
+\textbf{Peripheral P2P quorum gate.} A P2P detector is useful for safety only if its
 signal cannot be abused by a minority. We first compare the six-bound
 profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
 Monte Carlo study (2{,}000 benign and 2{,}000 attack snapshots plus 500
@@ -300,18 +300,27 @@ Gap fraction & 0.046 $\pm$ 0.006 & 0.251 $\pm$ 0.016 \\
 p95 block interval & 1.017 s & 1.021 s \\
 Tx accepted to mempool/s & 20.00 $\pm$ 0.00 & 19.99 $\pm$ 0.00 \\
 \midrule
-Rounds per height & \pending{} & \pending{} \\
-Proposals rejected / height & \pending{} & \pending{} \\
-Nil prevotes / nil precommits per height & \pending{} & \pending{} \\
-Committed tx/s & \pending{} & \pending{} \\
-Tx commit latency (p50 / p95) & \pending{} & \pending{} \\
-Mempool backlog (mean / max) & \pending{} & \pending{} \\
-Tx per block (mean) & \pending{} & \pending{} \\
+Rounds per height & 1.000 & 1.000 \\
+Proposals rejected / height & 0 & 0 \\
+Nil precommits / height & 0 & 0 \\
+Block interval, mean (p50 / p95) & 1.034 (1.032 / 1.042) s & 1.271 (1.257 / 1.342) s \\
+Committed tx/s & 20.00 $\pm$ 0.00 & 20.00 $\pm$ 0.00 \\
+Tx commit latency (p50 / p95) & 0.67 / 1.16 s & 1.03 / 1.64 s \\
+Mempool backlog (mean / max) & 8.2 / 24 & 15.7 / 46 \\
+Tx per block (mean) & 17.6 & 21.8 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
 \footnotesize Blocks/s, steady blocks/s, and gap fraction are defined in
-Section~\ref{subsec:metrics}; each is a mean over $n{=}5$ runs of 60\,s.
+Section~\ref{subsec:metrics}; each is a mean over $n{=}5$ runs of 60\,s. The rows below the rule come
+from a separate $n{=}5$ pass at 20\,tx/s that scans \emph{every} committed
+height (commit round, nil precommits, block time) instead of polling; nil
+prevotes are not stored on chain, and rejected proposals (distinct
+height/round/reason in the validators' logs) are the proxy for why a validator
+would prevote nil. Transaction counts exclude the health certificate in
+\texttt{Txs[0]}. Latency runs from submission to the first 0.25\,s poll that
+sees the transaction in a block. The vanilla arm is one local process, so its
+round and nil-vote rows are trivially 1 and 0.
 \end{table}
 
 \textbf{Where the cost is not.} The extended object adds a near-constant
@@ -322,23 +331,23 @@ consistent with the 14.7\,KB proof. Full proposal validation costs
 validation time is large enough to explain a lower block rate at a
 $\sim$1\,s block interval.
 
-\textbf{Where the cost is.} Engram's block rate is 22\% lower than
-vanilla's (0.743 vs.\ 0.953 blocks/s; the 1.34\,s S1 interval of
-Section~\ref{subsec:rq2} is Engram's, and vanilla is measured only here; Cohen's $d = -25.3$, with no overlap
-across repeats), yet its steady block interval is essentially identical
-(0.993 vs.\ 1.000 blocks/s). The difference lies entirely in the gap
-fraction: 25.1\% of Engram's elapsed time falls in heights that took more
-than one interval, against 4.6\% for vanilla. A longer height at an
-unchanged steady interval is the signature of an additional consensus
-round rather than of slower proposals or slower validation. The candidate
-causes are (i) \texttt{ProcessProposal} rejections, e.g.\ a certificate or
-receipt that falls outside tolerance at one validator; (ii) the extra
-vote-extension round trip before a proposer has a quorum of extensions;
-and (iii) nil votes near threshold boundaries. The lower rows of
-Table~\ref{tab:overhead} separate these causes.
-\pending{instrument rounds per height, rejection reasons, and nil votes
-from CometBFT logs; measure committed tx/s and per-tx commit latency from
-block inclusion; confirm or revise the round-level attribution.}
+\textbf{Where the cost is.} Engram's block rate is lower than
+vanilla's (0.743 against 0.953 blocks/s in the polled runs above; 0.788
+against 0.968 when every height is scanned). The scan identifies the cause
+by elimination. All 276 scanned Engram heights committed in the first round,
+none carried a nil precommit, and no proposal was rejected, so extra
+consensus rounds, \texttt{ProcessProposal} rejections and nil votes are
+ruled out. The interval distribution is also not a few long stalls:
+Engram's blocks arrive every 1.27\,s (p50 1.257, p95 1.342) and only 0.8\% are
+slower than 1.5 times the median, against 1.03\,s for vanilla. Each height is
+therefore about 0.24\,s longer, a constant per-height cost. The earlier
+reading that the gap fraction signals extra rounds was an artefact of
+polling, which cannot resolve intervals this close. The extra time sits on the
+critical path of every height, and the vote-extension step is the natural
+candidate: \texttt{ExtendVote} reads the live Bitcoin and Celestia sensors
+and each validator signs and gossips one more message. We did not isolate it,
+for example by replacing the extension with a no-op, so we state the
+constant, not its source.
 
 \textbf{Load.} Between 5 and 100 tx/s, both modes accepted every submitted
 transaction into the mempool and the p95 block interval stayed at

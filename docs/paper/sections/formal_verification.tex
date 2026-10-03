@@ -195,7 +195,7 @@ establish that the set of mechanisms is sufficient.
 \textbf{Run} & \textbf{Constants and bounds} \\
 \midrule
 Tendermint (safety) & $N{=}4$, $f{=}1$ (three honest, one Byzantine node); MaxRound 2; MaxBTCHeight 10; MaxEngramHeight 10; MaxTimestamp 2; symmetry reduction over the three honest nodes \\
-FSM (safety, liveness) & SuspiciousThreshold 2; SovereignThreshold 4; DAThreshold 2; HysteresisWait 2; SuspiciousHysteresisWait 2; MaxSuspiciousTime 2; DownHysteresisThreshold 2; MaxDownHysteresisThreshold 8; MinPeers 3; MinSubnetDiversity 2; MinAnchorPeers 1; MaxChurnRate 10; MinAvgTenure 100; MaxPeerLatency 50; the Bitcoin and Engram heights stay below 10 (safety run); no symmetry reduction \\
+FSM (safety, liveness) & SuspiciousThreshold 2; SovereignThreshold 4; DAThreshold 2; RecoveryHysteresisWait 2; SuspiciousHysteresisWait 2; MaxSuspiciousTime 2; DownHysteresisThreshold 2; MaxDownHysteresisThreshold 8; MinPeers 3; MinSubnetDiversity 2; MinAnchorPeers 1; MaxChurnRate 10; MinAvgTenure 100; MaxPeerLatency 50; the Bitcoin and Engram heights stay below 10 (safety run); no symmetry reduction \\
 \bottomrule
 \end{tabular}
 \end{table}

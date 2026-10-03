@@ -33,9 +33,8 @@ composite fault the chain keeps committing blocks and completes a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
 100\% AppHash agreement. The extended consensus object adds +228 bytes per
 proposal and 18.25\,$\mu$s of validation per block, yet lowers the
-block-production rate by 22\% relative to vanilla CometBFT; the loss comes
-from heights that take longer at an unchanged steady interval, pointing to
-additional consensus rounds rather than proposal size or validation
-time.
-\pending{confirm the round-level attribution with the RQ4 consensus-round
-instrumentation, and add the hard-gated-baseline stall result.}
+block-production rate by roughly 20\% relative to vanilla CometBFT. Scanning
+every height shows that this is not extra consensus rounds: all heights commit
+in the first round, with no nil precommit and no rejected proposal. Every block
+instead takes a near-constant 0.24\,s longer (1.27\,s against 1.03\,s).
+\pending{add the hard-gated-baseline stall result.}

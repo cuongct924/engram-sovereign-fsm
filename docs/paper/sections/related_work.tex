@@ -1,215 +1,384 @@
 \section{Related Work}
 \label{sec:related}
 
-Engram sits at the intersection of eight lines of work. Fig.~\ref{fig:taxonomy}
-organizes them by the question each answers about a chain that depends on
-external layers; Table~\ref{tab:comparison} compares representative systems
-on the properties Engram targets. The gap is the empty leaf in
-Fig.~\ref{fig:taxonomy}: no prior design makes \emph{external}-layer health
-a quorum-certified input to the \emph{same} consensus instance that orders
-transactions, and then changes validity rules and withdrawal policy on the
-basis of that input.
+A chain whose block validity depends on external layers raises five
+questions, and each has been studied by a separate community.
+Fig.~\ref{fig:taxonomy} organizes the literature by these questions:
+how consensus behaves under degraded conditions (Section~\ref{subsec:rw-degraded}),
+how the failure of an external layer is detected and agreed on
+(Section~\ref{subsec:rw-detect}), how modular designs cope with the failure of
+Bitcoin, DA, or settlement layers (Section~\ref{subsec:settlement}),
+how a chain returns to the anchored state (Section~\ref{subsec:rw-recovery}),
+and how such designs are validated (Section~\ref{subsec:rw-validation}).
+Table~\ref{tab:comparison} compares representative systems on seven criteria,
+and Section~\ref{subsec:rw-gap} states the gap that the comparison leaves.
 
-\begin{figure}[h]
+\begin{figure}[p]
 \centering
-\begin{forest}
-for tree={
-  grow'=0, draw, rounded corners, font=\scriptsize, align=left,
-  inner sep=2.5pt, l sep=6mm, s sep=1.5mm, anchor=west, child anchor=west,
-  parent anchor=east, edge={->},
-  edge path={\noexpand\path[\forestoption{edge}] (!u.parent anchor) -- ++(2mm,0) |- (.child anchor)\forestoption{edge label};},
-},
-where level=0{text width=2.2cm, fill=gray!12}{},
-where level=1{text width=2.9cm}{},
-where level=2{text width=5.6cm}{},
-[{How does a chain behave when a layer it depends on fails?}
-  [{Q1. Who agrees that a layer has failed?}
-    [{Nobody / operators (manual intervention)}]
-    [{Each node locally: failure detectors~\cite{chandra1996unreliable,chen2002qos,hayashibara2004phi}}]
-    [{\textbf{The validator quorum, in the same consensus instance (Engram)}}, fill=blue!8]
-  ]
-  [{Q2. Where does the fallback live?}
-    [{On another chain: escape hatch, forced inclusion~\cite{figueira2025escapehatch,capretto2025secure,gudgeon2020sok}}]
-    [{Inside consensus, triggered by internal faults~\cite{neu2021ebbflow,buterin2020gasper,pass2017sleepy}}]
-    [{\textbf{Inside consensus, triggered by external faults (Engram)}}, fill=blue!8]
-  ]
-  [{Q3. What does the anchor guarantee?}
-    [{Bitcoin checkpointing~\cite{tas2023bitcoinpos,azouvi2022pikachu,karakostas2021checkpointing}}]
-    [{DA sampling, fraud proofs~\cite{albassam2019lazyledger,albassam2021fraud,phamminh2026cda}}]
-  ]
-  [{Q4. How is the gap closed on recovery?}
-    [{ZK header-chain proofs~\cite{xie2022zkbridge,vesely2022plumo,bonneau2020mina}}]
-    [{Recursion, folding~\cite{bitansky2013recursive,bowe2019halo,kothapalli2022nova}}]
-  ]
-  [{Q5. How is the design validated?}
-    [{Formal: model checking, deductive proof~\cite{konnov2019apalache,braithwaite2020tendermint,padon2016ivy,hawblitzel2015ironfleet,wilcox2015verdi,qiu2024lido}}]
-    [{Empirical: fault injection~\cite{bano2021twins,basiri2016chaos}}]
-  ]
-]
-\end{forest}
-\caption{Taxonomy of related work. Shaded leaves mark the combination Engram
-occupies; no surveyed system occupies both.}
+\begin{tikzpicture}[
+  font=\scriptsize, >=Stealth,
+  box/.style={draw, rounded corners, inner sep=2.5pt, align=left, anchor=west},
+  root/.style={box, fill=gray!12, text width=2.1cm},
+  q/.style={box, text width=3.2cm, minimum height=0.6cm},
+  leaf/.style={box, text width=8.2cm, minimum height=0.6cm},
+  hl/.style={fill=blue!8}]
+\node[leaf] (l1) at (6.9,-0.00) {Fast path with fallback; protocol switching on internal faults~\cite{pass2018thunderella,aublin2015next700,giridharan2024autobahn}};
+\node[leaf] (l2) at (6.9,-0.95) {Availability--finality trade-offs on internal participation~\cite{pass2017sleepy,neu2021ebbflow,buterin2017casper,buterin2020gasper}};
+\node[leaf, hl] (l3) at (6.9,-1.90) {\textbf{Degradation triggered by the health of external layers (Engram)}};
+\node[q] (q0) at (3.1,-0.95) {Q1. How does consensus behave under degraded conditions?};
+\draw[->] (q0.east) -- ++(0.25,0) |- (l1.west);
+\draw[->] (q0.east) -- ++(0.25,0) |- (l2.west);
+\draw[->] (q0.east) -- ++(0.25,0) |- (l3.west);
+\node[leaf] (l4) at (6.9,-3.05) {Local failure detectors, including Byzantine muteness~\cite{chandra1996unreliable,chen2002qos,hayashibara2004phi,doudou1999muteness}};
+\node[leaf] (l5) at (6.9,-4.00) {Aggregation of Byzantine inputs~\cite{dolev1986approximate,stolz2015median}};
+\node[leaf] (l6) at (6.9,-4.95) {Authenticated data feeds to applications~\cite{zhang2016towncrier}};
+\node[leaf, hl] (l7) at (6.9,-5.90) {\textbf{External health certified by the validator quorum inside the consensus instance (Engram)}};
+\node[q] (q1) at (3.1,-4.47) {Q2. How is the failure of an external layer detected and agreed on?};
+\draw[->] (q1.east) -- ++(0.25,0) |- (l4.west);
+\draw[->] (q1.east) -- ++(0.25,0) |- (l5.west);
+\draw[->] (q1.east) -- ++(0.25,0) |- (l6.west);
+\draw[->] (q1.east) -- ++(0.25,0) |- (l7.west);
+\node[leaf] (l8) at (6.9,-7.05) {DA layers and fraud proofs~\cite{albassam2019lazyledger,albassam2021fraud,phamminh2026cda}};
+\node[leaf] (l9) at (6.9,-8.00) {Bitcoin checkpointing~\cite{karakostas2021checkpointing,tas2022babylon,azouvi2022pikachu,tas2023bitcoinpos}};
+\node[leaf] (l10) at (6.9,-8.95) {Fallback outside the validator quorum: escape hatch, forced inclusion, DA-committee fallback~\cite{figueira2025escapehatch,capretto2025secure,arbitrum_anytrust}};
+\node[leaf, hl] (l11) at (6.9,-9.90) {\textbf{Validity rules and withdrawals switched by certified health (Engram)}};
+\node[q] (q2) at (3.1,-8.47) {Q3. How do modular designs cope with failure of Bitcoin, DA, or settlement layers?};
+\draw[->] (q2.east) -- ++(0.25,0) |- (l8.west);
+\draw[->] (q2.east) -- ++(0.25,0) |- (l9.west);
+\draw[->] (q2.east) -- ++(0.25,0) |- (l10.west);
+\draw[->] (q2.east) -- ++(0.25,0) |- (l11.west);
+\node[leaf] (l12) at (6.9,-11.05) {Succinct header-chain proofs and light clients~\cite{xie2022zkbridge,vesely2022plumo,bonneau2020mina,bunz2020flyclient}};
+\node[leaf] (l13) at (6.9,-12.00) {Recursion and folding~\cite{bitansky2013recursive,bowe2019halo,kothapalli2022nova}};
+\node[leaf, hl] (l14) at (6.9,-12.95) {\textbf{Chunked proof of FSM legality and withdrawal lock over the degraded interval (Engram)}};
+\node[q] (q3) at (3.1,-12.00) {Q4. How does a chain return to the anchored state?};
+\draw[->] (q3.east) -- ++(0.25,0) |- (l12.west);
+\draw[->] (q3.east) -- ++(0.25,0) |- (l13.west);
+\draw[->] (q3.east) -- ++(0.25,0) |- (l14.west);
+\node[leaf] (l15) at (6.9,-14.10) {Model checking and deductive proof~\cite{konnov2019apalache,braithwaite2020tendermint,padon2016ivy,hawblitzel2015ironfleet,wilcox2015verdi,qiu2024lido}};
+\node[leaf] (l16) at (6.9,-15.05) {Fault injection~\cite{bano2021twins,basiri2016chaos}};
+\node[leaf, hl] (l17) at (6.9,-16.00) {\textbf{Layered model checking plus live fault injection against Bitcoin and Celestia (Engram)}};
+\node[q] (q4) at (3.1,-15.05) {Q5. How are such designs validated?};
+\draw[->] (q4.east) -- ++(0.25,0) |- (l15.west);
+\draw[->] (q4.east) -- ++(0.25,0) |- (l16.west);
+\draw[->] (q4.east) -- ++(0.25,0) |- (l17.west);
+\node[root] (r) at (0,-8.00) {A chain whose validity depends on external layers};
+\draw[->] (r.east) -- ++(0.25,0) |- (q0.west);
+\draw[->] (r.east) -- ++(0.25,0) |- (q1.west);
+\draw[->] (r.east) -- ++(0.25,0) |- (q2.west);
+\draw[->] (r.east) -- ++(0.25,0) |- (q3.west);
+\draw[->] (r.east) -- ++(0.25,0) |- (q4.west);
+\end{tikzpicture}
+\caption{Taxonomy of related work, organized by the question each line of work
+answers. Shaded leaves mark where Engram sits. No surveyed work occupies the
+shaded leaves of Q1 and Q2 together.}
 \label{fig:taxonomy}
 \end{figure}
 
-\subsection{BFT Consensus Under Partial Synchrony}
+\subsection{Consensus Under Degraded Conditions}
+\label{subsec:rw-degraded}
+\textbf{Agreement core.}
 PBFT~\cite{castro1999pbft} and the partial-synchrony model of Dwork, Lynch,
-and Stockmeyer~\cite{dwork1988consensus} underlie the protocols Engram builds
-on. Tendermint~\cite{buchman2016tendermint,buchman2018gossip} and its
-CometBFT successor provide deterministic finality with a rotating proposer;
-HotStuff~\cite{yin2019hotstuff} achieves linear communication in the same
-leader-based lineage, and DAG-based designs such as
-Narwhal/Tusk~\cite{danezis2022narwhal} and
-Bullshark~\cite{spiegelman2022bullshark} decouple dissemination from
-ordering for throughput. BFT forensics~\cite{sheng2021forensics} and
-accountable safety identify culpable validators after a safety violation;
-Engram inherits CometBFT's evidence pool for this purpose. All of these
-reason about a closed validator set whose own network is the only channel
-modelled. Engram does not change their agreement core; it adds an
-externally sourced, quorum-certified input to the object being agreed on.
-AdoB~\cite{honore2024adob} and Adore~\cite{honore2022adore} generalize
-consensus to richer objects with certified reconfiguration, again within
-one fault domain.
+and Stockmeyer~\cite{dwork1988consensus} underlie Tendermint and its CometBFT
+successor~\cite{buchman2016tendermint,buchman2018gossip}, which provide
+deterministic finality with a rotating proposer. HotStuff~\cite{yin2019hotstuff}
+makes leader replacement linear in the number of replicas within the same
+leader-based lineage. Narwhal/Tusk~\cite{danezis2022narwhal} separate
+transaction dissemination from ordering, and Bullshark~\cite{spiegelman2022bullshark}
+orders transactions on top of the Narwhal DAG. These protocols agree on the content of a proposal; whether
+a proposal is acceptable is decided by an application predicate that every
+correct validator must evaluate identically. Tendermint's consensus problem
+includes such a \texttt{valid()} predicate~\cite{buchman2018gossip}, and Cachin
+et al.~\cite{cachin2001secure} introduced the \emph{external validity}
+condition for multi-valued Byzantine agreement. Engram relies on the
+same structure: its proposal-validation predicate depends on the health
+certificate, so the predicate stays deterministic only if the certificate is
+itself agreed on. BFT forensics~\cite{sheng2021forensics} studies how many malicious replicas
+can be identified after a safety violation. AdoB~\cite{honore2024adob}
+mechanizes benign and Byzantine consensus in one model, and
+Adore~\cite{honore2022adore} adds certified reconfiguration. Engram inherits
+CometBFT's evidence pool for accountability and leaves the agreement core
+unchanged.
 
-\subsection{Availability--Finality Trade-offs Inside Consensus}
-The closest conceptual relatives are protocols that change behavior inside
-consensus when conditions degrade. The sleepy model~\cite{pass2017sleepy}
-formalizes dynamic availability; ebb-and-flow
-protocols~\cite{neu2021ebbflow} expose a dynamically available ledger and a
-finalized prefix, so that the chain keeps growing when finality stalls and
-the finalized ledger catches up when conditions recover. Gasper's inactivity
-leak~\cite{buterin2020gasper,buterin2017casper} restores finality after more
-than a third of validators go offline. These designs share Engram's
-``degrade, don't halt'' goal, and the CAP-style tension~\cite{gilbert2002cap}
-behind it, but their trigger is \emph{internal} participation. Engram's
-trigger is the health of \emph{external} infrastructure, which the validators
-can only observe asynchronously and must therefore certify by quorum.
+\textbf{Fast paths and protocol switching.}
+A second group changes the protocol's behavior in response to conditions that
+the replicas themselves observe. Abstract~\cite{aublin2015next700} lets a replicated
+state machine abort a client request when something goes wrong, which supports
+composing and reconfiguring BFT protocols. Thunderella~\cite{pass2018thunderella} combines an
+optimistic fast path with a synchronous fallback, and
+Autobahn~\cite{giridharan2024autobahn} targets seamless recovery from network
+blips. The trigger in each case is a fault of the replicas or of the network
+among them.
 
-\subsection{Failure Detection}
+\textbf{Availability--finality trade-offs.}
+The closest conceptual relatives give up finality to keep the chain growing.
+The sleepy model~\cite{pass2017sleepy} lets players be online or offline and
+gives a consensus protocol that is resilient as long as a majority of the online
+players are honest.
+Ebb-and-flow protocols~\cite{neu2021ebbflow} expose both a dynamically
+available ledger and a finalized prefix, so the chain keeps growing when
+finality stalls and the finalized ledger catches up on recovery. Casper
+FFG~\cite{buterin2017casper}, and Gasper~\cite{buterin2020gasper}, which
+combines it with the LMD GHOST fork-choice rule, prove accountable safety and
+plausible liveness. For the case in which more than a third of the validators
+crash, Casper FFG proposes an inactivity leak that drains the deposits of
+non-voting validators until the voting validators again form a supermajority,
+and leaves the exact formula open. These designs share the
+``degrade, do not halt'' goal and the tension described by the CAP
+theorem~\cite{gilbert2002cap}. They differ from Engram in two respects: the
+trigger is \emph{internal} participation, and the response changes how finality
+is reached, not which blocks and withdrawals are valid.
+
+\subsection{Detecting and Agreeing on External Failure}
+\label{subsec:rw-detect}
+\textbf{Failure detectors.}
 Unreliable failure detectors~\cite{chandra1996unreliable}, their QoS
 metrics~\cite{chen2002qos}, and accrual detectors~\cite{hayashibara2004phi}
-give each process a local, eventually accurate suspicion of other
-processes. Engram's sensors play a similar role for peripheral layers, with
-two differences: suspicion must be \emph{agreed on} before it has any
-effect, and the adversary controls up to $f$ reporters. The health
-certificate (Section~\ref{subsec:health-certificate}) addresses both, and
-hysteresis plays the role of a detector's suspicion timeout.
+give each process a local, eventually accurate suspicion of other processes.
+Muteness failure detectors~\cite{doudou1999muteness} extend the abstraction to
+Byzantine processes that stop sending the messages an algorithm expects while
+possibly continuing to send others. Engram's
+sensors play the same role for peripheral layers, with two differences:
+suspicion has no effect until the quorum agrees on it, and the adversary
+controls up to $f$ of the reporters.
 
-\subsection{Modular Blockchains and Data Availability}
-LazyLedger/Celestia~\cite{albassam2019lazyledger} decouples DA from
-execution; fraud and DA proofs~\cite{albassam2021fraud} let light clients
-detect withheld data; coded distributed arrays improve the DAS networking
-layer~\cite{phamminh2026cda}. This work makes DA \emph{verifiable} but
-assumes DA liveness: a rollup that requires DA inclusion before accepting a
-block stops when DA stops. Engram's DA sensor is independent of the
-sampling design; what it adds is a consensus-level response when DA is
-unavailable, plus a backfill requirement before the chain returns to
+\textbf{Aggregating Byzantine observations.}
+Approximate agreement~\cite{dolev1986approximate} requires non-faulty
+processes to decide on values that are close together rather than identical.
+Median validity~\cite{stolz2015median} requires the decision to be close to the
+median of the non-Byzantine inputs, and, at maximal fault tolerance, within the
+range of those inputs for $n \geq 3t+1$. The Engram health certificate has the
+same range guarantee. It differs in how the input is gathered and agreed on:
+observations are signed, height-bound sensor snapshots carried as vote
+extensions, and the aggregate is a deterministic function that every validator
+recomputes during proposal validation, so no additional agreement protocol runs
+(Section~\ref{subsec:health-certificate}).
+
+\textbf{Data feeds.}
+Town Crier~\cite{zhang2016towncrier} delivers authenticated web data to smart
+contracts through trusted hardware. A feed of this kind supplies a value to the
+application layer. Engram instead lets the externally observed status of a
+layer determine block validity and withdrawal policy beneath the application.
+
+\textbf{Peripheral P2P attacks.}
+Sybil attacks~\cite{douceur2002sybil}, in which one entity presents multiple
+identities, and eclipse attacks on Bitcoin's P2P
+layer~\cite{heilman2015eclipse,rehman2025eclipse}, which monopolize a node's
+connections, let an adversary control what a node sees of an external network. They motivate the multi-signal peer-health
+profile that Engram's P2P sensor uses and are one reason a single local reading
+is not trusted.
+
+\subsection{Modular Chains and Their External Dependencies}
+\label{subsec:settlement}
+\textbf{Data availability.}
+LazyLedger/Celestia~\cite{albassam2019lazyledger} decouples DA from execution.
+Fraud and data availability proofs~\cite{albassam2021fraud} let light clients
+detect withheld data, and coded distributed arrays target the peer-to-peer layer that
+distributes data availability sampling fragments~\cite{phamminh2026cda}. This line of work makes DA
+\emph{verifiable}. A chain that requires a DA inclusion proof before accepting a
+block still stops when DA stops. Engram's DA sensor is independent of the
+sampling design; what Engram adds is a consensus-level response to DA
+unavailability and a backfill requirement before the chain returns to
 \textsc{Anchored} (Section~\ref{subsec:reanchoring}).
 
-\subsection{Bitcoin-Anchored Settlement}
-\label{subsec:settlement}
-Pegged sidechains~\cite{back2014sidechains} introduced two-way pegs to
-Bitcoin. Checkpointing into proof-of-work~\cite{karakostas2021checkpointing}
-and into Bitcoin specifically, as in Babylon~\cite{tas2022babylon,tas2023bitcoinpos}
-and Pikachu~\cite{azouvi2022pikachu}, protects proof-of-stake chains against
-long-range attacks; Tas et al.~\cite{tas2023bitcoinpos} also characterize
-what Bitcoin can and cannot add to PoS security, including slashable safety
-via extractable one-time signatures. These designs assume the anchor
-remains reachable. Engram treats unreachability as a first-class condition,
-certifies it by quorum, and locks withdrawals while it persists. Engram does
-not implement Bitcoin-enforced slashing; its accountability comes from
-CometBFT's equivocation evidence.
+\textbf{Bitcoin anchoring.}
+Pegged sidechains~\cite{back2014sidechains} introduced two-way pegs to Bitcoin.
+Karakostas and Kiayias~\cite{karakostas2021checkpointing} study checkpointing
+as a defense of proof-of-work ledgers against 51\% attacks and report a
+liveness attack, ``block lead'', against existing checkpointing designs. For
+proof-of-stake chains, Babylon~\cite{tas2022babylon,tas2023bitcoinpos} and
+Pikachu~\cite{azouvi2022pikachu} checkpoint onto Bitcoin to prevent long-range
+attacks. Tas et al.~\cite{tas2023bitcoinpos} show that slashable safety is
+impossible without an external source of trust and state their guarantees under
+the assumption that Bitcoin is safe and live. Their design also defines a
+fallback in which Bitcoin orders the PoS blocks after censorship, which
+strengthens the PoS chain's dependence on Bitcoin. To our knowledge, none of
+these publications specifies how the chain operates while the anchor itself is
+unreachable. Engram treats unreachability as an input, certifies it by quorum,
+and locks withdrawals while it persists. Engram does not implement
+Bitcoin-enforced slashing; accountability comes from CometBFT's equivocation
+evidence.
 
-\subsection{Rollup Escape Hatches and Forced Inclusion}
-When a rollup sequencer stalls or censors, escape
-hatches~\cite{figueira2025escapehatch,gudgeon2020sok} and forced inclusion
-let users withdraw against the L1 using the last known state root; optimistic
-designs such as Arbitrum~\cite{kalodner2018arbitrum} dispute invalid state
-via fraud proofs; Capretto et al.~\cite{capretto2025secure} specify a
-sequencer/DA-committee ``arranger'' that stays correct even if every replica
-is Byzantine. These mechanisms solve a related liveness problem through a
-fallback path on a different chain, triggered by users or watchers after
-the primary path stalls. Engram keeps the fallback inside the validator
-set's own consensus instance and commits the FSM state in the same block.
+\textbf{Fallback outside the validator quorum.}
+When a rollup operator stops building blocks or proposing state roots, escape
+hatches~\cite{figueira2025escapehatch} let users withdraw on the
+L1 by proving their assets against an L2 state root. Arbitrum~\cite{kalodner2018arbitrum} resolves disputes about contract behavior
+with a challenge-based protocol on the L1. Surveys of layer-two
+protocols~\cite{gudgeon2020sok} treat the ability of honest users to withdraw as
+a core security property, and list among the open weaknesses that layer-two
+designs assume the underlying blockchain eventually accepts transactions. Capretto et al.~\cite{capretto2025secure} give fraud-proof games,
+mechanized in Lean~4, with which an honest agent can prove on the L1 that a
+sequencer-and-DAC ``arranger'' violated a safety property even if all of its
+replicas are compromised; a liveness violation that preserves safety cannot be
+proved on the L1. The closest in-protocol fallback is AnyTrust: if the
+sequencer cannot collect enough committee signatures within a few minutes, it
+posts the full data to the parent chain as a non-AnyTrust rollup would
+do~\cite{arbitrum_anytrust}, withdrawals then incur the delay of a standard
+rollup, and the chain switches back to the cheaper mode when the committee
+resumes~\cite{arbitrum_orbit_anytrust}. In that design the sequencer decides,
+and the failure it reacts to is a committee failure, not the health of an
+external DA network or of Bitcoin settlement. Escape hatches are triggered by
+users or watchers on a different chain after the primary path has stalled.
+Engram keeps the fallback inside the validator set's own consensus instance and
+commits the FSM state in the same block.
 
-\subsection{Zero-Knowledge Recovery and Light Clients}
-zkBridge~\cite{xie2022zkbridge}, Plumo~\cite{vesely2022plumo}, and
-Mina~\cite{bonneau2020mina} prove header-chain validity succinctly, the
-latter two via recursive composition~\cite{bitansky2013recursive,bowe2019halo}
-or folding~\cite{kothapalli2022nova}. Engram's recovery proof is a
-fixed-capacity PLONK-family~\cite{gabizon2019plonk} proof over one
-interval chunk with an FSM-policy statement (legality, withdrawal lock)
-rather than only header validity; chaining chunk proofs through an
-on-chain root replaces recursion at the per-header level, where we
-measured recursion to be 650--1{,}200$\times$ slower
+\textbf{Withdrawal risk.}
+Lee et al.~\cite{lee2023bridges} break a bridge into its components, identify
+the risk each introduces, and analyze past exploits that targeted bridges. They
+report that over USD~1 billion in digital assets was stolen, incorrectly
+minted, or locked in bridges in the year before their study. Withdrawals are the
+path through which a chain without external corroboration can lose assets,
+which is why Engram locks them while the chain runs in \textsc{Sovereign} mode.
+
+\subsection{Recovery and Re-Anchoring}
+\label{subsec:rw-recovery}
+Succinct proofs are the standard tool for convincing a verifier of a chain's
+history without re-executing it. They differ in how a long history is covered.
+Mina~\cite{bonneau2020mina} keeps a constant-size proof of the whole chain by
+recursively composing SNARKs, which Plumo's authors report imposes a large
+overhead on the protocol being proved~\cite{vesely2022plumo}. zkBridge~\cite{xie2022zkbridge}
+verifies source-chain consensus inside a two-layer recursive proof system.
+Plumo instead syncs a client through a chain of sequential SNARK transition
+proofs, each covering four months of blockchain history~\cite{vesely2022plumo}.
+Recursive composition~\cite{bitansky2013recursive,bowe2019halo} and
+folding~\cite{kothapalli2022nova} are the general techniques behind the
+recursive designs. FlyClient~\cite{bunz2020flyclient} takes a different route
+for proof-of-work chains: a light client downloads only a logarithmic number of
+block headers, selected by probabilistic block sampling.
+All of these prove that a header chain, or a validator-set transition, is
+valid. A chain that has run without external corroboration must also show that
+the interval followed the protocol. The long-range attack
+literature~\cite{deirmentzoglou2019longrange} reviews how an attacker can
+rewrite the history of a proof-of-stake chain, which is the exposure of an
+interval secured only by the chain's own validators. Engram's recovery proof is
+a fixed-capacity PLONK-family~\cite{gabizon2019plonk} proof over one interval
+chunk, and chunk proofs are chained through an on-chain root, as Plumo chains
+its transition proofs. The statement differs: it covers FSM-transition legality
+and withdrawal-lock adherence in addition to header continuity
 (Section~\ref{subsec:reanchoring}).
 
-\subsection{Formal Verification and Fault Injection}
+\subsection{Validation Methodology}
+\label{subsec:rw-validation}
 TLA+~\cite{lamport2002specifying} with TLC and
 Apalache~\cite{konnov2019apalache} has been used to specify and model-check
-Tendermint components~\cite{braithwaite2020tendermint}. Deductive approaches
--- Ivy~\cite{padon2016ivy}, IronFleet~\cite{hawblitzel2015ironfleet},
-Verdi~\cite{wilcox2015verdi}, LiDO~\cite{qiu2024lido}, and implicit
-rankings for liveness~\cite{lotan2025implicit} -- prove properties for
-unbounded $N$, which bounded model checking cannot; a recent systematization
-places these approaches on a maturity scale~\cite{bondarev2026sok}. Engram
-sits in the model-checking family, with a per-layer result and an open
-refinement obligation (Section~\ref{sec:formal}). On the empirical side,
-Twins~\cite{bano2021twins} tests BFT implementations by duplicating
-validator identities, chaos engineering~\cite{basiri2016chaos} injects
-production faults, and eclipse attacks on Bitcoin's P2P
-layer~\cite{heilman2015eclipse,rehman2025eclipse} motivate multi-signal
-peer-health profiling. Engram's evaluation combines network-level and
-application-level fault injection against live peripheral networks.
+Tendermint's blockchain synchronization protocol~\cite{braithwaite2020tendermint}. Deductive approaches establish properties by machine-checked proof instead of
+by exploring a bounded instance. Ivy~\cite{padon2016ivy} verifies safety of
+infinite-state systems interactively, and Lotan and
+Shoham~\cite{lotan2025implicit} automate liveness proofs in first-order logic
+over finite but unbounded domains. IronFleet~\cite{hawblitzel2015ironfleet} and
+Verdi~\cite{wilcox2015verdi} verify distributed-system implementations, the
+latter in Coq, and LiDO~\cite{qiu2024lido} gives mechanized safety and
+liveness proofs in Coq for unpipelined and pipelined Jolteon. A recent
+systematization places these approaches on a maturity
+scale~\cite{bondarev2026sok}. Engram sits in the model-checking family, with a
+per-layer result and an open refinement obligation
+(Section~\ref{sec:formal}). On the empirical side, Twins~\cite{bano2021twins}
+tests BFT implementations by duplicating validator identities, and chaos
+engineering~\cite{basiri2016chaos} injects faults into production systems.
+Engram's evaluation combines network-level and application-level fault
+injection against live Bitcoin and Celestia networks.
 
-\begin{table}[h]
-\caption{Comparison with representative systems. \checkmark: provided;
-$\circ$: partially or under different assumptions; --: not provided or not
-applicable. Marks reflect each design's primary publication.}
+\begin{table}[!t]
+\caption{Comparison with representative systems, grouped by family and assessed
+from each design's primary publication. \checkmark: provided. $\circ$: provided
+in part, or by a different actor or trigger than in Engram. --: not provided.
+n/a: not applicable, because the design has no dependency on a peripheral layer
+or no degraded mode. For formal verification, \checkmark\ is a machine-checked
+proof of the claimed properties and $\circ$ is a pen-and-paper proof or
+machine-checking of part of the design. For fault injection, \checkmark\ is
+faults injected into a running implementation and $\circ$ is simulated faults.}
 \label{tab:comparison}
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}p{0.25\linewidth}ccccccc@{}}
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{4pt}
+\newcommand{\tblhead}[1]{{\scriptsize\shortstack{#1}}}
+\newcommand{\Y}{\checkmark}
+\newcommand{\Pt}[1][]{$\circ$\ifx\relax#1\relax\else\textsuperscript{#1}\fi}
+\newcommand{\N}{--}
+\newcommand{\NA}{n/a}
+\newcommand{\grp}[1]{\multicolumn{8}{@{}l}{\textit{#1}}\\[1pt]}
+\begin{tabular}{@{}p{0.30\linewidth}*{7}{c}@{}}
 \toprule
 \textbf{System} &
-\rotatebox{75}{\shortstack[l]{External health\\agreed by quorum}} &
-\rotatebox{75}{\shortstack[l]{In-consensus\\fallback}} &
-\rotatebox{75}{\shortstack[l]{Continued execution\\on peripheral outage}} &
-\rotatebox{75}{\shortstack[l]{Withdrawal\\isolation}} &
-\rotatebox{75}{\shortstack[l]{Automatic\\recovery}} &
-\rotatebox{75}{\shortstack[l]{Formal\\verification}} &
-\rotatebox{75}{\shortstack[l]{Live fault-\\injection eval.}} \\
+\tblhead{External\\health agreed\\by quorum} &
+\tblhead{In-consensus\\fallback} &
+\tblhead{Continued\\execution on\\peripheral\\outage} &
+\tblhead{Withdrawal\\isolation} &
+\tblhead{Automatic\\recovery} &
+\tblhead{Formal\\verification} &
+\tblhead{Live fault-\\injection\\evaluation} \\
 \midrule
-Tendermint / CometBFT~\cite{buchman2018gossip} & -- & -- & -- & -- & -- & $\circ$ & $\circ$ \\
-Ebb-and-flow~\cite{neu2021ebbflow} & -- & \checkmark & $\circ$ & -- & \checkmark & $\circ$ & -- \\
-Gasper inactivity leak~\cite{buterin2020gasper} & -- & \checkmark & $\circ$ & -- & \checkmark & $\circ$ & -- \\
-Babylon~\cite{tas2023bitcoinpos} & -- & -- & $\circ$ & -- & -- & $\circ$ & -- \\
-Pikachu~\cite{azouvi2022pikachu} & -- & -- & $\circ$ & -- & -- & -- & -- \\
-LazyLedger / Celestia~\cite{albassam2019lazyledger} & -- & -- & -- & -- & -- & -- & -- \\
-Escape hatch~\cite{figueira2025escapehatch} & -- & -- & -- & \checkmark & -- & -- & -- \\
-Secure arranger~\cite{capretto2025secure} & -- & -- & $\circ$ & -- & $\circ$ & \checkmark & -- \\
-zkBridge~\cite{xie2022zkbridge} & -- & -- & -- & -- & -- & -- & -- \\
+\grp{Reference points}
+Hard-gated modular chain\textsuperscript{a} & \N & \N & \N & \N & \NA & \N & \N \\
+Tendermint / CometBFT~\cite{buchman2018gossip} & \N & \N & \NA & \N & \N & \Pt & \N \\
+\addlinespace[4pt]
+\grp{Degradation inside consensus}
+Ebb-and-flow\textsuperscript{b}~\cite{neu2021ebbflow} & \N & \Y & \Pt & \N & \Y & \Pt & \Pt \\
+Casper FFG inactivity leak\textsuperscript{b,c}~\cite{buterin2017casper} & \N & \Y & \Pt & \N & \Y & \Pt & \N \\
+\addlinespace[4pt]
+\grp{Bitcoin anchoring}
+Babylon\textsuperscript{d}~\cite{tas2023bitcoinpos} & \N & \Pt & \Pt & \N & \N & \Pt & \N \\
+Pikachu\textsuperscript{e}~\cite{azouvi2022pikachu} & \N & \N & \NA & \N & \N & \Pt & \N \\
+\addlinespace[4pt]
+\grp{Rollup and DA fallback}
+Escape hatch~\cite{figueira2025escapehatch} & \N & \N & \N & \Y & \N & \N & \N \\
+Secure arranger\textsuperscript{f}~\cite{capretto2025secure} & \N & \N & \N & \N & \N & \Y & \N \\
+AnyTrust\textsuperscript{g}~\cite{arbitrum_anytrust,arbitrum_orbit_anytrust} & \Pt & \Pt & \Y & \N & \Y & \N & \N \\
+\addlinespace[4pt]
+\grp{Building blocks}
+LazyLedger / Celestia~\cite{albassam2019lazyledger} & \N & \N & \N & \N & \N & \Pt & \N \\
+zkBridge\textsuperscript{h}~\cite{xie2022zkbridge} & \N & \N & \N & \N & \N & \Pt & \N \\
 \midrule
-\textbf{Engram (this paper)} & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & $\circ$ & \checkmark \\
+\textbf{Engram (this paper)}\textsuperscript{i} & \Y & \Y & \Y & \Y\textsuperscript{$\dagger$} & \Y & \Pt & \Y \\
 \bottomrule
 \end{tabular}
-\\[2pt]
-\footnotesize Formal verification for Engram is $\circ$ because the
-per-layer bounded model checking is complete but the cross-layer refinement
-is open (Section~\ref{sec:formal}). ``Formal'' for the other systems covers
-pen-and-paper proofs as well as mechanized ones.
+\par\medskip
+\begin{minipage}{\linewidth}
+\scriptsize\raggedright
+\textit{Notes.}
+(a)~The same binary as Engram with the FSM pinned to \textsc{Anchored}
+(Section~\ref{subsec:baselines}). It is not a published design; its row follows
+from its validity predicate, which rejects every proposal that lacks a Bitcoin
+or DA receipt.
+(b)~Reacts to internal participation or partition failures, not to the outage
+of a peripheral layer.
+(c)~The proofs cover accountable safety and plausible liveness; the exact leak
+formula is left open.
+(d)~The guarantees assume that Bitcoin is safe and live, and PoS finality does
+not wait for the anchor. The emergency break and the fallback to Bitcoin are
+client-side rules, not validator consensus.
+(e)~The PoS chain does not depend on the anchor to make progress; checkpoints
+serve long-range security.
+(f)~The fraud-proof games are mechanized in Lean~4. Liveness violations that
+preserve safety are not provable on the L1.
+(g)~Marks follow its public documentation, not a peer-reviewed paper. The
+committee signature quorum acts as a health signal, and the sequencer alone
+decides the fallback.
+(h)~Its liveness relies on a trusted relay network.
+(i)~Formal verification is $\circ$ because the per-layer bounded model checking
+is complete but the cross-layer refinement is open (Section~\ref{sec:formal}).
+$\dagger$~Demonstrated as a policy: the prototype has no bridge and no real
+assets (Section~\ref{sec:discussion}).
+\end{minipage}
 \end{table}
 
-\subsection{Scope: Storage and Slashing Layers}
-The adaptive-fallback and circuit-breaker idea formalized here originated as
-a brief sketch in an internal organizational
-whitepaper~\cite{engram2026whitepaper} describing a broader system -- a
-token-incentivized storage network with erasure coding, zk-PoSt built on
-Groth16~\cite{groth2016size}, and Bitcoin-anchored EOTS slashing. That
-system is developed separately and is out of scope: none of it is
-implemented or evaluated here. Relative to the sketch, this paper replaces
-stake-weighted fork choice with a standard $n = 3f{+}1$ quorum, adds the
-\textsc{Suspicious} and \textsc{Recovering} states, the health certificate,
-the recovery proof (Noir/UltraHonk, unrelated to the sketch's Groth16
-circuit), the formal specification, and the live evaluation.
+\subsection{Research Gap}
+\label{subsec:rw-gap}
+Read against the criteria of Table~\ref{tab:comparison}, the surveyed work
+leaves the chain in one of three positions when an external layer fails. A
+chain that gates validity on the layer halts. A chain that drops the dependency
+gives up the settlement and availability guarantees that motivated it. A chain
+that relies on a fallback outside its validator quorum, such as an escape hatch
+or a sequencer-driven switch, waits for users, watchers, or a single sequencer
+to act after the primary path has degraded. Protocols that degrade inside
+consensus respond to internal participation, and data feeds supply values above
+consensus.
+
+To our knowledge, no surveyed design combines (i)~a quorum-certified health
+signal whose aggregate is bounded by honest observations, (ii)~deterministic,
+same-block changes to proposal validity and withdrawal policy based on that
+signal, and (iii)~a verified path back to the anchored state. Engram provides
+these three, and Sections~\ref{sec:design}--\ref{sec:evaluation} evaluate them.
+The adaptive-fallback idea first appeared as a sketch in an unpublished
+whitepaper~\cite{engram2026whitepaper}; the storage and slashing layers of that
+system are outside this paper.
