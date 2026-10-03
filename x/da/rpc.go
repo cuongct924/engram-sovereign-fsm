@@ -235,6 +235,29 @@ func (c *RPCClient) Available(ctx context.Context, celestiaHeight uint64, ns Nam
 	return len(blobs) > 0, nil
 }
 
+// Fetch returns the data of every blob under ns at celestiaHeight, decoded. A nil result with a nil error
+// means nothing is retrievable there yet ("blob: not found"). Unlike Available it exposes the content, so a
+// caller can check that what the DA layer serves is what was submitted.
+func (c *RPCClient) Fetch(ctx context.Context, celestiaHeight uint64, ns Namespace) ([][]byte, error) {
+	var blobs []blobResult
+	err := c.call(ctx, "blob.GetAll", []any{celestiaHeight, []string{ns.base64()}}, &blobs)
+	if err != nil {
+		if isBlobNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("blob.GetAll: %w", err)
+	}
+	out := make([][]byte, 0, len(blobs))
+	for _, b := range blobs {
+		data, derr := base64.StdEncoding.DecodeString(b.Data)
+		if derr != nil {
+			return nil, fmt.Errorf("blob.GetAll: undecodable blob data: %w", derr)
+		}
+		out = append(out, data)
+	}
+	return out, nil
+}
+
 func isBlobNotFound(err error) bool {
 	return err != nil && bytes.Contains([]byte(err.Error()), []byte("blob: not found"))
 }

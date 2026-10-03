@@ -1,8 +1,14 @@
 package da
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -69,6 +75,96 @@ type Publisher struct {
 	// verifiedHeight tracks the head while contiguousHeight lags behind.
 	contiguousHeight uint64
 	pendingBatchEnd  uint64 // highest height inside the pending blob
+	// pendingPayload is the data the pending submission is MEANT to carry; confirmation compares what the
+	// DA layer serves against it, not merely that some blob exists.
+	pendingPayload []byte
+
+	// submitTransform, set only by the corrupt_publish test hook, alters the bytes actually submitted while
+	// pendingPayload keeps the true data, so the content check has something to catch.
+	submitTransform func([]byte) []byte
+
+	// progressPath persists the confirmed progress (node-local, never consensus state), so a restart resumes
+	// instead of republishing the whole history; chainID keeps a file from another chain from being reused.
+	progressPath string
+	chainID      string
+	restored     *progressFile // loaded from disk, re-verified against the DA layer on the first MaybePublish
+}
+
+// progressFile is the persisted publisher progress. BatchSHA256 identifies the last confirmed batch at
+// CelestiaHeight; restoring re-fetches that batch, so a file ahead of what the DA layer really holds is dropped.
+type progressFile struct {
+	ChainID          string `json:"chain_id"`
+	ContiguousHeight uint64 `json:"contiguous_height"`
+	CelestiaHeight   uint64 `json:"celestia_height"`
+	BatchSHA256      string `json:"batch_sha256"`
+}
+
+// SetProgressFile enables persistence of the confirmed contiguous height under path, scoped to chainID. A
+// missing, unreadable or foreign file is ignored: the publisher then starts from 0 as before.
+func (p *Publisher) SetProgressFile(path, chainID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.progressPath, p.chainID = path, chainID
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var pf progressFile
+	if json.Unmarshal(raw, &pf) != nil || pf.ChainID != chainID || pf.ContiguousHeight == 0 || pf.BatchSHA256 == "" {
+		return
+	}
+	p.restored = &pf
+}
+
+// SetSubmitTransform makes the publisher submit transform(payload) while still expecting payload back
+// (test hook for ENGRAM_BYZANTINE_BEHAVIOR=corrupt_publish).
+func (p *Publisher) SetSubmitTransform(f func([]byte) []byte) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.submitTransform = f
+}
+
+// persistLocked writes the progress atomically. Failure is not fatal: the publisher only loses the shortcut.
+func (p *Publisher) persistLocked(celestiaHeight uint64, payload []byte) {
+	if p.progressPath == "" {
+		return
+	}
+	sum := sha256.Sum256(payload)
+	raw, err := json.Marshal(progressFile{ChainID: p.chainID, ContiguousHeight: p.contiguousHeight,
+		CelestiaHeight: celestiaHeight, BatchSHA256: hex.EncodeToString(sum[:])})
+	if err != nil {
+		return
+	}
+	tmp := p.progressPath + ".tmp"
+	if os.MkdirAll(filepath.Dir(p.progressPath), 0o755) != nil || os.WriteFile(tmp, raw, 0o644) != nil {
+		return
+	}
+	_ = os.Rename(tmp, p.progressPath)
+}
+
+// restoreLocked re-verifies the persisted last batch on the DA layer and, if it is really there, resumes from
+// the persisted height. No answer from the DA layer leaves the file for a later attempt; a definite mismatch
+// drops it.
+func (p *Publisher) restoreLocked(ctx context.Context) {
+	if p.restored == nil {
+		return
+	}
+	fetchCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
+	defer cancel()
+	blobs, err := p.client.Fetch(fetchCtx, p.restored.CelestiaHeight, p.namespace)
+	if err != nil || len(blobs) == 0 {
+		return
+	}
+	for _, b := range blobs {
+		sum := sha256.Sum256(b)
+		if hex.EncodeToString(sum[:]) == p.restored.BatchSHA256 {
+			if p.contiguousHeight < p.restored.ContiguousHeight {
+				p.contiguousHeight = p.restored.ContiguousHeight
+			}
+			break
+		}
+	}
+	p.restored = nil
 }
 
 // NewPublisher builds a tracker submitting Engram block data as blobs under
@@ -106,9 +202,11 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 		p.lastSubmitFailed = true
 	}
 
+	p.restoreLocked(ctx)
+
 	if p.pendingEngramHeight != 0 {
-		availCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
-		available, err := p.client.Available(availCtx, p.pendingCelestiaHt, p.namespace)
+		fetchCtx, cancel := context.WithTimeout(ctx, availableCheckTimeout)
+		blobs, err := p.client.Fetch(fetchCtx, p.pendingCelestiaHt, p.namespace)
 		cancel()
 		if err != nil {
 			// DAFailure: verifiedHeight stays frozen, retry the pending
@@ -119,16 +217,33 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 			p.lastSubmitFailed = true
 			return nil
 		}
-		if !available {
+		if len(blobs) == 0 {
 			return nil // not yet retrievable, keep waiting -- gap grows (DAFailure-shaped, but not a hard failure)
+		}
+		matched := false
+		for _, b := range blobs {
+			if bytes.Equal(b, p.pendingPayload) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			// The DA layer serves other data under our namespace at that height but not ours: the
+			// submission is not retrievable as published. Drop it and submit again.
+			p.lastSubmitFailed = true
+			p.pendingEngramHeight = 0
+			p.pendingPayload = nil
+			return nil
 		}
 		p.verifiedHeight = p.pendingEngramHeight
 		p.hasVerified = true
 		if p.pendingBatchEnd > p.contiguousHeight {
 			p.contiguousHeight = p.pendingBatchEnd
+			p.persistLocked(p.pendingCelestiaHt, p.pendingPayload)
 		}
 		p.lastSubmitFailed = false
 		p.pendingEngramHeight = 0 // resolved -- free to submit the next one below
+		p.pendingPayload = nil
 	}
 
 	if p.submitting {
@@ -147,7 +262,14 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 				payload, batchEnd = batch, end
 			}
 		}
-		celestiaHeight, err := p.client.Submit(context.Background(), p.namespace, payload)
+		submitted := payload
+		p.mu.Lock()
+		transform := p.submitTransform
+		p.mu.Unlock()
+		if transform != nil {
+			submitted = transform(append([]byte(nil), payload...))
+		}
+		celestiaHeight, err := p.client.Submit(context.Background(), p.namespace, submitted)
 
 		p.mu.Lock()
 		defer p.mu.Unlock()
@@ -162,6 +284,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 		p.pendingCelestiaHt = celestiaHeight
 		p.pendingSinceHeight = engramHeight
 		p.pendingBatchEnd = batchEnd
+		p.pendingPayload = payload
 	}()
 	return nil
 }

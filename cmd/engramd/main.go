@@ -519,7 +519,7 @@ func runStart(home string, vanilla bool, baseline sovereigntytypes.BaselineMode)
 	wireP2PSensor(engramApp, n, config.P2P.PersistentPeers)
 	wirePeerFilter(engramApp, n)
 	wireBTCSensor(engramApp)
-	wireDASensor(engramApp)
+	wireDASensor(engramApp, home, genDoc.ChainID)
 
 	if err := n.Start(); err != nil {
 		return fmt.Errorf("start node: %w", err)
@@ -792,7 +792,7 @@ func wireBTCSensor(engramApp *app.EngramApp) {
 //
 // CELESTIA_BRIDGE_AUTH_TOKEN must be the bridge's admin/write JWT --
 // blob.Submit is a write call celestia-node rejects unauthenticated.
-func wireDASensor(engramApp *app.EngramApp) {
+func wireDASensor(engramApp *app.EngramApp, home, chainID string) {
 	url := os.Getenv("CELESTIA_BRIDGE_URL")
 	if url == "" {
 		return
@@ -819,6 +819,19 @@ func wireDASensor(engramApp *app.EngramApp) {
 	// stays behind -- the one fault that exercises the exit gate without also failing the DA health check.
 	if !slices.Contains(strings.Split(os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR"), ";"), "no_backfill") {
 		engramApp.Sensors.DAPublisher.SetBlockSource(cometBlockDataSource(cometRPCURL()))
+	}
+	// Node-local progress file (never consensus state): a restart resumes from the last batch it re-verifies on
+	// the DA layer instead of republishing the whole chain from height 0, during which it would report DA failed.
+	engramApp.Sensors.DAPublisher.SetProgressFile(filepath.Join(home, "data", "da_progress.json"), chainID)
+	// corrupt_publish (test hook): submit altered bytes while still expecting the true batch back, so the
+	// content check, not mere presence, decides whether this validator's contiguous height advances.
+	if slices.Contains(strings.Split(os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR"), ";"), "corrupt_publish") {
+		engramApp.Sensors.DAPublisher.SetSubmitTransform(func(b []byte) []byte {
+			if len(b) > 0 {
+				b[len(b)-1] ^= 0xFF
+			}
+			return b
+		})
 	}
 	engramApp.Sensors.DA.SetSource(engramApp.Sensors.DAPublisher)
 }

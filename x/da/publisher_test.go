@@ -3,6 +3,7 @@ package da
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"net/http"
@@ -17,9 +18,10 @@ import (
 // fakeCelestiaNodeHandler mirrors x/anchor/anchor_test.go's fakeBitcoindHandler
 // -- a stand-in for real celestia-node for unit-testing Publisher's state machine.
 type fakeCelestiaNodeHandler struct {
-	mu     sync.Mutex
-	calls  map[string]int
-	handle map[string]func() (any, error)
+	mu        sync.Mutex
+	calls     map[string]int
+	handle    map[string]func() (any, error)
+	submitted [][]byte // data of every blob.Submit, in order
 }
 
 func newFakeCelestiaNode(t *testing.T) (*httptest.Server, *fakeCelestiaNodeHandler) {
@@ -27,13 +29,23 @@ func newFakeCelestiaNode(t *testing.T) (*httptest.Server, *fakeCelestiaNodeHandl
 	h := &fakeCelestiaNodeHandler{calls: map[string]int{}, handle: map[string]func() (any, error){}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			ID     json.RawMessage `json:"id"`
-			Method string          `json:"method"`
+			ID     json.RawMessage   `json:"id"`
+			Method string            `json:"method"`
+			Params []json.RawMessage `json:"params"`
 		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 
 		h.mu.Lock()
 		h.calls[req.Method]++
+		if req.Method == "blob.Submit" && len(req.Params) > 0 {
+			var blobs []struct {
+				Data string `json:"data"`
+			}
+			if json.Unmarshal(req.Params[0], &blobs) == nil && len(blobs) > 0 {
+				raw, _ := base64.StdEncoding.DecodeString(blobs[0].Data)
+				h.submitted = append(h.submitted, raw)
+			}
+		}
 		fn, ok := h.handle[req.Method]
 		h.mu.Unlock()
 
@@ -61,6 +73,16 @@ func (h *fakeCelestiaNodeHandler) on(method string, fn func() (any, error)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.handle[method] = fn
+}
+
+// echo answers blob.GetAll with the data of the last submission, as the DA layer does for a healthy blob.
+func (h *fakeCelestiaNodeHandler) echo() (any, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.submitted) == 0 {
+		return []map[string]any{}, nil
+	}
+	return []map[string]any{{"namespace": "ns", "data": base64.StdEncoding.EncodeToString(h.submitted[len(h.submitted)-1])}}, nil
 }
 
 func (h *fakeCelestiaNodeHandler) callCount(method string) int {
@@ -144,9 +166,7 @@ func TestPublisher_MaybePublish_MarksVerifiedOnceAvailable(t *testing.T) {
 	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("a")))
 	waitForPendingSubmission(t, p)
 
-	h.on("blob.GetAll", func() (any, error) {
-		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
-	})
+	h.on("blob.GetAll", h.echo)
 	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("b")))
 
 	height, ok := p.VerifiedHeight()
@@ -250,9 +270,7 @@ func TestPublisher_ContiguousHeightAdvancesOnlyOnceBatchIsAvailable(t *testing.T
 	waitForPendingSubmission(t, p)
 	require.Equal(t, uint64(0), p.ContiguousHeight(), "a submitted but unconfirmed batch is not retrievable yet")
 
-	h.on("blob.GetAll", func() (any, error) {
-		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
-	})
+	h.on("blob.GetAll", h.echo)
 	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("marker")))
 
 	require.Equal(t, uint64(9), p.ContiguousHeight(), "heights 1..9 were in the confirmed batch")
@@ -275,9 +293,7 @@ func TestPublisher_BackfillResumesFromContiguousHeightAfterOutage(t *testing.T) 
 		}
 		return uint64(50), nil
 	})
-	h.on("blob.GetAll", func() (any, error) {
-		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
-	})
+	h.on("blob.GetAll", h.echo)
 	p := testPublisher(t, srv)
 	p.SetBlockSource(constSource("tx"))
 
@@ -303,9 +319,7 @@ func TestPublisher_BackfillResumesFromContiguousHeightAfterOutage(t *testing.T) 
 func TestPublisher_WithoutBlockSourceNeverAdvancesContiguousHeight(t *testing.T) {
 	srv, h := newFakeCelestiaNode(t)
 	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
-	h.on("blob.GetAll", func() (any, error) {
-		return []map[string]any{{"namespace": "ns", "data": "x"}}, nil
-	})
+	h.on("blob.GetAll", h.echo)
 	p := testPublisher(t, srv)
 
 	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("marker")))
@@ -313,4 +327,81 @@ func TestPublisher_WithoutBlockSourceNeverAdvancesContiguousHeight(t *testing.T)
 	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("marker")))
 
 	require.Equal(t, uint64(0), p.ContiguousHeight(), "markers carry no block data, so nothing is published")
+}
+
+// A blob that exists but is not what was submitted must not confirm the batch: the data is not retrievable
+// as published, so contiguousHeight must not move and the publisher must submit again.
+func TestPublisher_ContentMismatchDoesNotAdvanceContiguousHeight(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	h.on("blob.GetAll", func() (any, error) {
+		return []map[string]any{{"namespace": "ns", "data": base64.StdEncoding.EncodeToString([]byte("garbage"))}}, nil
+	})
+	p := testPublisher(t, srv)
+	p.SetBlockSource(constSource("tx"))
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, []byte("marker")))
+	waitForPendingSubmission(t, p)
+	require.NoError(t, p.MaybePublish(context.Background(), 11, []byte("marker")))
+
+	require.Equal(t, uint64(0), p.ContiguousHeight(), "garbage under the namespace is not the published batch")
+	_, verified := p.VerifiedHeight()
+	require.False(t, verified)
+	require.True(t, p.Failed())
+}
+
+// The corrupt_publish hook submits altered bytes; the content check must then keep contiguousHeight at 0
+// even though a blob exists at the height (the old presence-only check would have advanced).
+func TestPublisher_CorruptSubmissionNeverAdvances(t *testing.T) {
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	h.on("blob.GetAll", h.echo)
+	p := testPublisher(t, srv)
+	p.SetBlockSource(constSource("tx"))
+	p.SetSubmitTransform(func(b []byte) []byte { b[len(b)-1] ^= 0xFF; return b })
+
+	require.NoError(t, p.MaybePublish(context.Background(), 10, nil))
+	waitForPendingSubmission(t, p)
+	require.NoError(t, p.MaybePublish(context.Background(), 11, nil))
+
+	require.Equal(t, uint64(0), p.ContiguousHeight())
+}
+
+// A restart resumes from the persisted height once the last batch is re-verified on the DA layer, and starts
+// from 0 when the DA layer does not hold it, or the file belongs to another chain.
+func TestPublisher_ProgressSurvivesRestart(t *testing.T) {
+	path := t.TempDir() + "/da_progress.json"
+
+	srv, h := newFakeCelestiaNode(t)
+	h.on("blob.Submit", func() (any, error) { return uint64(50), nil })
+	h.on("blob.GetAll", h.echo)
+	p := testPublisher(t, srv)
+	p.SetProgressFile(path, "chain-a")
+	p.SetBlockSource(constSource("tx"))
+	require.NoError(t, p.MaybePublish(context.Background(), 10, nil))
+	waitForPendingSubmission(t, p)
+	require.NoError(t, p.MaybePublish(context.Background(), 11, nil))
+	require.Equal(t, uint64(9), p.ContiguousHeight())
+	h.mu.Lock()
+	confirmed := h.submitted[0] // the batch the progress file describes (MaybePublish already queued the next one)
+	h.mu.Unlock()
+
+	restart := func(chain string, serves bool) *Publisher {
+		srv2, h2 := newFakeCelestiaNode(t)
+		h2.on("blob.Submit", func() (any, error) { return uint64(60), nil })
+		h2.on("blob.GetAll", func() (any, error) {
+			if serves {
+				return []map[string]any{{"namespace": "ns", "data": base64.StdEncoding.EncodeToString(confirmed)}}, nil
+			}
+			return []map[string]any{{"namespace": "ns", "data": base64.StdEncoding.EncodeToString([]byte("other"))}}, nil
+		})
+		q := testPublisher(t, srv2)
+		q.SetProgressFile(path, chain)
+		q.SetBlockSource(constSource("tx"))
+		require.NoError(t, q.MaybePublish(context.Background(), 12, nil))
+		return q
+	}
+	require.Equal(t, uint64(9), restart("chain-a", true).ContiguousHeight(), "verified last batch: resume")
+	require.Equal(t, uint64(0), restart("chain-a", false).ContiguousHeight(), "the DA layer does not hold the batch: start over")
+	require.Equal(t, uint64(0), restart("chain-b", true).ContiguousHeight(), "another chain's file is ignored")
 }
