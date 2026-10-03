@@ -27,7 +27,7 @@ Names are ASCII because the installed TeX Live has no Vietnamese (T5) encoding.
 | `metadata.tex` | Title, authors, corresponding author |
 | `macros.tex` | Build switches, `\pending` |
 | `results/result_macros.tex` | Numbers quoted in more than one place (state count, ablation count, proposal bytes, validation time, block intervals, overhead interval) |
-| `sections/*.tex` | Sections 1-8 |
+| `sections/01_introduction.tex` ... `09_conclusion.tex` | Sections 1-9; `abstract.tex` is the abstract |
 | `appendix/*.tex` | Appendices A-E |
 | `references.bib` | Bibliography |
 

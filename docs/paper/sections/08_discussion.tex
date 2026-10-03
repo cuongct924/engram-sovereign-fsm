@@ -1,23 +1,7 @@
-\section{Discussion}
+\section{Discussion and Limitations}
 \label{sec:discussion}
 
-\subsection{What the Evidence Establishes}
-
-The formal and empirical results cover complementary ground. The TLA+
-results establish, per layer and within bounded configurations, that the
-FSM's safety invariants hold and that removing any of four defensive
-mechanisms reproduces the violation it targets; Lemma~1 establishes that the certified health input
-to the FSM is bounded by honest observations. The live evaluation
-establishes that the composed implementation behaves as specified under
-real peripheral failures. Because the cross-layer refinement is open, the
-whole-system claim rests on the empirical side, and single-trial live
-results (composite fault, seven-scenario sweep, P4, reorg depth) show that
-correct behavior occurs rather than characterizing its distribution. The
-repeated experiments -- the hysteresis sweeps, the $n{=}5$ overhead
-benchmark, and the 2{,}000-trial detector study -- do characterize
-distributions.
-
-\subsection{Security Implications of the Fallback}
+\subsection{Security Envelope and Trade-offs}
 
 The fallback trades cross-chain withdrawals for in-chain liveness. We
 discuss the trade along three axes: liveness inside the chain, safety of
@@ -57,27 +41,6 @@ suffices. The freeze is the intended response to an
 unverifiable periphery, not a safety violation. We do not quantify its
 economic cost to users or the attacker's cost of sustaining it.
 
-\textbf{Unexpected results.} Three results need a causal account.
-\begin{itemize}
-  \item \emph{Block rate.} Against a single local vanilla process,
-  Engram's block interval is 0.23\,s longer (Section~\ref{subsec:rq4}), which
-  at first suggested a cost of the extended object. Seven vanilla validators
-  on the same hosts produce the same interval within 0.03\,s, with vote
-  extensions on or off, so the gap is the cost of the seven-validator network.
-  Engram's own addition is about \resOverheadPct{} (approximate 95\% interval \resOverheadCI{}).
-  \item \emph{Hysteresis threshold.} The default threshold of 2 flapped under
-  wide-area jitter, and only thresholds $\geq 6$ were clean
-  (Section~\ref{subsec:rq3}). We attribute this to latency variance in the
-  Bitcoin sensor crossing the threshold in consecutive samples; a run with
-  the jitter profile removed would test this.
-  \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
-  without a reaction, while depth 15 escalated through the
-  suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the
-  anchor-reverification flag was ever set is not established, because the
-  per-validator sensor value was not captured; logging it and sweeping depths
-  6--14 would locate the boundary.
-\end{itemize}
-
 \textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
 \textsc{Recovering} already raises the price of forcing repeated failed
 recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
@@ -114,6 +77,43 @@ recoverability depends on those validators until it is published. The
 backfill gate of Section~\ref{subsec:reanchoring} makes publication a
 precondition for returning to \textsc{Anchored}.
 
+\subsection{Interpretation of Results}
+
+The formal and empirical results cover complementary ground. The TLA+
+results establish, per layer and within bounded configurations, that the
+FSM's safety invariants hold and that removing any of four defensive
+mechanisms reproduces the violation it targets; Lemma~1 establishes that the certified health input
+to the FSM is bounded by honest observations. The live evaluation
+establishes that the composed implementation behaves as specified under
+real peripheral failures. Because the cross-layer refinement is open, the
+whole-system claim rests on the empirical side, and single-trial live
+results (composite fault, seven-scenario sweep, P4, reorg depth) show that
+correct behavior occurs rather than characterizing its distribution. The
+repeated experiments -- the hysteresis sweeps, the $n{=}5$ overhead
+benchmark, and the 2{,}000-trial detector study -- do characterize
+distributions.
+
+\textbf{Unexpected results.} Three results need a causal account.
+\begin{itemize}
+  \item \emph{Block rate.} Against a single local vanilla process, Engram's
+  block interval is longer, which at first suggested a cost of the extended
+  object. Seven vanilla validators on the same hosts give the same interval,
+  with vote extensions on or off, so the gap is the cost of the
+  seven-validator network and Engram's own addition is about \resOverheadPct{}
+  (approximate 95\% interval \resOverheadCI{}; Section~\ref{subsec:rq4}).
+  \item \emph{Hysteresis threshold.} The default threshold of 2 flapped under
+  wide-area jitter, and only thresholds $\geq 6$ were clean
+  (Section~\ref{subsec:rq3}). We attribute this to latency variance in the
+  Bitcoin sensor crossing the threshold in consecutive samples; a run with
+  the jitter profile removed would test this.
+  \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
+  without a reaction, while depth 15 escalated through the
+  suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the
+  anchor-reverification flag was ever set is not established, because the
+  per-validator sensor value was not captured; logging it and sweeping depths
+  6--14 would locate the boundary.
+\end{itemize}
+
 \subsection{Limitations}
 \label{subsec:limitations}
 
@@ -136,7 +136,14 @@ precondition for returning to \textsc{Anchored}.
   \item \emph{Byzantine scale.} The live attacks reported so far involve one
   Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
   collusion suite (Section~\ref{subsec:rq1}) addresses this.
-  \item \emph{Formal scope.} Per-layer bounded model checking is complete;
+  \item \emph{Fixed validator set.} Certificate signatures verify against the
+  genesis validator keys and the recovery circuit fixes the set at seven, so
+  the prototype assumes one validator set throughout a \textsc{Sovereign} and
+  \textsc{Recovering} interval. Supporting set changes inside a degraded
+  interval requires proving the set transitions
+  (Section~\ref{subsec:threat-model}).
+  \item \emph{Formal scope.} Per-layer bounded model checking is exhaustive
+  within each stated bounded configuration;
   the cross-layer refinement is open. The health certificate is modelled
   with Boolean observations in the server layer, so its checks fall under
   the open refinement; numeric aggregation is covered by Lemma~1 only.
@@ -162,3 +169,17 @@ the conventional operational proxies for safety and liveness in
 CometBFT-family systems. AppHash agreement alone cannot detect an illegal
 transition agreed on by all validators; the semantic replay check of
 Section~\ref{subsec:rq1} addresses this gap.
+
+\subsection{Future Work}
+
+Three directions remain beyond the items marked in this paper. First,
+closing the cross-layer refinement obligation, and extending the
+certificate model from Boolean to numeric observations, would extend the
+formal results to the composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
+are a natural complement where bounded model checking does not scale.
+Second, replacing the fixed-arity aggregator with incremental recursion
+would make the recovery artifact constant-size for intervals of any length,
+and a live re-anchoring through an aggregate proof would extend the offline
+aggregation measurements to the full testbed. Third,
+replacing single-bridge DA trust with sampling across independent peers
+would let the DA sensor detect partial withholding rather than only outages.

@@ -1,7 +1,78 @@
-\section{Formal Specification and Bounded Model Checking}
+\section{Security and Formal Analysis}
 \label{sec:formal}
 
-\subsection{Layered Specification}
+This section states the properties that follow from the mechanisms of
+Section~\ref{sec:protocol} under the assumptions of Section~\ref{sec:model},
+and reports what bounded model checking establishes about them.
+
+\subsection{Analytical Properties}
+\label{subsec:analytical}
+
+\textbf{Security of mode switching.} A transition happens only when a
+well-formed health certificate implies it (Lemma~1,
+Section~\ref{subsec:health-certificate}). Byzantine validators below $W/3$
+cannot move a numeric aggregate outside the range of the honest observations
+in a well-formed certificate, and cannot overturn a Boolean value on which all
+represented honest validators agree. When honest observations straddle an FSM
+threshold, the proposer's choice of quorum subset can still influence which
+side of the threshold the aggregate falls on; hysteresis limits this
+influence but does not remove it. The second attack surface is griefing by an
+adversary that degrades the peripheral view of honest validators
+(Section~\ref{sec:discussion}).
+
+\textbf{Theorem 1 (withdrawal safety).} \emph{Assume $\operatorname{wt}(B) < W/3$, no Bitcoin
+reorganization deeper than $K_{\text{DEEP\_FINALITY}}$, and an honest DA
+layer. Assume further that (M1) honest validators reject a block that
+contains a withdrawal while the state is \textsc{Sovereign} or
+\textsc{Recovering}; (M2) each Bitcoin checkpoint commits the chain through
+its height, and with it the replicated state; and (M3)
+\textsc{Recovering}$\to$\textsc{Anchored} requires a recovery proof that the
+chain has verified and a DA backfill certificate for the whole
+\textsc{Sovereign} interval. If a withdrawal commits in block $B_h$, then
+$P_{\text{agree}}$ holds, the state at $h$ is \textsc{Anchored} or
+\textsc{Suspicious}, and there are heights $c_s, c_a \geq h - \tau$ such
+that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold. Every height
+before $h - \tau$ is settled and available, including every
+\textsc{Sovereign} interval that precedes $B_h$.}
+
+\emph{Proof.} $P_{\text{agree}}$ follows from $\operatorname{wt}(B) < W/3$. By (M1), the state
+at $h$ is \textsc{Anchored} or \textsc{Suspicious}. In the transition
+function $\delta$, \textsc{Suspicious} is entered only from
+\textsc{Anchored}, and \textsc{Sovereign} is left only through
+\textsc{Recovering}; so every \textsc{Sovereign} interval before $h$ ended
+with a \textsc{Recovering}$\to$\textsc{Anchored} transition, which by (M3)
+required a verified recovery proof and a DA backfill certificate. Hence the
+interval is valid, hash-linked, and available. In the \textsc{Anchored} and
+\textsc{Suspicious} blocks since then, every block carries receipts within
+$\tau$. The Bitcoin receipt in $B_h$ attests a checkpoint at depth at least
+$K_{\text{DEEP\_FINALITY}}$ for some $c_s \geq h - \tau$; by (M2) it
+commits the chain through $c_s$, so rewriting the prefix up to $c_s$
+requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
+attests data availability up to some $c_a \geq h - \tau$, and the DA layer
+is honest. $\square$
+
+Theorem~1 guarantees settlement and availability only through height
+$h - \tau$. The most recent $\tau$ blocks may not yet have either guarantee
+when the withdrawal commits, and a withdrawal may depend on state created
+inside that exposure window; the theorem does not tie a withdrawal to a
+dependency height. Liveness comes from relaxing the receipt checks in
+\textsc{Sovereign}; user safety comes from tying withdrawals to the settled
+and available prefix.
+
+The prototype realizes the three assumptions as follows. (M1) is enforced in
+the validity predicate and the ante handler. (M2) holds because each
+checkpoint payload carries the CometBFT block hash at its height
+$c$. That hash commits the header of $B_c$, hence the chain of blocks
+through $c$ by the hash links. The header carries the application hash of the
+state before $B_c$, so the checkpoint commits that state and the transactions of
+$B_c$, and, since execution is deterministic, the state after $B_c$. (M3) is enforced on the exit edge by the
+backfill condition, which the FSM safety run checks as an action property,
+and by the proof condition; the prototype's configuration of the proof
+condition is qualified in Section~\ref{subsec:limitations}. The theorem is a
+pen-and-paper argument over these assumptions, not a mechanized statement
+about the implementation.
+
+\subsection{Formal Model}
 
 Model-checking consensus, FSM, and sensors together is intractable at useful
 scale. We therefore specify the protocol in TLA+~\cite{lamport2002specifying}
@@ -12,10 +83,41 @@ The target property is: under partial synchrony and an $f$-bounded
 adversary, no two honest validators commit conflicting blocks or conflicting
 FSM states, and any such conflict implies double-signing evidence.
 
+\textbf{Safety versus liveness.} The linking invariant \emph{QuorumOverlap}
+-- any two valid quorums share at least one honest validator -- is a
+\emph{safety} premise: together with honest validators' refusal to sign
+conflicting votes, it prevents two conflicting decisions. It does not
+establish liveness. Following LiDO~\cite{qiu2024lido}, liveness is argued
+separately, and in our specification it rests on explicit fairness
+assumptions that the model checker takes as hypotheses:
+\begin{itemize}
+  \item \emph{Partial synchrony:} GST is reached infinitely often
+  (\texttt{[]<>GSTReached}), and after GST messages between honest
+  validators are delivered (weak fairness on each node's \texttt{Push} and
+  \texttt{Pull}).
+  \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
+  on the $f{+}1$ round-skip (fast-forward) action.
+  \item \emph{Proposer progress:} weak fairness on each honest node's
+  invocation step, so every honest proposer whose round is reached after
+  GST eventually proposes.
+  \item \emph{FSM progress:} weak fairness on the FSM transition and on
+  environment updates, so a persistently healthy (or unhealthy)
+  certificate eventually drives the corresponding transition.
+\end{itemize}
+Under these hypotheses TLC checks the FSM liveness properties directly. A
+TLC ablation that removes the $f{+}1$ fast-forward, which would show the
+timeout-progress assumption is necessary, has not completed: its best run
+reached depth 12 (69{,}408{,}583 states generated, 828{,}673 distinct) with
+no violation. The necessity of that assumption is therefore not established
+here.
+
+\subsection{Verification Scope}
+
 \textbf{What is checked, and what is not.} Two levels of evidence must be
 kept apart.
 \begin{itemize}
-  \item \emph{Per-layer bounded model checking (complete).} Each layer's own
+  \item \emph{Per-layer bounded model checking (exhaustive within each stated bounded
+  configuration).} Each layer's own
   safety invariants and liveness properties are checked in isolation at its
   own bounded configuration (Table~\ref{tab:formal-verification}), together
   with the ablation study (Table~\ref{tab:ablation}).
@@ -45,34 +147,6 @@ validator has already left, and one added abstract action for a round ended
 by a quorum of nil precommits are changes to the checked model. The last
 weakens the target specification. An inductive check of every server action
 with Apalache would avoid the composition gap; it has not been attempted.
-
-\textbf{Safety versus liveness.} The linking invariant \emph{QuorumOverlap}
--- any two valid quorums share at least one honest validator -- is a
-\emph{safety} premise: together with honest validators' refusal to sign
-conflicting votes, it prevents two conflicting decisions. It does not
-establish liveness. Following LiDO~\cite{qiu2024lido}, liveness is argued
-separately, and in our specification it rests on explicit fairness
-assumptions that the model checker takes as hypotheses:
-\begin{itemize}
-  \item \emph{Partial synchrony:} GST is reached infinitely often
-  (\texttt{[]<>GSTReached}), and after GST messages between honest
-  validators are delivered (weak fairness on each node's \texttt{Push} and
-  \texttt{Pull}).
-  \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
-  on the $f{+}1$ round-skip (fast-forward) action.
-  \item \emph{Proposer progress:} weak fairness on each honest node's
-  invocation step, so every honest proposer whose round is reached after
-  GST eventually proposes.
-  \item \emph{FSM progress:} weak fairness on the FSM transition and on
-  environment updates, so a persistently healthy (or unhealthy)
-  certificate eventually drives the corresponding transition.
-\end{itemize}
-Under these hypotheses TLC checks the FSM liveness properties directly. A
-TLC ablation that removes the $f{+}1$ fast-forward, which would show the
-timeout-progress assumption is necessary, has not completed: its best run
-reached depth 12 (69{,}408{,}583 states generated, 828{,}673 distinct) with
-no violation. The necessity of that assumption is therefore not established
-here.
 
 \textbf{Health certificates in the model.} The server layer models the
 certificate explicitly. Each validator's observation holds three Booleans
@@ -124,7 +198,8 @@ equivocation evidence pool rather than proved anew. All of these properties
 are conditional on the Bitcoin reorg-depth bound of
 Section~\ref{subsec:threat-model}.
 
-\subsection{Verification Stress Test and Ablation Study}
+\subsection{Bounded Results and Mechanism Ablation}
+
 
 \begin{table}[h]
 \caption{Per-Layer, Non-Refinement Verification Results (TLC)}

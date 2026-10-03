@@ -117,7 +117,8 @@ Engram targets this combination.
     without modifying CometBFT's agreement core. A withdrawal circuit breaker,
     following the circuit-breaker resilience pattern~\cite{mendonca2020resiliency},
     locks cross-chain withdrawals while the chain runs without external
-    corroboration (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}).
+    corroboration (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}); the
+    withdrawal-safety theorem is stated in Section~\ref{subsec:analytical}.
     \item \textbf{Proof- and backfill-gated recovery.} A Noir/UltraHonk circuit
     that proves header-chain continuity, FSM-transition legality,
     withdrawal-lock adherence, and boundary-validator signatures for up to
@@ -169,9 +170,12 @@ from: proposal size, validation time, or additional consensus rounds? \\
 \end{table}
 
 The remainder of this paper is organized as follows. Section~\ref{sec:related}
-situates Engram in the literature. Section~\ref{sec:design} presents the
-protocol, including the health certificate and the recovery proof.
-Section~\ref{sec:formal} presents the formal specification and model-checking
-results. Section~\ref{sec:setup} describes the testbed and baselines,
-Section~\ref{sec:evaluation} answers RQ1--RQ4, Section~\ref{sec:discussion}
-discusses limitations, and Section~\ref{sec:conclusion} concludes.
+situates Engram in the literature. Section~\ref{sec:model} states the system
+model, the threat model, and the security goals. Section~\ref{sec:protocol}
+defines the protocol: sensors, the health certificate, the FSM, proposal
+validity, and recovery. Section~\ref{sec:formal} states the security properties
+and reports the formal specification and bounded model checking.
+Section~\ref{sec:setup} describes the implementation, testbed, baselines, and
+methodology, and Section~\ref{sec:evaluation} answers RQ1--RQ4.
+Section~\ref{sec:discussion} discusses the security envelope, limitations, and
+future work, and Section~\ref{sec:conclusion} concludes.

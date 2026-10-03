@@ -1,0 +1,27 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+A chain whose block validity requires settlement and DA receipts halts when
+those layers fail, although its validators are connected and correct: an
+external dependency can cause a liveness failure without a BFT failure.
+Engram makes suspending such a dependency an agreed validity and safety mode.
+A quorum-backed health certificate drives a four-state FSM above an unchanged
+CometBFT agreement core. In the degraded modes the corresponding receipt
+requirement is relaxed and cross-chain withdrawals are locked, and the return
+to \textsc{Anchored} requires recovery hysteresis, DA backfill of the
+\textsc{Sovereign} interval, and a validator-verified recovery proof.
+
+The formal and empirical evidence supports the mechanism within the stated
+assumptions. Bounded model checking found no violations in each layer (the
+largest run explored \resFSMStatesM{} distinct states), and the cross-layer
+refinement remains open. A seven-validator testbed with live Bitcoin and
+Celestia networks kept committing blocks under a composite fault and completed
+a full recovery cycle with complete AppHash agreement. Against seven vanilla
+validators on the same hosts, Engram lengthens the block interval by about
+\resOverheadPct{} (\resBlockEngram\,s against \resBlockVanilla\,s).
+
+\subsection*{Artifact Availability}
+
+\pending{repository URL, license, and availability date.}
+The implementation, TLA+ specifications, and experiment scripts are
+publicly available.

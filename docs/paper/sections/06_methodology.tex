@@ -1,5 +1,35 @@
-\section{Experimental Setup}
+\section{Implementation and Evaluation Methodology}
 \label{sec:setup}
+
+\subsection{Implementation}
+\label{subsec:implementation}
+
+The reference implementation is a Cosmos SDK application, \texttt{engramd},
+on a forked CometBFT core. The application mounts no \texttt{x/auth},
+\texttt{x/bank}, or \texttt{x/staking}: transactions are unsigned envelopes
+and the validator set comes from the genesis file. Three modules hold the
+protocol logic: \texttt{x/sovereignty} (the FSM, the sensors, the circuit
+breaker, and the ABCI++ hooks), \texttt{x/da} (the Celestia receipt and its
+verification), and \texttt{x/anchor} (the Bitcoin settlement receipt and its
+re-verification). Each validator signs its sensor snapshot in
+\texttt{ExtendVote}, the only hook that reads live sensors.
+\texttt{PrepareProposal} aggregates the signed extensions into the health
+certificate. \texttt{ProcessProposal} re-verifies the certificate and re-runs
+the aggregation without reading a sensor, and \texttt{PreBlocker} commits the
+FSM transition from that certificate (Section~\ref{subsec:architecture}).
+
+The fork differs from upstream CometBFT in four ways: an $f{+}1$ timeout
+round-skip, per-peer round-trip-time measurement and a peer health monitor
+that feed the P2P sensor, per-peer rate limiting and bounded round acceptance
+for timeout messages, and the proposal round passed to the application
+through \texttt{PrepareProposal} and \texttt{ProcessProposal}.
+
+Bitcoin and Celestia are live dependencies: a Bitcoin Core regtest network and
+a Celestia network with one bridge node per validator. The recovery proof is
+a Noir circuit proved with Barretenberg (Section~\ref{subsec:reanchoring}); a
+prover process builds it from committed headers and submits it as a
+transaction that every validator verifies during block execution.
+Section~\ref{subsec:environment} lists the versions.
 
 \subsection{Testbed}
 
@@ -56,13 +86,34 @@ Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
-\footnotesize CPU and memory figures are container limits. The fork differs
-from upstream CometBFT in four ways: an $f{+}1$ timeout round-skip, per-peer
-round-trip-time measurement and a peer health monitor that feed the P2P
-sensor, per-peer rate limiting and bounded round acceptance for timeout
-messages, and the proposal round passed to the application through
-\texttt{PrepareProposal} and \texttt{ProcessProposal}.
+\footnotesize CPU and memory figures are container limits. The fork's
+differences from upstream CometBFT are listed in
+Section~\ref{subsec:implementation}.
 \end{table}
+
+\subsection{Baselines}
+\label{subsec:baselines}
+
+\textbf{Hard-gated modular baseline (primary, RQ2).} The same binary with the
+FSM pinned to \textsc{Anchored}: condition (3) of the validity predicate
+(Section~\ref{subsec:proposal}) is enforced at every height, so a proposal
+is valid only if it carries a Bitcoin receipt and a DA receipt within
+tolerance. This is the behavior of a chain that makes settlement and DA
+inclusion part of block validity, and it isolates the effect of Engram's
+adaptive relaxation.
+\pending{implement the pinned-\textsc{Anchored} mode and run the RQ2 fault
+schedule against it.}
+
+\textbf{Vanilla CometBFT (control, RQ4).} The same application with the
+health-aware ABCI++ hooks disabled. It does not depend on Bitcoin or
+Celestia and therefore never stalls when they fail; it serves as the
+cost reference for RQ4 and as a control showing that measured stalls or
+fallbacks are not artifacts of the harness.
+
+\textbf{Ablation baselines.} A peer-count-only P2P detector isolates the
+contribution of the six-bound profiler (RQ1), and each hysteresis edge with
+its threshold set to its floor isolates the contribution of hysteresis
+(RQ3).
 
 \subsection{Fault Injection}
 
@@ -173,39 +224,6 @@ Section~\ref{subsec:rq1} uses the P2P thresholds of
 Section~\ref{subsec:montecarlo}.
 \end{table}
 
-\subsection{Metrics}
-\label{subsec:metrics}
-
-Let a run record the FSM state $s_b$ of every block $b$ in a window $W$.
-\begin{itemize}
-  \item \emph{Anchored uptime} $=|\{b\in W : s_b=\textsc{Anchored}\}|/|W|$.
-  In-process, $W$ is the whole recorded timeline: for the noisy
-  environments, the 100 noisy blocks plus the setup blocks that precede them
-  (two for the \textsc{Recovering}$\to$\textsc{Anchored} sweep, one for the
-  others). The no-noise control of that sweep ends at the first
-  \textsc{Anchored} block, so its window is only the setup blocks plus the
-  wait, and its uptime falls as the wait grows. Live, $W$ is the sequence of
-  RPC samples of one validator over a 300\,s window.
-  \item \emph{Flapping count} is the number of transitions that immediately
-  reverse the preceding transition, for example
-  \textsc{Anchored}$\to$\textsc{Suspicious} followed by
-  \textsc{Suspicious}$\to$\textsc{Anchored}, over the same $W$. Live runs
-  detect reversals between consecutive samples, so a reversal faster than
-  the polling interval is not seen.
-  \item \emph{Absorption rate} is $a/(a+d)$, where $a$ is the number of
-  disturbed blocks that begin in \textsc{Anchored} and leave the state
-  unchanged, and $d$ is the number that move it to \textsc{Suspicious}.
-  It is defined only on the \textsc{Anchored}$\to$\textsc{Suspicious} and
-  \textsc{Suspicious}$\to$\textsc{Anchored} sweeps.
-  \item \emph{Blocks/s} $=(h_{\max}-h_{\min})/T$ over a measurement window of
-  length $T$ (60\,s after an 8\,s warm-up in Section~\ref{subsec:rq4}).
-  \emph{Steady blocks/s} $=1/\bar\imath$, where $\bar\imath$ is the mean
-  block interval. \emph{Gap fraction} $=1-n\bar\imath/T$, where $n$ is the
-  number of observed intervals: the share of the window not accounted for
-  by intervals at the steady pace, that is, time spent in heights that took
-  longer than one interval.
-\end{itemize}
-
 \subsection{Synthetic Workloads}
 \label{subsec:montecarlo}
 
@@ -253,29 +271,38 @@ rate observed as 0 in $n$ trials is about $3/n$ (rule of three): 0.15\% for
 $n=2{,}000$ and 1\% for $n=300$.
 \pending{report the standard deviation of detection delay per cell.}
 
-\subsection{Baselines}
-\label{subsec:baselines}
+\subsection{Metrics}
+\label{subsec:metrics}
 
-\textbf{Hard-gated modular baseline (primary, RQ2).} The same binary with the
-FSM pinned to \textsc{Anchored}: condition (3) of the validity predicate
-(Section~\ref{subsec:proposal}) is enforced at every height, so a proposal
-is valid only if it carries a Bitcoin receipt and a DA receipt within
-tolerance. This is the behavior of a chain that makes settlement and DA
-inclusion part of block validity, and it isolates the effect of Engram's
-adaptive relaxation.
-\pending{implement the pinned-\textsc{Anchored} mode and run the RQ2 fault
-schedule against it.}
-
-\textbf{Vanilla CometBFT (control, RQ4).} The same application with the
-health-aware ABCI++ hooks disabled. It does not depend on Bitcoin or
-Celestia and therefore never stalls when they fail; it serves as the
-cost reference for RQ4 and as a control showing that measured stalls or
-fallbacks are not artifacts of the harness.
-
-\textbf{Ablation baselines.} A peer-count-only P2P detector isolates the
-contribution of the six-bound profiler (RQ1), and each hysteresis edge with
-its threshold set to its floor isolates the contribution of hysteresis
-(RQ3).
+Let a run record the FSM state $s_b$ of every block $b$ in a window $W$.
+\begin{itemize}
+  \item \emph{Anchored uptime} $=|\{b\in W : s_b=\textsc{Anchored}\}|/|W|$.
+  In-process, $W$ is the whole recorded timeline: for the noisy
+  environments, the 100 noisy blocks plus the setup blocks that precede them
+  (two for the \textsc{Recovering}$\to$\textsc{Anchored} sweep, one for the
+  others). The no-noise control of that sweep ends at the first
+  \textsc{Anchored} block, so its window is only the setup blocks plus the
+  wait, and its uptime falls as the wait grows. Live, $W$ is the sequence of
+  RPC samples of one validator over a 300\,s window.
+  \item \emph{Flapping count} is the number of transitions that immediately
+  reverse the preceding transition, for example
+  \textsc{Anchored}$\to$\textsc{Suspicious} followed by
+  \textsc{Suspicious}$\to$\textsc{Anchored}, over the same $W$. Live runs
+  detect reversals between consecutive samples, so a reversal faster than
+  the polling interval is not seen.
+  \item \emph{Absorption rate} is $a/(a+d)$, where $a$ is the number of
+  disturbed blocks that begin in \textsc{Anchored} and leave the state
+  unchanged, and $d$ is the number that move it to \textsc{Suspicious}.
+  It is defined only on the \textsc{Anchored}$\to$\textsc{Suspicious} and
+  \textsc{Suspicious}$\to$\textsc{Anchored} sweeps.
+  \item \emph{Blocks/s} $=(h_{\max}-h_{\min})/T$ over a measurement window of
+  length $T$ (60\,s after an 8\,s warm-up in Section~\ref{subsec:rq4}).
+  \emph{Steady blocks/s} $=1/\bar\imath$, where $\bar\imath$ is the mean
+  block interval. \emph{Gap fraction} $=1-n\bar\imath/T$, where $n$ is the
+  number of observed intervals: the share of the window not accounted for
+  by intervals at the steady pace, that is, time spent in heights that took
+  longer than one interval.
+\end{itemize}
 
 \subsection{Sim-to-Real Gap}
 \label{subsec:sim-to-real}
