@@ -29,7 +29,7 @@ withdrawals for as long as the degradation lasts (P4,
 Section~\ref{subsec:rq1}). This is a new attack surface relative to a chain
 that ignores its periphery, but not relative to a hard-gated chain: the same
 attacker halts the hard-gated chain entirely, whereas Engram freezes only
-withdrawals. Lemma~1 prevents Byzantine validators from causing the freeze
+withdrawals. Lemma~\ref{lem:honest-range} prevents Byzantine validators from causing the freeze
 alone: honest validators whose peripheral view is degraded must supply the
 rest of the majority. Together with the Byzantine validators they must hold
 more than half of the certificate weight, and the proposer's choice of quorum
@@ -82,7 +82,7 @@ precondition for returning to \textsc{Anchored}.
 The formal and empirical results cover complementary ground. The TLA+
 results establish, per layer and within bounded configurations, that the
 FSM's safety invariants hold and that removing any of four defensive
-mechanisms reproduces the violation it targets; Lemma~1 establishes that the certified health input
+mechanisms reproduces the violation it targets; Lemma~\ref{lem:honest-range} establishes that the certified health input
 to the FSM is bounded by honest observations. The live evaluation
 establishes that the composed implementation behaves as specified under
 real peripheral failures. Because the cross-layer refinement is open, the
@@ -146,7 +146,7 @@ distributions.
   within each stated bounded configuration;
   the cross-layer refinement is open. The health certificate is modelled
   with Boolean observations in the server layer, so its checks fall under
-  the open refinement; numeric aggregation is covered by Lemma~1 only.
+  the open refinement; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only.
   \item \emph{Load range.} Load was tested up to 100 tx/s; behavior at
   higher rates, where per-block overhead could interact with mempool and
   gossip costs, is not characterized.

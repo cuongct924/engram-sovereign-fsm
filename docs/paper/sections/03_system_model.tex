@@ -106,7 +106,7 @@ chain up to height $c \leq h$.
   Assumptions: such reorganizations are excluded
   (Section~\ref{subsec:threat-model}), and the Bitcoin checkpoint that
   buries height $c$ commits the chain through $c$ (assumption M2 of
-  Theorem~1, Section~\ref{subsec:analytical}).
+  Theorem~\ref{thm:withdrawal}, Section~\ref{subsec:analytical}).
   \item $P_{\text{avail}}(c)$: the block data of every height up to $c$ is
   retrievable from the DA layer. Assumption: the DA layer is honest and the
   data was published.
@@ -147,7 +147,7 @@ in which a block commits (Section~\ref{subsec:proposal}). In
 layers are reported healthy carries a Bitcoin receipt and a DA receipt that
 attest settled and available heights $c_s, c_a \geq h - \tau$.
 
-Theorem~1 (Section~\ref{subsec:analytical}) states the conditions under which
+Theorem~\ref{thm:withdrawal} (Section~\ref{subsec:analytical}) states the conditions under which
 a committed withdrawal satisfies $P_{\text{exit}}$. Section~\ref{sec:protocol}
 defines the mechanisms, and Section~\ref{sec:formal} states and checks the
 properties.

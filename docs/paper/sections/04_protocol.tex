@@ -98,7 +98,7 @@ characterize peripheral and partial P2P degradation; a partition of the
 core consensus network below a quorum is outside what any FSM can handle
 (Section~\ref{sec:intro}).
 
-\textbf{Agreement versus correctness of health.} Lemma~1
+\textbf{Agreement versus correctness of health.} Lemma~\ref{lem:honest-range}
 (Section~\ref{subsec:health-certificate}) bounds what
 Byzantine validators can do to the aggregate; it does not make an honest
 sensor accurate. The six P2P bounds are a heuristic detector: an eclipse that
@@ -150,7 +150,7 @@ function: every validator that receives $C^{h}$ computes the same value
 without contacting any peripheral network. The TLA+ model gives every
 validator the same voting power (Section~\ref{sec:formal}).
 
-\textbf{Lemma 1 (honest-bounded aggregate).} \emph{Let $C^{h}$ be well-formed
+\refstepcounter{lemma}\label{lem:honest-range}\textbf{Lemma~\thelemma{} (honest-bounded aggregate).} \emph{Let $C^{h}$ be well-formed
 and $\operatorname{wt}(B) < W/3$. For every numeric metric $j$,}
 \[
 \min_{i \in S \cap H} m_{i,j} \;\le\; \widehat m_j \;\le\; \max_{i \in S \cap H} m_{i,j},
@@ -168,7 +168,7 @@ metric on which all honest members agree on $v$, the weight backing $v$
 exceeds half, and the weight backing the other value is below half.
 $\square$
 
-Lemma~1 does not require honest observations to agree; it bounds what the
+Lemma~\ref{lem:honest-range} does not require honest observations to agree; it bounds what the
 adversary can do when they disagree. Each adversarial case reduces to it:
 \begin{itemize}
   \item \emph{Stale or replayed observation.} A signature binds the height
@@ -179,9 +179,9 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   way.
   \item \emph{False observations.} Byzantine validators below $W/3$
   reporting extreme values cannot move the aggregate outside the honest range
-  (Lemma~1).
+  (Lemma~\ref{lem:honest-range}).
   \item \emph{Proposer omission.} The proposer chooses $S$, and may omit
-  honest observations. If $S$ still meets (d), Lemma~1 still holds. The
+  honest observations. If $S$ still meets (d), Lemma~\ref{lem:honest-range} still holds. The
   proposer's residual influence is choosing \emph{which} honest value in the
   honest range is selected when honest validators genuinely disagree. If
   omission drops $S$ to weight at most $2W/3$, the certificate is not
@@ -344,7 +344,7 @@ A proposal $P_h$ at height $h$ carries, in $\mathit{Txs}[0]$, the certificate
 $C^{h}$, the target state $s^{h}$, a health flag, a DA receipt (last
 DA-verified height and attestation flag), a Bitcoin receipt (checkpoint
 height and block hash), and, when applicable, a recovery-proof reference.
-\textbf{Definition 1 (Engram proposal validity).} \texttt{ProcessProposal}
+\refstepcounter{definition}\label{def:validity}\textbf{Definition~\thedefinition{} (Engram proposal validity).} \texttt{ProcessProposal}
 accepts a proposal $P_h$ iff
 \begin{equation}
 \mathsf{Valid}_h(P_h) \iff \mathsf{WellFormed}(C^{h}) \wedge \mathsf{StateOK}
@@ -379,7 +379,7 @@ genesis parameters, so every validator computes the same bound. A DA receipt
 may lag the Engram height by the DA threshold plus $\tau^{\text{DA}}_r$,
 where $\tau^{\text{DA}}_r = 0$ for $r \le 1$, $2$ for $r = 2$, and $4$ for
 $r \ge 3$. A Bitcoin receipt's checkpoint height may lag the Bitcoin tip by
-$\tau^{\text{BTC}}_r = K_{\text{DEEP\_FINALITY}} + 2 + r$. Theorem~1 takes
+$\tau^{\text{BTC}}_r = K_{\text{DEEP\_FINALITY}} + 2 + r$. Theorem~\ref{thm:withdrawal} takes
 $\tau$ as the tolerance of the round in which $B_h$ committed.
 
 $\mathsf{ReceiptsOK}$ is exactly what a \emph{hard-gated} modular chain

@@ -37,7 +37,7 @@ necessary but not sufficient evidence of safety, since honest validators
 could agree on an illegal transition. For every committed height we
 therefore also replay $\delta(s^{h-1}, \mathsf{Agg}(C^{h}))$ offline from
 the committed certificate and check that it equals the committed $s^{h}$,
-that the aggregate lies within the honest range of Lemma~1, and that no
+that the aggregate lies within the honest range of Lemma~\ref{lem:honest-range}, and that no
 withdrawal commits while $s^{h} \in \{\textsc{Sovereign},
 \textsc{Recovering}\}$.
 \pending{run B1--B6 at $n{=}7$ and report per-case AppHash agreement,
@@ -106,7 +106,7 @@ stalls through the cascade or the recovery.}
 
 P3 and P4 are two outcomes of one mechanism. The same kind of
 sensor-confirmed degradation is ignored when a minority observes it and
-drives a bounded cascade when all validators do, as Lemma~1 predicts: a
+drives a bounded cascade when all validators do, as Lemma~\ref{lem:honest-range} predicts: a
 minority cannot move the certified aggregate, whereas a degradation seen by
 every honest validator must move it.
 

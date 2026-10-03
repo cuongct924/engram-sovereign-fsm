@@ -9,7 +9,7 @@ and reports what bounded model checking establishes about them.
 \label{subsec:analytical}
 
 \textbf{Security of mode switching.} A transition happens only when a
-well-formed health certificate implies it (Lemma~1,
+well-formed health certificate implies it (Lemma~\ref{lem:honest-range},
 Section~\ref{subsec:health-certificate}). Byzantine validators below $W/3$
 cannot move a numeric aggregate outside the range of the honest observations
 in a well-formed certificate, and cannot overturn a Boolean value on which all
@@ -20,7 +20,7 @@ influence but does not remove it. The second attack surface is griefing by an
 adversary that degrades the peripheral view of honest validators
 (Section~\ref{sec:discussion}).
 
-\textbf{Theorem 1 (withdrawal safety).} \emph{Assume $\operatorname{wt}(B) < W/3$, no Bitcoin
+\refstepcounter{theorem}\label{thm:withdrawal}\textbf{Theorem~\thetheorem{} (withdrawal safety).} \emph{Assume $\operatorname{wt}(B) < W/3$, no Bitcoin
 reorganization deeper than $K_{\text{DEEP\_FINALITY}}$, and an honest DA
 layer. Assume further that (M1) honest validators reject a block that
 contains a withdrawal while the state is \textsc{Sovereign} or
@@ -51,7 +51,7 @@ requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
 attests data availability up to some $c_a \geq h - \tau$, and the DA layer
 is honest. $\square$
 
-Theorem~1 guarantees settlement and availability only through height
+Theorem~\ref{thm:withdrawal} guarantees settlement and availability only through height
 $h - \tau$. The most recent $\tau$ blocks may not yet have either guarantee
 when the withdrawal commits, and a withdrawal may depend on state created
 inside that exposure window; the theorem does not tie a withdrawal to a
@@ -160,7 +160,7 @@ aggregate (\texttt{AggregateHealthCertificate}) is a per-field majority for
 the Booleans and a weighted median for the gaps, and \texttt{IsValidProposal}
 rejects a certificate below a quorum.
 
-Lemma~1 is checked as \texttt{AggWithinHonestRange} with Apalache, with the
+Lemma~\ref{lem:honest-range} is checked as \texttt{AggWithinHonestRange} with Apalache, with the
 observation vector left symbolic so that one check covers every vector. For
 $N{=}4$ and $f{=}1$ it reported no violation (22\,s). With two Byzantine
 validators in the same network it reports a violation (25\,s), so the bound

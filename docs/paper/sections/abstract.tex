@@ -10,7 +10,7 @@ transition. Proposer selection, voting, quorum intersection, and deterministic
 finality remain CometBFT's. Engram adds (i) a \emph{health certificate} -- a
 deterministic aggregate of the height-bound, signed peripheral observations of
 a quorum (more than two thirds of the voting power), carried as vote extensions and bounded by the range
-of honest observations (Lemma~1) -- and (ii) a four-state finite state machine
+of honest observations (Lemma~\ref{lem:honest-range}) -- and (ii) a four-state finite state machine
 (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
 \textsc{Recovering}) evaluated deterministically on that certificate. When
 Bitcoin or DA degrades, or the peripheral P2P view degrades while the core
