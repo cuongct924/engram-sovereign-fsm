@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# RQ4 like-for-like baseline: the same 7-validator Docker cluster, load and chain, alternating between
-# engram and vanilla (ENGRAM_MODE=vanilla: every validator started --vanilla, no Engram ABCI++ hooks).
-# Alternating rounds keeps slow drift of the shared Bitcoin/Celestia stack from landing on one arm.
+# RQ4 like-for-like baseline: the same 7-validator Docker cluster, load and chain, measured first in engram
+# and then in vanilla (ENGRAM_MODE=vanilla: every validator started --vanilla, no Engram ABCI++ hooks).
+#
+# One pass only, NOT alternating: a chain that has committed heights in vanilla mode cannot return to engram
+# mode. Vanilla commits carry empty vote extensions, so the first engram height sees a sub-quorum
+# certificate in its predecessor's extended commit, every honest validator rejects the proposal, and the
+# round repeats against the same extended commit forever. Measure the engram arm again on a fresh deploy
+# to check for order effects.
 #
 # Needs a healthy engram cluster (`make testnet-up N=7`) in ANCHORED. Vote extensions stay enabled in the
 # genesis, so this isolates the cost of Engram's handlers (ExtendVote, PrepareProposal, ProcessProposal,
@@ -13,7 +18,7 @@
 # ExtendVote duration (extend_vote_ms_*), the direct test of the vote-extension hypothesis.
 set -euo pipefail
 
-ROUNDS="${ROUNDS:-3}"
+ROUNDS="${ROUNDS:-1}"
 REPEATS="${REPEATS:-3}"
 N="${N:-7}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -55,4 +60,3 @@ for r in $(seq 1 "$ROUNDS"); do
 		"$PY" -u scripts/e7_consensus_overhead/live_rq4_metrics.py --arm "$arm" --repeats "$REPEATS"
 	done
 done
-switch_mode engram
