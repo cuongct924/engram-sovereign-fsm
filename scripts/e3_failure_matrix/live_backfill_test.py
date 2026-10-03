@@ -10,8 +10,21 @@ Per outage length (seconds): stop every validator's Celestia bridge, hold, resta
   - interval length in blocks,
   - verify_backfill: share of interval heights found on Celestia and byte-identical to the block.
 
+Negative control (--no-backfill K): K validators run ENGRAM_BYZANTINE_BEHAVIOR=no_backfill, i.e. they
+publish head markers but never block data. Their DA liveness stays healthy, so the FSM can reach
+RECOVERING, but their da_contiguous_height never advances. The certified value is a weighted median, so
+with K >= 4 of 7 the backfill gate must hold the chain in RECOVERING; with K <= 3 it must open. This is the
+only fault that exercises the gate without also tripping the DA health check (stopping bridges does both).
+
 Usage (7-node cluster, healthy and ANCHORED):
     python3 -u scripts/e3_failure_matrix/live_backfill_test.py --outage-s 120 300 600
+    python3 -u scripts/e3_failure_matrix/live_backfill_test.py --outage-s 120 --no-backfill 4   # must hold
+    python3 -u scripts/e3_failure_matrix/live_backfill_test.py --outage-s 120 --no-backfill 3   # must open
+
+Inflated-claim control (--liars L): L Byzantine validators (node04, node05, ...) sign an enormous
+da_contiguous_height. With the five honest validators all on no_backfill and L=2 (f), the honest median
+stays behind, so the gate must hold even though two certificates claim the interval is fully published:
+    python3 -u scripts/e3_failure_matrix/live_backfill_test.py --outage-s 120 --liars 2 --no-backfill 5 --expect hold
 """
 
 import argparse
@@ -27,6 +40,9 @@ sys.path.insert(0, os.path.join(HERE, "..", "framework"))
 sys.path.insert(0, HERE)
 from logger import NODE_RPC_PORTS, sample_all_nodes, start_all_da_bridges, stop_all_da_bridges  # noqa: E402
 import verify_backfill as vb  # noqa: E402
+
+sys.path.insert(0, os.path.join(HERE, "..", "e8_attack_resilience"))
+import live_collusion_suite as suite  # noqa: E402
 
 RESULTS_DIR = os.path.join(HERE, "results_live")
 POLL_S = 3.0
@@ -83,13 +99,22 @@ def run_one(outage_s: int, args) -> dict:
     print(f"[{now()}] bridges restarted")
 
     rec = wait_state("RECOVERING", args.recovery_timeout_s)
+    row["no_backfill_validators"] = args.no_backfill
+    row["liars"] = args.liars
     row.update({"sovereign_height": sov_height, "seconds_to_sovereign": round(sov_t, 1) if sov_t else None})
     if sov_height is None or rec is None:
         row["error"] = "never reached SOVEREIGN" if sov_height is None else "never reached RECOVERING"
         return row
     rec_height, _ = rec
     t_rec = time.time()
-    anchored = wait_state("ANCHORED", args.recovery_timeout_s)
+    hold = args.expect == "hold" or (args.expect == "auto" and args.no_backfill >= 4 and not args.liars)
+    anchored = wait_state("ANCHORED", args.hold_s if hold else args.recovery_timeout_s)
+    if hold:
+        row.update({"recovering_height": rec_height, "interval_blocks": rec_height - sov_height,
+                    "held_in_recovering": anchored is None, "hold_s": args.hold_s})
+        if anchored is not None:
+            row["error"] = "gate opened although only a minority published block data"
+        return row
     row.update({
         "recovering_height": rec_height,
         "interval_blocks": rec_height - sov_height,
@@ -122,17 +147,38 @@ def main():
     ap.add_argument("--outage-s", type=int, nargs="+", default=[120, 300, 600])
     ap.add_argument("--recovery-timeout-s", type=float, default=1800.0)
     ap.add_argument("--settle-s", type=float, default=30.0)
+    ap.add_argument("--no-backfill", type=int, default=0, help="negative control: this many validators never publish block data")
+    ap.add_argument("--hold-s", type=float, default=300.0, help="how long a negative control must stay in RECOVERING")
+    ap.add_argument("--trials", type=int, default=1)
+    ap.add_argument("--liars", type=int, default=0, help="Byzantine validators that sign an inflated da_contiguous_height")
+    ap.add_argument("--expect", choices=["auto", "open", "hold"], default="auto",
+                    help="auto: hold iff >= 4 validators never publish and nobody lies")
     args = ap.parse_args()
     if len(NODE_RPC_PORTS) < 4:
         sys.exit("needs the running Docker testnet")
     os.makedirs(RESULTS_DIR, exist_ok=True)
     rows = []
+    assignment = suite.Assignment()
     try:
-        for L in args.outage_s:
-            rows.append(run_one(L, args))
-            print("ROW", json.dumps(rows[-1]), flush=True)  # survives a later crash
+        nodes = list(NODE_RPC_PORTS)
+        liars = nodes[3:3 + args.liars]
+        # no_backfill validators are the last ones that are not liars
+        silent = [n for n in reversed(nodes) if n not in liars][:args.no_backfill]
+        behaviors = {n: "no_backfill" for n in silent}
+        lie = json.dumps({"da_contiguous_height": "999999999999"})
+        behaviors.update({n: f"false_observation:{lie}" for n in liars})
+        if behaviors:
+            assignment.set(behaviors)
+            print(f"[{now()}] behaviors {behaviors}")
+        for trial in range(1, args.trials + 1):
+            for L in args.outage_s:
+                rows.append(dict(run_one(L, args), trial=trial))
+                print("ROW", json.dumps(rows[-1]), flush=True)  # survives a later crash
     finally:
         start_all_da_bridges()
+        assignment.clear()
+        if args.no_backfill or args.liars:
+            wait_state("ANCHORED", 1200)
     path = os.path.join(RESULTS_DIR, f"backfill_{time.strftime('%Y%m%dT%H%M%S')}.csv")
     fields = sorted({k for r in rows for k in r}, key=lambda k: (k != "outage_s", k))
     with open(path, "w", newline="") as f:
@@ -141,7 +187,8 @@ def main():
         w.writerows(rows)
     print(json.dumps(rows, indent=1))
     print("wrote", path)
-    sys.exit(0 if all("error" not in r and r.get("verify_match_pct") == 100.0 for r in rows) else 1)
+    ok = all("error" not in r and (r.get("held_in_recovering") or r.get("verify_match_pct") == 100.0) for r in rows)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

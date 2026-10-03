@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -812,6 +813,11 @@ func wireDASensor(engramApp *app.EngramApp) {
 	// Same local CometBFT RPC the BTC checkpoint root is read from (see
 	// wireBTCSensor): the DA backfill queue publishes the committed blocks it
 	// returns.
-	engramApp.Sensors.DAPublisher.SetBlockSource(cometBlockDataSource(cometRPCURL()))
+	// no_backfill (E8/backfill control, set via ENGRAM_BYZANTINE_BEHAVIOR): this validator publishes only
+	// head markers, never block data, so its DA liveness stays healthy while its da_contiguous_height
+	// stays behind -- the one fault that exercises the exit gate without also failing the DA health check.
+	if !slices.Contains(strings.Split(os.Getenv("ENGRAM_BYZANTINE_BEHAVIOR"), ";"), "no_backfill") {
+		engramApp.Sensors.DAPublisher.SetBlockSource(cometBlockDataSource(cometRPCURL()))
+	}
 	engramApp.Sensors.DA.SetSource(engramApp.Sensors.DAPublisher)
 }
