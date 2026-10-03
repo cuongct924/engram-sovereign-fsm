@@ -131,7 +131,11 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
     s = cm.summarize(rows, None)
     sent = max(counters["sent"], 1)
     achieved = counters["sent"] / args.duration_s
-    committed_rate = len(in_window) / args.duration_s
+    # A transaction accepted near the end of the window is committed ~1 block later, so counting only what is
+    # committed inside the window under-reads a system that keeps up. If the backlog is gone after the drain,
+    # everything accepted was committed at the offered pace; otherwise only the in-window count is trusted.
+    drained = counters["accepted"] > 0 and len(committed_all) >= 0.99 * counters["accepted"]
+    committed_rate = (len(committed_all) if drained else len(in_window)) / args.duration_s
     return {
         "arm": arm, "nominal_tx_s": rate, "repeat": repeat,
         "achieved_offered_tx_s": round(achieved, 2),
@@ -140,7 +144,8 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
         "committed_in_window": len(in_window), "committed_after_drain": len(committed_all),
         "committed_tx_s": round(committed_rate, 2),
         "committed_over_offered": round(committed_rate / achieved, 3) if achieved else None,
-        "saturated": committed_rate < 0.95 * achieved,
+        "backlog_after_drain": counters["accepted"] - len(committed_all),
+        "saturated": (not drained) or committed_rate < 0.95 * achieved,
         "latency_p50_s": rq4.pct(lat, 0.5), "latency_p95_s": rq4.pct(lat, 0.95), "latency_p99_s": rq4.pct(lat, 0.99),
         "mempool_mean": sum(w.mempool) / len(w.mempool) if w.mempool else None,
         "mempool_max": max(w.mempool) if w.mempool else None,
