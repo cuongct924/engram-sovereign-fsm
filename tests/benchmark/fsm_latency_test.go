@@ -7,6 +7,7 @@ package benchmark
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -80,6 +81,14 @@ func signedCertificates(tb testing.TB, k *keeper.Keeper, ctx sdk.Context, height
 
 func healthyAggregatedCertificate(tb testing.TB, k *keeper.Keeper, ctx sdk.Context) *types.AggregatedHealthCertificate {
 	tb.Helper()
+	return healthyAggregatedCertificateN(tb, k, ctx, 4)
+}
+
+// healthyAggregatedCertificateN is the same certificate carrying n signed
+// extensions: the validators' count sets the number of ed25519 verifications
+// ProcessProposal does.
+func healthyAggregatedCertificateN(tb testing.TB, k *keeper.Keeper, ctx sdk.Context, n int) *types.AggregatedHealthCertificate {
+	tb.Helper()
 	p := k.Params
 	metrics := &types.PeripheralMetrics{
 		SubnetDiversity: p.MinSubnetDiversity,
@@ -87,7 +96,7 @@ func healthyAggregatedCertificate(tb testing.TB, k *keeper.Keeper, ctx sdk.Conte
 		CleanPeers:      p.MinPeers,
 		AvgPeerTenure:   p.MinAvgTenure,
 	}
-	certs := signedCertificates(tb, k, ctx, -1, metrics, 4)
+	certs := signedCertificates(tb, k, ctx, -1, metrics, n)
 
 	return &types.AggregatedHealthCertificate{
 		Height:                       -1,
@@ -153,22 +162,54 @@ func BenchmarkProposalSize(b *testing.B) {
 }
 
 // End-to-end NewProcessProposalHandler cost (IsValidProposal, all checks) --
-// the V5 CPU cost.
+// the V5 CPU cost. Every iteration must be ACCEPTED: a handler that rejects
+// early is far cheaper and would make the number meaningless. The certificate
+// carries n signed extensions (4 and 7 validators), and the handler verifies
+// each ed25519 signature; ZK proof verification is a separate path, measured by
+// BenchmarkVerifyZKProof.
 func BenchmarkProcessProposal(b *testing.B) {
-	k, ctx := newTestKeeperCtx(b)
-	cert := healthyAggregatedCertificate(b, k, ctx)
-	tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
-	if err != nil {
-		b.Fatal(err)
-	}
-	handler := sovereignty.NewProcessProposalHandler(k)
-	req := &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 0}
+	for _, n := range []int{4, 7} {
+		b.Run(fmt.Sprintf("validators=%d", n), func(b *testing.B) {
+			k, ctx := newTestKeeperCtx(b)
+			cert := healthyAggregatedCertificateN(b, k, ctx, n)
+			tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
+			if err != nil {
+				b.Fatal(err)
+			}
+			handler := sovereignty.NewProcessProposalHandler(k)
+			req := &abci.RequestProcessProposal{Txs: [][]byte{tx}, Height: 0}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if _, err := handler(ctx, req); err != nil {
-			b.Fatal(err)
-		}
+			resp, err := handler(ctx, req)
+			if err != nil || !resp.IsAccepted() {
+				b.Fatalf("benchmark proposal is not accepted (err=%v): the measurement would be of a rejection path", err)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if resp, err := handler(ctx, req); err != nil || !resp.IsAccepted() {
+					b.Fatal("proposal rejected")
+				}
+			}
+		})
+	}
+}
+
+// Isolates the signature work inside ProcessProposal: AggregateHealthCertificates
+// verifies every certificate's ed25519 signature and takes the weighted median.
+func BenchmarkAggregateHealthCertificates(b *testing.B) {
+	for _, n := range []int{4, 7} {
+		b.Run(fmt.Sprintf("validators=%d", n), func(b *testing.B) {
+			k, ctx := newTestKeeperCtx(b)
+			cert := healthyAggregatedCertificateN(b, k, ctx, n)
+			if _, ok := sovereignty.AggregateHealthCertificates(ctx, k, benchmarkChainID, cert.Height, cert.Certificates); !ok {
+				b.Fatal("no quorum in the benchmark fixture")
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = sovereignty.AggregateHealthCertificates(ctx, k, benchmarkChainID, cert.Height, cert.Certificates)
+			}
+		})
 	}
 }
 

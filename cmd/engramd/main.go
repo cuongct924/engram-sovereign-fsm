@@ -77,6 +77,7 @@ func main() {
 	rootCmd.AddCommand(publishRecoveryWitnessCmd())
 	rootCmd.AddCommand(txSubmitRecoveryProofCmd())
 	rootCmd.AddCommand(txSubmitForcedTxCmd())
+	rootCmd.AddCommand(txGenForcedBatchCmd())
 	rootCmd.AddCommand(debugCmd())
 
 	if err := rootCmd.Execute(); err != nil {

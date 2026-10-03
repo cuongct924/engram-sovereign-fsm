@@ -116,3 +116,14 @@ func TestSubmitForcedTx_DryRunIsDeterministic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 }
+
+func TestForcedBatchPayloadIsUniqueAndSized(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 1000; i++ {
+		p := forcedBatchPayload("r1", i, 64)
+		require.Len(t, p, 64)
+		require.False(t, seen[string(p)], "payload %d repeats", i)
+		seen[string(p)] = true
+	}
+	require.Greater(t, len(forcedBatchPayload("a-long-prefix", 123456, 8)), 8, "never truncated below the unique label")
+}

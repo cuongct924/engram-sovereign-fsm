@@ -109,3 +109,52 @@ func txSubmitForcedTxCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "build the tx and print its hex-encoded raw bytes, without broadcasting")
 	return cmd
 }
+
+// txGenForcedBatchCmd prints --count distinct, unsigned MsgSubmitForcedTx envelopes as hex, one per
+// line, in a single process. The throughput sweep (scripts/e7_consensus_overhead/
+// live_throughput_sweep.py) needs tens of thousands of transactions at 100+ tx/s; building each with a
+// separate `tx-submit-forced-tx --dry-run` process made the generator, not the chain, the bottleneck.
+func txGenForcedBatchCmd() *cobra.Command {
+	var count, payloadBytes int
+	var prefix string
+	cmd := &cobra.Command{
+		Use:   "tx-gen-forced-batch",
+		Short: "Print --count distinct MsgSubmitForcedTx envelopes as hex, one per line (load generation)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if count <= 0 {
+				return fmt.Errorf("--count must be positive")
+			}
+			registry, err := newSovereigntyInterfaceRegistry()
+			if err != nil {
+				return err
+			}
+			sender, err := addresscodec.NewBech32Codec("engram").BytesToString(make([]byte, 20))
+			if err != nil {
+				return err
+			}
+			for i := 0; i < count; i++ {
+				payload := forcedBatchPayload(prefix, i, payloadBytes)
+				txBytes, err := buildMinimalTx(registry, &sovereigntytypes.MsgSubmitForcedTxRequest{Sender: sender, Tx: payload})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), hex.EncodeToString(txBytes))
+			}
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&count, "count", 0, "number of transactions")
+	cmd.Flags().StringVar(&prefix, "prefix", "load", "payload prefix; keeps the batches of different runs distinct")
+	cmd.Flags().IntVar(&payloadBytes, "payload-bytes", 32, "payload size in bytes (padded with 'x')")
+	return cmd
+}
+
+// forcedBatchPayload is "<prefix>-<i>" padded to size bytes; it is never shorter than the label, so every
+// index stays unique whatever size is asked for.
+func forcedBatchPayload(prefix string, i, size int) []byte {
+	label := fmt.Sprintf("%s-%d-", prefix, i)
+	for len(label) < size {
+		label += "x"
+	}
+	return []byte(label)
+}
