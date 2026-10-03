@@ -958,7 +958,7 @@ Per real function (`go test ./tests/benchmark/... -bench=. -benchmem`,
 | `CalculateNextState` | 61.1 ns/op |
 | `da.VerifyReceipt` | +0.5 ns/op (cumulative 61.6) |
 | `anchor.VerifyReceipt` | +6.1 ns/op (cumulative 67.7) |
-| Full `ProcessProposal` (steady-state, non-recovery block) | 18,252 ns/op (18.25 µs) |
+| Full `ProcessProposal` on an **accepted** proposal, steady state, 7 validators (7 ed25519 verifications) | 252,909 ns/op (253 µs; sd 4.2 µs, 10 runs, `scripts/e7_consensus_overhead/results/bench_validation_20261003.txt`). 4 validators: 150 µs. The earlier 18.25 µs figure came from a benchmark that did not check that the proposal was accepted and is withdrawn. |
 
 All four are nanosecond/low-microsecond scale — negligible next to CometBFT's `timeout_commit`
 (hundreds of milliseconds) or the ~1s block interval this cluster runs at.
@@ -1047,7 +1047,7 @@ result:
 **Conclusion:**
 
 * Healthy-path tax stays small and flat (~247–270 B/block) across all three states.
-* Steady-state validation CPU is negligible (ns–low-µs per function, ~18.25 µs for the full path)
+* Steady-state validation CPU is negligible (ns–low-µs per function, ~253 µs for the full path at 7 validators, almost all of it ed25519 signature verification)
   — far below the consensus round's own timing budget.
 * The real proof cost is rare and self-limiting to the one block that carries it — "near-zero tax
   on the healthy path" is a measured fact here, not just intent.

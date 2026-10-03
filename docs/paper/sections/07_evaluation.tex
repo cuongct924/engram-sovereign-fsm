@@ -390,8 +390,11 @@ local single node.
 \textbf{Where the cost is not.} The extended object adds a near-constant
 +\resProposalBytes\,bytes per proposal (live: 247--270 bytes across states, 100\% of 376
 sampled blocks), and the one proof-carrying block observed was 14.9\,KB,
-consistent with the 14.7\,KB proof. Full proposal validation costs
-\resValidationUs\,$\mu$s per steady-state block, and \texttt{ExtendVote}, which reads
+consistent with the 14.7\,KB proof. Validating an accepted proposal, including
+the ed25519 verification of seven certificates, costs \resValidationUs\,$\mu$s per block
+(mean of ten benchmark runs, standard deviation 4\,$\mu$s; 150\,$\mu$s with four
+validators); verifying a recovery proof, a one-off event, takes 26\,ms and is not
+included. \texttt{ExtendVote}, which reads
 the live Bitcoin and Celestia sensors before a validator can precommit, took
 \resExtendVoteMs\,ms on average (p95 51\,ms, $n{=}5$ repeats). None of these is large
 enough to explain a lower block rate at a $\sim$1\,s block interval.

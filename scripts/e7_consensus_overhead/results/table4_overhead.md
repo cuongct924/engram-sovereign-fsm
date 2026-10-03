@@ -7,7 +7,7 @@
 | V2 | + DA receipt | 87 | 61.6 (+da.VerifyReceipt) |
 | V3 | + BTC receipt | 188 | 67.7 (+anchor.VerifyReceipt) |
 | V4 | + P2P sensor digest *(size estimate only -- not in the real wire format today, see tests/benchmark/fsm_latency_test.go)* | 320 | n/a |
-| V5 | + ZK proof ref (real shipped ExtendedProposal, full end-to-end via NewProcessProposalHandler) | 224 | 18252.0 (full ProcessProposal, includes JSON decode + all checks) |
+| V5 | + ZK proof ref (real shipped ExtendedProposal, full end-to-end via NewProcessProposalHandler) | 224 | 252909.1 (full ProcessProposal on an accepted proposal, 7 validators, includes 7 ed25519 verifications; superseded 18252.0, which did not check acceptance) |
 
 Note: V5's proposal size (real `ExtendedProposal`) is smaller than V4's because V4 is a hypothetical P2P-digest-included estimate that was never wired into the real wire format -- P2P health is validated from the leader's local `keeper.Metrics`, not carried in the proposal. V5's CPU cost is the real full `ProcessProposal` cost (JSON decode + all 5 IsValidProposal checks), not just the cumulative sub-benchmarks' sum, since that is what actually runs on a node.
 ---

@@ -1,0 +1,76 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/cuongct220020/engram-sovereign-fsm/tests/benchmark
+cpu: Apple M1 Pro
+BenchmarkProcessProposal/validators=4-10   	    8058	    151509 ns/op	   27958 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8145	    152918 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8094	    152325 ns/op	   27956 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    7934	    150421 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8076	    149746 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8040	    148256 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8185	    147826 ns/op	   27958 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8326	    152341 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    8086	    148168 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10   	    7938	    149029 ns/op	   27957 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4804	    254094 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4540	    258819 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4687	    258391 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4813	    250756 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4777	    251276 ns/op	   36864 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4740	    248840 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4770	    248598 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4768	    258514 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4770	    249561 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10   	    4615	    250242 ns/op	   36863 B/op	     365 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8169	    142622 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8164	    146689 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8504	    142792 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8684	    145739 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8475	    142025 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8566	    143339 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8575	    140890 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8559	    141613 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8547	    150975 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10         	    8630	    147482 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4948	    243016 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4953	    242111 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4987	    242058 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4946	    246829 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4892	    250815 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4981	    244182 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4947	    243131 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4953	    249717 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4970	    245657 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10         	    4890	    243618 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkCalculateNextState-10                               	23452882	        52.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23531487	        51.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23705380	        50.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23551018	        53.16 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	21442690	        55.71 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	20495842	        51.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23184690	        53.28 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23194717	        53.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23277429	        53.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCalculateNextState-10                               	23360277	        51.40 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3268 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3284 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3342 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3256 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3397 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3304 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3237 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3308 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3261 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDAVerifyReceipt-10                                  	1000000000	         0.3537 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	334271536	         3.599 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	333854361	         3.576 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	329276937	         3.813 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	332821004	         3.621 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	333808855	         3.605 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	318805224	         3.602 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	305002453	         3.597 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	333272811	         3.590 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	332810042	         3.609 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBTCVerifyReceipt-10                                 	300134997	         4.453 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/cuongct220020/engram-sovereign-fsm/tests/benchmark	82.646s
