@@ -136,7 +136,7 @@ Section~\ref{subsec:threat-model}.
 \textbf{Layer / property} & \textbf{States gen.} & \textbf{Distinct} & \textbf{Depth} & \textbf{Time} & \textbf{Workers} & \textbf{Viol.} \\
 \midrule
 Tendermint (safety) & 3{,}772{,}809 & 537{,}536 & 25 & 1\,m\,01\,s & 10 & 0 \\
-FSM (safety) & 1{,}371{,}377{,}696 & 4{,}542{,}271 & 23 & 10\,m\,19\,s & 10 & 0 \\
+FSM (safety) & 1{,}371{,}377{,}696 & \resFSMStatesExact{} & 23 & 10\,m\,19\,s & 10 & 0 \\
 FSM (liveness) & 17{,}986{,}105 & 31{,}105 & 23 & 3\,m\,45\,s & 10 & 0 \\
 \bottomrule
 \end{tabular}

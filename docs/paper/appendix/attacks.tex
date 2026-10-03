@@ -1,0 +1,48 @@
+\section{Extended Attack-Resilience Results}
+\label{app:attacks}
+
+Table~\ref{tab:attack-full} reports the full ten-scenario single-actor
+attack suite. A1 and A2 ran on the earlier four-validator cluster ($n{=}4$);
+all other scenarios ran on the seven-validator testbed ($n{=}7$). The column
+\emph{Byz.\ VP} gives the share of voting power held by the misbehaving
+validator: one of seven validators is 14.3\%, and the attacker containers of
+A1 and A2 are non-validators (0\%).
+
+\begin{table}[h]
+\caption{Full Attack-Resilience Suite (live)}
+\label{tab:attack-full}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.04\linewidth}p{0.18\linewidth}p{0.03\linewidth}p{0.07\linewidth}p{0.06\linewidth}p{0.06\linewidth}p{0.36\linewidth}@{}}
+\toprule
+\textbf{\#} & \textbf{Attack} & \textbf{$n$} & \textbf{Byz.\ VP} & \textbf{Safety} & \textbf{Diverg.} & \textbf{Attack-specific signal} \\
+\midrule
+A1 & Eclipse & 4 & 0\% & True & 0 & Filter holds 8/8, nil-prevote ratio 0.0 throughout \\
+A2 & Simulated multi-subnet Sybil & 4 & 0\% & True & 0 & Filter holds 8/8 despite 12 attackers \\
+A3 & Data withholding & 7 & 14.3\% & True & 0 & --- \\
+A4 & Forged Bitcoin receipt & 7 & 14.3\% & True & 0 & --- \\
+A5 & Withdrawal during \textsc{Sovereign} & 7 & --- & True & 0 & Withdrawal correctly blocked; transaction never commits \\
+A6 & Malicious proposer & 7 & 14.3\% & True & 0 & Forged FSM state rejected by all honest validators (Section~\ref{subsec:rq1}) \\
+A7 & Censorship & 7 & 14.3\% & True & 0 & Censoring confirmed real (target tx omitted 9/9 proposer turns); honest reject signals stayed at 0 since the next honest proposer included the tx before the ignore-round threshold fired \\
+A8 & Combined (A6 + A1) & 7 & 14.3\% & True & 0 & Safety held under simultaneous overlap \\
+A9 & Double-signing & 7 & 14.3\% & True & 0 & 6/6 honest validators detected real duplicate-vote evidence; 1-block detection latency \\
+A10 & Timeout flood & 7 & 14.3\% & True & 0 & Cadence held (0.770$\to$0.706 blocks/s); rate limiter dropped 0/0/0/0/0/0 at moderate (20 msg/s) intensity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A3 and A4 were instrumented only for safety and divergence, without an
+attack-specific metric such as A5's blocked-withdrawal flag or A9's
+detection latency.
+
+At 25$\times$ its design threshold (500 msg/s vs.\ a 20 msg/s per-peer cap),
+the A10 timeout-flood attack still held cadence (0.825$\to$0.789 blocks/s)
+while the rate limiter rejected the large majority of flood traffic
+(28{,}071 of $\sim$30{,}000 attempted messages on one validator); validator
+CPU usage roughly tripled (2.4--3.3\%$\to$7.85--9.51\%, peak 22.40\%) but
+stayed well short of saturation, and memory usage stayed flat. No attack in
+Table~\ref{tab:attack-full} drove block production toward zero, and resource
+usage under the P2P swarm attacks (A1/A2) stayed modest (under 36\% CPU,
+under 147\,MiB memory per validator).
+
+\FloatBarrier

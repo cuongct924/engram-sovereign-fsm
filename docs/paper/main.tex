@@ -23,29 +23,15 @@
 \usepackage{titlesec}
 \usepackage{parskip}
 
-% Build switches. \drafttrue renders \pending{...} in red; with \draftfalse an
-% unresolved \pending stops the build, so none can reach a submission PDF.
-% \testbedBtrue adds the Testbed B text once those experiments exist.
-\newif\ifdraft \drafttrue
-\newif\iftestbedB \testbedBfalse
-\newcommand{\pending}[1]{\ifdraft\textcolor{red}{[PENDING: #1]}\else
-  \PackageError{engram}{Unresolved pending: #1}{Resolve it before a final build.}\fi}
+\input{macros}
+\input{results/result_macros}
 
 % Single-column, prose-first layout: numbered sections in small caps,
 % generous paragraph spacing instead of two-column IEEE formatting.
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{0.6em}{}
 \titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{0.6em}{}
 
-\title{\Large\bfseries Hybrid Adaptive Consensus: A Sovereign
-Finite-State-Machine Fallback for Modular Blockchains}
-
-% Names are ASCII because the installed TeX Live has no Vietnamese (T5) encoding:
-% Tien Cuong Dang = Đặng Tiến Cường; Binh Minh Nguyen = Nguyễn Bình Minh.
-\author{Tien Cuong Dang$^{1}$ \quad Binh Minh Nguyen$^{1,*}$\\[4pt]
-\normalsize $^{1}$Hanoi University of Science and Technology, Hanoi, Vietnam\\
-\normalsize \texttt{cuongdt220020@sis.hust.edu.vn}, \texttt{minh.nguyenbinh@hust.edu.vn}\\
-\normalsize $^{*}$Corresponding author}
-\date{}
+\input{metadata}
 
 \begin{document}
 
@@ -79,6 +65,10 @@ TLA+, zero-knowledge proofs
 {\Large\bfseries Appendix}
 \end{center}
 \vspace{6pt}
-\input{sections/appendix}
+\input{appendix/attacks}
+\input{appendix/backend}
+\input{appendix/aggregation}
+\input{appendix/reorg}
+\input{appendix/netem}
 
 \end{document}

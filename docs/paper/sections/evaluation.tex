@@ -335,7 +335,7 @@ Repeats $n$ & 5 & 5 & 3 & 5 \\
 Rounds per height & 1.000 & 1.000 & 1.000 & 1.000 \\
 Proposals rejected / height & 0 & 0 & 0 & 0 \\
 Nil precommits / height & 0 & 0 & 0 & 0 \\
-Block interval, mean (s) & 1.034 $\pm$ 0.001 & 1.233 $\pm$ 0.015 & 1.229 $\pm$ 0.023 & 1.262 $\pm$ 0.020 \\
+Block interval, mean (s) & 1.034 $\pm$ 0.001 & \resBlockVanilla{} $\pm$ 0.015 & 1.229 $\pm$ 0.023 & \resBlockEngram{} $\pm$ 0.020 \\
 Block interval p50 / p95 (s) & 1.032 / 1.042 & 1.220 / 1.313 & 1.217 / 1.300 & 1.241 / 1.335 \\
 Blocks/s & 0.967 & 0.811 & 0.814 & 0.793 \\
 Committed tx/s & 20.00 & 20.00 & 20.00 & 20.00 \\
@@ -361,29 +361,29 @@ local single node.
 \end{table}
 
 \textbf{Where the cost is not.} The extended object adds a near-constant
-+228 bytes per proposal (live: 247--270 bytes across states, 100\% of 376
++\resProposalBytes\,bytes per proposal (live: 247--270 bytes across states, 100\% of 376
 sampled blocks), and the one proof-carrying block observed was 14.9\,KB,
 consistent with the 14.7\,KB proof. Full proposal validation costs
-18.25\,$\mu$s per steady-state block, and \texttt{ExtendVote}, which reads
+\resValidationUs\,$\mu$s per steady-state block, and \texttt{ExtendVote}, which reads
 the live Bitcoin and Celestia sensors before a validator can precommit, took
-16.6\,ms on average (p95 51\,ms, $n{=}5$ repeats). None of these is large
+\resExtendVoteMs\,ms on average (p95 51\,ms, $n{=}5$ repeats). None of these is large
 enough to explain a lower block rate at a $\sim$1\,s block interval.
 
 \textbf{Where the cost is.} Against a single local process, Engram's blocks
-arrive 0.23\,s later (1.262 against 1.034\,s). Table~\ref{tab:overhead} shows
+arrive 0.23\,s later (\resBlockEngram{} against 1.034\,s). Table~\ref{tab:overhead} shows
 that this gap is not Engram's. Seven vanilla validators on the same hosts,
-network, genesis and load produce a block every 1.233\,s with vote extensions
+network, genesis and load produce a block every \resBlockVanilla\,s with vote extensions
 disabled and every 1.229\,s with empty extensions, within 0.03\,s of Engram
 (95\% CIs of 0.015--0.023\,s). Hence the 0.2\,s is the price of running a
 seven-validator BFT network on one host, and vote extensions as such add no
 measurable time. Engram's own addition is about 0.03\,s per height (about
-2\%), consistent with the 16.6\,ms \texttt{ExtendVote} time. In all four arms every
+2\%), consistent with the \resExtendVoteMs\,ms \texttt{ExtendVote} time. In all four arms every
 height committed in the first round with no nil precommit and no rejected
 proposal, so extra rounds do not contribute at 20\,tx/s without faults. A
 mean over $n{=}5$ cannot resolve a difference of a few milliseconds. The
 difference to the seven-validator arm without extensions is 0.029\,s;
 combining the two reported 95\% intervals (0.020 and 0.015\,s) gives an
-approximate 95\% interval of 0.004--0.054\,s (0.3--4.4\%). The data show an
+approximate 95\% interval of 0.004--0.054\,s (\resOverheadCI{}). The data show an
 addition of a few percent at most, not a more precise value. The
 arms ran on separate deployments except the first Engram and the
 extensions-on arm, which shared one chain (Engram first); the Engram arm was

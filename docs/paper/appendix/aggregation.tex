@@ -1,0 +1,67 @@
+\section{Chunk Aggregation}
+\label{app:aggregation}
+
+This appendix measures the aggregator of Section~\ref{subsec:reanchoring}
+against submitting the chunk proofs one by one. The measurements were taken
+offline on a 10-core, 32\,GiB macOS workstation, not on Testbed~A, with
+nargo 1.0.0-beta.22 and \texttt{bb} 5.0.0-nightly.20260522. The chain is
+synthetic: it has one deterministic header sequence with real ed25519
+precommits and one validator set, so that consecutive chunks chain through
+their roots and heights. Aggregate proving and verification are averaged over
+five trials per interval length; each leaf proof was timed once. Absolute times
+are not comparable to Table~\ref{tab:reanchor-scaling}, which was measured on a
+different host.
+
+\begin{table}[h]
+\caption{Chunk Aggregation vs.\ Submitting Chunk Proofs One by One ($K{=}4$)}
+\label{tab:aggregation}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{\textbf{One by one}} & \multicolumn{3}{c}{\textbf{Aggregate}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+$L$ & Prove & Bytes & Verify & Prove & Bytes & Verify \\
+\midrule
+256  & 31.5 s  & 14{,}656 & 19.8 ms & 57.2 s  & 14{,}656 & 20.2 ms \\
+512  & 60.5 s  & 29{,}312 & 39.5 ms & 89.9 s  & 14{,}656 & 20.2 ms \\
+1024 & 120.1 s & 58{,}624 & 79.1 ms & 146.7 s & 14{,}656 & 20.2 ms \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Verify is the validators' embedded WebAssembly verifier, measured
+per proof (30 iterations, three runs); the one-by-one column is $n$ times the
+leaf cost. Aggregate prove includes the leaf proofs. At $L{=}256$ a single
+leaf proof is submitted and the aggregate row is shown for the overhead only.
+\end{table}
+
+The aggregator verifies the chunk proofs in-circuit and checks that chunk
+$i$ starts at the root and height where chunk $i{-}1$ ended, under the same
+validator-set hash. It exposes the same public inputs as a single chunk, so an
+aggregate proof stands in for a leaf proof, and its capacity $K{=}4$ is fixed
+at compile time. Unbounded incremental recursion would require the step circuit
+to receive its own verification-key hash as a public input, which we did not
+implement. Recursion is applied at the chunk level because in-circuit
+verification of one UltraHonk proof costs about 0.7 million gates, whereas
+hashing one header costs about 12 opcodes: recursion over per-header proofs
+measured 650--1{,}200$\times$ slower than direct hashing at matched sizes.
+
+Table~\ref{tab:aggregation} shows that submitted bytes and verification time of
+the aggregate do not depend on $L$ up to $K \cdot 256 = 1024$, while the
+one-by-one cost grows linearly. The price is one extra proof: the aggregator
+circuit has 3{,}002{,}299 gates and proves in 25.7--29.5\,s using about 5.2\,GB,
+against 3{,}234{,}226 gates, 30.0--31.5\,s, and 5.7--5.9\,GB for a leaf. Total
+proving time rises by 49\% at $L{=}512$ and 22\% at $L{=}1024$. Chunk proofs
+were produced sequentially; proving them in parallel was not measured. Every
+chunk boundary height needs a round-zero commit, so a round skip at an interior
+boundary prevents building that chunk's witness.
+
+The aggregator rejects each of eleven malformed witnesses: reversed or repeated
+chunks, a wrong total count, final root, first height, or validator-set hash,
+a height gap between chunks, a different validator set in the second chunk,
+an extension through padding slots, and a chunk count outside $[1,K]$. The
+valid two-chunk witness is accepted, and a 512-header aggregate passes every
+\texttt{SubmitRecoveryProof} binding against fixture chain state. A live
+re-anchoring through an aggregate proof on the Docker testbed was not run.
+
+\FloatBarrier

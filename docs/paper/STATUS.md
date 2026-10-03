@@ -1,0 +1,65 @@
+# Paper status
+
+Reference for building `main.tex`, where each number lives, and which claims still lack
+evidence. `docs/EXPERIMENT.md` is the record of which measurements are live, in-process, or
+synthetic.
+
+## Build
+
+```bash
+export PATH=$PATH:/Library/TeX/texbin
+cd docs/paper
+pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+```
+
+| Switch (`macros.tex`) | Default | Effect |
+|---|---|---|
+| `\drafttrue` / `\draftfalse` | draft | Draft renders `\pending{...}` in red. A final build stops at the first unresolved `\pending`. |
+| `\testbedBtrue` / `\testbedBfalse` | false | Adds the Testbed B text; the Testbed B column and results are absent until those experiments exist. |
+
+Names are ASCII because the installed TeX Live has no Vietnamese (T5) encoding.
+
+## Source layout
+
+| Path | Content |
+|---|---|
+| `main.tex` | Packages and the order of inputs |
+| `metadata.tex` | Title, authors, corresponding author |
+| `macros.tex` | Build switches, `\pending` |
+| `results/result_macros.tex` | Numbers quoted in more than one place (state count, ablation count, proposal bytes, validation time, block intervals, overhead interval) |
+| `sections/*.tex` | Sections 1-8 |
+| `appendix/*.tex` | Appendices A-E |
+| `references.bib` | Bibliography |
+
+A number used in the abstract, body, and conclusion belongs in `result_macros.tex`; a table cell
+that is the source of a number is the value the macro quotes.
+
+## Open evidence
+
+Items marked P0 block a claim the paper makes; P1 strengthens it; P2 is reproducibility.
+
+| Priority | Item | Claim it supports |
+|---|---|---|
+| P0 | Hard-gated baseline: blocks committed per outage window against Engram | Engram stays live where a hard-gated chain stalls (RQ2) |
+| P0 | Collusion suite B1-B6 at n=7 with two Byzantine validators | The certificate bound holds at the stated threat model (RQ1) |
+| P0 | Live down-edge sweep with the adaptive threshold, against static k in {2, 6} | Adaptive hysteresis reduces flapping (RQ3) |
+| P0 | State which reported recovery runs used proof-only recovery | Recovery is gated by a verified proof (RQ3) |
+| P1 | Repeat the composite fault and seven-scenario runs with at least 5 trials | Statistical support for RQ2 and RQ3 |
+| P1 | Report the DA-backfill negative controls (4 of 7 hold, 3 of 7 open are committed under `scripts/e3_failure_matrix/results_live/`) | The backfill gate resists validators that publish nothing |
+| P1 | A1/A2 at n=7 and the f=2 attack rows | Attack evidence at the threat model's size |
+| P1 | Testbed B: seven hosts in at least three regions, at least 3 trials | External validity of the timing results |
+| P1 | Throughput ceiling beyond mempool acceptance | Cost characterization (RQ4) |
+| P2 | Standard deviation of detection delay; inter-region round-trip times; results commit hash; repository URL and license | Reproducibility |
+
+## Claim and evidence
+
+| Claim | Formal support | Empirical support | State |
+|---|---|---|---|
+| Aggregate stays within the honest range | Lemma 1; `AggWithinHonestRange` (Apalache, uniform stake) | B1-B3 | Empirical part open |
+| Proposal validity and FSM state are deterministic | Validity predicate; per-layer TLC safety and liveness | Replay checker | Per-layer complete |
+| Withdrawals are isolated in degraded modes | Theorem 1 under its assumptions; circuit-breaker invariant | Attack tests | Policy only: the prototype has no bridge or assets |
+| Chain stays live during an external failure | Protocol argument | Hard-gated baseline, composite traces | Baseline open |
+| Recovery restores Anchored mode safely | Exit-gate invariant; `SovereignDataPublishedSafety` | Proof run, DA backfill runs | Proof-only runs not identified |
+| Backfill gate resists false reports | Quorum argument | Negative controls | Text open |
+| Overhead is small | none | Table 15 against seven vanilla validators | Throughput ceiling open |
+| End-to-end formal verification | none | none | Not claimed: cross-layer refinement is open, and the fast-forward liveness ablation has not completed |

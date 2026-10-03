@@ -1,0 +1,52 @@
+\section{Network Emulation Parameters}
+\label{app:netem}
+
+Table~\ref{tab:netem-profiles} lists every \texttt{tc netem} profile, applied
+through Pumba. No correlation or distribution option is set, so delay jitter
+is uniform and loss is independent per packet (the \texttt{netem} defaults).
+Profiles that name no interface use Pumba's default interface
+(\texttt{eth0}), which carries Bitcoin, Celestia, and RPC traffic rather than
+the dedicated pairwise validator links. Only the S4 scenario and the relay-latency attack (P4) of
+Section~\ref{sec:evaluation} target the validator links explicitly.
+
+\begin{table}[h]
+\caption{Network Emulation Profiles (Testbed A)}
+\label{tab:netem-profiles}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.2\linewidth}p{0.4\linewidth}p{0.12\linewidth}p{0.14\linewidth}@{}}
+\toprule
+\textbf{Profile} & \textbf{Effect and target} & \textbf{Duration} & \textbf{Used by} \\
+\midrule
+\texttt{chaos-delay} & 100\,ms delay, 20\,ms jitter, all seven validators & 5\,min & baseline \\
+\texttt{chaos-loss} & 5\% loss, validators 1 and 2 & 2\,min & composite \\
+\texttt{chaos-eclipse} & 100\% loss, validator 1 & 3\,min & S5 \\
+\texttt{chaos-btc-delay} & 500\,ms delay, 100\,ms jitter, one \texttt{bitcoind} & 2\,min & composite \\
+\texttt{chaos-wan-latency} & Per-validator delay and jitter, Table~\ref{tab:netem-wan} & 10\,min & WAN baseline \\
+\texttt{chaos-wan-loss} & Per-validator loss, Table~\ref{tab:netem-wan} & 10\,min & WAN variant \\
+S4 eclipse & 300\,ms delay, 50\,ms jitter on the six validator links of validator 1 & 2\,min & S4 \\
+P4 relay latency & 350\,ms delay, 50\,ms jitter on all P2P interfaces of one validator & 244\,s & P4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{WAN Baseline Profiles Per Validator (one profile of seven emulated regions)}
+\label{tab:netem-wan}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{Validator} & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+Delay (ms)  & 15 & 70 & 140 & 45 & 100 & 30 & 180 \\
+Jitter (ms) & 3 & 15 & 25 & 10 & 20 & 6 & 30 \\
+Loss (\%, loss variant) & 1 & 3 & 6 & 2 & 4 & 1 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each validator receives one delay value on its egress, so the profile is a
+per-validator offset rather than a pairwise round-trip-time matrix. A
+pairwise matrix between regions is not measured on Testbed~A.
+\iftestbedB It is measured on Testbed~B.\fi

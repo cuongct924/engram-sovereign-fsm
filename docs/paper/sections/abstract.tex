@@ -24,16 +24,16 @@ that attests to header continuity, FSM-transition legality, and withdrawal-lock
 adherence over the interval. We give a layered TLA+ specification and
 check each layer in isolation with bounded model checking (zero violations at
 $N{\le}4$;
-the largest run, the FSM safety check, explored 4.54 million distinct
-states) with a four-mechanism ablation study
+the largest run, the FSM safety check, explored \resFSMStatesM{} distinct
+states) with a \resAblationCount-mechanism ablation study
 in which each removed mechanism reproduces a distinct predicted failure; the
 cross-layer refinement obligation remains open. On a 7-validator Cosmos SDK
 testnet with live Bitcoin regtest and Celestia networks, under a layered
 composite fault the chain keeps committing blocks and completes a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
-100\% AppHash agreement. The extended consensus object adds +228 bytes per
-proposal and 18.25\,$\mu$s of validation per block. Against seven vanilla
+100\% AppHash agreement. The extended consensus object adds +\resProposalBytes\,bytes per
+proposal and \resValidationUs\,$\mu$s of validation per block. Against seven vanilla
 CometBFT validators on the same hosts and load, Engram's block interval is
-1.262\,s against 1.233\,s, an addition of about 2\% (approximate 95\% interval 0.3--4.4\%); every height commits in the
+\resBlockEngram\,s against \resBlockVanilla\,s, an addition of about \resOverheadPct{} (approximate 95\% interval \resOverheadCI{}); every height commits in the
 first round with no nil precommit and no rejected proposal.
 \pending{add the hard-gated-baseline stall result.}
