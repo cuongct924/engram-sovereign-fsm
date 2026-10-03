@@ -24,23 +24,12 @@ export ENGRAM_VALIDATOR_COUNT="$N"
 deploy_mode() { # $1 = mode: fresh cluster, engram first, then switch the validators' mode (state kept)
 	local mode="$1"
 	echo "=== E11: deploying a fresh $N-validator cluster in mode $mode ==="
-	make testnet-down || true
-	if [ "${WIPE_DATA:-0}" = "1" ]; then
-		echo "--> WIPE_DATA=1: wiping data/bitcoin-node0* and data/celestia-*"
-		rm -rf data/bitcoin-node0* data/celestia-*
-	fi
+	# Clean redeploy (wipes the Bitcoin and Celestia data too): a genesis against a Bitcoin regtest that has kept
+	# mining starts with a btc_gap of hundreds and never reaches ANCHORED within the readiness timeout.
 	# A hard-gated chain cannot start from genesis: with the FSM pinned to ANCHORED, block 1 needs a DA
 	# receipt that does not exist yet, so no proposal ever validates. Every mode therefore starts as
 	# engram, reaches a healthy ANCHORED, and only then is the validators' mode switched (state kept).
-	# testnet-up also builds the validator images, which needs the Docker registry; a transient network error
-	# leaves the validators unstarted. Retry until engram-node01 is running (the health-wait failure that
-	# the proof-only start-up legitimately causes is tolerated).
-	for attempt in 1 2 3 4; do
-		make testnet-up MODE=engram N="$N" || echo "--> testnet-up's health wait failed; checking the chain directly"
-		[ -n "$(docker ps -q --filter name=^engram-node01$)" ] && break
-		echo "--> validators are not running (attempt $attempt), retrying in 60 s"
-		sleep 60
-	done
+	"$HERE/../testnet_redeploy_clean.sh" engram || echo "--> redeploy failed"
 	python3 - <<'PY'
 import sys
 sys.path.insert(0, "scripts/framework")
@@ -69,13 +58,13 @@ for mode in $MODES; do
 		# fresh checkpoint it needs is derived from blocks it can no longer commit), so every fault, and
 		# every trial, starts from a fresh deployment. The other modes recover and share one deployment.
 		if [ "$first" = "1" ] || [ "$mode" = "hard-gated" ]; then
-			deploy_mode "$mode"
+			deploy_mode "$mode" || true
 			first=0
 		fi
 		if [ "$mode" = "hard-gated" ]; then
 			for t in $(seq "$FIRST_TRIAL" "$TRIALS"); do
 				python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --first-trial "$t" --trials "$t" || true
-				[ "$t" -lt "$TRIALS" ] && deploy_mode "$mode"
+				[ "$t" -lt "$TRIALS" ] && { deploy_mode "$mode" || true; }
 			done
 		else
 			python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --trials "$TRIALS"
