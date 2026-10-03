@@ -7,9 +7,7 @@ synthetic.
 ## Build
 
 ```bash
-export PATH=$PATH:/Library/TeX/texbin
-cd docs/paper
-pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+make paper    # runs pdflatex/bibtex in docs/paper/, outputs docs/paper.pdf
 ```
 
 | Switch (`macros.tex`) | Default | Effect |

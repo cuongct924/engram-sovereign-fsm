@@ -27,42 +27,61 @@ previously committed FSM state (Fig.~\ref{fig:architecture}).
 
 \begin{figure}[h]
 \centering
+\definecolor{zoneLocalFill}{RGB}{243,244,246}
+\definecolor{zoneLocalLine}{RGB}{107,114,128}
+\definecolor{zoneRepFill}{RGB}{238,240,252}
+\definecolor{zoneRepLine}{RGB}{67,56,202}
+\resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
     >=Stealth, font=\footnotesize,
-    box/.style={draw, rounded corners, align=center, minimum height=0.9cm, inner sep=4pt},
-    ext/.style={box, fill=gray!12, minimum width=2.6cm},
-    core/.style={box, fill=blue!6, minimum width=3.2cm},
+    box/.style={draw, rounded corners=3pt, align=center, minimum height=0.9cm, inner sep=4pt, thick},
+    ext/.style={box, fill=white, draw=zoneLocalLine, minimum width=2.8cm},
+    loc/.style={box, fill=white, draw=zoneLocalLine, text width=11.4cm},
+    det/.style={box, fill=white, draw=zoneRepLine, text width=11.4cm},
+    flow/.style={->, thick, black!75},
     lbl/.style={font=\scriptsize, align=center}
 ]
-% Peripheral layers
-\node[ext] (btc) {Bitcoin\\(settlement)};
-\node[ext, right=0.6cm of btc] (cel) {Celestia\\(DA)};
+% Peripheral layers (external, not part of consensus)
+\node[ext] (cel) {Celestia\\(DA)};
+\node[ext, left=0.6cm of cel] (btc) {Bitcoin\\(settlement)};
 \node[ext, right=0.6cm of cel] (p2p) {Peripheral P2P\\(peer quality)};
-% Validator pipeline
-\node[core, below=1.1cm of cel, minimum width=9.4cm] (sens) {Local sensors (per validator): BTC gap, anchor re-verification, DA gap, 6-bound P2P profile};
-\node[core, below=0.7cm of sens, minimum width=9.4cm] (ve) {\texttt{ExtendVote}: signed, height- and round-bound observation $o_i$};
-\node[core, below=0.7cm of ve, minimum width=9.4cm] (cert) {\texttt{PrepareProposal}: quorum of observations $\Rightarrow$ certificate $C^{h}$ as $\mathit{Txs}[0]$};
-\node[core, below=0.7cm of cert, minimum width=9.4cm] (pp) {\texttt{ProcessProposal}: re-verify signatures, re-run $\mathsf{Agg}$, check $\delta$, receipts, proof flag};
-\node[core, below=0.7cm of pp, minimum width=9.4cm] (fsm) {CometBFT prevote/precommit $\to$ \texttt{PreBlocker}: commit $s^{h}$, circuit breaker};
-\draw[->] (btc) -- (sens.north -| btc);
-\draw[->] (cel) -- (sens);
-\draw[->] (p2p) -- (sens.north -| p2p);
-\draw[->] (sens) -- (ve);
-\draw[->] (ve) -- node[lbl, right]{vote extensions of height $h{-}1$} (cert);
-\draw[->] (cert) -- (pp);
-\draw[->] (pp) -- (fsm);
-\node[lbl, right=0.15cm of ve.east, anchor=west] {\emph{live, local}};
-\node[lbl, right=0.15cm of pp.east, anchor=west] {\emph{pure,}\\\emph{deterministic}};
-% Recovery path
-\node[ext, left=0.8cm of fsm, minimum width=2.3cm, yshift=1.6cm] (prover) {ZK prover\\(off-chain)};
-\draw[->, dashed] (fsm.west) -| node[lbl, pos=0.25, below]{headers} (prover.south);
-\draw[->, dashed] (prover.north) |- node[lbl, pos=0.3, left]{proof tx} (pp.west);
-\end{tikzpicture}
-\caption{Engram architecture. Live, validator-local sensor reads (top) enter
-consensus only as signed vote extensions; everything from certificate
-aggregation downward is a pure function of data every validator holds, so
-the committed FSM state $s^{h}$ is deterministic. The dashed path is the
-recovery proof (Section~\ref{subsec:reanchoring}).}
+% Validator-local zone
+\node[loc, below=1.2cm of cel] (sens) {Local sensors: BTC gap, anchor re-verification, DA gap, 6-bound P2P profile};
+\node[loc, below=0.6cm of sens] (ve) {\texttt{ExtendVote}: signed, height- and round-bound observation $o_i$};
+% Replicated, deterministic zone
+\node[det, below=2.0cm of ve] (cert) {\texttt{PrepareProposal}: quorum of observations $\Rightarrow$ certificate $C^{h}$ as $\mathit{Txs}[0]$};
+\node[det, below=0.6cm of cert] (pp) {\texttt{ProcessProposal}: re-verify signatures, re-run $\mathsf{Agg}$, check $\delta$, receipts, proof flag};
+\node[det, below=0.6cm of pp] (fsm) {CometBFT prevote/precommit $\to$ \texttt{PreBlocker}: commit $s^{h}$, circuit breaker};
+% Zones, drawn behind the boxes
+\begin{scope}[on background layer]
+  \draw[rounded corners=6pt, fill=zoneLocalFill, draw=zoneLocalLine, dashed, thick]
+    ([xshift=-0.4cm, yshift=0.3cm]sens.north west) rectangle ([xshift=0.4cm, yshift=-0.75cm]ve.south east);
+  \draw[rounded corners=6pt, fill=zoneRepFill, draw=zoneRepLine, thick]
+    ([xshift=-0.4cm, yshift=0.3cm]cert.north west) rectangle ([xshift=0.4cm, yshift=-0.75cm]fsm.south east);
+\end{scope}
+\node[font=\scriptsize\bfseries, text=zoneLocalLine!80!black, anchor=south west]
+  at ([xshift=-0.3cm, yshift=-0.7cm]ve.south west) {VALIDATOR-LOCAL \textnormal{\textperiodcentered{} live}};
+\node[font=\scriptsize\bfseries, text=zoneRepLine, anchor=south west]
+  at ([xshift=-0.3cm, yshift=-0.7cm]fsm.south west) {REPLICATED \textnormal{\textperiodcentered{} deterministic}};
+% Data flow
+\draw[flow] (btc) -- (sens.north -| btc);
+\draw[flow] (cel) -- (cel |- sens.north);
+\draw[flow] (p2p) -- (sens.north -| p2p);
+\draw[flow] (sens) -- (ve);
+\draw[flow, zoneRepLine, very thick] (ve) -- node[lbl, right, pos=0.5, fill=white, inner sep=1.5pt, text=black]{vote extensions of height $h{-}1$} (cert);
+\draw[flow] (cert) -- (pp);
+\draw[flow] (pp) -- (fsm);
+% Recovery path (off-chain prover, outside the zones)
+\node[box, dashed, fill=white, draw=black!60, minimum width=2.4cm, right=1.1cm of $(pp.east)!0.5!(fsm.east)$, anchor=west] (prover) {ZK prover\\(off-chain)};
+\draw[->, dashed, thick, black!60] (fsm.east) -| node[lbl, pos=0.25, below]{headers} (prover.south);
+\draw[->, dashed, thick, black!60] (prover.north) |- node[lbl, pos=0.7, above]{proof tx} (pp.east);
+\end{tikzpicture}}
+\caption{Engram architecture. Live sensor reads stay in the validator-local
+zone and enter consensus only as signed vote extensions (bold arrow, the single
+crossing). The replicated zone, from certificate aggregation downward, is a
+pure function of data every validator holds, so the committed FSM state
+$s^{h}$ is deterministic. The dashed path is the recovery proof
+(Section~\ref{subsec:reanchoring}).}
 \label{fig:architecture}
 \end{figure}
 
@@ -277,32 +296,51 @@ every hysteresis counter.
 
 \begin{figure}[h]
 \centering
+\resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
-    >=Stealth, node distance=2.2cm, auto,
-    state/.style={rectangle, rounded corners, draw, minimum width=2.4cm,
-                  minimum height=1cm, align=center, font=\footnotesize}
+    >=Stealth, auto,
+    state/.style={rectangle, rounded corners, draw, very thick, minimum width=1.9cm,
+                  minimum height=1.1cm, align=center, font=\footnotesize\bfseries},
+    lab/.style={font=\scriptsize, align=center, inner sep=1.5pt, text width=2.3cm}
 ]
-\node[state] (anchored) {ANCHORED};
-\node[state, right=of anchored] (suspicious) {SUSPICIOUS};
-\node[state, below=of suspicious] (sovereign) {SOVEREIGN};
-\node[state, below=of anchored] (recovering) {RECOVERING};
+\node[state, fill=yellow!35, draw=yellow!50!black] (anchored) {ANCHORED};
+\node[state, fill=orange!45, draw=orange!60!black, right=2.9cm of anchored] (suspicious) {SUSPICIOUS};
+\node[state, fill=red!40, draw=red!60!black, right=2.9cm of suspicious] (sovereign) {SOVEREIGN};
+\node[state, fill=green!35, draw=green!50!black, right=2.9cm of sovereign] (recovering) {RECOVERING};
 
-\draw[->] (anchored) -- node[font=\tiny]{\shortstack{Warning\\($k_{\downarrow}$ blocks)}} (suspicious);
-\draw[->] (anchored) -- node[font=\tiny, swap]{Critical} (sovereign);
-\draw[->] (suspicious) -- node[font=\tiny]{\shortstack{Critical /\\timeout}} (sovereign);
-\draw[->] (suspicious) to[bend left=15] node[font=\tiny]{\shortstack{Healthy\\($k_{\uparrow}$ blocks)}} (anchored);
-\draw[->] (sovereign) to[bend left=12] node[font=\tiny]{Healthy} (recovering);
-\draw[->] (recovering) to[bend left=12] node[font=\tiny]{\shortstack{Critical /\\non-healthy$^{\times k_{\downarrow}}$}} (sovereign);
-\draw[->] (recovering) to[bend left=40] node[font=\tiny]{\shortstack{Healthy $\wedge$ safe\_blocks$\geq H$\\$\wedge$ proof valid}} (anchored);
-\end{tikzpicture}
-\vspace{4mm}
-\caption{FSM transition function $\delta$. Edges into \textsc{Anchored} and
-the non-critical edges out of \textsc{Anchored} and \textsc{Recovering} are
-gated by hysteresis counters ($k_{\downarrow}$, $k_{\uparrow}$, and $H$;
-$k_{\downarrow}$ doubles per flap level up to a cap,
-Section~\ref{subsec:transitions}). Critical conditions bypass hysteresis.}
+% Degradation above the boxes, recovery below.
+\draw[->] ([yshift=0.2cm]anchored.east) -- node[lab, above]{Sustained\\warning} ([yshift=0.2cm]suspicious.west);
+\draw[->] ([yshift=-0.2cm]suspicious.west) -- node[lab, below]{Sustained\\healthy} ([yshift=-0.2cm]anchored.east);
+\draw[->] (suspicious.east) -- node[lab, above]{Critical\\or timeout} (sovereign.west);
+\draw[->] ([yshift=0.2cm]recovering.west) -- node[lab, above, text width=2.8cm]{Critical or\\sustained unhealthy} ([yshift=0.2cm]sovereign.east);
+\draw[->] ([yshift=-0.2cm]sovereign.east) -- node[lab, below]{Healthy} ([yshift=-0.2cm]recovering.west);
+\draw[->] (anchored.north) to[bend left=32] node[lab, above, text width=4cm]{Critical (immediate)} (sovereign.north);
+\draw[->] (recovering.south) to[bend left=32] node[lab, below, yshift=-2pt, text width=4cm]{Stable healthy + proof verified} (anchored.south);
+\end{tikzpicture}}
+\caption{FSM transition function $\delta$. \emph{Sustained} means the condition
+accumulates over several blocks (hysteresis; up-counters tolerate isolated
+non-healthy blocks); critical conditions skip the wait and act immediately.
+The waits are given in Table~\ref{tab:fsm-waits}.}
 \label{fig:fsm}
 \end{figure}
+
+\begin{table}[h]
+\caption{Hysteresis waits of the FSM (defaults of the prototype;
+Section~\ref{subsec:transitions}).}
+\label{tab:fsm-waits}
+\centering
+\footnotesize
+\newcommand{\rcc}[1]{\raggedright\arraybackslash #1}
+\begin{tabular}{@{}>{\rcc}p{0.2\linewidth}>{\rcc}p{0.34\linewidth}>{\rcc}p{0.26\linewidth}>{\rcc}p{0.1\linewidth}@{}}
+\toprule
+\textbf{Wait} & \textbf{Applies to} & \textbf{Default} & \textbf{Adaptive} \\
+\midrule
+Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2, doubles per flap level up to 8 & Yes \\
+Suspicious exit $k_{\uparrow}$ & \textsc{Suspicious}$\to$\textsc{Anchored} & 2 & No \\
+Recovery $H$ & \textsc{Recovering}$\to$\textsc{Anchored} & 2 & No \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Transitions and Hysteresis}
 \label{subsec:transitions}
@@ -344,6 +382,7 @@ A proposal $P_h$ at height $h$ carries, in $\mathit{Txs}[0]$, the certificate
 $C^{h}$, the target state $s^{h}$, a health flag, a DA receipt (last
 DA-verified height and attestation flag), a Bitcoin receipt (checkpoint
 height and block hash), and, when applicable, a recovery-proof reference.
+
 \refstepcounter{definition}\label{def:validity}\textbf{Definition~\thedefinition{} (Engram proposal validity).} \texttt{ProcessProposal}
 accepts a proposal $P_h$ iff
 \begin{equation}

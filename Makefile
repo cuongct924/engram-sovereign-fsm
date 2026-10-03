@@ -4,7 +4,7 @@ BUILD_DIR=./build
 # Version from git tag, falling back to a commit hash if none exists.
 VERSION=$(shell git describe --tags --always)
 
-.PHONY: all build build-linux clean test lint proto-gen docker-build help \
+.PHONY: all build build-linux clean test lint proto-gen docker-build help paper \
 	e1-guard e1-fsm-safety e1-fsm-liveness e1-tendermint-safety \
 	e1-server-safety e1-server-liveness \
 	testnet-up testnet-down testnet-status \
@@ -89,6 +89,15 @@ test:
 lint:
 	@echo "--> Running golangci-lint..."
 	golangci-lint run
+
+# Builds in docs/paper/ (aux files stay there) and publishes docs/paper.pdf.
+paper:
+	@echo "--> Building docs/paper.pdf..."
+	cd docs/paper && export PATH="$$PATH:/Library/TeX/texbin" && \
+		pdflatex -interaction=nonstopmode main.tex && bibtex main && \
+		pdflatex -interaction=nonstopmode main.tex && \
+		pdflatex -interaction=nonstopmode main.tex
+	mv docs/paper/main.pdf docs/paper.pdf
 
 # buf.gen.yaml generates into .tmp-proto-gen/ (mirroring the proto package
 # path) since the proto package (engram.sovereignty.v1) and the Go package
