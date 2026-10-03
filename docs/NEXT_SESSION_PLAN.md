@@ -68,8 +68,9 @@ trong checkpoint. Mỗi số trong paper phải ghi được commit đã sinh ra
 4. Chạy lại phần formal (mục 17, 19) **tách riêng** với các lượt live; CPU của TLC làm sai số đo thời gian.
 5. Triển khai sạch: xoá `testnet-data/`, `data/bitcoin-node0*`, `data/celestia-*` cùng lúc, rồi
    `make testnet-up N=7 PROVER=host`.
-6. Chạy các lượt recovery với `ENGRAM_PARAM_PROOF_ONLY_RECOVERY=true` để kết quả quy được cho
-   pipeline ZK; chạy nhánh heuristic riêng nếu cần so sánh.
+6. Đặt `ENGRAM_PARAM_PROOF_ONLY_RECOVERY=true` trong `.env` trước `make testnet-up` (heuristic
+   tắt; mặc định trong code là `false`). Ghi giá trị này vào summary của mỗi lượt để biết lượt nào
+   dùng proof-only.
 7. Sau mỗi thí nghiệm: skill `experiment-results-refresh` (xoá dữ liệu bị thay thế, dựng lại hình,
    cập nhật `docs/EXPERIMENT.md`), commit dữ liệu riêng, rồi cập nhật macro và `\pending` trong paper.
 
@@ -111,14 +112,12 @@ Cập nhật bảng claim–evidence trong `docs/paper/STATUS.md`.
 
 | # | Câu hỏi | Trạng thái |
 |---|---|---|
-| 1a | Deadline và venue | Chưa chốt; quyết định mục 19, 21, 22 |
 | 1b | Hạ tầng đa máy | ✅ Cloud nhiều vùng: `deploy/` (Ansible + Terraform AWS/GCP/DigitalOcean) |
 | 1c | Baseline soft/optimistic | ✅ Có (chế độ `soft`) |
 | 1d | Hard-gated khi BTC tạm dừng: giới hạn `round` | ✅ `min(round, 3)` (`x/sovereignty/types/baseline.go`) |
 | 1e | Mức tham vọng formal | ✅ Thử hai bước; kết quả ở mục 19, framing "layered + bounded" |
 | 1f | Thứ tự 5 contribution | ✅ Certificate và semantics theo mode đứng đầu |
 | 1g | Phương án dự phòng RQ1/RQ2 nếu thiếu số liệu | Chưa chốt mốc ngày |
-| mới | Chạy chính với proof-only recovery | Đề xuất: có (xem Giai đoạn 4) |
 | mới | Có làm Testbed B | Chờ quyết định (mục 21) |
 
 Phương án dự phòng (1g): RQ2 viết thành "degrade an toàn" (chain tiếp tục, withdrawal khoá đúng
