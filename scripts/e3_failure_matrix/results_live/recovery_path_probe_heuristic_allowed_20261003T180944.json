@@ -1,0 +1,80 @@
+{
+ "label": "heuristic_allowed",
+ "outage_s": 120,
+ "sovereign_height": 382,
+ "recovering_height": 453,
+ "interval_blocks": 71,
+ "left_recovering": true,
+ "seconds_in_recovering": 36.1,
+ "proof_valid_first_true_after_recovering_s": 0.0,
+ "heights_with_round_gt_0": [],
+ "prover_accepted": false,
+ "prover_log": [
+  "[11:08:48] check 106: N=58 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:08:51] check 107: N=60 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:08:54] check 108: N=62 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:08:57] check 109: N=65 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:00] check 110: N=67 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:03] check 111: N=69 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:07] check 112: N=71 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:10] check 113: N=74 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:13] check 114: N=76 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:16] check 115: N=79 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:19] check 116: N=81 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:22] check 117: N=84 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:25] check 118: N=86 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:28] check 119: N=89 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:31] check 120: N=91 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:34] check 121: N=94 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:37] check 122: N=96 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:40] check 123: N=99 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "[11:09:43] check 124: N=0 stable=0 (proofs so far: 0 submitted, 1 rejected)",
+  "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof",
+  "rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof",
+  "[watch_and_prove] proof rejected (likely the documented staleness race -- interval grew before submission landed, see prove_and_submit.sh's doc) -- continuing to watch."
+ ],
+ "timeline_tail": [
+  {
+   "t": 1791025769.074465,
+   "height": 470,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791025772.0833511,
+   "height": 473,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791025775.0931442,
+   "height": 475,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791025778.099318,
+   "height": 478,
+   "state": "RECOVERING",
+   "safe": 0,
+   "proof_valid": true
+  },
+  {
+   "t": 1791025781.112032,
+   "height": 480,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": true
+  },
+  {
+   "t": 1791025784.1176178,
+   "height": 483,
+   "state": "ANCHORED",
+   "safe": 0,
+   "proof_valid": false
+  }
+ ]
+}

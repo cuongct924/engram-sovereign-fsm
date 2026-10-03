@@ -282,6 +282,24 @@ chain.}
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
 
+\textbf{What ends \textsc{Recovering}.} The state exposes whether the proof
+condition holds, not which path set it, so we ran one 120\,s DA outage per
+setting and read the prover's log. With the heuristic fallback enabled, the
+chain left \textsc{Recovering} after 36\,s while the prover's single proof was
+rejected as invalid (the interval had grown while it was built): the fallback,
+not the proof, ended recovery. With proof-only recovery and the default bound of
+8 unproven tail blocks, the chain never left \textsc{Recovering}, not even after
+genesis (observed for over thirty minutes in two deployments), although the
+chain accepted the prover's proofs (seven in one deployment). A 256-header proof
+takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
+the tail was always longer than the bound. With the bound raised to 128 blocks
+the chain left \textsc{Recovering} 356\,s after entering it, the first proof
+being accepted 353\,s in ($n{=}1$). The bound must therefore exceed the proving
+latency measured in blocks, and the blocks of that tail are protected by
+consensus alone. No block of these intervals was committed in a round other than
+0. Experiments reported after this point use proof-only recovery with the bound
+of 128; the earlier ones used the fallback.
+
 \textbf{Data availability of the \textsc{Sovereign} interval.} The exit
 condition of Section~\ref{subsec:reanchoring} requires the interval's block
 data to be republished before \textsc{Recovering}$\to$\textsc{Anchored}. We
