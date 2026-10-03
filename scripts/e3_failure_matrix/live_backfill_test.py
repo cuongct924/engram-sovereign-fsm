@@ -174,6 +174,13 @@ def main():
             for L in args.outage_s:
                 rows.append(dict(run_one(L, args), trial=trial))
                 print("ROW", json.dumps(rows[-1]), flush=True)  # survives a later crash
+                if behaviors:
+                    # A held negative control leaves the chain in RECOVERING: lift the fault, let it
+                    # return to ANCHORED, then re-apply it so the next run starts from a healthy chain.
+                    assignment.clear()
+                    wait_state("ANCHORED", 1500)
+                    assignment.set(behaviors)
+                    wait_state("ANCHORED", 900)
     finally:
         start_all_da_bridges()
         assignment.clear()
