@@ -50,18 +50,21 @@ def snapshots(node, since, until):
     return rows
 
 
-FAIL_RE = re.compile(r"da_publisher_failure reason=(\w+)")
+FAIL_RE = re.compile(r"da_publisher_failure reason=(\w+) height=\d+ err=(.*)")
 
 
 def da_failure_reasons(nodes, since, until):
     """Why each validator's DA publisher set its failure flag (x/da/publisher.go logs it), counted over the window."""
     counts = {}
+    errors = set()
     for n in nodes:
         out = subprocess.run(["docker", "logs", "--since", since, "--until", until, n],
                              capture_output=True, text=True, timeout=900)
-        for reason in FAIL_RE.findall(out.stdout + out.stderr):
+        for reason, err in FAIL_RE.findall(out.stdout + out.stderr):
             counts[reason] = counts.get(reason, 0) + 1
-    return counts
+            if err != "<nil>" and len(errors) < 8:
+                errors.add(f"{reason}: {err[:200]}")
+    return {"counts": counts, "sample_errors": sorted(errors)}
 
 
 def violations(r, p):
