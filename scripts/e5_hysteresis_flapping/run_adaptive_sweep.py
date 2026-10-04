@@ -74,12 +74,18 @@ def main():
     ap.add_argument("--duration-s", type=float, default=300.0)
     ap.add_argument("--wan-profile", default="chaos-wan-latency")
     ap.add_argument("--health-timeout-s", type=float, default=1500.0)
+    ap.add_argument("--stable-window", type=int, default=None,
+                    help="StableWindow for the whole sweep (healthy ANCHORED blocks that lower the flap level by one); "
+                    "result labels get an SW<n> suffix so they never mix with the default-window runs")
     args = ap.parse_args()
 
     backup = shutil.copy(ras.ENV_PATH, ras.ENV_PATH + ".adaptive_sweep.bak")
     envs = args.envs.split(",")
     runs = []
+    suffix = f"SW{args.stable_window}" if args.stable_window else ""
     try:
+        if args.stable_window:
+            ras.set_env_param("ENGRAM_PARAM_STABLE_WINDOW", args.stable_window)
         for name in args.configs.split(","):
             down, max_down = CONFIGS[name]
             trials = args.trials_main if name in MAIN_CONFIGS else args.trials_other
@@ -94,7 +100,7 @@ def main():
                     if fresh_each_run:
                         ras.log(f"=== {name} (DOWN={down}, MAX={max_down}) trial {trial} env {env}: fresh genesis ===")
                         redeploy(down, max_down)
-                    status = measure(name, trial, env, down, args)
+                    status = measure(name + suffix, trial, env, down, args)
                     runs.append({"config": name, "trial": trial, "env": env, "status": status})
     finally:
         shutil.move(backup, ras.ENV_PATH)
