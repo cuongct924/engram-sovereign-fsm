@@ -59,7 +59,16 @@ CONSTANTS
                           \* forced_tx_queue has no other eviction path.
                           \* Must be > MAX_IGNORE_ROUNDS.
 
+\* Bitcoin receipt freshness baseline
+CONSTANTS
+    \* @type: Int;
+    BTC_THRESHOLD   \* Base staleness allowed for a BTC receipt, the BTC analogue of
+                    \* DA_THRESHOLD (in Bitcoin blocks). The implementation sets it to
+                    \* K_DEEP_FINALITY + LIVENESS_MARGIN; model-checking cfgs scale it
+                    \* below MAX_BTC_HEIGHT so the freshness check stays non-vacuous.
+
 ASSUME(N = Cardinality(HonestNodes \union ByzantineNodes))
+ASSUME(BTC_THRESHOLD \in Nat)
 
 \* The total variable is used for WF_vars and Spec definitions.
 tendermintVars ==
@@ -246,6 +255,8 @@ DATolerance(r) ==
       [] r >= 3 -> 4
       [] OTHER  -> 0
 
+\* Widening only: the base staleness is BTC_THRESHOLD (cf. DA_THRESHOLD above), so
+\* the freshness bound is h_btc_current - BTC_THRESHOLD - BTCTolerance(r), capped at r >= 3.
 BTCTolerance(r) ==
     CASE r <= 2 -> 0
       [] r >= 3 -> 1
@@ -304,7 +315,7 @@ IsValidProposal(prop) ==
             /\ prop.da_receipt.published_block_height >= (h_engram_current - DA_THRESHOLD - da_tol)
 
         \* Settlement Monotonicity & BTC Light Client Hash Check
-        /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
+        /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - BTC_THRESHOLD - btc_tol)
         /\ VerifyAnchorReceipt(prop.btc_receipt)
 
         \* Economic Circuit Breaker: Halt all cross-chain withdrawals during partition
