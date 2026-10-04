@@ -63,7 +63,7 @@ func TestBaselineHardGated_RejectsWhatEngramAcceptsUnderDAOutage(t *testing.T) {
 		"hard-gated never leaves ANCHORED, so a SOVEREIGN claim is invalid")
 }
 
-func TestBaselineHardGated_BTCToleranceStopsWideningWithRound(t *testing.T) {
+func TestBTCToleranceDoesNotWidenWithRound(t *testing.T) {
 	stale := func(t *testing.T, mode types.BaselineMode) bool {
 		t.Helper()
 		k, ctx := newTestKeeperCtx(t)
@@ -86,8 +86,11 @@ func TestBaselineHardGated_BTCToleranceStopsWideningWithRound(t *testing.T) {
 		}
 		return processAt(t, k, ctx, cert, 50)
 	}
-	require.True(t, stale(t, types.BaselineEngram), "control: Engram's tolerance grows with round and eventually admits the stale checkpoint")
-	require.False(t, stale(t, types.BaselineHardGated), "hard-gated caps the round, so the stale checkpoint is never admitted")
+	// The widening is capped at round 3 (BTCTolerance), identically in every mode,
+	// so a stuck height cannot re-admit a stale checkpoint however many rounds it skips.
+	for _, mode := range []types.BaselineMode{types.BaselineEngram, types.BaselineSoft, types.BaselineHardGated} {
+		require.False(t, stale(t, mode), "stale checkpoint must stay rejected at round 50 in mode %q", mode)
+	}
 }
 
 func TestBaselineSoft_AdmitsWithdrawalWhileSovereign(t *testing.T) {

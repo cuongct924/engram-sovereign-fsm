@@ -1418,9 +1418,8 @@ withdrawals the circuit breaker would lock?
 
 Vanilla (`--vanilla`) stays as the control: it has no dependency on either layer and so never
 stalls. The baseline modes are experiment configuration, not protocol changes; no `spec/core`
-operator is altered. Hard-gated caps the round fed to the BTC tolerance at 3, because
-`anchor.Tolerance` grows with the round without bound and would otherwise re-admit a stale
-checkpoint and slow down instead of stalling (`da.Tolerance` already caps at round 3).
+operator is altered. All three modes share the same capped BTC and DA tolerance (`BTCTolerance`,
+`DATolerance` widen only up to round 3), so a stuck height cannot re-admit a stale checkpoint.
 
 **Faults.** Checkpoint-submission pause (`ANCHOR_SUBMISSION_PAUSED_FILE`; Bitcoin keeps mining, so
 `btc_gap` grows), DA outage (every validator's Celestia bridge stopped), and both. Slowing or

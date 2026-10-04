@@ -4,31 +4,33 @@ import (
 	sovtypes "github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
-// Tolerance ports BTCTolerance (spec/core/EngramTendermint.tla:243-246),
-// widened with deliberate divergences:
+// Tolerance ports BTCTolerance (spec/core/EngramTendermint.tla:272-275):
+// the round-dependent widening of the BTC freshness window, capped at r >= 3.
 //
-// (1) kDeepFinality, not the spec's flat max of 1: a K-deep-confirmed anchor
-// lags h_btc_current by >= kDeepFinality, so freshness (checkpoint >=
-// h_btc_current - tol) and IsKDeep depth can never both hold if tol <
-// kDeepFinality.
-//
-// (2) Widens from round 0, not round>=3: the spec's round<3 zero-tol case is
-// unsatisfiable once (1) applies -- it would force a round-skip on every
-// height regardless of real BTC health.
-//
-// (3) tol = kDeepFinality + livenessMargin, not exactly kDeepFinality: at
-// equality the two bounds meet at one checkpoint height with zero slack for
-// real gossip/round-skip delay. livenessMargin=2 matches AnchorTracker's
-// kDeepFinality+1 requirement; an operational choice, not a spec constant.
-//
-// (4) +round, not a flat margin: h_btc_current keeps advancing while a stuck
-// height round-skips, so a fixed tol has no recovery path once latency grows
-// the gap past it. Growing tol with round mirrors BTCTolerance's own widen-
-// under-contention, just unbounded instead of the abstract model's r>=3 -> 1 cap.
+//	BTCTolerance(r) ==
+//	    CASE r <= 2 -> 0
+//	      [] r >= 3 -> 1
+//	      [] OTHER  -> 0
+func Tolerance(round uint64) uint64 {
+	if round >= 3 {
+		return 1
+	}
+	return 0
+}
+
+// livenessMargin is the slack on top of kDeepFinality in Threshold. At
+// equality the freshness and IsKDeep bounds meet at one checkpoint height
+// with zero slack for real gossip/round-skip delay; 2 matches AnchorTracker's
+// kDeepFinality+1 requirement. An operational choice, not a spec constant.
 const livenessMargin = 2
 
-func Tolerance(round, kDeepFinality uint64) uint64 {
-	return kDeepFinality + livenessMargin + round
+// Threshold is BTC_THRESHOLD (spec/core/EngramTendermint.tla:62-69), the BTC
+// analogue of DA_THRESHOLD. Deliberate divergence from the spec's abstract
+// model: a K-deep-confirmed anchor lags h_btc_current by >= kDeepFinality, so
+// the base staleness cannot be below it or freshness and IsKDeep never both
+// hold. Replaces the old unbounded round-widening; Tolerance carries the cap.
+func Threshold(kDeepFinality uint64) uint64 {
+	return kDeepFinality + livenessMargin
 }
 
 // VerifyAnchorReceipt ports VerifyAnchorReceipt verbatim (spec/core/EngramTendermint.tla:271-275):
@@ -57,10 +59,10 @@ func VerifyAnchorReceipt(receipt Receipt, hBTCCurrent, hBTCAnchored uint64) bool
 }
 
 // VerifyReceipt ports the "Settlement Monotonicity & BTC Light Client Hash
-// Check" conjunct of IsValidProposal (spec/core/EngramTendermint.tla:296-312):
+// Check" conjunct of IsValidProposal (spec/core/EngramTendermint.tla:353-367):
 //
 //	/\ (prop.fsm_state \in {"ANCHORED", "RECOVERING"} \/ IsBTCHealthy) =>
-//	    /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - btc_tol)
+//	    /\ prop.btc_receipt.checkpoint_block_height >= (h_btc_current - BTC_THRESHOLD - btc_tol)
 //	    /\ VerifyAnchorReceipt(prop.btc_receipt)
 //
 // The freshness/anchor-hash checks apply only when the proposal claims ANCHORED/
@@ -74,8 +76,7 @@ func VerifyReceipt(receipt Receipt, fsmState string, isBTCHealthy bool, hBTCCurr
 		return true
 	}
 
-	tol := Tolerance(round, kDeepFinality)
-	lowerBound := int64(hBTCCurrent) - int64(tol)
+	lowerBound := int64(hBTCCurrent) - int64(Threshold(kDeepFinality)) - int64(Tolerance(round))
 	if lowerBound < 0 {
 		lowerBound = 0
 	}

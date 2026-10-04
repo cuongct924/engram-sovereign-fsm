@@ -8,13 +8,18 @@ import (
 )
 
 func TestTolerance(t *testing.T) {
-	// See Tolerance's doc: a zero-margin bound (kDeepFinality exactly) has no
-	// slack for real delay between anchor confirmation and proposal acceptance.
-	require.Equal(t, uint64(4), Tolerance(0, 2))
-	require.Equal(t, uint64(6), Tolerance(2, 2))
-	require.Equal(t, uint64(7), Tolerance(3, 2))
-	require.Equal(t, uint64(104), Tolerance(100, 2))
-	require.Equal(t, uint64(10), Tolerance(3, 5), "widened bound tracks kDeepFinality, not a fixed constant")
+	// Mirrors BTCTolerance's CASE arms; the widening is capped at r >= 3.
+	require.Equal(t, uint64(0), Tolerance(0))
+	require.Equal(t, uint64(0), Tolerance(2))
+	require.Equal(t, uint64(1), Tolerance(3))
+	require.Equal(t, uint64(1), Tolerance(100), "widening must not grow with the round")
+}
+
+func TestThreshold(t *testing.T) {
+	// See livenessMargin's doc: a zero-margin bound (kDeepFinality exactly) has
+	// no slack for real delay between anchor confirmation and proposal acceptance.
+	require.Equal(t, uint64(4), Threshold(2))
+	require.Equal(t, uint64(7), Threshold(5), "base bound tracks kDeepFinality, not a fixed constant")
 }
 
 func TestVerifyAnchorReceipt_AcceptsValidCheckpoint(t *testing.T) {
@@ -42,12 +47,16 @@ func TestVerifyAnchorReceipt_RejectsForgedHash(t *testing.T) {
 }
 
 func TestVerifyReceipt_RejectsBelowToleranceWindow(t *testing.T) {
-	// hBTCCurrent=100, kDeepFinality=2 -> tol=4 at round 0 -> lower bound=96,
-	// so height 95 fails at round 0...
+	// hBTCCurrent=100, kDeepFinality=2 -> threshold=4, tol=0 at round 0 ->
+	// lower bound=96, so height 95 fails at round 0...
 	r := Receipt{CheckpointBlockHeight: 95, CheckpointBlockHash: ExpectedBlockHash(95)}
 	require.False(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 100, 10, 0, 2))
-	// ...but at round 3, tol=2+2+3=7 -> lower bound=93: the same gap is accepted.
+	// ...and at round 3, tol=1 -> lower bound=95: the same gap is now accepted.
 	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 100, 10, 3, 2))
+	// A gap one block wider stays rejected at any round: the widening is capped.
+	stale := Receipt{CheckpointBlockHeight: 94, CheckpointBlockHash: ExpectedBlockHash(94)}
+	require.False(t, VerifyReceipt(stale, sovtypes.StateAnchored, false, 100, 10, 3, 2))
+	require.False(t, VerifyReceipt(stale, sovtypes.StateAnchored, false, 100, 10, 1000, 2))
 }
 
 // TestVerifyReceipt_SkippedWhenNotRequired covers the S6 combined BTC+DA
@@ -67,17 +76,15 @@ func TestVerifyReceipt_RequiredWhenBTCHealthyEvenInSovereign(t *testing.T) {
 	require.False(t, VerifyReceipt(r, sovtypes.StateSovereign, true, 100, 10, 0, 2))
 }
 
-// TestVerifyReceipt_RecoversFromExtendedRoundSkip covers the liveness bug a
-// fixed (round-independent) tolerance left open: once real latency grows the
-// gap past it, every later round re-fails forever, since only committing a
-// block advances the checkpoint and only this check passing commits a block.
-func TestVerifyReceipt_RecoversFromExtendedRoundSkip(t *testing.T) {
+// TestVerifyReceipt_StaleCheckpointNotAdmittedByRoundSkips pins the cap: a
+// checkpoint 40 blocks behind stays rejected however many rounds a stuck height
+// skips, so an attacker cannot inflate the exposure window by forcing round-skips.
+// Liveness then comes from the FSM leaving ANCHORED (the check is skipped once
+// the proposal degrades and BTC is unhealthy), not from widening.
+func TestVerifyReceipt_StaleCheckpointNotAdmittedByRoundSkips(t *testing.T) {
 	r := Receipt{CheckpointBlockHeight: 203, CheckpointBlockHash: ExpectedBlockHash(203)}
-	// gap=40 against hBTCCurrent=243 -- unrecoverable under the old flat
-	// tol=kDeepFinality+livenessMargin=4, at any round.
 	require.False(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 243, 203, 0, 2))
-	// round-based widening eventually exceeds the gap: tol=2+2+40=44 >= 40.
-	require.True(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 243, 203, 40, 2))
+	require.False(t, VerifyReceipt(r, sovtypes.StateAnchored, false, 243, 203, 40, 2))
 }
 
 func TestVerifyReceipt_AcceptsGenuinelyKDeepConfirmedCheckpointAtRoundZero(t *testing.T) {

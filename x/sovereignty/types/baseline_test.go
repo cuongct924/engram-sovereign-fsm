@@ -19,10 +19,3 @@ func TestParseBaselineMode(t *testing.T) {
 	_, err := types.ParseBaselineMode("bogus")
 	require.Error(t, err)
 }
-
-func TestBTCToleranceRound(t *testing.T) {
-	require.Equal(t, uint64(50), types.BaselineEngram.BTCToleranceRound(50))
-	require.Equal(t, uint64(50), types.BaselineSoft.BTCToleranceRound(50))
-	require.Equal(t, uint64(3), types.BaselineHardGated.BTCToleranceRound(50))
-	require.Equal(t, uint64(1), types.BaselineHardGated.BTCToleranceRound(1))
-}

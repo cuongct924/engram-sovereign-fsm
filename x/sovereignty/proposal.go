@@ -423,7 +423,7 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		hBtcCurrent := in.Metrics.BtcCurrentHeight
 		hBtcAnchored, _ := k.HBtcAnchored.Get(ctx)
 		isBTCHealthy := types.IsBTCHealthy(in.Metrics, k.Params)
-		if !anchor.VerifyReceipt(btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, k.Baseline.BTCToleranceRound(round), k.Params.KDeepFinality) {
+		if !anchor.VerifyReceipt(btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, round, k.Params.KDeepFinality) {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=btc_verify_receipt btcReceipt=%+v fsmState=%s isBTCHealthy=%v hBtcCurrent=%d hBtcAnchored=%d kDeepFinality=%d\n",
 				req.Height, req.Round, btcReceipt, ext.FsmState, isBTCHealthy, hBtcCurrent, hBtcAnchored, k.Params.KDeepFinality)
 			return reject, nil

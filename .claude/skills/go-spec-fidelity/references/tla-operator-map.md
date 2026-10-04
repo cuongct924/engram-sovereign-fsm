@@ -28,7 +28,8 @@ is authoritative; re-grep before relying on a row here if the function may have 
 | `IsValidProposal`'s DA-pipeline check | `EngramTendermint.tla:290-294` | `VerifyReceipt` | `x/da/verify.go` |
 | `DANormalUpdate`/`DAFailure` | `EngramFSM.tla:196-212` | `(*Publisher).MaybePublish` | `x/da/publisher.go` |
 | `ExpectedBlockHash` | `EngramTendermint.tla:266` | `ExpectedBlockHash` / `BlockHash` | `x/anchor/types.go` |
-| `BTCTolerance` | `EngramTendermint.tla:243-246` | `Tolerance` | `x/anchor/verify.go` |
+| `BTCTolerance` | `EngramTendermint.tla:272-275` | `Tolerance` | `x/anchor/verify.go` |
+| `BTC_THRESHOLD` | `EngramTendermint.tla:62-69` | `Threshold` | `x/anchor/verify.go` |
 | `VerifyAnchorReceipt` | `EngramTendermint.tla:271-275` | `VerifyAnchorReceipt` | `x/anchor/verify.go` |
 | `IsValidProposal`'s BTC-settlement check | `EngramTendermint.tla:296-298` | `VerifyReceipt` | `x/anchor/verify.go` |
 

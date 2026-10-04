@@ -35,17 +35,3 @@ func (m BaselineMode) HardGated() bool { return m == BaselineHardGated }
 // SkipsCircuitBreaker reports whether withdrawals stay admissible in
 // SOVEREIGN/RECOVERING (the soft baseline's defining difference).
 func (m BaselineMode) SkipsCircuitBreaker() bool { return m == BaselineSoft }
-
-// hardGatedBTCRoundCap bounds the round fed to the BTC tolerance for the
-// hard-gated baseline. anchor.Tolerance grows with round without limit, so
-// an uncapped gate would eventually re-admit a stale checkpoint and only
-// slow down instead of stalling (da.Tolerance already caps at round 3).
-const hardGatedBTCRoundCap = 3
-
-// BTCToleranceRound returns the round to pass to anchor.VerifyReceipt.
-func (m BaselineMode) BTCToleranceRound(round uint64) uint64 {
-	if m.HardGated() && round > hardGatedBTCRoundCap {
-		return hardGatedBTCRoundCap
-	}
-	return round
-}
