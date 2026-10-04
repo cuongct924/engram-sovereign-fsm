@@ -31,10 +31,13 @@ fault leaves the chain committing blocks through a full
 of validation per block. Against seven vanilla CometBFT validators on the same
 hosts, the block interval is \resBlockEngram\,s against \resBlockVanilla\,s
 (about \resOverheadPct{}; approximate 95\% interval \resOverheadCI{}), with every
-height committing in the first round. Against a hard-gated chain that enforces
-the same receipts at every height, Engram keeps 96--102\% of its healthy block
-rate under a checkpoint pause, a DA outage and both, whereas the hard-gated
-chain falls to 56\%, 16\% and 17\% and commits no block in the 120\,s after the
-layer returns in all nine trials ($n{=}3$ per cell). A baseline that keeps
-Engram's liveness but never locks withdrawals lets 31--72 of them through after
-the moment Engram locks, against none for Engram.
+height committing in the first round. Against our hard-gated baseline, which enforces the same receipts at every
+height, Engram keeps 96--102\% of its healthy block rate under a checkpoint
+pause, a DA outage and both, whereas the baseline falls to 56\%, 16\% and 17\%
+and commits no block in the 120\,s after the layer returns in all nine trials
+($n{=}3$ per cell, one host). Engram's cost is the detection delay: 18--56
+withdrawal-marked transactions were committed before it locked (41--117\,s
+after the fault began). From the lock until the fault ended it committed none,
+which checks the circuit breaker against Engram's own transition rather than
+measuring safety independently; a baseline that keeps Engram's liveness but
+never locks lets 31--72 through in the same window.
