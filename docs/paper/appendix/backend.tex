@@ -54,7 +54,7 @@ ed25519-signature verification.
 Table~\ref{tab:backend-coverage} makes the coverage gap explicit. Under a
 primitive-only comparison (256 chained Poseidon2 permutations, no FSM or
 signature logic, i.e.\ neither configuration implements condition~(e)),
-Plonky3 produces a substantially larger proof (1{,}278{,}939~B vs.\
+Plonky3 produces a larger proof (1{,}278{,}939~B vs.\
 14{,}656~B, $\sim$87$\times$) but proves faster (0.044~s vs.\ 0.684~s,
 $\sim$15.5$\times$) with a transparent, post-quantum-secure setup versus the
 Noir/Honk backend's trusted KZG setup. Under a fuller-statement comparison

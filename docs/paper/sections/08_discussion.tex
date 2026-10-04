@@ -10,11 +10,8 @@ cross-chain assets, and the cost of griefing.
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
 continue. Cross-chain withdrawals stop. A hard-gated chain under the same
-degradation keeps committing only a fraction of its blocks and then stops
-(Section~\ref{subsec:rq2}): in a 180\,s fault window it committed 74 blocks
-under a checkpoint pause, 23 under a DA outage and 24 under both, against
-147, 150 and 153 for Engram (means of three trials), and in none of the nine
-trials did it commit a block in the 120\,s after the layer returned.
+degradation commits only a fraction of its blocks and does not resume after
+the layer returns (Section~\ref{subsec:rq2}).
 
 \textbf{Safety of cross-chain assets.} The prototype has no bridge and no
 real assets: the application mounts neither \texttt{x/auth} nor
@@ -40,8 +37,8 @@ includes all seven observations requires two degraded honest validators, and a
 Byzantine proposer that selects a minimal quorum of five requires one.
 In a design without a quorum-backed health input, one node's view
 suffices. The freeze is the intended response to an
-unverifiable periphery, not a safety violation. We do not quantify its
-economic cost to users or the attacker's cost of sustaining it.
+unverifiable periphery, not a safety violation. Its economic cost to users and
+the attacker's cost of sustaining it are not quantified.
 
 \textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
 \textsc{Recovering} already raises the price of forcing repeated failed
@@ -49,13 +46,6 @@ recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
 protection beyond the bounded forced-transaction queue; the adaptive
 threshold closes this asymmetry.
-
-\textbf{Core versus peripheral network.} Engram tolerates degradation of
-the peripheral layers (Bitcoin, Celestia, and the peripheral or partial P2P
-view) only while the core consensus network keeps a quorum (more than two
-thirds of the voting power) mutually connected. If CometBFT's own quorum is partitioned, no FSM can
-restore liveness; this is the standard BFT assumption, not a limitation
-specific to Engram, and none of our experiments cross it.
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the
@@ -89,19 +79,18 @@ precondition for returning to \textsc{Anchored}.
 
 \subsection{Interpretation of Results}
 
-The formal and empirical results cover complementary ground. The TLA+
-results establish, per layer and within bounded configurations, that the
-FSM's safety invariants hold and that removing any of four defensive
-mechanisms reproduces the violation it targets; Lemma~\ref{lem:honest-range} establishes that the certified health input
-to the FSM is bounded by honest observations. The live evaluation
-establishes that the composed implementation behaves as specified under
-real peripheral failures. Because the cross-layer refinement is open, the
-whole-system claim rests on the empirical side, and single-trial live
-results (composite fault, seven-scenario sweep, P4, reorg depth) show that
-correct behavior occurs rather than characterizing its distribution. The
-repeated experiments -- the hysteresis sweeps, the $n{=}5$ overhead
-benchmark, and the 2{,}000-trial detector study -- do characterize
-distributions.
+The formal and empirical results cover complementary ground. The TLA+ results
+establish, per layer and within bounded configurations, that the FSM's safety
+invariants hold and that removing any of four defensive mechanisms reproduces
+the violation it targets; Lemma~\ref{lem:honest-range} bounds the certified
+health input by honest observations. The live evaluation shows that the
+composed implementation behaves as specified under real peripheral failures.
+Because the cross-layer refinement is open, the whole-system claim rests on
+the empirical side. Single-trial live results (composite fault, seven-scenario
+sweep, P4, reorg depth) show that correct behavior occurs without
+characterizing its distribution; the repeated experiments (hysteresis sweeps,
+the $n{=}5$ overhead benchmark, the 2{,}000-trial detector study) do
+characterize distributions.
 
 \textbf{Unexpected results.} Three results need a causal account.
 \begin{itemize}
@@ -128,61 +117,49 @@ distributions.
 \label{subsec:limitations}
 
 \begin{itemize}
-  \item \emph{Single physical host.} Absolute performance figures (RQ4) and
-  timing results are proxies for a geographically distributed deployment;
-  wide-area conditions are emulated.
-  \item \emph{Accelerated Bitcoin.} Wall-clock durations show the ordering
-  of recovery steps, not mainnet latencies; height-based thresholds are
-  unaffected.
-  \item \emph{DA trust.} Each validator trusts its own bridge rather than
-  sampling, and the backfill gate rests on a quorum-reported contiguous
-  height, not on a proof of retrievability (Section~\ref{subsec:sim-to-real}).
+  \item \emph{Testbed.} All results come from one host with accelerated
+  Bitcoin and single-bridge DA trust; the backfill gate rests on a
+  quorum-reported contiguous height, not a proof of retrievability
+  (Section~\ref{subsec:sim-to-real}).
   \item \emph{Proof gate.} The recovery-validity flag holds if a verified
   proof was submitted within the permitted unproven tail of the tracked tip,
   or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
   the anchored depth. A protocol parameter disables the heuristic, so that
-  only a verified proof satisfies the gate.
-  The RQ2 trials used proof-only recovery with an unproven-tail bound of 128
-  blocks; the composite run, the seven-scenario run and the
-  data-availability runs of Section~\ref{subsec:rq3} were made with the
-  heuristic fallback enabled, so their time in \textsc{Recovering} does not
-  isolate the cost of the recovery proof.
+  only a verified proof satisfies the gate. The RQ2 trials used proof-only
+  recovery with an unproven-tail bound of 128 blocks; the composite run, the
+  seven-scenario run and the data-availability runs of
+  Section~\ref{subsec:rq3} were made with the heuristic enabled, so their
+  time in \textsc{Recovering} does not isolate the cost of the recovery proof.
   \item \emph{Byzantine scale.} The live attacks reported so far involve one
   Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
   collusion suite (Section~\ref{subsec:rq1}) addresses this.
-  \item \emph{Fixed validator set.} Certificate signatures verify against the
-  genesis validator keys and the recovery circuit fixes the set at seven, so
-  the prototype assumes one validator set throughout a \textsc{Sovereign} and
-  \textsc{Recovering} interval. Supporting set changes inside a degraded
-  interval requires proving the set transitions
-  (Section~\ref{subsec:threat-model}).
-  \item \emph{Formal scope.} Per-layer bounded model checking is exhaustive
-  within each stated bounded configuration;
-  the cross-layer refinement is open. The health certificate is modelled
-  with Boolean observations in the server layer, so its checks fall under
-  the open refinement; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only.
+  \item \emph{Fixed validator set.} The prototype assumes one validator set
+  throughout a degraded interval (Section~\ref{subsec:threat-model}).
+  \item \emph{Formal scope.} The cross-layer refinement is open, and the
+  health certificate is modelled with Boolean observations in the server
+  layer; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only
+  (Section~\ref{sec:formal}).
   \item \emph{Load range.} Load was tested up to 100 tx/s; behavior at
-  higher rates, where per-block overhead could interact with mempool and
-  gossip costs, is not characterized.
+  higher rates is not characterized.
 \end{itemize}
 
 \subsection{Threats to Validity}
 
-\textbf{Internal validity.} Host sharing can confound cost measurements. We
-mitigate it by reporting repeated measurements with confidence intervals and
-by comparing Engram and vanilla on the same host under the same load; the
-host still affects absolute values.
+\textbf{Internal validity.} Host sharing can confound cost measurements.
+Repeated measurements with confidence intervals, and a vanilla comparison on
+the same host under the same load, mitigate this; the host still affects
+absolute values.
 
 \textbf{External validity.} Results at seven validators on one host need not
-extrapolate to larger or geographically distributed validator sets. We
-interpret them as evidence of correct behavior and of the source of the
-overhead, not as production performance figures.
+extrapolate to larger or geographically distributed validator sets; they are
+evidence of correct behavior and of the source of the overhead, not production
+performance figures.
 
-\textbf{Construct validity.} AppHash agreement and height progression are
-the conventional operational proxies for safety and liveness in
-CometBFT-family systems. AppHash agreement alone cannot detect an illegal
-transition agreed on by all validators; the semantic replay check of
-Section~\ref{subsec:rq1} addresses this gap.
+\textbf{Construct validity.} AppHash agreement and height progression are the
+conventional operational proxies for safety and liveness in CometBFT-family
+systems. AppHash agreement alone cannot detect an illegal transition agreed on
+by all validators; the semantic replay check of Section~\ref{subsec:rq1}
+addresses this gap.
 
 \subsection{Future Work}
 

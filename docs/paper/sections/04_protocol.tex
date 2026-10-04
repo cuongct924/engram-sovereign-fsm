@@ -231,11 +231,10 @@ describes observations signed at height $h{-}1$, one block of lag. A
 signature binds $(\mathit{chainID}, h{-}1, r, m_i)$, and a well-formed
 certificate takes observations only from the commit round $r^{\star}$ and
 only from validators whose precommit is in that commit.
-This prevents an observation from another height or round from being
-replayed into $C^{h}$. It is a property of the consensus instance, not of the
-measurement: a validator can sign a cached Bitcoin tip, a stale bridge state,
-or stale peer metrics. Sensor freshness and accuracy are separate from this
-binding (Section~\ref{subsec:sensors}).
+This prevents replay of an observation from another height or round into
+$C^{h}$. The binding is a property of the consensus instance, not of the
+measurement: a validator can still sign a cached Bitcoin tip or stale peer
+metrics (Section~\ref{subsec:sensors}).
 
 \subsection{Finite State Machine}
 \label{subsec:fsm}
@@ -468,12 +467,12 @@ in the header.
 signed a block. The recovery proof adds a statement about the interval
 between two signed blocks: every recorded state in it is \textsc{Sovereign}
 or \textsc{Recovering} with the lock flag set. This matters to a verifier that
-does not replay the chain: a bridge or light client on another chain, a node
-syncing from genesis, or a Bitcoin observer when the checkpoint commits the
-chain (Section~\ref{subsec:security-semantics}). Validators already hold the
-headers, so for them the proof is a consistency check. The target verifier of
-this paper is an external light client that accepts a re-anchoring checkpoint
-only with a valid proof; the prototype does not include such a client.
+does not replay the chain, such as a bridge or light client on another chain,
+a node syncing from genesis, or a Bitcoin observer
+(Section~\ref{subsec:security-semantics}). For validators, which already hold
+the headers, it is a consistency check. The target verifier is an external
+light client that accepts a re-anchoring checkpoint only with a valid proof;
+the prototype does not include such a client.
 
 \textbf{Longer intervals.} An interval longer than 256 headers is covered by
 a sequence of proofs: each accepted proof advances the on-chain
@@ -488,23 +487,24 @@ proof of the same size, which makes verification cost independent of $L$ up to
 verified by \emph{every Engram validator} during block execution, using an
 embedded, deterministic WebAssembly build of the UltraHonk verifier. The
 message handler binds the proof's public inputs to chain state:
-$\mathit{rt}_{\text{last}}$ to the committed last anchored root;
-$\mathit{rt}_{\text{new}}$ to the accumulator of a header the chain recorded;
-the first height to the last anchored height plus one, and the header count
-to the distance between the two checkpoints; the first and last block hashes
-to the CometBFT block hashes the chain recorded at those heights; and the
-validator-set hash to that of the genesis set. A verified height is latched so
-a proof cannot be replayed. Interior headers are bound only through the
-accumulator, not through per-block signatures. The prototype does not verify
-the proof on Bitcoin; Bitcoin only timestamps the checkpoint. After recovery,
-validators resume writing \texttt{OP\_RETURN} checkpoints that timestamp
-Engram heights, and the Bitcoin gap sensor requires these to reach depth
-$K_{\text{DEEP\_FINALITY}}$. A checkpoint is a 44-byte payload: a 4-byte tag,
-the Engram height, and the CometBFT block hash at that height. Anchor
-re-verification compares this hash with the local block hash, so a Bitcoin
-observer can bind a height to a Bitcoin-timestamped block hash. The proof's
-$\mathit{rt}_{\text{new}}$ is a Poseidon2 accumulator, not a block hash, and
-is not written to Bitcoin.
+\begin{itemize}
+  \item $\mathit{rt}_{\text{last}}$ to the committed last anchored root, and
+  $\mathit{rt}_{\text{new}}$ to the accumulator of a header the chain recorded;
+  \item the first height to the last anchored height plus one, and the header
+  count to the distance between the two checkpoints;
+  \item the first and last block hashes to the CometBFT hashes the chain
+  recorded at those heights, and the validator-set hash to that of the genesis
+  set.
+\end{itemize}
+A verified height is latched so a proof cannot be replayed. Interior headers
+are bound only through the accumulator, not through per-block signatures.
+Bitcoin only timestamps the checkpoint; it does not verify the proof. After
+recovery, validators resume writing \texttt{OP\_RETURN} checkpoints of 44 bytes
+(a 4-byte tag, the Engram height, and the CometBFT block hash at that height),
+and the Bitcoin gap sensor requires them to reach depth
+$K_{\text{DEEP\_FINALITY}}$. Anchor re-verification compares the hash with the
+local block hash. The proof's $\mathit{rt}_{\text{new}}$ is a Poseidon2
+accumulator, not a block hash, and is not written to Bitcoin.
 
 \textbf{Proof timing.} The proof message executes in block $h$ and latches the
 height of the new checkpoint. The \texttt{PreBlocker} of block $h{+}1$

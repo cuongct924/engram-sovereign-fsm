@@ -145,12 +145,11 @@ its healthy rate, with proposals reaching round 21, and commits nothing in the
 120\,s after the layer returns in all three trials; the combined fault is the
 same. Under checkpoint suspension it slows to 56\% (74 blocks, round 12): the
 receipt tolerance widens with the round up to a cap, so stale checkpoints are
-admitted for a while, but it then stops resuming as well. In one trial we kept watching and
-the chain was still stuck after twelve minutes, with proposals rejected at
-round 57 and above; the other trials were observed only through the recovery
-window. The stall persists because the checkpoint a proposal needs is derived
-from blocks the chain can no longer commit, so in this implementation it takes
-a manual restart. Engram commits 147--153 blocks (96--102\% of its healthy
+admitted for a while, but it then stops resuming as well. In the one trial observed beyond the
+recovery window, the chain was still stuck after twelve minutes, with
+proposals rejected at round 57 and above. The stall persists because the
+checkpoint a proposal needs is derived from blocks the chain can no longer
+commit, so in this implementation it takes a manual restart. Engram commits 147--153 blocks (96--102\% of its healthy
 rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
 and resumes within two seconds of the fault ending.
 
@@ -162,10 +161,7 @@ withdrawals after that moment under DA faults and 6--9 under checkpoint
 suspension, few only because it commits few blocks. Engram's cost shows in the
 last column: it committed 18--19 withdrawals before locking under DA faults and
 45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
-leave \textsc{Anchored} for \textsc{Sovereign}. The hard-gated chain's
-withdrawals in that window carry receipts that are at most as stale as its
-tolerance allows.
-The soft baseline shows the other side of the trade-off. It runs Engram's FSM
+leave \textsc{Anchored} for \textsc{Sovereign}. The soft baseline shows the other side of the trade-off. It runs Engram's FSM
 and keeps Engram's liveness, 98--99\% of the healthy block rate with a longest
 gap of at most 2.5\,s, but it never locks, so it committed 31 withdrawals after
 the lock moment under checkpoint suspension and 71--72 under DA faults, against
@@ -240,9 +236,8 @@ absorbing live rather than synthetic noise. Second, block production
 stayed close to baseline: block-interval means ranged 1.30--1.93\,s
 across all seven scenarios (vs.\ 1.34\,s at the S1 healthy baseline; all
 intervals in this paragraph are Engram's), and the
-largest p95 intervals occurred in S4 (4.27\,s) and S7 (3.10\,s). Engram therefore keeps committing blocks both under overlapping faults
-and under each failure mode in isolation, and returns to \textsc{Anchored}
-in every case.
+largest p95 intervals occurred in S4 (4.27\,s) and S7 (3.10\,s). Engram keeps committing blocks under overlapping faults and under each
+failure mode in isolation, and returns to \textsc{Anchored} in every case.
 
 \subsection{RQ3: Recovery and Flapping}
 \label{subsec:rq3}

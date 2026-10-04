@@ -6,40 +6,35 @@ halts, although its validators are connected and correct. Dropping the
 requirement restores progress but suspends the guarantees it provided. We
 present \emph{Engram Hybrid Adaptive Consensus}, a protocol layer on a CometBFT
 agreement core that makes this suspension an agreed, deterministic state
-transition. Proposer selection, voting, quorum intersection, and deterministic
-finality remain CometBFT's. Engram adds (i) a \emph{health certificate} -- a
-deterministic aggregate of the height-bound, signed peripheral observations of
-a quorum (more than two thirds of the voting power), carried as vote extensions and bounded by the range
-of honest observations (Lemma~\ref{lem:honest-range}) -- and (ii) a four-state finite state machine
+transition. Engram adds (i) a \emph{health certificate}, a deterministic
+aggregate of the height-bound, signed peripheral observations of a quorum,
+carried as vote extensions and bounded by the range of honest observations
+(Lemma~\ref{lem:honest-range}), and (ii) a four-state finite state machine
 (\textsc{Anchored}, \textsc{Suspicious}, \textsc{Sovereign},
 \textsc{Recovering}) evaluated deterministically on that certificate. When
-Bitcoin or DA degrades, or the peripheral P2P view degrades while the core
-consensus network retains quorum connectivity, the chain keeps producing blocks
-in \textsc{Sovereign} mode under the validator quorum, relaxes the receipt
-requirement of the unhealthy layer, and locks cross-chain withdrawals. It
-returns to \textsc{Anchored} after recovery hysteresis, DA backfill of the
-\textsc{Sovereign} interval, and a validator-verified zero-knowledge recovery
-proof (Noir/UltraHonk, 256 headers per proof, chained for longer intervals)
-that attests to header continuity, FSM-transition legality, and withdrawal-lock
-adherence over the interval. We give a layered TLA+ specification and
-check each layer in isolation with bounded model checking (zero violations at
-$N{\le}4$;
-the largest run, the FSM safety check, explored \resFSMStatesM{} distinct
-states) with a \resAblationCount-mechanism ablation study
-in which each removed mechanism reproduces a distinct predicted failure; the
+Bitcoin, DA, or the peripheral P2P view degrades, the chain keeps producing
+blocks under the validator quorum, relaxes the receipt requirement of the
+unhealthy layer, and locks cross-chain withdrawals. It returns to
+\textsc{Anchored} after recovery hysteresis, DA backfill of the degraded
+interval, and a validator-verified zero-knowledge recovery proof
+(Noir/UltraHonk, 256 headers per proof).
+
+A layered TLA+ specification, checked layer by layer with bounded model
+checking, has zero violations at $N{\le}4$ (the largest run explored
+\resFSMStatesM{} distinct states); a \resAblationCount-mechanism ablation
+reproduces a distinct predicted failure for each removed mechanism. The
 cross-layer refinement obligation remains open. On a 7-validator Cosmos SDK
-testnet with live Bitcoin regtest and Celestia networks, under a layered
-composite fault the chain keeps committing blocks and completes a full
+testnet with live Bitcoin regtest and Celestia networks, a layered composite
+fault leaves the chain committing blocks through a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
-100\% AppHash agreement. The extended consensus object adds +\resProposalBytes\,bytes per
-proposal and \resValidationUs\,$\mu$s of validation per block. Against seven vanilla
-CometBFT validators on the same hosts and load, Engram's block interval is
-\resBlockEngram\,s against \resBlockVanilla\,s, an addition of about \resOverheadPct{} (approximate 95\% interval \resOverheadCI{}); every height commits in the
-first round with no nil precommit and no rejected proposal.
-Against a hard-gated chain that enforces the same receipts at every height,
-Engram keeps 96--102\% of its healthy block rate under a checkpoint pause, a
-DA outage and both, whereas the hard-gated chain falls to 56\%, 16\% and 17\%
-and commits no block in the 120\,s after the layer returns in all nine trials
-($n{=}3$ per cell). A baseline that keeps Engram's liveness but never locks
-withdrawals lets 31--72 of them through after the moment Engram locks, against
-none for Engram.
+100\% AppHash agreement. The extended consensus object adds +\resProposalBytes\,bytes per proposal and \resValidationUs\,$\mu$s
+of validation per block. Against seven vanilla CometBFT validators on the same
+hosts, the block interval is \resBlockEngram\,s against \resBlockVanilla\,s
+(about \resOverheadPct{}; approximate 95\% interval \resOverheadCI{}), with every
+height committing in the first round. Against a hard-gated chain that enforces
+the same receipts at every height, Engram keeps 96--102\% of its healthy block
+rate under a checkpoint pause, a DA outage and both, whereas the hard-gated
+chain falls to 56\%, 16\% and 17\% and commits no block in the 120\,s after the
+layer returns in all nine trials ($n{=}3$ per cell). A baseline that keeps
+Engram's liveness but never locks withdrawals lets 31--72 of them through after
+the moment Engram locks, against none for Engram.

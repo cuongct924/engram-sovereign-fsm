@@ -11,12 +11,10 @@ and the validator set comes from the genesis file. Three modules hold the
 protocol logic: \texttt{x/sovereignty} (the FSM, the sensors, the circuit
 breaker, and the ABCI++ hooks), \texttt{x/da} (the Celestia receipt and its
 verification), and \texttt{x/anchor} (the Bitcoin settlement receipt and its
-re-verification). Each validator signs its sensor snapshot in
-\texttt{ExtendVote}, the only hook that reads live sensors.
-\texttt{PrepareProposal} aggregates the signed extensions into the health
-certificate. \texttt{ProcessProposal} re-verifies the certificate and re-runs
-the aggregation without reading a sensor, and \texttt{PreBlocker} commits the
-FSM transition from that certificate (Section~\ref{subsec:architecture}).
+re-verification). The ABCI++ hooks follow the pipeline of
+Section~\ref{subsec:architecture}: only \texttt{ExtendVote} reads live
+sensors, and \texttt{PreBlocker} commits the FSM transition from the agreed
+certificate.
 
 The fork differs from upstream CometBFT in four ways: an $f{+}1$ timeout
 round-skip, per-peer round-trip-time measurement and a peer health monitor
@@ -43,8 +41,7 @@ peripheral connectivity without partitioning the core consensus network.
 The peripheral layers are real software, not simulators: a two-node Bitcoin
 regtest network mined continuously at roughly one block per 20\,s, and a
 Celestia network with seven bridge nodes, one per validator, so that each
-validator forms its own DA view. The
-eclipse and Sybil rows (A1 and A2) of Appendix~\ref{app:attacks} predate the
+validator forms its own DA view. The eclipse and Sybil rows (A1 and A2) of Appendix~\ref{app:attacks} predate the
 move to seven validators and ran on a four-validator cluster ($f{=}1$).
 \pending{re-run A1/A2 at $n{=}7$, and run the $f{=}2$ collusion suite of
 Section~\ref{subsec:rq1}.}
@@ -100,9 +97,8 @@ FSM pinned to \textsc{Anchored}: condition (3) of the validity predicate
 is valid only if it carries a Bitcoin receipt and a DA receipt within
 tolerance. This is the behavior of a chain that makes settlement and DA
 inclusion part of block validity, and it isolates the effect of Engram's
-adaptive relaxation.
-It is a runtime mode of the same binary (\texttt{ENGRAM\_MODE=hard-gated}): the
-FSM never leaves \textsc{Anchored}, and Section~\ref{subsec:rq2} runs the RQ2
+adaptive relaxation. It is a runtime mode of the same binary
+(\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs the RQ2
 fault schedule against it.
 
 \textbf{Soft baseline (RQ2).} The real FSM runs, but withdrawals are never

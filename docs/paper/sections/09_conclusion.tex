@@ -11,14 +11,14 @@ requirement is relaxed and cross-chain withdrawals are locked, and the return
 to \textsc{Anchored} requires recovery hysteresis, DA backfill of the
 \textsc{Sovereign} interval, and a validator-verified recovery proof.
 
-The formal and empirical evidence supports the mechanism within the stated
-assumptions. Bounded model checking found no violations in each layer (the
-largest run explored \resFSMStatesM{} distinct states), and the cross-layer
-refinement remains open. A seven-validator testbed with live Bitcoin and
-Celestia networks kept committing blocks under a composite fault and completed
-a full recovery cycle with complete AppHash agreement. Against seven vanilla
-validators on the same hosts, Engram lengthens the block interval by about
-\resOverheadPct{} (\resBlockEngram\,s against \resBlockVanilla\,s).
+The evidence supports the mechanism within the stated assumptions. Bounded
+model checking found no violations in each layer (the largest run explored
+\resFSMStatesM{} distinct states); the cross-layer refinement remains open. A
+seven-validator testbed with live Bitcoin and Celestia networks kept
+committing blocks under a composite fault and completed a full recovery cycle
+with complete AppHash agreement. Against seven vanilla validators on the same
+hosts, Engram lengthens the block interval by about \resOverheadPct{}
+(\resBlockEngram\,s against \resBlockVanilla\,s).
 
 \subsection*{Artifact Availability}
 

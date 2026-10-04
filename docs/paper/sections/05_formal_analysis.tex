@@ -61,18 +61,21 @@ dependency height. Liveness comes from relaxing the receipt checks in
 \textsc{Sovereign}; user safety comes from tying withdrawals to the settled
 and available prefix.
 
-The prototype realizes the three assumptions as follows. (M1) is enforced in
-the validity predicate and the ante handler. (M2) holds because each
-checkpoint payload carries the CometBFT block hash at its height
-$c$. That hash commits the header of $B_c$, hence the chain of blocks
-through $c$ by the hash links. The header carries the application hash of the
-state before $B_c$, so the checkpoint commits that state and the transactions of
-$B_c$, and, since execution is deterministic, the state after $B_c$. (M3) is enforced on the exit edge by the
-backfill condition, which the FSM safety run checks as an action property,
-and by the proof condition; the prototype's configuration of the proof
-condition is qualified in Section~\ref{subsec:limitations}. The theorem is a
-pen-and-paper argument over these assumptions, not a mechanized statement
-about the implementation.
+The prototype realizes the three assumptions as follows:
+\begin{itemize}
+  \item (M1) is enforced in the validity predicate and the ante handler.
+  \item (M2) holds because each checkpoint payload carries the CometBFT block
+  hash at its height $c$. That hash commits the header of $B_c$, hence the
+  chain of blocks through $c$ by the hash links, and the header carries the
+  application hash of the state before $B_c$. The checkpoint therefore commits
+  that state and the transactions of $B_c$, and, since execution is
+  deterministic, the state after $B_c$.
+  \item (M3) is enforced on the exit edge by the backfill condition, which the
+  FSM safety run checks as an action property, and by the proof condition
+  (qualified in Section~\ref{subsec:limitations}).
+\end{itemize}
+The theorem is a pen-and-paper argument over these assumptions, not a
+mechanized statement about the implementation.
 
 \subsection{Formal Model}
 
@@ -115,8 +118,7 @@ here.
 
 \subsection{Verification Scope}
 
-\textbf{What is checked, and what is not.} Two levels of evidence must be
-kept apart.
+\textbf{What is checked.} The evidence has two levels.
 \begin{itemize}
   \item \emph{Per-layer bounded model checking (exhaustive within each stated bounded
   configuration).} Each layer's own
@@ -141,17 +143,15 @@ complete: it was stopped after 1\,h\,41\,m at 19{,}848{,}141 distinct states
 covers the interleaving of environment and consensus steps, and no
 composition argument is established, so C1 is not claimed.
 
-Running these parts exposed a defect in the server layer: the vote-extension
-action left the Tendermint variables unconstrained, so no earlier
-server-layer run could have passed its first such step. The fix, two guards
-that stop the server from certifying a timeout for a round an honest
-validator has already left, and one added abstract action for a round ended
-by a quorum of nil precommits are changes to the checked model. The last
-weakens the target specification. An inductive check of every server action
-with Apalache would avoid the composition gap; it has not been attempted.
+The server layer carries two guards that stop it from certifying a timeout
+for a round an honest validator has already left, and one added abstract
+action for a round ended by a quorum of nil precommits. These are changes to
+the checked model, and the last weakens the target specification. An
+inductive check of every server action with Apalache would avoid the
+composition gap; it has not been attempted.
 
 \textbf{Health certificates in the model.} The server layer models the
-certificate explicitly. Each validator's observation holds three Booleans
+certificate. Each validator's observation holds three Booleans
 (healthy, warning, critical) and the Bitcoin and DA gaps clipped to $0..3$,
 written to \texttt{sensor\_view} by \texttt{ServerExtendVote}. A Byzantine
 validator may sign any observation; an honest validator with an eclipsed P2P
@@ -224,19 +224,15 @@ state satisfying the state constraint explored, so it is the diameter of the
 constrained state graph and not a cap. Hardware: Apple M1 Pro, 10 cores, 32\,GB RAM.
 \end{table}
 
-Table~\ref{tab:formal-config} lists the bounds of each run.
-
 Table~\ref{tab:formal-verification} reports the per-layer results, each
-obtained by running that layer's own model-checking driver standalone at its
-checked-in configuration (Table~\ref{tab:formal-config}). All three runs
-found zero violations in their bounded state spaces. These results cover
-the Tendermint-style and FSM layers; the abstract and server layers are
-exercised only through the open refinement obligation above.
-
-The ablation study spans two layers: the hysteresis and P2P health gate
-belong to the FSM layer, whereas the circuit breaker and DA consistency are
-checked in the Tendermint-layer driver. Each result therefore holds within its
-own layer's bounded configuration.
+obtained by running that layer's own driver standalone at the configuration of
+Table~\ref{tab:formal-config}. All three runs found zero violations in their
+bounded state spaces. They cover the Tendermint-style and FSM layers; the
+abstract and server layers are exercised only through the open refinement
+obligation. The ablation study spans two layers: the hysteresis and P2P health
+gate belong to the FSM layer, the circuit breaker and DA consistency to the
+Tendermint-layer driver, so each result holds within its own layer's
+configuration.
 
 \begin{table}[h]
 \caption{Ablation Study: Removing One Mechanism at a Time (Apalache)}
@@ -257,15 +253,13 @@ DA consistency & Data withholding & 2 & 63.3\,s & \texttt{Sanity\_Never} \texttt
 
 Table~\ref{tab:ablation} reports the ablation study. Each row removes one
 mechanism and re-runs verification against the sanity property that
-mechanism protects. Apalache's bounded SMT search found each counterexample
-in 24--117\,s at depth 2--6, far faster than TLC's breadth-first search for
-shallow counterexamples. Each ablation reproduced the violation its mechanism
-is designed to prevent: without the circuit breaker a withdrawal leaks;
-without hysteresis the chain re-anchors prematurely; without the P2P gate an
-eclipsed validator forces an illegal recovery; and without DA consistency a
-withholding proposal is accepted. The ablations show what each mechanism
-prevents. Single-factor ablation does not test joint removal, so it does not
-establish that the set of mechanisms is sufficient.
+mechanism protects. Apalache's bounded SMT search found each counterexample in 24--117\,s at
+depth 2--6. Each ablation reproduced the violation its mechanism is designed
+to prevent: without the circuit breaker a withdrawal leaks; without hysteresis
+the chain re-anchors prematurely; without the P2P gate an eclipsed validator
+forces an illegal recovery; and without DA consistency a withholding proposal
+is accepted. Single-factor ablation does not test joint removal, so it does
+not establish that the set of mechanisms is sufficient.
 
 \begin{table}[h]
 \caption{TLC Run Configurations}

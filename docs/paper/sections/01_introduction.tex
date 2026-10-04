@@ -18,16 +18,14 @@ layer~\cite{buchman2016tendermint,buchman2018gossip} built on top stalls
 although the validator set is fully connected and correct. The chain inherits
 the liveness of the layers it depends on.
 
-Dropping the requirement restores progress but also suspends the guarantees
-that motivated the modular design. A chain that proceeds without a settlement
-checkpoint cannot claim the same externally anchored settlement guarantee, and
-a chain that proceeds without DA confirmation cannot claim that its recent
-data is externally available. The problem is therefore not only to detect an
-outage. The protocol must make all validators agree on when an external
-guarantee may be suspended, restrict the operations whose safety depended on
-it, and define the evidence required before the guarantee is restored. Engram
-keeps the chain live by suspending the external dependency together with the
-operations whose safety relied on it.
+Dropping the requirement restores progress but suspends the guarantees that
+motivated the modular design: without a settlement checkpoint the chain cannot
+claim externally anchored settlement, and without DA confirmation it cannot
+claim that its recent data is externally available. The problem is therefore
+not only to detect an outage. The protocol must make all validators agree on
+when an external guarantee may be suspended, restrict the operations whose
+safety depended on it, and define the evidence required before the guarantee
+is restored.
 
 \textbf{The gap.} Existing work addresses parts of this problem under other
 failure models. Protocols that trade finality for availability adapt to
@@ -74,15 +72,12 @@ CometBFT has already agreed on (Section~\ref{subsec:health-certificate}).
 consensus pipeline, not a replacement for the agreement protocol.
 
 The FSM makes the chain's security mode explicit. In \textsc{Anchored}, blocks
-require the Bitcoin and DA receipts and withdrawals are permitted. Sustained
-degradation moves the chain through \textsc{Suspicious} into
-\textsc{Sovereign}, where the validator quorum keeps ordering blocks, the
-receipt requirement of each unhealthy layer is relaxed, and cross-chain
-withdrawals are locked. When the layers recover, the chain enters
-\textsc{Recovering}. Return to \textsc{Anchored} requires recovery hysteresis,
-backfill of the \textsc{Sovereign} interval's data to the DA layer, and a
-validator-verified zero-knowledge proof that the interval is hash-linked, obeyed
-the FSM transition rules, and respected the withdrawal lock
+require the Bitcoin and DA receipts. Sustained degradation moves the chain
+through \textsc{Suspicious} into \textsc{Sovereign}, where the quorum keeps
+ordering blocks, the receipt requirement of each unhealthy layer is relaxed,
+and cross-chain withdrawals are locked. Return to \textsc{Anchored} requires
+recovery hysteresis, DA backfill of the \textsc{Sovereign} interval, and a
+validator-verified zero-knowledge proof over that interval
 (Sections~\ref{subsec:fsm} and~\ref{subsec:reanchoring}; the prototype's proof
 gate is qualified in Section~\ref{subsec:limitations}).
 
@@ -114,22 +109,19 @@ Engram targets this combination.
     \item \textbf{Dependency-aware adaptive execution.} A four-state FSM on the
     certificate, with asymmetric hysteresis and exponential backoff on repeated
     failed recovery, that changes the Bitcoin and DA receipt requirements
-    without modifying CometBFT's agreement core. A withdrawal circuit breaker,
-    following the circuit-breaker resilience pattern~\cite{mendonca2020resiliency},
-    locks cross-chain withdrawals while the chain runs without external
-    corroboration (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}); the
-    withdrawal-safety theorem is stated in Section~\ref{subsec:analytical}.
+    without modifying CometBFT's agreement core. A withdrawal circuit
+    breaker~\cite{mendonca2020resiliency} locks cross-chain withdrawals while
+    the chain runs without external corroboration
+    (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; withdrawal-safety
+    theorem in Section~\ref{subsec:analytical}).
     \item \textbf{Proof- and backfill-gated recovery.} A Noir/UltraHonk circuit
     that proves header-chain continuity, FSM-transition legality,
     withdrawal-lock adherence, and boundary-validator signatures for up to
     256 \textsc{Sovereign}-interval headers at constant proving and
-    verification cost. Longer intervals use a sequence of proofs linked through
-    an on-chain committed root, optionally folded by an aggregator
-    (Appendix~\ref{app:aggregation}). The proof shows that the interval is
-    valid; the exit condition also requires that its data was published to the
-    DA layer. Validators verify each proof inside block execution; Bitcoin
-    timestamps the resulting checkpoint but does not verify the proof
-    (Section~\ref{subsec:reanchoring}).
+    verification cost; longer intervals chain several proofs
+    (Appendix~\ref{app:aggregation}). The exit condition also requires that the
+    interval's data was published to the DA layer. Validators verify each proof
+    inside block execution (Section~\ref{subsec:reanchoring}).
     \item \textbf{Layered formal specification.} A four-layer TLA+
     specification. Bounded model checking of each layer's safety and liveness
     properties found zero violations at $N{\le}4$; the largest single run
