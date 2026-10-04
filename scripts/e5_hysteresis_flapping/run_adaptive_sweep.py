@@ -44,7 +44,11 @@ def redeploy(down: int, max_down: int) -> None:
     cmd = ["docker", "compose", "--env-file", ".env", "-f", "docker-compose.yml"]
     subprocess.run(cmd + ["stop", *ras.VALIDATOR_SERVICES], cwd=ras.REPO_ROOT)
     subprocess.run(cmd + ["rm", "-f", *ras.VALIDATOR_SERVICES], cwd=ras.REPO_ROOT)
-    ras.run(["make", "testnet-up"])
+    # testnet-up's own sensor-health wait (180 s) may fail on a proof-only start-up that is merely slow; the chain is
+    # still up, and measure() waits for ANCHORED (health_timeout_s) before it records anything.
+    rc = subprocess.run(["make", "testnet-up"], cwd=ras.REPO_ROOT).returncode
+    if rc != 0:
+        ras.log(f"make testnet-up exited {rc}; continuing, measure() waits for ANCHORED")
 
 
 def measure(name: str, trial: int, env: str, down: int, args) -> str:
