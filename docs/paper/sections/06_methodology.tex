@@ -101,8 +101,14 @@ is valid only if it carries a Bitcoin receipt and a DA receipt within
 tolerance. This is the behavior of a chain that makes settlement and DA
 inclusion part of block validity, and it isolates the effect of Engram's
 adaptive relaxation.
-\pending{implement the pinned-\textsc{Anchored} mode and run the RQ2 fault
-schedule against it.}
+It is a runtime mode of the same binary (\texttt{ENGRAM\_MODE=hard-gated}): the
+FSM never leaves \textsc{Anchored}, and Section~\ref{subsec:rq2} runs the RQ2
+fault schedule against it.
+
+\textbf{Soft baseline (RQ2).} The real FSM runs, but withdrawals are never
+locked in \textsc{Sovereign} or \textsc{Recovering}
+(\texttt{ENGRAM\_MODE=soft}). It keeps liveness and drops the circuit
+breaker, which isolates what the withdrawal lock contributes.
 
 \textbf{Vanilla CometBFT (control, RQ4).} The same application with the
 health-aware ABCI++ hooks disabled. It does not depend on Bitcoin or
