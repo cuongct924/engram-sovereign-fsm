@@ -353,9 +353,16 @@ $k{=}2$, whereas a static $k$ of 4 or more suppressed all flapping at a cost of
 under 2\,s of detection delay for $k{=}4$; with one trial at $k{=}4$ and
 $k{=}8$ this is an observation, not an estimate. We did not measure the
 cost the adaptive threshold imposes on a repeated-trigger attacker, which is
-its stated purpose, and we do not know why the flap level did not rise enough
-under jitter; the protocol's stable window of 16 blocks is one candidate we
-have not tested.
+its stated purpose. A longer stable window is a candidate explanation for the
+weak suppression, since the flap level decays after 16 healthy blocks, about
+twenty seconds. We therefore repeated the adaptive configuration with a window
+of 64 blocks, under jitter and under the sustained outage only, three runs each,
+every run on a fresh genesis (last row of Table~\ref{tab:adaptive-live}). Flaps
+fell from 8.3 to 3.0 per validator (all three runs gave 3), uptime rose from 85
+to 93\%, and the detection delay did not change (11.1 against 11.7\,s). A
+window of 64 blocks recovers part of the gap, but not the full suppression of a
+static $k$ of 4 or more; we did not test larger windows or the DA-blip
+environment with it.
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
