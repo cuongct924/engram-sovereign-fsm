@@ -254,13 +254,18 @@ def case_plan(case: str, args):
     a = args.attack_s
     n4, n5, n6 = BYZ_CANDIDATES
     plans = {
+        # Control: node04 is recreated (as every Byzantine container is when an attack starts) but stays honest, so
+        # the honest transitions seen in the other cases can be compared with the churn of the restart itself.
+        "b0": dict(byz={}, restart=[n4], attack_s=a, expect_states=set()),
         "b1": dict(byz={n4: FALSE_DEGRADED, n5: FALSE_DEGRADED}, attack_s=a, expect_states=set()),
         "b2": dict(byz={n4: FALSE_DEGRADED, n5: FALSE_DEGRADED + ";bias_certificate"}, attack_s=a, expect_states=set()),
         "b3a": dict(byz={n4: "omit_certs:5"}, attack_s=a, expect_states=set()),
         "b3b": dict(byz={n4: "omit_certs:2"}, attack_s=a, expect_states=set(), expect_reject="sub_quorum_certificate"),
         # NEXT_SESSION_PLAN item 14: A3/A4 re-run counting the honest validators' REJECT reasons, to show
         # the DA / BTC receipt checks (not something incidental) blocked the proposal.
-        "a3": dict(byz={n4: "false_da_attestation"}, attack_s=a, expect_states=set(), expect_reject="da_verify_receipt"),
+        # a3 claims a DA attestation one height ahead, inside da.VerifyReceipt's tolerance: honest validators cannot
+        # refute it, so no rejection is expected (a claim of this size is accepted by design; see the paper's DA-trust limit).
+        "a3": dict(byz={n4: "false_da_attestation"}, attack_s=a, expect_states=set()),
         "a4": dict(byz={n4: "forge_btc_hash"}, attack_s=a, expect_states=set(), expect_reject="btc_verify_receipt"),
         "b5": dict(byz={n4: "include_withdrawal", n5: "include_withdrawal"}, attack_s=a, sovereign=True,
                    expect_reject="withdrawal_locked"),
@@ -308,7 +313,9 @@ def start_of_window(honest) -> int:
 def finish(case, trial, plan, tr, byz, since, report_from, extra=None, honest_extra=None) -> dict:
     honest = [n for n in NODE_RPC_PORTS if n not in byz]
     rejects = collect_rejects(honest, since)
-    proposed = byzantine_proposed_heights(byz, since)
+    proposed = getattr(tr, "proposed_heights", None)
+    if proposed is None:
+        proposed = byzantine_proposed_heights(byz, since)
     replay_res = replay(byz, report_from)
     end_h = max(tr.heights.values(), default=report_from)
     total_heights = max(end_h - report_from + 1, 1)
@@ -344,10 +351,15 @@ def run_standard(case, trial, args, assignment) -> dict:
     since = time.time()
     tr.reset_window()
     assignment.set(plan["byz"])
+    if plan.get("restart"):
+        print(f"[{now()}] >>> recreating {plan['restart']} as honest (control)")
+        run(COMPOSE + ["up", "-d", "--no-deps", "--force-recreate", *plan["restart"]], check=True, timeout=300)
     if plan.get("eclipse"):
         print(f"[{now()}] >>> eclipsing {plan['eclipse']}")
         eclipse(plan["eclipse"], True)
     tr.poll(plan["attack_s"], "attack")
+    # Read the Byzantine proposals now: recreating the containers below discards their logs.
+    tr.proposed_heights = byzantine_proposed_heights(byz, since)
     # The recovery phase below recreates the Byzantine containers as honest ones, whose rejoin makes the others dip to
     # SUSPICIOUS for a few blocks: harness churn, not the attack. no_honest_transition judges the attack window only.
     tr.attack_transitions = tr.transitions()
@@ -484,7 +496,7 @@ def run_double_sign(trial, args, assignment) -> dict:
     return row
 
 
-CASES = ["a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
+CASES = ["b0", "a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
 
 
 def main():
