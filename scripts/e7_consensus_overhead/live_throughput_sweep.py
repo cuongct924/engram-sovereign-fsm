@@ -200,6 +200,12 @@ def main():
         got = CLUSTER.container_env(node, "ENGRAM_MODE") or "engram"
         if got != want:
             sys.exit(f"{node} runs ENGRAM_MODE={got}, but --arm {args.arm} needs {want}")
+    heights = {n: rq4.get(port, "/status")["sync_info"]["latest_block_height"] for n, port in NODE_RPC_PORTS.items()}
+    heights = {n: int(h) for n, h in heights.items()}
+    if max(heights.values()) - min(heights.values()) > 10:
+        # A validator stuck far behind (seen once: a fresh vanilla genesis where one node never executed block 1) leaves
+        # a 6-validator network, which is not the arm that is being labelled.
+        sys.exit(f"validators are not all at the same height: {heights}")
     if not os.path.exists(BIN):
         sys.exit(f"build {BIN} first (make build)")
     os.makedirs(RESULTS_DIR, exist_ok=True)
