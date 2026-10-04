@@ -1,0 +1,200 @@
+[
+ {
+  "config": "static2",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 1,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 2,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 2,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 2,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 3,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 3,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static2",
+  "trial": 3,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static4",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static4",
+  "trial": 1,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static4",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 1,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 2,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 2,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 2,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 3,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 3,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static6",
+  "trial": 3,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "static8",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "static8",
+  "trial": 1,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "static8",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 1,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 2,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 2,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 2,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 3,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 3,
+  "env": "noisy_da",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 3,
+  "env": "detect",
+  "status": "OK"
+ }
+]

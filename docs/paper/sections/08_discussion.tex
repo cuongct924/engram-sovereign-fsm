@@ -45,7 +45,9 @@ the attacker's cost of sustaining it are not quantified.
 recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
 protection beyond the bounded forced-transaction queue; the adaptive
-threshold closes this asymmetry.
+threshold is meant to close this asymmetry, but the live sweep of
+Section~\ref{subsec:rq3} did not measure an attacker's cost, and under jitter
+alone it suppressed flapping no better than a static threshold of 2.
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the

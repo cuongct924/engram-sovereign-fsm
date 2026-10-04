@@ -1,0 +1,66 @@
+{
+ "label": "adaptive_static2_t1_noisy_da",
+ "edge": "down",
+ "value": 2,
+ "env": "noisy_da",
+ "duration_s": 300.0,
+ "wan_profile": "chaos-wan-latency",
+ "nodes": {
+  "engram-node01": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node02": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node03": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node04": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node05": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node06": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  },
+  "engram-node07": {
+   "flapping_count": 9,
+   "total_transitions": 12,
+   "anchored_uptime": 0.0135,
+   "samples": 74,
+   "time_outside_anchored": 73,
+   "demotion_count": 1
+  }
+ }
+}

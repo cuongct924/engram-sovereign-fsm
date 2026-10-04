@@ -1,0 +1,7 @@
+{
+ "label": "adaptive_static2_t1_detect",
+ "detection_delay_s": 9.2,
+ "blocks_to_detection": 8,
+ "time_to_sovereign_s": 37.6,
+ "recovered": true
+}
