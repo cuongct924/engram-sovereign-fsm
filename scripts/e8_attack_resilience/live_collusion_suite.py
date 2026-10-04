@@ -202,7 +202,7 @@ class Tracker:
 
 
 def docker_logs_since(node: str, since: float) -> str:
-    p = run(["docker", "logs", "--since", str(int(since)), node], timeout=120)
+    p = run(["docker", "logs", "--since", str(int(since)), node], timeout=900)
     return p.stdout + p.stderr
 
 
@@ -523,23 +523,28 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     assignment = Assignment()
     rows = []
+    path = os.path.join(RESULTS_DIR, f"collusion_suite_{time.strftime('%Y%m%dT%H%M%S')}.csv")
+
+    def write_rows():
+        fields = sorted({k for r in rows for k in r}, key=lambda k: (k not in ("case", "trial", "pass"), k))
+        with open(path, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            w.writerows(rows)
+
     try:
         for case in selected:
             for trial in range(1, args.trials + 1):
                 res = run_case(case, trial, args, assignment)
                 rows.extend(res if isinstance(res, list) else [res])
+                # After every run: a crash hours in (a docker-logs timeout once lost 14 b9 runs) keeps what finished.
+                write_rows()
     finally:
         assignment.clear()
         eclipse(list(NODE_RPC_PORTS), False)
         start_all_da_bridges()
 
-    stamp = time.strftime("%Y%m%dT%H%M%S")
-    fields = sorted({k for r in rows for k in r}, key=lambda k: (k not in ("case", "trial", "pass"), k))
-    path = os.path.join(RESULTS_DIR, f"collusion_suite_{stamp}.csv")
-    with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
-        w.writeheader()
-        w.writerows(rows)
+    write_rows()
     print(f"\nwrote {len(rows)} rows to {path}")
     for r in rows:
         print(f"  {r['case']:<24} trial={r['trial']} pass={r['pass']} replay_violations={r['replay_violations']}")
