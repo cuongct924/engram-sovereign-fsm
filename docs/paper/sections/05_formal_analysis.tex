@@ -30,10 +30,12 @@ its height, and with it the replicated state; and (M3)
 chain has verified and a DA backfill certificate for the whole
 \textsc{Sovereign} interval. If a withdrawal commits in block $B_h$, then
 $P_{\text{agree}}$ holds, the state at $h$ is \textsc{Anchored} or
-\textsc{Suspicious}, and there are heights $c_s, c_a \geq h - \tau$ such
-that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold. Every height
-before $h - \tau$ is settled and available, including every
-\textsc{Sovereign} interval that precedes $B_h$.}
+\textsc{Suspicious}, and there are Engram heights $c_s$ and $c_a \geq h - \tau_{\text{DA}}$ such
+that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold, where the
+checkpoint that settles $c_s$ lags the certified Bitcoin tip by at most
+$\tau_{\text{BTC}}$ Bitcoin blocks. Every height up to $\min(c_s, c_a)$ is
+settled and available, including every \textsc{Sovereign} interval that
+precedes $B_h$.}
 
 \emph{Proof.} $P_{\text{agree}}$ follows from $\operatorname{wt}(B) < W/3$. By (M1), the state
 at $h$ is \textsc{Anchored} or \textsc{Suspicious}. In the transition
@@ -44,16 +46,16 @@ with a \textsc{Recovering}$\to$\textsc{Anchored} transition, which by (M3)
 required a verified recovery proof and a DA backfill certificate. Hence the
 interval is valid, hash-linked, and available. In the \textsc{Anchored} and
 \textsc{Suspicious} blocks since then, every block carries receipts within
-$\tau$. The Bitcoin receipt in $B_h$ attests a checkpoint at depth at least
-$K_{\text{DEEP\_FINALITY}}$ for some $c_s \geq h - \tau$; by (M2) it
+$\tau_{\text{BTC}}$ and $\tau_{\text{DA}}$. The Bitcoin receipt in $B_h$ attests a checkpoint at depth at least
+$K_{\text{DEEP\_FINALITY}}$ for some $c_s$; by (M2) it
 commits the chain through $c_s$, so rewriting the prefix up to $c_s$
 requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
-attests data availability up to some $c_a \geq h - \tau$, and the DA layer
+attests data availability up to some $c_a \geq h - \tau_{\text{DA}}$, and the DA layer
 is honest. $\square$
 
-Theorem~\ref{thm:withdrawal} guarantees settlement and availability only through height
-$h - \tau$. The most recent $\tau$ blocks may not yet have either guarantee
-when the withdrawal commits, and a withdrawal may depend on state created
+Theorem~\ref{thm:withdrawal} guarantees settlement only through $c_s$ and
+availability only through $c_a$. The blocks after them may not yet have either
+guarantee when the withdrawal commits, and a withdrawal may depend on state created
 inside that exposure window; the theorem does not tie a withdrawal to a
 dependency height. Liveness comes from relaxing the receipt checks in
 \textsc{Sovereign}; user safety comes from tying withdrawals to the settled

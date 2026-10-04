@@ -400,7 +400,7 @@ where
   \item $\mathsf{ReceiptsOK}$: in \textsc{Anchored} and \textsc{Recovering},
   and for any layer the certificate reports healthy, the DA and Bitcoin
   receipts are consistent with $\mathsf{Agg}(C^{h})$ within the round-dependent
-  tolerance $\tau_r$ defined below;
+  tolerances $\tau_{\text{BTC}}$ and $\tau_{\text{DA}}$ defined below;
   \item $\mathsf{WithdrawalsOK}$: no withdrawal is included while $s^{h}$ is
   \textsc{Sovereign} or \textsc{Recovering};
   \item $\mathsf{RecoveryOK}$: the proposal carries a recovery-proof reference
@@ -413,13 +413,20 @@ where
 to replicated state only by \texttt{PreBlocker} after commit, from the
 certificate already agreed upon.
 
-The tolerance $\tau_r$ is a deterministic function of the round $r$ and
-genesis parameters, so every validator computes the same bound. A DA receipt
-may lag the Engram height by the DA threshold plus $\tau^{\text{DA}}_r$,
-where $\tau^{\text{DA}}_r = 0$ for $r \le 1$, $2$ for $r = 2$, and $4$ for
-$r \ge 3$. A Bitcoin receipt's checkpoint height may lag the Bitcoin tip by
-$\tau^{\text{BTC}}_r = K_{\text{DEEP\_FINALITY}} + 2 + r$. Theorem~\ref{thm:withdrawal} takes
-$\tau$ as the tolerance of the round in which $B_h$ committed.
+The tolerances are deterministic functions of the round $r$ and genesis
+parameters, so every validator computes the same bounds. Each is a base
+threshold plus a widening $w_r$ that is capped, so no number of round skips
+enlarges it beyond its maximum. A DA receipt may lag the Engram height by
+$\tau_{\text{DA}} = \Theta_{\text{DA}} + w^{\text{DA}}_r$ Engram blocks, where
+$\Theta_{\text{DA}}$ is the DA threshold and $w^{\text{DA}}_r = 0$ for
+$r \le 1$, $2$ for $r = 2$, and $4$ for $r \ge 3$. A Bitcoin receipt's
+checkpoint height may lag the Bitcoin tip by
+$\tau_{\text{BTC}} = K_{\text{DEEP\_FINALITY}} + 2 + w^{\text{BTC}}_r$ Bitcoin
+blocks, where $w^{\text{BTC}}_r = 0$ for $r \le 2$ and $1$ for $r \ge 3$. The
+base $K_{\text{DEEP\_FINALITY}} + 2$ is the depth a confirmed checkpoint
+already lags the tip plus two blocks of propagation slack.
+Theorem~\ref{thm:withdrawal} takes both tolerances at the round in which
+$B_h$ committed.
 
 $\mathsf{ReceiptsOK}$ is exactly what a \emph{hard-gated} modular chain
 enforces unconditionally. Engram's only liveness-relevant change is to make

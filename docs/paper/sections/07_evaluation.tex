@@ -144,8 +144,8 @@ Under a DA outage the hard-gated chain commits 23 blocks in 180\,s, 16\% of
 its healthy rate, with proposals reaching round 21, and commits nothing in the
 120\,s after the layer returns in all three trials; the combined fault is the
 same. Under checkpoint suspension it slows to 56\% (74 blocks, round 12): the
-receipt tolerance widens with the round, so stale checkpoints are admitted for
-a while, but it then stops resuming as well. In one trial we kept watching and
+receipt tolerance widens with the round up to a cap, so stale checkpoints are
+admitted for a while, but it then stops resuming as well. In one trial we kept watching and
 the chain was still stuck after twelve minutes, with proposals rejected at
 round 57 and above; the other trials were observed only through the recovery
 window. The stall persists because the checkpoint a proposal needs is derived

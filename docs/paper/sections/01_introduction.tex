@@ -7,7 +7,7 @@ a chain whose validity predicate requires fresh evidence from such layers: a
 block is valid only if it passes the BFT checks and carries both a Bitcoin
 settlement receipt and a receipt from a DA network such as
 Celestia~\cite{albassam2019lazyledger}, each attesting a height within a
-tolerance $\tau$ of the block. Formally,
+tolerance of the current Bitcoin tip ($\tau_{\text{BTC}}$) or of the block ($\tau_{\text{DA}}$). Formally,
 \[
 \mathit{valid}(B) = \mathit{BFTvalid}(B) \wedge \mathit{BTCreceipt}(B)
 \wedge \mathit{DAreceipt}(B).

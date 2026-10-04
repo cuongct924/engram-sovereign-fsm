@@ -44,7 +44,7 @@ $h$, $r$ & consensus height and round \\
 $m_i$, $o_i$ & local metric vector and signed observation of validator $i$ \\
 $C^{h}$, $\mathsf{Agg}$ & health certificate of height $h$, deterministic aggregation \\
 $s^{h}$, $\delta$ & FSM state committed at height $h$, transition function \\
-$\tau$ & receipt tolerance \\
+$\tau_{\text{BTC}}$, $\tau_{\text{DA}}$ & receipt tolerance of the Bitcoin receipt (Bitcoin blocks) and of the DA receipt (Engram blocks) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -141,11 +141,16 @@ $P_{\text{avail}}$ & \textbf{Withdrawals} \\
 \end{tabular}
 \end{table}
 
-\textbf{Receipt tolerance.} Let $\tau$ be the receipt tolerance of the round
-in which a block commits (Section~\ref{subsec:proposal}). In
-\textsc{Anchored} and \textsc{Suspicious}, a valid block at height $h$ whose
-layers are reported healthy carries a Bitcoin receipt and a DA receipt that
-attest settled and available heights $c_s, c_a \geq h - \tau$.
+\textbf{Receipt tolerance.} The two receipts are measured on different
+clocks, so each has its own tolerance, fixed by the round in which the block
+commits (Section~\ref{subsec:proposal}). $\tau_{\text{BTC}}$ bounds, in Bitcoin
+blocks, how far the checkpoint's Bitcoin height may lag the certified Bitcoin
+tip $b_h$. $\tau_{\text{DA}}$ bounds, in Engram blocks, how far the DA
+receipt's height may lag $h$. In \textsc{Anchored} and \textsc{Suspicious}, a
+valid block at height $h$ whose layers are reported healthy carries a Bitcoin
+receipt that settles Engram height $c_s$ through a checkpoint at Bitcoin
+height at least $b_h - \tau_{\text{BTC}}$, and a DA receipt that attests
+availability up to Engram height $c_a \geq h - \tau_{\text{DA}}$.
 
 Theorem~\ref{thm:withdrawal} (Section~\ref{subsec:analytical}) states the conditions under which
 a committed withdrawal satisfies $P_{\text{exit}}$. Section~\ref{sec:protocol}
