@@ -10,9 +10,11 @@ cross-chain assets, and the cost of griefing.
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
 continue. Cross-chain withdrawals stop. A hard-gated chain under the same
-degradation commits no blocks at all (Section~\ref{subsec:rq2}).
-\pending{blocks committed per outage window for Engram versus the hard-gated
-baseline (BTC suspension, DA outage, both).}
+degradation keeps committing only a fraction of its blocks and then stops
+(Section~\ref{subsec:rq2}): in a 180\,s fault window it committed 74 blocks
+under a checkpoint pause, 23 under a DA outage and 24 under both, against
+147, 150 and 153 for Engram (means of three trials), and in none of the nine
+trials did it commit a block in the 120\,s after the layer returned.
 
 \textbf{Safety of cross-chain assets.} The prototype has no bridge and no
 real assets: the application mounts neither \texttt{x/auth} nor
@@ -140,7 +142,11 @@ distributions.
   or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
   the anchored depth. A protocol parameter disables the heuristic, so that
   only a verified proof satisfies the gate.
-  \pending{state which reported recovery runs used proof-only recovery.}
+  The RQ2 trials used proof-only recovery with an unproven-tail bound of 128
+  blocks; the composite run, the seven-scenario run and the
+  data-availability runs of Section~\ref{subsec:rq3} were made with the
+  heuristic fallback enabled, so their time in \textsc{Recovering} does not
+  isolate the cost of the recovery proof.
   \item \emph{Byzantine scale.} The live attacks reported so far involve one
   Byzantine actor at a time, and A6 and A1/A2 ran at $n{=}4$; the $f{=}2$
   collusion suite (Section~\ref{subsec:rq1}) addresses this.

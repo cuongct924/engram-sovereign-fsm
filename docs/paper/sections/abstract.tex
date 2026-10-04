@@ -36,4 +36,10 @@ proposal and \resValidationUs\,$\mu$s of validation per block. Against seven van
 CometBFT validators on the same hosts and load, Engram's block interval is
 \resBlockEngram\,s against \resBlockVanilla\,s, an addition of about \resOverheadPct{} (approximate 95\% interval \resOverheadCI{}); every height commits in the
 first round with no nil precommit and no rejected proposal.
-\pending{add the hard-gated-baseline stall result.}
+Against a hard-gated chain that enforces the same receipts at every height,
+Engram keeps 96--102\% of its healthy block rate under a checkpoint pause, a
+DA outage and both, whereas the hard-gated chain falls to 56\%, 16\% and 17\%
+and commits no block in the 120\,s after the layer returns in all nine trials
+($n{=}3$ per cell). A baseline that keeps Engram's liveness but never locks
+withdrawals lets 31--72 of them through after the moment Engram locks, against
+none for Engram.
