@@ -432,10 +432,16 @@ def run_b9(trial, args, assignment) -> list:
             }
             # b <= f must not be exploitable; b = f+1 is expected to be (negative control).
             exploited = bool(extra["forced_transition"]) if target == "force_sovereign" else bool(extra["outage_masked"])
-            checks = {"exploit_matches_threshold": exploited == (b > 2) if b != 3 else True}
+            # A transition is not evidence of exploitation: the b0 control and a b=0 run both show honest
+            # transitions from environment noise alone. The noise-independent property is Lemma 1: for b <= f the
+            # committed aggregate stays inside the range of the honest observations (the replay's
+            # aggregate_outside_honest_range count is 0); b = f+1 is the negative control. `exploited` stays recorded.
+            checks = {}
             row = finish(f"b9_{target}_b{b}", trial, plan, tr, byz, since, report_from, extra=extra, honest_extra=checks)
             row["exploited"] = exploited
             row["replay_outside_range"] = json.loads(row["replay_kinds"]).get("aggregate_outside_honest_range", 0)
+            row["lemma1_matches_threshold"] = (row["replay_outside_range"] == 0) if b <= 2 else True
+            row["pass"] = bool(row["pass"]) and row["lemma1_matches_threshold"]
             rows.append(row)
     return rows
 
