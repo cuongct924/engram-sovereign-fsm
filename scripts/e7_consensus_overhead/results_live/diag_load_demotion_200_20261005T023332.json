@@ -1,0 +1,121 @@
+{
+ "rate": 200.0,
+ "genesis_params": {
+  "suspicious_threshold": 5,
+  "sovereign_threshold": 8,
+  "da_threshold": 30,
+  "recovery_hysteresis_wait": 2,
+  "min_peers": 3,
+  "min_subnet_diversity": 2,
+  "min_anchor_peers": 2,
+  "max_churn_rate": 5,
+  "min_avg_tenure": 300,
+  "max_peer_latency": 200,
+  "max_suspicious_time": 24,
+  "max_ignore_rounds": 1,
+  "k_deep_finality": 2,
+  "max_unproven_tail_blocks": 128,
+  "max_peers_per_subnet": 8,
+  "down_hysteresis_threshold": 2,
+  "max_down_hysteresis_threshold": 8,
+  "suspicious_hysteresis_wait": 8,
+  "max_suspicious_forced_tx_queue": 8,
+  "max_censorship_rounds": 100,
+  "proof_only_recovery": true,
+  "stable_window": 16
+ },
+ "idle": {
+  "btc_gap_suspicious": [
+   0.04081632653061224,
+   343
+  ],
+  "btc_gap_sovereign": [
+   0.0,
+   343
+  ],
+  "anchor_reverification_failed": [
+   0.0,
+   343
+  ],
+  "da_gap": [
+   0.0,
+   343
+  ],
+  "da_failed": [
+   0.0,
+   343
+  ],
+  "attestation_failed": [
+   0.0,
+   343
+  ],
+  "active_anchors": [
+   0.0,
+   343
+  ],
+  "clean_peers": [
+   0.0,
+   343
+  ],
+  "churn_rate": [
+   0.0,
+   343
+  ],
+  "avg_tenure": [
+   0.0,
+   343
+  ],
+  "peer_latency": [
+   0.0,
+   343
+  ]
+ },
+ "load": {
+  "btc_gap_suspicious": [
+   0.04912280701754386,
+   570
+  ],
+  "btc_gap_sovereign": [
+   0.0,
+   570
+  ],
+  "anchor_reverification_failed": [
+   0.0,
+   570
+  ],
+  "da_gap": [
+   0.19298245614035087,
+   570
+  ],
+  "da_failed": [
+   0.2614035087719298,
+   570
+  ],
+  "attestation_failed": [
+   0.2614035087719298,
+   570
+  ],
+  "active_anchors": [
+   0.0,
+   570
+  ],
+  "clean_peers": [
+   0.0,
+   570
+  ],
+  "churn_rate": [
+   0.0,
+   570
+  ],
+  "avg_tenure": [
+   0.0,
+   570
+  ],
+  "peer_latency": [
+   0.0,
+   570
+  ]
+ },
+ "snapshots_idle": 343,
+ "snapshots_load": 570
+}

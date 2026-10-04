@@ -1,0 +1,7 @@
+{
+ "label": "adaptive_adaptiveSW64_t1_detect",
+ "detection_delay_s": 10.2,
+ "blocks_to_detection": 9,
+ "time_to_sovereign_s": 39.7,
+ "recovered": true
+}

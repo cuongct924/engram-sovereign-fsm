@@ -45,7 +45,11 @@ def write_latex(cells, detect, order):
         stable = list(cells.get((cfg, "stable"), {}).values())
         noisy = list(cells.get((cfg, "noisy_da"), {}).values())
         det = detect.get(cfg, [])
-        name = "adaptive ($2\\to8$)" if cfg == "adaptive" else f"static $k{{=}}{cfg[len('static'):]}$"
+        if cfg.startswith("adaptive"):
+            window = cfg[len("adaptiveSW"):] if cfg.startswith("adaptiveSW") else "16"
+            name = f"adaptive ($2\\to8$, $T_{{\\text{{stable}}}}{{=}}{window}$)"
+        else:
+            name = f"static $k{{=}}{cfg[len('static'):]}$"
         rows.append(" & ".join([
             name, str(max(len(stable), len(noisy), len(det))),
             cell([v["flapping_count"] for v in stable], 1), cell([100 * v["anchored_uptime"] for v in stable], 0),
@@ -75,7 +79,7 @@ def main():
         m = LABEL.match(d["label"])
         if m and d["detection_delay_s"] is not None:
             detect.setdefault(m.group(1), []).append(d)
-    order = {"static2": 0, "static4": 1, "static6": 2, "static8": 3, "adaptive": 4}
+    order = {"static2": 0, "static4": 1, "static6": 2, "static8": 3, "adaptive": 4, "adaptiveSW64": 5}
     write_latex(cells, detect, order)
     print("| config | env | trials | flaps / validator | ANCHORED uptime | demotions / validator |")
     print("|---|---|---:|---|---|---|")

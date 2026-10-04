@@ -1,0 +1,38 @@
+[
+ {
+  "config": "adaptive",
+  "trial": 1,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 1,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 2,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 2,
+  "env": "detect",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 3,
+  "env": "stable",
+  "status": "OK"
+ },
+ {
+  "config": "adaptive",
+  "trial": 3,
+  "env": "detect",
+  "status": "OK"
+ }
+]
