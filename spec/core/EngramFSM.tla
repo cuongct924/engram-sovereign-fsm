@@ -41,7 +41,7 @@ CONSTANTS
                                  \* reading always bypasses this and demotes immediately, same as before.
 
     \* @type: Int;
-    MAX_DOWN_HYSTERESIS_THRESHOLD  \* Ceiling on RECOVERING's exponentially-backed-off down-hysteresis
+    MAX_DOWN_HYSTERESIS_THRESHOLD, \* Ceiling on RECOVERING's exponentially-backed-off down-hysteresis
                                     \* threshold (EffectiveDownHysteresisThreshold below) -- without a
                                     \* cap, unbounded repeated regressions would grow the grace period
                                     \* forever, itself a liveness risk after enough genuine network
