@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "framework"))
 import consensus_metrics as cm  # noqa: E402
 import live_rq4_metrics as rq4  # noqa: E402
 from cluster import CLUSTER  # noqa: E402
-from logger import NODE_RPC_PORTS  # noqa: E402
+from logger import NODE_RPC_PORTS, query_node  # noqa: E402
 
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 RESULTS_DIR = os.path.join(HERE, "results_live")
@@ -111,10 +111,24 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
         time.sleep(args.duration_s / 2)
         cpu.update(cpu_sample(list(NODE_RPC_PORTS)))
 
+    # FSM state seen on node01 every 2 s: under load the P2P-latency predicate can demote Engram without any
+    # peripheral fault (peer RTT above MaxPeerLatency), and a throughput point measured in SOVEREIGN is not an
+    # ANCHORED steady state. vanilla has no FSM query; its samples stay empty.
+    states = []
+
+    def state_probe():
+        while time.time() < deadline + args.drain_s:
+            try:
+                states.append(query_node("engram-node01").fsm_state)
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(2.0)
+
     threads = [threading.Thread(target=sender, args=(p, m, k * interval / args.senders), daemon=True)
                for k, (p, m) in enumerate(zip(ports, per))]
     probe = threading.Thread(target=cpu_probe, daemon=True)
     probe.start()
+    threading.Thread(target=state_probe, daemon=True).start()
     for t in threads:
         t.start()
     for t in threads:
@@ -151,6 +165,8 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
         "mempool_max": max(w.mempool) if w.mempool else None,
         "tx_per_block": s["tx_per_block_mean"], "block_interval_s": s["interval_mean_s"],
         "rounds_per_height": s["rounds_per_height_mean"], "nil_precommits": s["nil_precommits_total"],
+        "share_anchored": round(sum(1 for x in states if x == "ANCHORED") / len(states), 3) if any(states) else None,
+        "fsm_states_seen": "|".join(sorted(set(x for x in states if x))),
         "validator_cpu_pct_mean": round(sum(cpu.values()) / len(cpu), 1) if cpu else None,
         "validator_cpu_pct_max": max(cpu.values()) if cpu else None,
     }
@@ -176,6 +192,7 @@ def main():
     ap.add_argument("--drain-s", type=float, default=15.0)
     ap.add_argument("--senders", type=int, default=8)
     ap.add_argument("--payload-bytes", type=int, default=32)
+    ap.add_argument("--tag", default="", help="label for the output files, e.g. a changed protocol parameter")
     args = ap.parse_args()
 
     want = "engram" if args.arm == "engram" else "vanilla"
@@ -195,7 +212,7 @@ def main():
             rows.append(run_one(args.arm, rate, r, args))
             print({k: rows[-1][k] for k in ("achieved_offered_tx_s", "committed_tx_s", "committed_over_offered", "latency_p95_s", "validator_cpu_pct_max", "saturated")}, flush=True)
     stamp = time.strftime("%Y%m%dT%H%M%S")
-    path = os.path.join(RESULTS_DIR, f"throughput_{args.arm}_{stamp}.csv")
+    path = os.path.join(RESULTS_DIR, f"throughput_{args.arm}{'_' + args.tag if args.tag else ''}_{stamp}.csv")
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
@@ -214,7 +231,7 @@ def main():
         cell["saturated_runs"] = sum(1 for x in sel if x["saturated"])
         summary[str(rate)] = cell
     with open(path.replace(".csv", "_summary.json"), "w") as f:
-        json.dump({"arm": args.arm, "duration_s": args.duration_s, "payload_bytes": args.payload_bytes,
+        json.dump({"arm": args.arm, "tag": args.tag, "duration_s": args.duration_s, "payload_bytes": args.payload_bytes,
                    "senders": args.senders, "cells": summary}, f, indent=2)
     print("wrote", path)
 
