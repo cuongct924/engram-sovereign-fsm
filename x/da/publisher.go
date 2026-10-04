@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -202,6 +203,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 		// Submit below rather than waiting forever.
 		p.pendingEngramHeight = 0
 		p.lastSubmitFailed = true
+		logFailure("pending_timeout", engramHeight, nil)
 	}
 
 	p.restoreLocked(ctx)
@@ -217,6 +219,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 			// graceful SUSPICIOUS degrade the FSM applies via the failure
 			// flags.
 			p.lastSubmitFailed = true
+			logFailure("fetch_error", engramHeight, err)
 			return nil
 		}
 		if len(blobs) == 0 {
@@ -233,6 +236,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 			// The DA layer serves other data under our namespace at that height but not ours: the
 			// submission is not retrievable as published. Drop it and submit again.
 			p.lastSubmitFailed = true
+			logFailure("blob_mismatch", engramHeight, nil)
 			p.pendingEngramHeight = 0
 			p.pendingPayload = nil
 			return nil
@@ -280,6 +284,7 @@ func (p *Publisher) MaybePublish(ctx context.Context, engramHeight uint64, marke
 			// The batch stays queued: the next attempt rebuilds it from the
 			// unchanged contiguousHeight.
 			p.lastSubmitFailed = true
+			logFailure("submit_error", engramHeight, err)
 			return
 		}
 		p.pendingEngramHeight = engramHeight
@@ -330,6 +335,12 @@ func (p *Publisher) VerifiedHeight() (height uint64, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.verifiedHeight, p.hasVerified
+}
+
+// logFailure says why lastSubmitFailed was set. Diagnostic only: stdout, never committed state, so it cannot affect
+// AppHash (the load-induced demotions of docs/EXPERIMENT.md's throughput sweep were otherwise unattributable).
+func logFailure(reason string, engramHeight uint64, err error) {
+	fmt.Printf("engramd: da_publisher_failure reason=%s height=%d err=%v\n", reason, engramHeight, err)
 }
 
 // Failed reports whether the most recent submission/availability check

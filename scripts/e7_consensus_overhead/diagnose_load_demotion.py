@@ -50,6 +50,20 @@ def snapshots(node, since, until):
     return rows
 
 
+FAIL_RE = re.compile(r"da_publisher_failure reason=(\w+)")
+
+
+def da_failure_reasons(nodes, since, until):
+    """Why each validator's DA publisher set its failure flag (x/da/publisher.go logs it), counted over the window."""
+    counts = {}
+    for n in nodes:
+        out = subprocess.run(["docker", "logs", "--since", since, "--until", until, n],
+                             capture_output=True, text=True, timeout=900)
+        for reason in FAIL_RE.findall(out.stdout + out.stderr):
+            counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
 def violations(r, p):
     gap, da = int(r["btc_gap"]), int(r["da_gap"])
     return {
@@ -102,7 +116,9 @@ def main() -> int:
     idle = {n: snapshots(n, stamp(t_idle), stamp(t_load)) for n in CLUSTER.nodes}
     load = {n: snapshots(n, stamp(t_load), stamp(t_end + 5)) for n in CLUSTER.nodes}
     res = {"rate": args.rate, "genesis_params": p, "idle": summarize(idle, p), "load": summarize(load, p),
-           "snapshots_idle": sum(len(v) for v in idle.values()), "snapshots_load": sum(len(v) for v in load.values())}
+           "snapshots_idle": sum(len(v) for v in idle.values()), "snapshots_load": sum(len(v) for v in load.values()),
+           "da_failure_reasons_idle": da_failure_reasons(CLUSTER.nodes, stamp(t_idle), stamp(t_load)),
+           "da_failure_reasons_load": da_failure_reasons(CLUSTER.nodes, stamp(t_load), stamp(t_end + 5))}
     os.makedirs(RESULTS, exist_ok=True)
     path = os.path.join(RESULTS, f"diag_load_demotion_{args.rate:g}_{time.strftime('%Y%m%dT%H%M%S')}.json")
     with open(path, "w") as f:
@@ -112,6 +128,7 @@ def main() -> int:
     for name in res["load"]:
         i, l = res["idle"].get(name, (None, 0))[0], res["load"][name][0]
         print(f"{name:32s} {('-' if i is None else f'{i:.2f}'):>8s} {('-' if l is None else f'{l:.2f}'):>8s}")
+    print("DA publisher failure reasons, idle:", res["da_failure_reasons_idle"], "load:", res["da_failure_reasons_load"])
     print(f"snapshots: idle {res['snapshots_idle']}, load {res['snapshots_load']}; wrote {path}")
     return 0
 

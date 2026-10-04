@@ -85,6 +85,10 @@ def main():
     suffix = f"SW{args.stable_window}" if args.stable_window else ""
     try:
         if args.stable_window:
+            with open(ras.ENV_PATH) as f:
+                if "ENGRAM_PARAM_STABLE_WINDOW=" not in f.read():  # set_env_param only edits an existing line
+                    with open(ras.ENV_PATH, "a") as g:
+                        g.write("\nENGRAM_PARAM_STABLE_WINDOW=16\n")
             ras.set_env_param("ENGRAM_PARAM_STABLE_WINDOW", args.stable_window)
         for name in args.configs.split(","):
             down, max_down = CONFIGS[name]
