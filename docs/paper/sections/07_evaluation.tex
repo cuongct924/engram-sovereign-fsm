@@ -165,8 +165,15 @@ last column: it committed 18--19 withdrawals before locking under DA faults and
 leave \textsc{Anchored} for \textsc{Sovereign}. The hard-gated chain's
 withdrawals in that window carry receipts that are at most as stale as its
 tolerance allows.
-\pending{add the soft baseline (live but never locks): its rows and withdrawals
-after the lock.}
+The soft baseline shows the other side of the trade-off. It runs Engram's FSM
+and keeps Engram's liveness, 98--99\% of the healthy block rate with a longest
+gap of at most 2.5\,s, but it never locks, so it committed 31 withdrawals after
+the lock moment under checkpoint suspension and 71--72 under DA faults, against
+none for Engram. Counted by the FSM state at each height, 87--97 of its 175
+withdrawals under checkpoint suspension and 132--137 of about 180 under DA faults
+were committed while the state was \textsc{Sovereign} or \textsc{Recovering}.
+Only Engram combines the liveness of the soft chain with the zero count of a
+chain that locks.
 
 \textbf{Composite fault.} Engram was then run through a continuous, scripted
 composite-fault sequence under a standing wide-area latency profile
