@@ -280,7 +280,8 @@ def verdict(case, plan, tr, rejects, replay_res, extra) -> dict:
         "replay_clean": bool(replay_res["ok"]) and replay_res["violations"] == 0,
     }
     if "expect_states" in plan:
-        checks["no_honest_transition"] = tr.transitions() == []
+        checks["no_honest_transition"] = getattr(tr, "attack_transitions", tr.transitions()) == []
+        checks["no_honest_transition_whole_run"] = tr.transitions() == []
     expect_reject = plan.get("expect_reject")
     if expect_reject:
         wanted = (expect_reject,) if isinstance(expect_reject, str) else expect_reject
@@ -321,7 +322,7 @@ def finish(case, trial, plan, tr, byz, since, report_from, extra=None, honest_ex
     }
     checks = verdict(case, plan, tr, rejects, replay_res, honest_extra or {})
     row["checks"] = json.dumps(checks, sort_keys=True)
-    row["pass"] = all(checks.values())
+    row["pass"] = all(v for k, v in checks.items() if not k.endswith("_whole_run"))
     row.update(extra or {})
     print(f"VERDICT {case}#{trial}: pass={row['pass']} checks={checks} rejects={rejects} replay={replay_res}")
     return row
@@ -347,6 +348,9 @@ def run_standard(case, trial, args, assignment) -> dict:
         print(f"[{now()}] >>> eclipsing {plan['eclipse']}")
         eclipse(plan["eclipse"], True)
     tr.poll(plan["attack_s"], "attack")
+    # The recovery phase below recreates the Byzantine containers as honest ones, whose rejoin makes the others dip to
+    # SUSPICIOUS for a few blocks: harness churn, not the attack. no_honest_transition judges the attack window only.
+    tr.attack_transitions = tr.transitions()
     if plan.get("eclipse"):
         eclipse(plan["eclipse"], False)
     assignment.clear()
