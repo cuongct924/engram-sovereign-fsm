@@ -200,12 +200,11 @@ def main():
         got = CLUSTER.container_env(node, "ENGRAM_MODE") or "engram"
         if got != want:
             sys.exit(f"{node} runs ENGRAM_MODE={got}, but --arm {args.arm} needs {want}")
-    heights = {n: rq4.get(port, "/status")["sync_info"]["latest_block_height"] for n, port in NODE_RPC_PORTS.items()}
-    heights = {n: int(h) for n, h in heights.items()}
-    if max(heights.values()) - min(heights.values()) > 10:
-        # A validator stuck far behind (seen once: a fresh vanilla genesis where one node never executed block 1) leaves
-        # a 6-validator network, which is not the arm that is being labelled.
-        sys.exit(f"validators are not all at the same height: {heights}")
+    # Same block hash and app_hash on every validator, every validator precommitting (a stuck validator would make
+    # an "N-node" arm an (N-1)-node one).
+    verify = subprocess.run([sys.executable, os.path.join(REPO_ROOT, "scripts", "testnet_verify_consensus.py"), "--wait-s", "60"], capture_output=True, text=True)
+    if verify.returncode != 0:
+        sys.exit(f"cluster failed the consensus verification:\n{verify.stdout}")
     if not os.path.exists(BIN):
         sys.exit(f"build {BIN} first (make build)")
     os.makedirs(RESULTS_DIR, exist_ok=True)

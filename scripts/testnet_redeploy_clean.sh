@@ -18,7 +18,7 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' celestia-app 2>/dev/null
 sleep 60
 for attempt in 1 2 3 4; do
 	make testnet-up MODE="$MODE" N="$N" || echo "--> testnet-up's health wait failed; checking the chain directly"
-	[ -n "$(docker ps -q --filter name=^engram-node01$)" ] && exit 0
+	[ -n "$(docker ps -q --filter name=^engram-node01$)" ] && python3 scripts/testnet_verify_consensus.py --wait-s 180 && exit 0
 	echo "--> validators are not running (attempt $attempt), retrying in 60 s"
 	sleep 60
 done

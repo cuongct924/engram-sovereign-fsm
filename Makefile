@@ -4,7 +4,7 @@ BUILD_DIR=./build
 # Version from git tag, falling back to a commit hash if none exists.
 VERSION=$(shell git describe --tags --always)
 
-.PHONY: all build build-linux clean test lint proto-gen docker-build help paper \
+.PHONY: testnet-verify all build build-linux clean test lint proto-gen docker-build help paper \
 	e1-guard e1-fsm-safety e1-fsm-liveness e1-tendermint-safety \
 	e1-server-safety e1-server-liveness \
 	testnet-up testnet-down testnet-status \
@@ -160,6 +160,8 @@ e1-server-liveness: e1-guard
 testnet-up: build
 	@test -f $(ENV_FILE) || (echo "Missing $(ENV_FILE) -- cp .env.example $(ENV_FILE) and fill in BITCOIN_RPC_USER/BITCOIN_RPC_PASSWORD first" && exit 1)
 	@echo "--> Wiping testnet-data/ and regenerating a $(N)-validator genesis (a stale priv_validator_state.json blocks restarts)"
+	@echo "--> Removing any running validator containers first: a container stopped after the wipe still flushes its old DBs into the fresh testnet-data/"
+	docker ps -aq --filter name=^engram-node | xargs -r docker rm -f
 	rm -rf testnet-data/
 	set -a && . $(ENV_FILE) && set +a && ./$(BUILD_DIR)/$(BINARY_NAME) testnet init-files --v $(N)
 	@echo "--> Starting Bitcoin + Celestia (must be funded/mature BEFORE any engramd container)"
@@ -214,6 +216,10 @@ endif
 	@echo "--> Confirming BTC/DA sensors are actually healthy, not just containers (a fresh deploy can look 'up' while stuck in SOVEREIGN forever -- see CLAUDE.md's Troubleshooting)"
 	./scripts/testnet_wait_fsm_healthy.sh engram-node01
 	@echo "--> Up. Verify: curl -s http://localhost:26657/status | jq .result.sync_info"
+
+# Deep consensus check: same block hash / app_hash on all validators, every validator precommitting, no AppHash-mismatch log.
+testnet-verify:
+	python3 scripts/testnet_verify_consensus.py
 
 testnet-down:
 	@echo "--> Stopping core services by name (never a bare 'docker compose down' -- see docs/DEVELOPMENT.md's gotcha)"
