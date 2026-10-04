@@ -232,7 +232,7 @@ def main():
             if vals:
                 m = sum(vals) / len(vals)
                 sd = (sum((v - m) ** 2 for v in vals) / (len(vals) - 1)) ** 0.5 if len(vals) > 1 else 0.0
-                cell[k] = {"mean": m, "stdev": sd, "ci95": 1.96 * sd / len(vals) ** 0.5}
+                cell[k] = {"mean": m, "stdev": sd, "ci95": {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571}.get(len(vals) - 1, 1.96) * sd / len(vals) ** 0.5}
         cell["saturated_runs"] = sum(1 for x in sel if x["saturated"])
         summary[str(rate)] = cell
     with open(path.replace(".csv", "_summary.json"), "w") as f:

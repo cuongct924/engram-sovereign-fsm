@@ -528,5 +528,37 @@ repeated on a fresh deployment to check for an order effect and moved by
 \textbf{Load.} Table~\ref{tab:overhead} is measured at 20\,tx/s. Both
 systems accepted every submitted transaction into the mempool across an
 earlier 5--100\,tx/s ramp, but mempool acceptance is not throughput.
-\pending{repeat the ramp with the four arms of Table~\ref{tab:overhead} to find
-the committed-throughput ceiling.}
+To look for the committed-throughput ceiling we offered 20, 50, 100, 200 and
+500\,tx/s for 60\,s with five repeats per rate and drained the mempool after
+each (Table~\ref{tab:throughput}). Vanilla CometBFT and Engram committed every
+offered transaction at every rate, so neither saturated and the ceiling was not
+reached on this host; the limit we hit first was CPU, with the busiest
+validator at 64--83\% at 500\,tx/s on a host that runs all seven. The p95
+latency separates the systems: vanilla stays at 1.5--1.9\,s, while Engram rises
+from 2.2\,s at 100\,tx/s to 6.5\,s at 500\,tx/s.
+
+\begin{table}[h]
+\caption{Open-loop throughput, seven validators on one host (60\,s per repeat,
+five repeats; mean $\pm$ 95\% Student-$t$ interval). The \textsc{Anchored}
+share is the fraction of two-second samples of one validator's FSM state spent
+in \textsc{Anchored} and was recorded for the third arm only.}
+\label{tab:throughput}
+\centering
+\footnotesize
+\resizebox{\linewidth}{!}{\input{results/throughput_table}}
+\end{table}
+
+The Engram figures above 100\,tx/s are not a steady \textsc{Anchored}
+state. The peer-latency sensor read round-trip times of up to 1.2\,s between
+validators under this load in the first Engram arm, above the 200\,ms bound, so we repeated the sweep
+with the bound raised to 5000\,ms. The chain still left \textsc{Anchored}:
+the share was 0.83 at 100\,tx/s, 0.13 at 200\,tx/s and 0 at 500\,tx/s, so the
+peer-latency bound is not the only reason, and we did not identify the others.
+That arm had lower latency than the default one (p95 1.9 against 3.8\,s at
+200\,tx/s) and was still above vanilla. We therefore cannot separate the cost of
+the consensus extension from the effect of a demoted FSM above 100\,tx/s on
+this host, and report only that Engram's latency grows with load where
+vanilla's does not. All seven validators share the host's cores, so absolute
+values do not transfer to separate machines. The 5000\,ms bound was set
+through the environment of that deployment, whose genesis we did not keep; the
+first Engram arm did not record the FSM state.

@@ -1,0 +1,24 @@
+\begin{tabular}{@{}rlrrrr@{}}
+\toprule
+\textbf{Offered (tx/s)} & \textbf{Arm} & \textbf{Committed (tx/s)} & \textbf{p95 latency (s)} & \textbf{Peak CPU (\%)} & \textbf{\textsc{Anchored} share} \\
+\midrule
+20 & Engram & 20 $\pm$ 0 & 1.6 $\pm$ 0.1 & 10 $\pm$ 2 & -- \\
+20 & Vanilla & 20 $\pm$ 0 & 1.6 $\pm$ 0.1 & 8 $\pm$ 3 & -- \\
+\addlinespace
+50 & Engram & 50 $\pm$ 0 & 1.7 $\pm$ 0.0 & 15 $\pm$ 8 & -- \\
+50 & Vanilla & 50 $\pm$ 0 & 1.6 $\pm$ 0.0 & 12 $\pm$ 2 & -- \\
+\addlinespace
+100 & Engram & 100 $\pm$ 0 & 2.2 $\pm$ 0.4 & 29 $\pm$ 6 & -- \\
+100 & Engram, peer-latency bound 5000\,ms & 100 $\pm$ 0 & 1.7 $\pm$ 0.1 & 21 $\pm$ 5 & 0.83 $\pm$ 0.09 \\
+100 & Vanilla & 100 $\pm$ 0 & 1.6 $\pm$ 0.1 & 19 $\pm$ 11 & -- \\
+\addlinespace
+200 & Engram & 200 $\pm$ 0 & 3.8 $\pm$ 0.8 & 81 $\pm$ 11 & -- \\
+200 & Engram, peer-latency bound 5000\,ms & 200 $\pm$ 0 & 1.9 $\pm$ 0.5 & 39 $\pm$ 23 & 0.13 $\pm$ 0.37 \\
+200 & Vanilla & 200 $\pm$ 0 & 1.5 $\pm$ 0.1 & 23 $\pm$ 5 & -- \\
+\addlinespace
+500 & Engram & 500 $\pm$ 0 & 6.5 $\pm$ 0.8 & 83 $\pm$ 12 & -- \\
+500 & Engram, peer-latency bound 5000\,ms & 500 $\pm$ 0 & 4.6 $\pm$ 1.1 & 73 $\pm$ 11 & 0.00 $\pm$ 0.00 \\
+500 & Vanilla & 500 $\pm$ 0 & 1.9 $\pm$ 0.4 & 64 $\pm$ 30 & -- \\
+\addlinespace
+\bottomrule
+\end{tabular}
