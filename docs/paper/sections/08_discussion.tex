@@ -111,37 +111,50 @@ recoverability depends on those validators until it is published. The
 backfill gate of Section~\ref{subsec:reanchoring} makes publication a
 precondition for returning to \textsc{Anchored}.
 
-\textbf{Proving latency and the unproven tail.} A recovery proof is built
-while the chain keeps producing blocks, so it can only satisfy the gate if
-the tip has advanced by no more than the unproven-tail bound by the time it
-is submitted: the bound must be at least the proving latency times the block
-rate. In the first live deployment with chunk aggregation (blocks at about
-0.8 per second), the prover built a 512-header aggregate from two chunks in
-about 4.3 minutes and a 514-header aggregate from three in about 6.6 minutes,
-the first on a chain whose tip then stood 211 blocks beyond the last covered
-header and the second 321 blocks. Both proofs were accepted by
+\textbf{The unproven tail: liveness against trust.} A recovery proof is built
+while the chain keeps producing blocks, so by the time it is submitted the
+tip stands beyond the last header it covers. The gate accepts the proof only
+if that unproven tail is at most a bound, \texttt{MaxUnprovenTailBlocks}, so
+the bound must be at least the proving latency times the block rate. The bound
+sets a trade-off. A small bound keeps almost all of the \textsc{Sovereign}
+interval under proof when withdrawals reopen, but a proof that takes longer
+than the bound allows to build never satisfies the gate, and the chain stays in
+\textsc{Recovering}. A larger bound lets slower proofs through, at the price
+that the last blocks before the chain returns to \textsc{Anchored} are
+certified by the validator quorum alone; a coalition above $f$ could rewrite
+that stretch without the proof detecting it, which is the same residual
+exposure as in the history-divergence paragraph above, now bounded by the
+tail. At about 0.8 blocks per second, the default bound of 128 blocks is about
+2.7 minutes and a bound of 512 about 10.7 minutes.
+
+\textbf{Measured proving latency.} In the first live deployment with chunk
+aggregation, the prover built a 512-header aggregate from two chunks in about
+4.3 minutes and a 514-header aggregate from three in about 6.6 minutes; the
+tip then stood 211 and 321 blocks beyond the last covered header, close to the
+product of latency and block rate. Both proofs were accepted by
 \texttt{SubmitRecoveryProof}, but with the bound at 128 neither made the
 recovery flag hold, and the chain stayed in \textsc{Recovering}. A single
 256-header proof takes about two minutes, about 110 blocks, and fits, but
 with little margin: at a block rate about 17\% higher, or a slower prover, it
 would not, so the recovery times of the proof-only runs hold for this
-testbed's block rate and proving speed. Because
-our prover builds the chunk proofs one after another, latency grows with the
-number of chunks. The chunk proofs are independent given the chunk boundary
-roots, so proving them in parallel, or on a machine dedicated to proving
-rather than the shared host used here, would shorten it; we did not measure
-either, and we did not evaluate hardware acceleration such as GPUs.
-With the bound raised to 512 blocks and everything else unchanged, the chain
-left \textsc{Recovering} through an aggregate proof in both of two
-deployments. In the first the prover built a 514-header proof from three
-chunks in 6.5 minutes, and the tip stood 309 blocks beyond the last covered
-header when it was submitted; in the second a 512-header proof from two chunks
-took 4.6 minutes, with the tip 224 blocks beyond. All seven validators were
+testbed's block rate and proving speed. With the bound raised to 512 blocks and
+everything else unchanged, the chain left \textsc{Recovering} through an
+aggregate proof in both of two deployments. In the first the prover built a
+514-header proof from three chunks in 6.5 minutes, and the tip stood 309
+blocks (about 6.4 minutes) beyond the last covered header when it was
+submitted; in the second a 512-header proof from two chunks took 4.6 minutes,
+with the tip 224 blocks (about 4.7 minutes) beyond. All seven validators were
 then in \textsc{Anchored}, 1{,}023 and 888 seconds after the chain started.
 Proof-only recovery was on, so only the proof could have restored it. The
 interval proved in these runs is the one since genesis, not one following an
 outage injected into a healthy chain, and the runs with the bound at 128 are a
 single deployment.
+
+Our prover builds the chunk proofs one after another, so latency grows with
+the number of chunks. The chunk proofs are independent given the chunk
+boundary roots, so proving them in parallel, or on a machine dedicated to
+proving rather than the shared host used here, would shorten it; we did not
+measure either, and we did not evaluate hardware acceleration such as GPUs.
 
 \subsection{Interpretation of Results}
 
@@ -196,6 +209,9 @@ characterize distributions.
   the seven-scenario run and the data-availability runs of
   Section~\ref{subsec:rq3} were made with the heuristic enabled, so their
   time in \textsc{Recovering} does not isolate the cost of the recovery proof.
+  Recovery through a proof also depends on the unproven-tail bound and on the
+  testbed's block rate and proving speed, as discussed under the unproven tail
+  above.
   \item \emph{Byzantine scale.} The single-actor attacks involve one
   Byzantine actor at a time; the $f{=}2$ collusion suite
   (Section~\ref{subsec:rq1}) addresses colluding validators.
