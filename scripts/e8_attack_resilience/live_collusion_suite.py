@@ -396,10 +396,27 @@ def run_b8(trial, args, assignment) -> dict:
     return row
 
 
+def fresh_cluster(assignment) -> bool:
+    """Wipe and redeploy the whole testnet, then wait for ANCHORED. Repeated DA outages on one chain make every
+    recovery longer (a first b9 run started its fourth trial permanently in RECOVERING), so a run must not inherit
+    the previous one's state."""
+    print(f"[{now()}] >>> fresh deployment")
+    run([os.path.join(REPO_ROOT, "scripts", "testnet_redeploy_clean.sh")], check=False, timeout=3600)
+    assignment.current = {}
+    return wait_all(list(NODE_RPC_PORTS), "ANCHORED", 1800)
+
+
 def run_b9(trial, args, assignment) -> list:
     rows = []
+    if trial > 1 and not fresh_cluster(assignment):
+        raise RuntimeError("fresh deployment did not reach ANCHORED")
     for target in ("force_sovereign", "hide_outage"):
         for b in range(4):
+            # Every run starts from ANCHORED on all validators; if the chain has not recovered by itself in 15 min,
+            # redeploy rather than measure from a degraded start.
+            if not wait_all(list(NODE_RPC_PORTS), "ANCHORED", 900):
+                if not fresh_cluster(assignment):
+                    raise RuntimeError("no ANCHORED start available for b9")
             byz = nodes_of(b)
             behaviors = {n: (FALSE_DEGRADED if target == "force_sovereign" else FALSE_HEALTHY) + (
                 ";bias_certificate" if target == "force_sovereign" else ";bias_certificate:best") for n in byz}
@@ -440,6 +457,7 @@ def run_b9(trial, args, assignment) -> list:
             row = finish(f"b9_{target}_b{b}", trial, plan, tr, byz, since, report_from, extra=extra, honest_extra=checks)
             row["exploited"] = exploited
             row["replay_outside_range"] = json.loads(row["replay_kinds"]).get("aggregate_outside_honest_range", 0)
+            row["start_anchored"] = True
             row["lemma1_matches_threshold"] = (row["replay_outside_range"] == 0) if b <= 2 else True
             row["pass"] = bool(row["pass"]) and row["lemma1_matches_threshold"]
             rows.append(row)
