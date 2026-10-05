@@ -57,6 +57,9 @@ x-engram-node-env: &engram-node-env
   # RQ2 comparison system: engram (default), hard-gated or soft -- see
   # cmd/engramd's resolveBaselineMode. Set via `make testnet-up MODE=...`.
   ENGRAM_MODE: ${ENGRAM_MODE:-engram}
+  # DA RPC time limits (x/da); experiment settings, defaults unchanged.
+  ENGRAM_DA_RPC_TIMEOUT_S: ${ENGRAM_DA_RPC_TIMEOUT_S:-20}
+  ENGRAM_DA_CHECK_TIMEOUT_MS: ${ENGRAM_DA_CHECK_TIMEOUT_MS:-800}
 
 # Networks are declared once in the root compose.yml, which owns them --
 # redeclaring them here (even `external: true`) hits "conflicts with

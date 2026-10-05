@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,7 +20,19 @@ import (
 // Submit that waits out Celestia's ~12s block time -- otherwise a stalled
 // connection to a downed bridge hangs forever. Available() gets its own
 // shorter deadline (see that call site) to stay within a consensus round.
-const rpcTimeout = 20 * time.Second
+//
+// Experiment setting: ENGRAM_DA_RPC_TIMEOUT_S (seconds, default 20). Under load the 20 s was exceeded, which sets the
+// DA failure flag; the throughput study raises it to tell a bound that is too tight from a real DA limit. It is local
+// to each process and never enters committed state.
+var rpcTimeout = envDuration("ENGRAM_DA_RPC_TIMEOUT_S", 20*time.Second, time.Second)
+
+// envDuration reads a positive integer count of unit from the environment, falling back to def.
+func envDuration(name string, def, unit time.Duration) time.Duration {
+	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v > 0 {
+		return time.Duration(v) * unit
+	}
+	return def
+}
 
 // namespaceUserIDLen mirrors Celestia's v0 namespace layout: 1 version byte +
 // 28-byte ID, left-padded with 18 zeros so only the last 10 bytes are

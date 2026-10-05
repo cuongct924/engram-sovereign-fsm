@@ -17,7 +17,10 @@ import (
 // availableCheckTimeout bounds the synchronous Available()/ProbeHealthy in
 // the ABCI hot path: must return within a consensus round even if
 // celestia-bridge is unreachable (degrade via is_das_failed, never stall).
-const availableCheckTimeout = 800 * time.Millisecond
+//
+// Experiment setting: ENGRAM_DA_CHECK_TIMEOUT_MS (milliseconds, default 800). A larger value lets a slow bridge answer
+// but lengthens a block when it does not; local to each process, never committed.
+var availableCheckTimeout = envDuration("ENGRAM_DA_CHECK_TIMEOUT_MS", 800*time.Millisecond, time.Millisecond)
 
 // maxPendingBlocks bounds how long a pending submission gets Available()
 // checks before it's abandoned and resubmitted: a pending that never resolves

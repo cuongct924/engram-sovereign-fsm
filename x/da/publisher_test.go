@@ -405,3 +405,14 @@ func TestPublisher_ProgressSurvivesRestart(t *testing.T) {
 	require.Equal(t, uint64(0), restart("chain-a", false).ContiguousHeight(), "the DA layer does not hold the batch: start over")
 	require.Equal(t, uint64(0), restart("chain-b", true).ContiguousHeight(), "another chain's file is ignored")
 }
+
+func TestEnvDurationFallsBackAndParses(t *testing.T) {
+	t.Setenv("ENGRAM_TEST_DA_TIMEOUT", "")
+	require.Equal(t, 800*time.Millisecond, envDuration("ENGRAM_TEST_DA_TIMEOUT", 800*time.Millisecond, time.Millisecond))
+	t.Setenv("ENGRAM_TEST_DA_TIMEOUT", "2500")
+	require.Equal(t, 2500*time.Millisecond, envDuration("ENGRAM_TEST_DA_TIMEOUT", 800*time.Millisecond, time.Millisecond))
+	t.Setenv("ENGRAM_TEST_DA_TIMEOUT", "-3")
+	require.Equal(t, 800*time.Millisecond, envDuration("ENGRAM_TEST_DA_TIMEOUT", 800*time.Millisecond, time.Millisecond), "non-positive values are ignored")
+	t.Setenv("ENGRAM_TEST_DA_TIMEOUT", "abc")
+	require.Equal(t, 800*time.Millisecond, envDuration("ENGRAM_TEST_DA_TIMEOUT", 800*time.Millisecond, time.Millisecond))
+}
