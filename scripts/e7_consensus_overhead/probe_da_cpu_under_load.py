@@ -31,7 +31,6 @@ RESULTS = os.path.join(HERE, "results_live")
 
 
 def containers():
-    names = ["celestia-app"] + [CLUSTER.celestia_bridge(n) if hasattr(CLUSTER, "celestia_bridge") else None for n in CLUSTER.nodes]
     return ["celestia-app", "celestia-bridge-prover"] + [f"celestia-bridge-node{i:02d}" for i in range(1, len(CLUSTER.nodes) + 1)] + list(CLUSTER.nodes)
 
 
