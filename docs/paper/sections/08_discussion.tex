@@ -68,9 +68,18 @@ $k{=}2$ agrees: with three Byzantine validators the outage was detected in 5 of
 5 runs. The adaptive threshold exposes the same
 weakness only while its flap level is high (0 of 35 placements hidden at level 0,
 28 at level 1, all 35 at level 2), whereas a static threshold of 4 or more is
-exposed permanently. A rule that demotes on the share of bad blocks in a window
-instead of a consecutive run would not be cut by interleaved reports; we have
-not tested it. \pending{report the live outage-hiding runs at $k{=}4$ with adjacent and interleaved Byzantine placements.}
+exposed permanently. A rule that demotes when at least $m$ of the last $w$ blocks are bad,
+instead of after a consecutive run, is not cut by interleaved reports. In a
+reduced model of the \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} edge,
+validated against the keeper-based simulation above (static thresholds and the
+adaptive $2\to4$ reproduce its flaps, detection delays and hidden placements),
+4 of 8 hid the outage in 0 of 35 placements, against 28 for a static threshold
+of 4, at 0.8 flaps against 0.2 and the same 4-block detection. It does not
+remove the cost of being fast: its detection is as slow as the static
+threshold, and an adversary that sends bursts of $m$ blocks still obtains 200
+demotions in 1200 blocks, where the adaptive threshold allows 1. Combining the
+two (an adaptive window) gave 4.6 flaps and 172 demotions, so no single rule
+won on all four criteria. We did not implement the window rule. \pending{report the live outage-hiding runs at $k{=}4$ with adjacent and interleaved Byzantine placements.}
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the

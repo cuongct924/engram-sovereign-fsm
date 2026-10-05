@@ -1,0 +1,12 @@
+rule,flaps_mean,flaps_ci95,cold_detection_blocks,after_noise_detect_0,after_noise_detect_96,hidden_quiet_of_35,hidden_raised_of_35,naive_demotions_1200
+static2,8.23,0.53,2,1.96,2.00,0,0,300
+static3,3.79,0.36,3,2.92,3.00,14,14,240
+static4,0.17,0.07,4,3.88,4.00,28,28,200
+static5,0.10,0.04,5,4.88,5.00,35,35,171
+window2-of-3,8.26,0.53,2,1.94,2.00,0,0,300
+window3-of-5,4.14,0.36,3,2.88,3.00,0,0,240
+window4-of-6,0.55,0.13,4,3.79,4.00,0,0,200
+window4-of-8,0.76,0.16,4,3.73,4.00,0,0,200
+window5-of-8,0.39,0.10,5,4.73,5.00,0,0,171
+adaptive2-4_T64,3.44,0.19,2,3.13,2.00,0,28,1
+adaptive-window_T64,4.61,0.23,2,2.98,2.17,0,0,172
