@@ -56,6 +56,20 @@ the chain behaved as in the other cases, and with three (B7b) it reached
 \textsc{Sovereign} in all three repeats, with every aggregate still inside the
 honest range.
 
+Not every case is rejected, and safety does not rest on rejection in the
+others. In B1, B2, B3a and B7 the blocks are well-formed and the reports they
+carry are opinions rather than checkable facts; there safety rests on the
+aggregation. With at most two colluding validators the weighted median cannot
+leave the range of the honest observations (Lemma~\ref{lem:honest-range}), and
+the replay found no block outside that range. The sweep of Table~\ref{tab:b9}
+shows where this stops: with $b{=}3$ the aggregate leaves the range and the
+adversary forces \textsc{Sovereign}. A3 is accepted because a DA attestation
+one height ahead lies inside the tolerance of the receipt check, a limit of the
+DA trust assumption rather than of the aggregation. B4 is not rejected either,
+since each vote is valid by itself; the honest validators record the double
+signature as evidence, and with two double-signers the repeats committed
+identical AppHashes and replayed cleanly.
+
 State transitions cannot be attributed to the adversary in this setting. The
 control c0, in which no validator misbehaves and one is only restarted, also
 moved from \textsc{Anchored} to \textsc{Suspicious} in 3 of 3 repeats,
