@@ -122,7 +122,10 @@ the first on a chain whose tip then stood 211 blocks beyond the last covered
 header and the second 321 blocks. Both proofs were accepted by
 \texttt{SubmitRecoveryProof}, but with the bound at 128 neither made the
 recovery flag hold, and the chain stayed in \textsc{Recovering}. A single
-256-header proof takes about two minutes, about 110 blocks, and fits. Because
+256-header proof takes about two minutes, about 110 blocks, and fits, but
+with little margin: at a block rate about 17\% higher, or a slower prover, it
+would not, so the recovery times of the proof-only runs hold for this
+testbed's block rate and proving speed. Because
 our prover builds the chunk proofs one after another, latency grows with the
 number of chunks. The chunk proofs are independent given the chunk boundary
 roots, so proving them in parallel, or on a machine dedicated to proving
