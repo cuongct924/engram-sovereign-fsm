@@ -1,0 +1,141 @@
+{
+ "rate": 200.0,
+ "genesis_params": {
+  "suspicious_threshold": 5,
+  "sovereign_threshold": 8,
+  "da_threshold": 30,
+  "recovery_hysteresis_wait": 2,
+  "min_peers": 3,
+  "min_subnet_diversity": 2,
+  "min_anchor_peers": 2,
+  "max_churn_rate": 5,
+  "min_avg_tenure": 300,
+  "max_peer_latency": 200,
+  "max_suspicious_time": 24,
+  "max_ignore_rounds": 1,
+  "k_deep_finality": 2,
+  "max_unproven_tail_blocks": 128,
+  "max_peers_per_subnet": 8,
+  "down_hysteresis_threshold": 2,
+  "max_down_hysteresis_threshold": 8,
+  "suspicious_hysteresis_wait": 8,
+  "max_suspicious_forced_tx_queue": 8,
+  "max_censorship_rounds": 100,
+  "proof_only_recovery": true,
+  "stable_window": 16
+ },
+ "idle": {
+  "btc_gap_suspicious": [
+   0.04081632653061224,
+   343
+  ],
+  "btc_gap_sovereign": [
+   0.0,
+   343
+  ],
+  "anchor_reverification_failed": [
+   0.0,
+   343
+  ],
+  "da_gap": [
+   0.0,
+   343
+  ],
+  "da_failed": [
+   0.0,
+   343
+  ],
+  "attestation_failed": [
+   0.0,
+   343
+  ],
+  "active_anchors": [
+   0.0,
+   343
+  ],
+  "clean_peers": [
+   0.0,
+   343
+  ],
+  "churn_rate": [
+   0.0,
+   343
+  ],
+  "avg_tenure": [
+   0.0,
+   343
+  ],
+  "peer_latency": [
+   0.0,
+   343
+  ]
+ },
+ "load": {
+  "btc_gap_suspicious": [
+   0.04938271604938271,
+   567
+  ],
+  "btc_gap_sovereign": [
+   0.0,
+   567
+  ],
+  "anchor_reverification_failed": [
+   0.0,
+   567
+  ],
+  "da_gap": [
+   0.23633156966490299,
+   567
+  ],
+  "da_failed": [
+   0.2980599647266314,
+   567
+  ],
+  "attestation_failed": [
+   0.2980599647266314,
+   567
+  ],
+  "active_anchors": [
+   0.0,
+   567
+  ],
+  "clean_peers": [
+   0.0,
+   567
+  ],
+  "churn_rate": [
+   0.0,
+   567
+  ],
+  "avg_tenure": [
+   0.0,
+   567
+  ],
+  "peer_latency": [
+   0.0,
+   567
+  ]
+ },
+ "snapshots_idle": 343,
+ "snapshots_load": 567,
+ "da_failure_reasons_idle": {
+  "counts": {},
+  "sample_errors": []
+ },
+ "da_failure_reasons_load": {
+  "counts": {
+   "submit_error": 15,
+   "fetch_error": 5
+  },
+  "sample_errors": [
+   "fetch_error: blob.GetAll: rpc request blob.GetAll: Post \"http://celestia-bridge-node02:26658\": context deadline exceeded",
+   "fetch_error: blob.GetAll: rpc request blob.GetAll: Post \"http://celestia-bridge-node03:26658\": context deadline exceeded",
+   "fetch_error: blob.GetAll: rpc request blob.GetAll: Post \"http://celestia-bridge-node06:26658\": context deadline exceeded",
+   "submit_error: blob.Submit: rpc request blob.Submit: Post \"http://celestia-bridge-node01:26658\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+   "submit_error: blob.Submit: rpc request blob.Submit: Post \"http://celestia-bridge-node02:26658\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+   "submit_error: blob.Submit: rpc request blob.Submit: Post \"http://celestia-bridge-node03:26658\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+   "submit_error: blob.Submit: rpc request blob.Submit: Post \"http://celestia-bridge-node04:26658\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+   "submit_error: blob.Submit: rpc request blob.Submit: Post \"http://celestia-bridge-node05:26658\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+  ]
+ }
+}
