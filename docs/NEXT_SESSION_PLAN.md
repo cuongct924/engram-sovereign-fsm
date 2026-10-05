@@ -278,10 +278,20 @@ negative control 4/7 giữ và 3/7 mở. Còn lại:
 Đã làm: tách làm hai phần. Phần môi trường hoàn tất (17.500 trạng thái phân biệt, 4.826.336 sinh ra, độ sâu 10,
 10 phút 35 giây, không vi phạm). Phần consensus-core chưa hội tụ (dừng sau 1 giờ 41 phút ở 19.848.141
 trạng thái phân biệt, độ sâu 15, không vi phạm; độ sâu 12 là của ablation fast-forward). Paper giữ framing "layered
-specification + bounded model checking" và nêu refinement còn mở. Nếu muốn tiếp tục: chạy
-`MC_ConsensusCoreRefinementSafety` lâu hơn hoặc thử kiểm tra quy nạp bằng Apalache cho bước (b)
-(`EngramServerRefinement_Ind.tla`: `IndInv`, biến ghost `prevAbs`). Điều kiện dừng: nếu vẫn mở, giữ
-framing hiện tại.
+specification + bounded model checking" và nêu refinement còn mở.
+
+Định hướng formal sau khi xong live Docker (không chạy TLC/Apalache khi cụm đang chạy):
+1. Ablation backfill: chạy `MC_Ablation_NoDABackfillSafety_FSMOnly_Apalache` (đã viết, chưa chạy); có vi phạm thì thêm
+   hàng vào `tab:ablation`. Thay ablation f+1 (chưa có kết quả đáng tin) bằng ablation này.
+2. Chạy lại ablation hysteresis và P2P gate trên FSM hiện tại: hai module `EngramFSM_Ablation_*` là bản sao đã lệch
+   khỏi `EngramFSM.tla`.
+3. C1 consensus-core: chạy cấu hình nhỏ hơn (N=4, f=1, 2 vòng, độ cao tối đa 2, MaxTimestamp=6 là cấu hình hiện tại);
+   chỉ dùng nếu TLC xác nhận vẫn đạt tới đổi vòng, proposer Byzantine, chuyển trạng thái FSM và block được quyết định.
+4. C1 bước xen kẽ: lập luận tay rằng bước môi trường không đổi biến của ánh xạ refinement.
+5. Kiểm tra quy nạp Apalache cho C1: file khung `EngramServerRefinement_Ind.tla` chưa tồn tại, phải viết mới;
+   giới hạn một ngày.
+6. Cập nhật Section 5, `spec/README.md` và báo cáo (mục 6, II.A) bằng số mới.
+Điều kiện dừng: nếu C1 vẫn mở, giữ framing hiện tại.
 
 ### 28–32. Việc mới của phiên 5/10
 Xem bảng "Cập nhật 5/10/2026" ở trên. Tóm tắt: (28) đo thêm hysteresis, (29) che sự cố theo ngưỡng k và vị trí, (30) nguyên nhân FSM rời ANCHORED dưới tải là timeout RPC DA, (31) RQ3 cần composite ≥ 5 và proof-only với n lớn hơn (chưa xếp), (32) trình bày lại RQ4.
