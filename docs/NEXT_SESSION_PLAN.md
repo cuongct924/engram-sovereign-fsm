@@ -34,13 +34,13 @@ Quy tắc chung:
 | 8 | Hệ nhãn bằng chứng + gọn phần giới hạn | ✅ | — |
 | 9 | Sửa `spec/README.md` còn lại | ✅ | — |
 | 10 | Smoke test live bản sửa sub-quorum certificate | ⬜ | Gộp vào lượt E7 đầu tiên của Giai đoạn 4 |
-| 11 | Công cụ đo RQ4 | 🟡 | Trần throughput 100→1000 tx/s; chạy lại E7 |
-| 12 | Baseline hard-gated (+ soft) | 🟡 | Chạy ma trận E11 (chưa có dữ liệu) |
-| 13 | Bộ tấn công cộng tác f=2 (B1–B9) + replay checker | 🟡 | Chạy đủ suite, A1/A2 ở n=7, hình B9 |
-| 14 | Làm lại A3, A4, A7, A10 | ⬜ | Xem mục 14 |
+| 11 | Công cụ đo RQ4 | 🟡 | Đo xong ở tải thấp (n=5) và sweep 20→500 tx/s; chưa có trần; nguyên nhân FSM rời ANCHORED = timeout RPC DA (mục 30) |
+| 12 | Baseline hard-gated (+ soft) | ✅ | E11 xong 27 trial (3 hệ × 3 lỗi × 3), đã vào paper (RQ2) |
+| 13 | Bộ tấn công cộng tác f=2 (B1–B9) + replay checker | 🟡 | b8, b9 (40/40) xong; suite chính đang chạy lại từ ANCHORED; viết RQ1 một lần khi đủ (mục 13) |
+| 14 | Làm lại A1–A10 ở n=7 trong phiên này | 🟡 | A3/A4 nằm trong suite f=2 chạy lại; A1, A2, A5–A10 đã xếp lịch (3 trial) |
 | 15 | State root trong checkpoint Bitcoin | 🟡 | Chạy lại E10 trên code cuối |
-| 16 | Hysteresis thích nghi ANCHORED↔SUSPICIOUS | 🟡 | Sweep live E5 (tĩnh k=2, k=6, thích nghi) |
-| 17 | Dữ liệu DA thật + backfill khoảng Sovereign | 🟡 | Ablation backfill, TLC lớp Server, control "inflated" |
+| 16 | Hysteresis thích nghi ANCHORED↔SUSPICIOUS | 🟡 | Sweep tĩnh live xong (adaptive không hơn k=2); mô phỏng xong; live 3 pha và kẻ tấn công lặp lại đã xếp (mục 28) |
+| 17 | Dữ liệu DA thật + backfill khoảng Sovereign | 🟡 | Live + control "inflated" xong; còn ablation Apalache và TLC lớp Server |
 | 18 | Mô hình TLA+ của health certificate | ✅ | — |
 | 19 | Refinement C1 | 🟡 | Giữ framing "layered + bounded"; tuỳ chọn chạy tiếp phần consensus-core |
 | 20 | Chạy lặp các thí nghiệm live | ⬜ | Giai đoạn 4 |
@@ -49,8 +49,59 @@ Quy tắc chung:
 | 23 | Tổ chức Evaluation | ✅ | Giữ RQ1–RQ4 |
 | 24 | Hoàn thiện trước khi nộp | 🟡 | Xem mục 24 |
 | 25–27 | Việc chờ quyết định và tồn đọng | — | — |
+| 28 | Đo thêm hysteresis thích nghi (mô phỏng, live 3 pha, kẻ tấn công lặp lại) | 🟡 | Mô phỏng + đối chiếu keeper xong; live đã xếp lịch |
+| 29 | Che sự cố DA khi vượt f theo ngưỡng k và vị trí Byzantine | 🟡 | Mô phỏng xong; live k=4 (h4a, h4i) đã xếp |
+| 30 | Vì sao FSM rời ANCHORED dưới tải | 🟡 | Timeout RPC DA (xác nhận); probe CPU Celestia đã xếp; quyết định nới timeout |
+| 31 | RQ3: lặp composite ≥ 5 trial và proof-only recovery với n lớn hơn | ⬜ | Chưa xếp lịch (khoảng 3–4 giờ) |
+| 32 | Trình bày lại RQ4 (thuật ngữ n/arm/trial, hiệu ứng thứ tự, nguyên nhân DA) | ⬜ | Chờ quyết định hướng A/B/C |
 
 Đã chuyển sang cấu trúc 9 section; paper dùng macro số liệu trong `docs/paper/results/result_macros.tex`.
+
+
+## Cập nhật 5/10/2026 (phiên chạy thí nghiệm liên tục)
+
+### Đã có dữ liệu hợp lệ trong phiên này
+| Thí nghiệm | Kết quả chính | Nơi lưu |
+|---|---|---|
+| E11 (RQ2), 27 trial | Engram 96–102% tốc độ block, hard-gated 56/16/17% rồi không resume trong 120 s (9/9), soft lọt 31–72 withdrawal sau thời điểm khóa | `e11_hard_gated_baseline/results_live/` |
+| E7 throughput, 3 nhánh × 5 mức × 5 lần | Không nhánh nào bão hòa đến 500 tx/s; p95 Engram tăng từ 100 tx/s, vanilla phẳng; chưa có trần | `e7_consensus_overhead/results_live/throughput_*` |
+| Chẩn đoán tải 200 tx/s (3 lượt) | FSM rời ANCHORED vì cờ lỗi DA: `blob.Submit` quá 20 s, `blob.GetAll` quá 800 ms; không phải độ trễ P2P | `diag_load_demotion_*.json` |
+| E5 hysteresis live, 33 ô + `StableWindow=64` | adaptive 8,3 flap so với k=2 là 9,0; `T=64` là 3,0; static k≥4 là 0 | `e5_hysteresis_flapping/results_live/` |
+| Mô phỏng hysteresis (keeper thật, 200 seed ghép cặp) | adaptive giữ phát hiện 2 block lúc yên, chống burst ngắn lặp lại (1 so với 300 hạ cấp), không thắng static k=4 về flap | `tests/e2e/results/e5c_*.csv` |
+| Che sự cố DA theo vị trí Byzantine (mô phỏng) | b≤2: luôn phát hiện đúng k block; b=3: k=2 phát hiện cả 35 vị trí, k=3 bỏ sót 14, k=4 bỏ sót 28 | `tests/e2e/results/e8_hide_outage_placement*.csv` |
+| E8 b9, 5 trial × 8 lần, mỗi lần từ ANCHORED | b≤2: 0 block ngoài khoảng trung thực, SOVEREIGN không bị ép; b=3: 40–42 (force) và 5–12 (hide) block vi phạm, SOVEREIGN bị ép 5/5, sự cố vẫn bị phát hiện 5/5 | `collusion_suite_20261005T100618.csv` |
+| E8 b8 (1 trial), b5 (3 trial), c0 (đối chứng khởi động lại) | b8 pass; b5 105–110 lần từ chối `withdrawal_locked`; c0: node trung thực vẫn chuyển SUSPICIOUS không có tấn công | `collusion_suite_*` |
+
+### Lỗi harness đã sửa (ảnh hưởng đến cách đọc dữ liệu cũ)
+- Mọi lần chạy phải bắt đầu từ ANCHORED (trước đây b7a/b7b, b4, và b9 từ trial 4 bắt đầu ở SOVEREIGN); b9 dựng chuỗi mới mỗi trial.
+- Tiêu chí dựa vào "có chuyển trạng thái" bị loại: nhiễu nền gây chuyển trạng thái cả khi không có tấn công (đối chứng c0). b9 giờ dùng Lemma 1 (số block ngoài khoảng trung thực) và "vào SOVEREIGN".
+- CSV được ghi sau từng lần chạy; `docker logs` timeout nâng lên 900 s.
+- Cột `byz_proposed_heights` từng bằng 0 vì log container Byzantine bị mất khi tạo lại container; nay đọc trước khi tạo lại.
+- Dữ liệu cũ không hợp lệ được cách ly trong `_invalid_*` (không commit); mọi số cũ về f=2 phải được thay bằng lượt chạy lại.
+
+### Lịch chạy tự động (một script điều khiển cụm tại một thời điểm, ước tính lúc 16:30 ngày 5/10)
+| # | Nội dung | Dự kiến xong |
+|---|---|---|
+| 1 | Suite f=2 chính chạy lại từ ANCHORED (a3, a4, b1, b2, b3a, b3b, b4, b6, b7a, b7b × 3) | 18:00 |
+| 2 | Tấn công đơn lẻ A1, A2, A5–A10 × 3 trial ở n=7, dữ liệu của phiên này (không dùng kết quả 2/9) | 20:30 |
+| 3 | Probe CPU Celestia dưới tải 200 tx/s (cgroup throttling) | 21:10 |
+| 4 | Live hide_outage k=4: Byzantine liền kề (h4a) và xen kẽ (h4i), 3 trial | 23:15 |
+| 5 | Live 3 pha hysteresis (static k=2, k=4, adaptive `T`=16/64/128, adaptive 2→4 `T=64`), 2 độ trễ, 3 trial | 10:15 (6/10) |
+| 6 | Live kẻ tấn công lặp lại (xung ngắt bridge DA), 5 cấu hình × 3 trial | 15:00 (6/10) |
+
+### Chưa xếp lịch (cần quyết định)
+- **RQ3 (yếu nhất):** lặp composite ≥ 5 trial và proof-only recovery với n lớn hơn. Chờ kết quả live hysteresis chỉ giải quyết nửa hysteresis của RQ3, không giải quyết hai chỗ này.
+- Thử nới thời gian chờ DA (800 ms, 20 s) và đo lại throughput (khoảng 2 giờ), tùy kết quả probe CPU.
+- Hướng sửa RQ4 (A: chuẩn hóa thuật ngữ, B: ghi hiệu ứng thứ tự, C: chạy lại mỗi mức tải một chuỗi mới).
+- Monte Carlo có SD của độ trễ phát hiện (sẽ ghi đè CSV E4 đang sửa dở; cần ghi vào thư mục riêng).
+- Testbed B (đa máy): để sau, bạn tự chạy; tôi chỉ chuẩn bị mã.
+
+### Đã sửa trong paper (không cần chạy)
+- RQ2 chỉ hỏi về Bitcoin và DA, kèm chi phí (withdrawal lọt trước khi khóa); P2P chuyển sang RQ1.
+- Abstract: baseline là cài đặt của nhóm, n=3 một máy, chi phí phát hiện 18–56 withdrawal, con số 0 sau khóa là kiểm tra nhất quán.
+- Hysteresis hạ xuống thành thành phần phân tích: bảng mô phỏng, phát biểu đánh đổi nhiễu so với che giấu, câu hạn chế cũ được sửa.
+- Mâu thuẫn A6 n=4 trong Discussion được sửa thành A1/A2 n=4.
+- Còn `\pending`: B1–B6 (RQ1), composite ≥ 5 trial, cột live của bảng hysteresis, kẻ tấn công lặp lại live, hide_outage k=4 live, A1/A2 n=7, SD detection delay, hash commit, tag phát hành.
 
 ---
 
@@ -82,12 +133,12 @@ từ chối proposal trung thực.
 | Thứ tự | Thí nghiệm | Dữ liệu hiện có | Cần chạy lại / chạy mới |
 |---|---|---|---|
 | 1 | **E7** overhead (`e7_consensus_overhead/`) | Bốn nhánh: 1 process, 7 vanilla không ext, 7 vanilla ext, Engram; trước round binding | Chạy lại nhánh Engram; xác nhận 0 REJECT `certificate_not_bound_to_commit`, 0 nil prevote, có ca round > 0 (mục 10); thêm trần throughput 100→200→500→1000 tx/s (chưa có) |
-| 2 | **E11** baseline (`e11_hard_gated_baseline/run_matrix.sh`) | Không có (`results_live/` trống) | Chạy mới: hard-gated, engram, soft × lỗi BTC/DA/cả hai × 3 trial; hình height theo thời gian (mục 12) |
+| 2 | **E11** baseline (`e11_hard_gated_baseline/run_matrix.sh`) | ✅ 27 trial (5/10); hình height theo thời gian đã sinh, chưa đưa vào paper | Không cần chạy lại; thêm trial chỉ nếu muốn n=5 |
 | 3 | **E2** S1–S7 (`confidence_interval_recovery_time.py`) | Một lượt cũ | S1–S7 × 5, đảo thứ tự S2–S6, thêm S5 độc lập; khoảng 2–2,5 giờ |
 | 4 | **E9** composite (`e9_composite_fault/`) | Một lượt | Composite × 5, P4 × 3 |
 | 5 | **E3** (`e3_failure_matrix/`) | Backfill 120/300/600 s, negative control (4/7 giữ, 3/7 mở) | Chạy lại trên code cuối; thêm control "hai validator báo contiguous height phóng đại" (chưa có dữ liệu) |
-| 6 | **E5** (`e5_hysteresis_flapping/`) | Sweep tĩnh; không có nhánh thích nghi | Sweep k=2, k=6, thích nghi (k0=2, k_max=8, W=100), 3 trial, hai chế độ (mục 16) |
-| 7 | **E8** (`e8_attack_resilience/live_collusion_suite.py`) | Một trial B1–B5 (suite chưa xong) | B1–B9 đủ (B1–B7 3 trial, B8 1 trial, B9 5 trial); A1/A2 ở n=7; A3/A4/A7/A10 (mục 14); A11 round-replay |
+| 6 | **E5** (`e5_hysteresis_flapping/`) | ✅ Sweep tĩnh + thích nghi (33 ô) + `StableWindow=64` (6 ô) | Live 3 pha và kẻ tấn công lặp lại đã xếp (mục 28) |
+| 7 | **E8** (`e8_attack_resilience/live_collusion_suite.py`) | b8, b9 (40/40), b5, c0 hợp lệ; suite chính đang chạy lại từ ANCHORED | Hết suite chính; A1, A2, A5–A10 × 3 ở n=7 đã xếp (dữ liệu của phiên này); A11 round-replay live chưa làm |
 | 8 | **E4** (`e4_p2p_eclipse_detection/`) | Churn, relay latency, Sybil (cũ) | Chạy lại |
 | 9 | **E10** (`e10_bitcoin_reorg/`) | Sweep reorg cũ | Depth 6–14, mỗi depth ≥ 3 lần; kiểm checkpoint 44 byte |
 | 10 | **E6** (`e6_zk_reanchoring_benchmark/`) | Benchmark ZK | Chỉ khi đổi circuit hoặc toolchain; cần máy rảnh |
@@ -171,9 +222,9 @@ Còn lại: trần committed throughput (20 → 100 → 200 → 500 → 1000 tx/
 Microbenchmark 18,25 µs: báo số lần lặp và phương sai (`-count=10`, `benchstat`), nói rõ không gồm
 verify proof (đo riêng).
 
-### 12. Baseline hard-gated (🟡) [T][B]
+### 12. Baseline hard-gated (✅) [T][B]
 Chế độ đã có: `engramd start --hard-gated|--soft` hoặc `ENGRAM_MODE`, `make testnet-up MODE=…`,
-`scripts/e11_hard_gated_baseline/run_matrix.sh`. Chưa có dữ liệu. Cần chạy: mỗi trial 60 s khoẻ → 180 s
+`scripts/e11_hard_gated_baseline/run_matrix.sh`. Dữ liệu: 27 trial xong ngày 5/10 (đã vào RQ2). Thiết kế đã chạy: mỗi trial 60 s khoẻ → 180 s
 lỗi → 120 s phục hồi; lỗi = BTC tạm dừng, DA outage (cả 7 bridge), cả hai; 3 trial × 3 lỗi × 3 hệ, genesis
 mới cho mỗi hệ. Metric: block commit trong cửa sổ lỗi, khoảng lặng dài nhất, số round ở height bị kẹt,
 thời gian ra block đầu tiên sau phục hồi, số withdrawal không an toàn. Kết quả điền vào bảng RQ2 và
@@ -181,14 +232,15 @@ hình height theo thời gian.
 
 ### 13. Bộ tấn công cộng tác f=2 (🟡) [T][M][B]
 Code (hook Byzantine, replay checker `engramd debug replay-fsm`, `live_collusion_suite.py`, test
-in-process B1–B3, B5, B6, B9) đã có. Dữ liệu live hiện có là một trial B1–B5 trước round binding. Cần chạy đủ:
+in-process B1–B3, B5, B6, B9) đã có. Dữ liệu live trước đây (một trial B1–B5 trước round binding) không còn dùng; dữ liệu cũ của phiên này bị loại vì bắt đầu sai trạng thái. Đã xong: b5 (3 trial), b8 (1), b9 (5 trial × 8 lần), c0. Suite chính đang chạy lại từ ANCHORED. Cần đủ:
 - B1–B7 × 3 trial, B8 × 1 trial (≥ 10 phút), B9 sweep b ∈ {0, 1, 2, 3} × 2 mục tiêu × 5 trial.
 - A1/A2 (eclipse, Sybil) ở n=7; A11 round-replay ở live.
 - Hình B9: trục x = b, trục y = tỷ lệ height do Byzantine kiểm soát, tô vùng b ≤ f.
 - Replay checker cho mỗi case; paper báo số dòng vi phạm (kỳ vọng 0; b = 3 là đối chứng âm).
 - B7/B8 chỉ đo, không khẳng định chuyển trạng thái; n=1 (B8) và n=3/5 chỉ đủ báo số lần đạt.
 
-### 14. Làm lại A3, A4, A7, A10 (⬜) [M]
+### 14. Làm lại A1–A10 ở n=7 trong phiên này (🟡) [M]
+A3, A4 nằm trong suite f=2 chạy lại; A1, A2, A5–A10 đã xếp lịch (3 trial), dùng dữ liệu của phiên này, không dùng lần chạy 2/9. Ghi chú: A3 (khai attestation DA +1) **được chấp nhận** vì nằm trong dung sai của `da.VerifyReceipt`, nên kỳ vọng "honest từ chối" của suite là sai; nêu như giới hạn DA-trust. Các yêu cầu gốc:
 Các dòng này chưa chứng minh được cơ chế phòng thủ đã kích hoạt:
 - A3 (data withholding), A4 (forged BTC receipt): đếm `ProcessProposal REJECT reason=…` theo lý do
   trên các validator trung thực.
@@ -203,6 +255,7 @@ cục bộ, unit test. Paper nói rõ accumulator Poseidon của proof không đ
 chạy lại E10 trên code cuối để kiểm tra hồi quy.
 
 ### 16. Hysteresis thích nghi (🟡) [T]
+Kết quả phiên 5/10: sweep live tĩnh + thích nghi xong (adaptive không hơn static k=2; `T=64` giảm còn 3,0 flap). Mô phỏng và các thí nghiệm đo thêm ở mục 28.
 Đã làm: spec (`flap_level`), Go (`MaxDownHysteresisThreshold`, `StableWindow`, `NextFlapLevel`), unit
 test, mô tả trong paper. Còn lại:
 - Sweep live cạnh xuống (E5): k=2 tĩnh, k=6 tĩnh, thích nghi (k0=2, k_max=8, W=100), 3 trial mỗi cấu
@@ -217,7 +270,7 @@ test, mô tả trong paper. Còn lại:
 negative control 4/7 giữ và 3/7 mở. Còn lại:
 - Ablation bỏ điều kiện backfill (Apalache) và dòng mới trong `tab:ablation`.
 - Chạy lại TLC lớp Server (`ServerDABackfill`).
-- Control "hai validator ký contiguous height phóng đại không mở được cổng": chưa có dữ liệu.
+- Control "hai validator ký contiguous height phóng đại không mở được cổng": đã có (2 phóng đại + 5 giữ, 2/2 giữ).
 - Viết kết quả negative control vào `evaluation` và bỏ `\pending` tương ứng.
 - Chạy lại toàn bộ trên code cuối (Giai đoạn 4).
 
@@ -228,6 +281,9 @@ specification + bounded model checking" và nêu refinement còn mở. Nếu mu�
 `MC_ConsensusCoreRefinementSafety` lâu hơn hoặc thử kiểm tra quy nạp bằng Apalache cho bước (b)
 (`EngramServerRefinement_Ind.tla`: `IndInv`, biến ghost `prevAbs`). Điều kiện dừng: nếu vẫn mở, giữ
 framing hiện tại.
+
+### 28–32. Việc mới của phiên 5/10
+Xem bảng "Cập nhật 5/10/2026" ở trên. Tóm tắt: (28) đo thêm hysteresis, (29) che sự cố theo ngưỡng k và vị trí, (30) nguyên nhân FSM rời ANCHORED dưới tải là timeout RPC DA, (31) RQ3 cần composite ≥ 5 và proof-only với n lớn hơn (chưa xếp), (32) trình bày lại RQ4.
 
 ### 21. Chạy đa máy có WAN impairment (🟡) [T][M]
 Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
@@ -289,16 +345,16 @@ nếu validator bỏ full node. Thay đổi kiến trúc; cần đồng ý trư�
 | # | Điểm | Trạng thái |
 |---|---|---|
 | 1 | Engram là lớp adaptive trên CometBFT, không phải BFT mới | ✅ |
-| 2 | Baseline RQ2 đúng (hard-gated) | 🟡 Tooling xong; chạy ma trận E11 (mục 12) |
-| 3 | RECOVERING→ANCHORED cần DA backfill | ✅ Code và spec; kiểm chứng live ở mục 17 |
+| 2 | Baseline RQ2 đúng (hard-gated) | ✅ E11 xong (27 trial); RQ2 viết lại chỉ nói BTC/DA; hard-gated là cài đặt của nhóm |
+| 3 | RECOVERING→ANCHORED cần DA backfill | ✅ Code, spec và live: 9 lần backfill (120/300/600 s) khớp 100%, control 4/7 giữ, 3/7 mở, 2 phóng đại + 5 giữ |
 | 4 | Ai verify ZK proof, vai trò Bitcoin | ✅ |
 | 5 | Sửa claim "single recursive proof" | ✅ Chuỗi proof nối bằng root; không recursion |
 | 6 | Formal verification không overclaim | ✅ Refinement ghi là còn mở (mục 19) |
 | 7 | Formal hoá health certificate | ✅ |
 | 8 | Phân biệt core consensus P2P và peripheral P2P | ✅ |
-| 9 | Đo sâu RQ4 | 🟡 Tooling xong; trần throughput (mục 11) |
-| 10 | Hysteresis thích nghi | 🟡 Cài đặt xong; sweep live (mục 16) |
-| 11 | Byzantine cộng tác f=2 live | 🟡 Mục 13 |
+| 9 | Đo sâu RQ4 | 🟡 Tải thấp đủ (round, nil, rejection, committed tx/s, latency, mempool, tx/block; 4 nhánh, n=5); chưa tìm được trần (không nhánh nào bão hòa đến 500 tx/s) |
+| 10 | Hysteresis thích nghi | 🟡 Sweep live: adaptive 8,3 flap so với 9,0 của k=2; `StableWindow=64` còn 3,0; static k≥4 là 0; hạ xuống thành phần phân tích (mục 28) |
+| 11 | Byzantine cộng tác f=2 live | 🟡 b9 (ngưỡng đúng ở f), b5, b8 xong; suite chính đang chạy lại (mục 13) |
 | 12 | Multi-host | 🟡 Hạ tầng xong; chưa có dữ liệu (mục 21) |
 | 13 | Related work: cây taxonomy + bảng so sánh | ✅ Cần thầy xem lại độ đủ của literature |
 | 14 | Dọn trước khi nộp | 🟡 Tác giả ✅, hình kiến trúc ✅, cụm phòng thủ ✅; còn artifact URL, rà số hình/bảng (mục 24) |
