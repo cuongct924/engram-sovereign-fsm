@@ -303,6 +303,8 @@ def run_case(case: str, trial: int, args, assignment: Assignment) -> dict:
         return run_b8(trial, args, assignment)
     if case == "b9":
         return run_b9(trial, args, assignment)
+    if case in ("h4a", "h4i"):
+        return run_hide_k4(case, trial, args, assignment)
     return run_standard(case, trial, args, assignment)
 
 
@@ -469,6 +471,63 @@ def run_b9(trial, args, assignment) -> list:
     return rows
 
 
+def proposer_cycle() -> list:
+    """The 7-slot proposer rotation of the running chain, as node names in order (it changes with every fresh genesis:
+    the validator keys are regenerated)."""
+    import urllib.request
+    addr = {}
+    for n in NODE_RPC_PORTS:
+        with open(os.path.join(REPO_ROOT, "testnet-data", n, "config", "priv_validator_key.json")) as f:
+            addr[json.load(f)["address"].upper()] = n
+    port = NODE_RPC_PORTS[next(iter(NODE_RPC_PORTS))]
+    top = int(json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=10))["result"]["sync_info"]["latest_block_height"])
+    seq = []
+    for h in range(top - 27, top + 1):
+        hdr = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/block?height={h}", timeout=10))["result"]["block"]["header"]
+        seq.append(addr[hdr["proposer_address"].upper()])
+    cycle = seq[:7]
+    if seq[7:14] != cycle or seq[14:21] != cycle:
+        raise RuntimeError(f"proposer order is not a stable 7-cycle: {seq}")
+    return cycle
+
+
+def run_hide_k4(case, trial, args, assignment) -> dict:
+    """Three Byzantine validators hide a real DA outage on a chain deployed with DownHysteresisThreshold = MaxDown = 4.
+    h4a: three consecutive proposer slots (the honest proposers form one run of four). h4i: slots 0, 2, 4 of the cycle
+    (honest runs of at most two). The simulation predicts the outage is detected with the adjacent placement and hidden
+    with the interleaved one; this is the live check."""
+    if trial > 1 and not fresh_cluster(assignment):  # a new genesis also gives a new proposer rotation
+        raise RuntimeError(f"{case}: fresh deployment did not reach ANCHORED")
+    if not wait_all(list(NODE_RPC_PORTS), "ANCHORED", 900):
+        if not fresh_cluster(assignment):
+            raise RuntimeError(f"{case}: no ANCHORED start available")
+    cycle = proposer_cycle()
+    slots = [0, 1, 2] if case == "h4a" else [0, 2, 4]
+    byz = [cycle[i] for i in slots]
+    behaviors = {n: FALSE_HEALTHY + ";bias_certificate:best" for n in byz}
+    honest = [n for n in NODE_RPC_PORTS if n not in byz]
+    print(f"proposer cycle {[c[-2:] for c in cycle]}; Byzantine {[b[-2:] for b in byz]} ({case})")
+    tr = Tracker(honest)
+    assignment.clear()
+    tr.poll(args.baseline_s, "baseline")
+    report_from = start_of_window(honest)
+    since = time.time()
+    tr.reset_window()
+    assignment.set(behaviors)
+    stop_all_da_bridges()
+    tr.poll(args.attack_s, f"{case}_attack")
+    tr.attack_transitions = tr.transitions()
+    tr.proposed_heights = byzantine_proposed_heights(byz, since)
+    start_all_da_bridges()
+    assignment.clear()
+    tr.poll(args.recovery_s, "recovery")
+    left = sorted(set(tr.attack_transitions))
+    extra = {"placement": case, "proposer_cycle": ",".join(c[-2:] for c in cycle), "byzantine_nodes": ",".join(b[-2:] for b in byz),
+             "left_anchored_during_attack": bool(left), "reached_sovereign_during_attack": "SOVEREIGN" in left}
+    plan = {}
+    return finish(case, trial, plan, tr, byz, since, report_from, extra=extra)
+
+
 def run_double_sign(trial, args, assignment) -> dict:
     """B4: node04 AND node05 are impersonated by independent processes holding their real keys."""
     assignment.clear()
@@ -525,7 +584,7 @@ def run_double_sign(trial, args, assignment) -> dict:
     return row
 
 
-CASES = ["c0", "a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
+CASES = ["h4a", "h4i", "c0", "a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "b9"]
 
 
 def main():
