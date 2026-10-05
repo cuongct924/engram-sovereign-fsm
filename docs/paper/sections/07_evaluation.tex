@@ -239,7 +239,7 @@ outage + P2P churn, overlapping at their peak).}
 \label{fig:fsm-timeline}
 \end{figure}
 
-Over the 341-second run (742 samples, 126 polling ticks, one trial), the height
+In the first run, made with the heuristic fallback enabled, over 341 seconds (742 samples, 126 polling ticks), the height
 advanced continuously from 905 to 1093 with no stalled height, and all seven
 validators agreed on the AppHash at every tick (zero divergent heights, zero
 RPC errors). The chain entered \textsc{Sovereign} under the combined fault
@@ -248,8 +248,22 @@ $t{=}319$\,s, the chain entered \textsc{Recovering} at $t{=}321$\,s and
 \textsc{Anchored} at $t{=}324$\,s. Withdrawals stayed locked throughout
 \textsc{Sovereign} and \textsc{Recovering}, as the circuit-breaker invariant
 requires. These timings come from a single trial.
-\pending{repeat the composite and seven-scenario runs ($\geq 5$ trials) and
-report recovery time as mean $\pm$ 95\% CI.}
+
+We then repeated the sequence five times, each on a freshly deployed chain
+started from \textsc{Anchored}, with proof-only recovery and an unproven-tail
+bound of 128 blocks, so that recovery needed a verified proof. In all five
+runs the height advanced throughout (from 373--387 to 747--760), the
+validators agreed on the AppHash at every sampled height (zero divergent
+heights; one RPC error in one run), and the chain ended in \textsc{Anchored}.
+It reached \textsc{Sovereign} 39--52\,s after the start (mean 44.2\,s, 95\% CI
+$\pm$6.5\,s over five runs), four of the five passing through
+\textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 312--325\,s in,
+after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
+$\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
+the recovery proof. In one run two of the seven validators fell back from
+\textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
+\pending{repeat the seven-scenario run ($\geq 5$ trials) and report its
+recovery time as mean $\pm$ 95\% CI.}
 
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
@@ -474,13 +488,16 @@ genesis (observed for over thirty minutes in two deployments), although the
 chain accepted the prover's proofs (seven in one deployment). A 256-header proof
 takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
 the tail was always longer than the bound. With the bound raised to 128 blocks
-the chain left \textsc{Recovering} 356\,s after entering it, the first proof
-being accepted 353\,s in (one run). The bound must therefore exceed the proving
+the chain left \textsc{Recovering} 341--356\,s after entering it in each of five
+runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$8.1\,s), the first valid proof
+being accepted 341--353\,s in (recorded in three of the five). The time is
+mostly the wait for the prover's batch of 256 headers and its build time, not
+the 68--73 blocks of the outage interval. The bound must therefore exceed the proving
 latency measured in blocks, and the blocks of that tail are protected by
 consensus alone. No block of these intervals was committed in a round other than
-0. The RQ2 trials above use proof-only recovery with the bound of 128; the
-composite run, the seven-scenario run and the data-availability runs used the
-fallback.
+0. The RQ2 trials above and the repeated composite runs use proof-only recovery
+with the bound of 128; the first composite run, the seven-scenario run and the
+data-availability runs used the fallback.
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} The exit
 condition of Section~\ref{subsec:reanchoring} requires the interval's block

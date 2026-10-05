@@ -1,0 +1,98 @@
+{
+ "label": "proof_only_t5",
+ "outage_s": 120,
+ "sovereign_height": 397,
+ "recovering_height": 470,
+ "interval_blocks": 73,
+ "left_recovering": true,
+ "seconds_in_recovering": 340.6,
+ "proof_valid_first_true_after_recovering_s": null,
+ "heights_with_round_gt_0": [],
+ "prover_accepted": true,
+ "prover_log": [
+  "[19:10:46] check 188: N=167 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:10:49] check 189: N=170 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:10:52] check 190: N=172 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:10:55] check 191: N=175 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:10:58] check 192: N=177 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:01] check 193: N=180 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:04] check 194: N=182 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:07] check 195: N=185 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:10] check 196: N=187 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:13] check 197: N=189 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:16] check 198: N=192 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:19] check 199: N=194 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:22] check 200: N=197 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:25] check 201: N=199 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:29] check 202: N=202 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:32] check 203: N=204 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:35] check 204: N=206 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:38] check 205: N=209 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:41] check 206: N=211 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:44] check 207: N=214 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:47] check 208: N=216 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:50] check 209: N=218 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:53] check 210: N=221 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:56] check 211: N=223 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:11:59] check 212: N=225 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:02] check 213: N=228 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:05] check 214: N=230 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:08] check 215: N=232 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:11] check 216: N=235 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:14] check 217: N=237 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:17] check 218: N=239 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:20] check 219: N=242 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:23] check 220: N=244 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:26] check 221: N=246 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:29] check 222: N=249 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:33] check 223: N=251 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:36] check 224: N=254 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[19:12:39] check 225: N=256 stable=0 (proofs so far: 1 submitted, 0 rejected)",
+  "[watch_and_prove] N=256 -- firing prove_and_submit.sh NOW",
+  "[watch_and_prove] proof #2 accepted -- checkpoint advanced, continuing to watch for the next segment."
+ ],
+ "timeline_tail": [
+  {
+   "t": 1791227657.188704,
+   "height": 732,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791227660.2043169,
+   "height": 734,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791227663.2124548,
+   "height": 737,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791227666.232615,
+   "height": 739,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791227669.245267,
+   "height": 741,
+   "state": "RECOVERING",
+   "safe": 2,
+   "proof_valid": false
+  },
+  {
+   "t": 1791227672.26206,
+   "height": 744,
+   "state": "ANCHORED",
+   "safe": 0,
+   "proof_valid": false
+  }
+ ]
+}
