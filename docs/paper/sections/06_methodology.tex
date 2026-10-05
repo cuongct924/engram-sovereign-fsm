@@ -41,10 +41,8 @@ peripheral connectivity without partitioning the core consensus network.
 The peripheral layers are real software, not simulators: a two-node Bitcoin
 regtest network mined continuously at roughly one block per 20\,s, and a
 Celestia network with seven bridge nodes, one per validator, so that each
-validator forms its own DA view. The eclipse and Sybil rows (A1 and A2) of Appendix~\ref{app:attacks} predate the
-move to seven validators and ran on a four-validator cluster ($f{=}1$).
-\pending{re-run A1/A2 at $n{=}7$, and run the $f{=}2$ collusion suite of
-Section~\ref{subsec:rq1}.}
+validator forms its own DA view. The single-actor attacks of Appendix~\ref{app:attacks} and the $f{=}2$ collusion
+suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 
 \subsection{Environments and Software Versions}
 \label{subsec:environment}
@@ -284,8 +282,7 @@ deviation over the 500 ramps of each cell.
 \subsection{Metrics}
 \label{subsec:metrics}
 
-\textbf{Terms.} $n$ is the number of validators ($n{=}7$ on the main testbed,
-$n{=}4$ for the earlier A1/A2 runs). A \emph{run} is one execution of a
+\textbf{Terms.} $n$ is the number of validators ($n{=}7$ on the main testbed). A \emph{run} is one execution of a
 scenario; unless stated otherwise it starts from \textsc{Anchored} on a freshly
 deployed chain, so runs are independent deployments, and intervals over runs
 are intervals over deployments. A \emph{repeat} is a further measurement on the
