@@ -111,6 +111,25 @@ recoverability depends on those validators until it is published. The
 backfill gate of Section~\ref{subsec:reanchoring} makes publication a
 precondition for returning to \textsc{Anchored}.
 
+\textbf{Proving latency and the unproven tail.} A recovery proof is built
+while the chain keeps producing blocks, so it can only satisfy the gate if
+the tip has advanced by no more than the unproven-tail bound by the time it
+is submitted: the bound must be at least the proving latency times the block
+rate. In the first live deployment with chunk aggregation (blocks at about
+0.8 per second), the prover built a 512-header aggregate from two chunks in
+about 4.3 minutes and a 514-header aggregate from three in about 6.6 minutes,
+the first on a chain whose tip then stood 211 blocks beyond the last covered
+header and the second 321 blocks. Both proofs were accepted by
+\texttt{SubmitRecoveryProof}, but with the bound at 128 neither made the
+recovery flag hold, and the chain stayed in \textsc{Recovering}. A single
+256-header proof takes about two minutes, about 110 blocks, and fits. Because
+our prover builds the chunk proofs one after another, latency grows with the
+number of chunks. The chunk proofs are independent given the chunk boundary
+roots, so proving them in parallel, or on a machine dedicated to proving
+rather than the shared host used here, would shorten it; we did not measure
+either, and we did not evaluate hardware acceleration such as GPUs.
+\pending{report the repeat deployments and the runs with the bound raised to 512 blocks, where the chain is expected to leave \textsc{Recovering} through an aggregate proof.}
+
 \subsection{Interpretation of Results}
 
 The formal and empirical results cover complementary ground. The TLA+ results
