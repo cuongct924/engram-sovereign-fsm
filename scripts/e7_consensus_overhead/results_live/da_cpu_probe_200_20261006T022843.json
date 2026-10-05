@@ -1,0 +1,130 @@
+{
+ "celestia-app": {
+  "periods": 943,
+  "throttled": 31,
+  "throttled_share": 0.0329,
+  "throttled_ms": 12654.7,
+  "cpu_pct_max": 62.29,
+  "cpu_pct_mean": 10.1
+ },
+ "celestia-bridge-prover": {
+  "periods": 920,
+  "throttled": 74,
+  "throttled_share": 0.0804,
+  "throttled_ms": 14000.1,
+  "cpu_pct_max": 51.71,
+  "cpu_pct_mean": 5.8
+ },
+ "celestia-bridge-node01": {
+  "periods": 917,
+  "throttled": 71,
+  "throttled_share": 0.0774,
+  "throttled_ms": 13012.7,
+  "cpu_pct_max": 47.67,
+  "cpu_pct_mean": 6.3
+ },
+ "celestia-bridge-node02": {
+  "periods": 923,
+  "throttled": 74,
+  "throttled_share": 0.0802,
+  "throttled_ms": 13054.3,
+  "cpu_pct_max": 53.45,
+  "cpu_pct_mean": 6.7
+ },
+ "celestia-bridge-node03": {
+  "periods": 925,
+  "throttled": 74,
+  "throttled_share": 0.08,
+  "throttled_ms": 12433.7,
+  "cpu_pct_max": 55.63,
+  "cpu_pct_mean": 6.3
+ },
+ "celestia-bridge-node04": {
+  "periods": 917,
+  "throttled": 86,
+  "throttled_share": 0.0938,
+  "throttled_ms": 17172.9,
+  "cpu_pct_max": 53.21,
+  "cpu_pct_mean": 7.0
+ },
+ "celestia-bridge-node05": {
+  "periods": 920,
+  "throttled": 78,
+  "throttled_share": 0.0848,
+  "throttled_ms": 13276.3,
+  "cpu_pct_max": 52.26,
+  "cpu_pct_mean": 6.5
+ },
+ "celestia-bridge-node06": {
+  "periods": 923,
+  "throttled": 77,
+  "throttled_share": 0.0834,
+  "throttled_ms": 13101.6,
+  "cpu_pct_max": 53.59,
+  "cpu_pct_mean": 6.7
+ },
+ "celestia-bridge-node07": {
+  "periods": 916,
+  "throttled": 77,
+  "throttled_share": 0.0841,
+  "throttled_ms": 14780.9,
+  "cpu_pct_max": 51.03,
+  "cpu_pct_mean": 6.7
+ },
+ "engram-node01": {
+  "periods": 910,
+  "throttled": 0,
+  "throttled_share": 0.0,
+  "throttled_ms": 0.0,
+  "cpu_pct_max": 36.16,
+  "cpu_pct_mean": 15.2
+ },
+ "engram-node02": {
+  "periods": 882,
+  "throttled": 0,
+  "throttled_share": 0.0,
+  "throttled_ms": 0.0,
+  "cpu_pct_max": 36.7,
+  "cpu_pct_mean": 15.1
+ },
+ "engram-node03": {
+  "periods": 902,
+  "throttled": 1,
+  "throttled_share": 0.0011,
+  "throttled_ms": 10.6,
+  "cpu_pct_max": 36.87,
+  "cpu_pct_mean": 15.2
+ },
+ "engram-node04": {
+  "periods": 892,
+  "throttled": 1,
+  "throttled_share": 0.0011,
+  "throttled_ms": 2.9,
+  "cpu_pct_max": 30.1,
+  "cpu_pct_mean": 14.9
+ },
+ "engram-node05": {
+  "periods": 895,
+  "throttled": 0,
+  "throttled_share": 0.0,
+  "throttled_ms": 0.0,
+  "cpu_pct_max": 38.9,
+  "cpu_pct_mean": 15.5
+ },
+ "engram-node06": {
+  "periods": 905,
+  "throttled": 1,
+  "throttled_share": 0.0011,
+  "throttled_ms": 36.3,
+  "cpu_pct_max": 38.34,
+  "cpu_pct_mean": 15.7
+ },
+ "engram-node07": {
+  "periods": 894,
+  "throttled": 0,
+  "throttled_share": 0.0,
+  "throttled_ms": 0.0,
+  "cpu_pct_max": 38.15,
+  "cpu_pct_mean": 15.3
+ }
+}
