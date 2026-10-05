@@ -40,8 +40,8 @@ the committed certificate and check that it equals the committed $s^{h}$,
 that the aggregate lies within the honest range of Lemma~\ref{lem:honest-range}, and that no
 withdrawal commits while $s^{h} \in \{\textsc{Sovereign},
 \textsc{Recovering}\}$.
-We ran each case three times on the 7-validator cluster, every run starting
-from \textsc{Anchored} (B5 starts from \textsc{Sovereign} by design). Table~\ref{tab:f2} lists the cases. In all 33 runs of
+We repeated each case three times in succession on the 7-validator cluster, every repeat starting
+from \textsc{Anchored} (B5 starts from \textsc{Sovereign} by design). The repeats of a case share one chain, so they are not independent deployments. Table~\ref{tab:f2} lists the cases. In all 33 repeats of
 cases A3--B7, the honest validators committed identical AppHashes and
 the offline replay found no block whose committed state differs from
 $\delta(s^{h-1}, \mathsf{Agg}(C^{h}))$, no aggregate outside the honest
@@ -53,12 +53,12 @@ validators produced double-signing evidence for both validators, within two
 blocks of the second signature at the longest. B7 repeats B1 while honest validators
 are actually eclipsed, so that part of the honest observations are themselves degraded: with two eclipsed (B7a)
 the chain behaved as in the other cases, and with three (B7b) it reached
-\textsc{Sovereign} in all three runs, with every aggregate still inside the
+\textsc{Sovereign} in all three repeats, with every aggregate still inside the
 honest range.
 
 State transitions cannot be attributed to the adversary in this setting. The
 control c0, in which no validator misbehaves and one is only restarted, also
-moved from \textsc{Anchored} to \textsc{Suspicious} in 3 of 3 runs,
+moved from \textsc{Anchored} to \textsc{Suspicious} in 3 of 3 repeats,
 because of ordinary sensor noise on the testbed. We therefore judge the cases by replay,
 AppHash agreement, and the honest-range check, not by whether a transition occurred.
 

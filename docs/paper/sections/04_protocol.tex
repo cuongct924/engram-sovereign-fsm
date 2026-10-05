@@ -207,7 +207,7 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   well-formed and honest validators reject the proposal. The only exception
   is the first height after vote extensions are enabled, whose predecessor
   carries no extensions; there the certificate is replaced by a maximally
-  degraded metric vector, the conservative choice. In the live collusion suite (Section~\ref{sec:evaluation}, case B3), honest validators accepted a proposer that kept exactly a quorum of certificates in 3 of 3 runs and rejected one that kept fewer, 210 times in total across 3 runs.
+  degraded metric vector, the conservative choice. In the live collusion suite (Section~\ref{sec:evaluation}, case B3), honest validators accepted a proposer that kept exactly a quorum of certificates in 3 of 3 repeats and rejected one that kept fewer, 210 times in total across 3 repeats.
   \item \emph{Missing or malformed observations.} CometBFT accepts a
   precommit's extension only if its signature verifies under the validator's
   consensus key, and the application's \texttt{VerifyVoteExtension} accepts

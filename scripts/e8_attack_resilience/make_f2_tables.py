@@ -74,7 +74,7 @@ def reasons(rs):
 
 def f2_table(rows):
     lines = [r"\begin{tabular}{@{}lrllrrr@{}}", r"\toprule",
-             r"\textbf{Case} & \textbf{Byz.} & \textbf{Behaviour} & \textbf{Rejected by honest validators} & \textbf{Runs} & "
+             r"\textbf{Case} & \textbf{Byz.} & \textbf{Behaviour} & \textbf{Rejected by honest validators} & \textbf{Repeats} & "
              r"\textbf{Same AppHash} & \textbf{Replay clean} \\", r"\midrule"]
     for case in ["a3", "a4", "b1", "b2", "b3a", "b3b", "b4", "b5", "b6", "b7a", "b7b", "b8", "c0"]:
         rs = rows.get(case, [])
