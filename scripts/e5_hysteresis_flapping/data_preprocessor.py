@@ -290,19 +290,8 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
                            handlelength=1.3, labelspacing=0.3, borderpad=0.3)
     leg2.set_zorder(10)
 
-    fig.suptitle(
-        "Figure 4: FSM Hysteresis Parameter Sweeps and\nSystem Trade-offs Across Fault Environments",
-        fontsize=12,
-        fontweight="bold",
-        y=0.99,
-    )
-    fig.text(
-        0.5, 0.90,
-        "lines = in-process sweep; diamonds = real live spot-checks (divergence is real, not noise); "
-        "dashed line = real production default (=2)",
-        ha="center", va="top", fontsize=8,
-    )
-    fig.subplots_adjust(top=0.78, bottom=0.13, wspace=0.55)
+    # No figure-level title or legend note: the paper's caption carries both, and the figure number is the LaTeX one.
+    fig.subplots_adjust(top=0.88, bottom=0.13, wspace=0.55)
     savefig_academic(fig, OUT_DIR, "figure4_hysteresis_tradeoffs")
 
 
