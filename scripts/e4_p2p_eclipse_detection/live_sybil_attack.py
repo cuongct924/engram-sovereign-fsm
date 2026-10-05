@@ -256,6 +256,11 @@ def main():
     parser.add_argument("--recovery-s", type=float, default=60.0)
     parser.add_argument("--interval-s", type=float, default=5.0)
     parser.add_argument(
+        "--control", action="store_true",
+        help="same phases and timing but the swarm is never started: shows how often the FSM leaves its baseline "
+        "states without an attacker. Output files are named sybil_control_<leg>_*",
+    )
+    parser.add_argument(
         "--sample-stats", action="store_true",
         help="also sample docker stats (CPU%%/MiB) on the 4 validators + this leg's attacker "
         "containers during the attack phase -- E8's resource-exhaustion signal, most relevant "
@@ -278,7 +283,8 @@ def main():
     baseline_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
     print(f"=== Phase 2: attack ({args.attack_s:.0f}s) ===")
-    swarm_up(leg["profile"], leg["services"])
+    if not args.control:
+        swarm_up(leg["profile"], leg["services"])
     tr.poll_for(args.attack_s, args.interval_s, "attack", stats_containers=attack_stats_containers)
     peak_count = max(
         r["target_subnet_peer_count"] for r in tr.rows if r["phase"] == "attack"
@@ -286,7 +292,8 @@ def main():
     peak_total = max(r["total_peers"] for r in tr.rows if r["phase"] == "attack")
 
     print(f"=== Phase 3: recovery ({args.recovery_s:.0f}s, tearing down swarm) ===")
-    swarm_down(leg["profile"], leg["services"])
+    if not args.control:
+        swarm_down(leg["profile"], leg["services"])
     tr.poll_for(args.recovery_s, args.interval_s, "recovery")
     final_count = tr.rows[-1]["target_subnet_peer_count"] if tr.rows else 0
 
@@ -318,11 +325,11 @@ def main():
     liveness_held = baseline_rate == 0 or attack_rate >= 0.5 * baseline_rate
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
-    csv_path = os.path.join(RESULTS_DIR, f"sybil_attack_{args.leg}_{ts_label}.csv")
+    csv_path = os.path.join(RESULTS_DIR, f"sybil_{'control' if args.control else 'attack'}_{args.leg}_{ts_label}.csv")
     write_csv(tr.node_samples, csv_path)
 
     summary_path = os.path.join(
-        RESULTS_DIR, f"sybil_attack_{args.leg}_{ts_label}_summary.md"
+        RESULTS_DIR, f"sybil_{'control' if args.control else 'attack'}_{args.leg}_{ts_label}_summary.md"
     )
     with open(summary_path, "w") as f:
         f.write(f"# LIVE Sybil/slot-exhaustion attack, leg '{args.leg}'\n\n")
