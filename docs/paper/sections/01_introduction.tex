@@ -148,9 +148,12 @@ Engram targets this combination.
 RQ1 & \textbf{Safety.} Under Byzantine voting power below one third (two of the seven testbed validators), does
 certifying peripheral health by quorum prevent conflicting FSM states,
 forged or stale receipts, false health claims, and withdrawal leakage? \\
-RQ2 & \textbf{Liveness.} When Bitcoin or DA becomes unavailable, or the
-peripheral P2P view degrades while core quorum connectivity holds, does
-Engram keep committing blocks where a hard-gated modular baseline stalls? \\
+RQ2 & \textbf{Liveness.} When Bitcoin settlement or DA becomes unavailable,
+does Engram keep committing blocks where a hard-gated modular baseline stalls,
+and what does it give up: how many withdrawals commit before its circuit
+breaker locks, compared with a baseline that never locks? A degraded
+peripheral P2P view does not affect a baseline gated on receipts, so it is
+examined under RQ1. \\
 RQ3 & \textbf{Recovery.} Once peripherals recover, do hysteresis and the
 recovery proof return the chain to a stable \textsc{Anchored} state without
 oscillation? \\
