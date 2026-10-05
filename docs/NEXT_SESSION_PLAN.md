@@ -275,8 +275,9 @@ negative control 4/7 giữ và 3/7 mở. Còn lại:
 - Chạy lại toàn bộ trên code cuối (Giai đoạn 4).
 
 ### 19. Refinement C1 (🟡) [T]
-Đã làm: tách làm hai phần. Phần môi trường hoàn tất (4.826.336 trạng thái, không vi phạm). Phần
-consensus-core chưa hội tụ (lần chạy tốt nhất tới depth 12, không vi phạm). Paper giữ framing "layered
+Đã làm: tách làm hai phần. Phần môi trường hoàn tất (17.500 trạng thái phân biệt, 4.826.336 sinh ra, độ sâu 10,
+10 phút 35 giây, không vi phạm). Phần consensus-core chưa hội tụ (dừng sau 1 giờ 41 phút ở 19.848.141
+trạng thái phân biệt, độ sâu 15, không vi phạm; độ sâu 12 là của ablation fast-forward). Paper giữ framing "layered
 specification + bounded model checking" và nêu refinement còn mở. Nếu muốn tiếp tục: chạy
 `MC_ConsensusCoreRefinementSafety` lâu hơn hoặc thử kiểm tra quy nạp bằng Apalache cho bước (b)
 (`EngramServerRefinement_Ind.tla`: `IndInv`, biến ghost `prevAbs`). Điều kiện dừng: nếu vẫn mở, giữ
