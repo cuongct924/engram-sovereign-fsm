@@ -50,7 +50,7 @@ func nsConfigs() []hysteresisConfig {
 	for _, k := range []uint64{2, 3, 4, 5, 6, 8} {
 		cs = append(cs, hysteresisConfig{Name: fmt.Sprintf("static%d", k), Down: k, Max: k, StableWindow: 16})
 	}
-	for _, km := range [][2]uint64{{2, 8}, {2, 6}, {3, 8}} {
+	for _, km := range [][2]uint64{{2, 8}, {2, 6}, {2, 4}, {3, 8}} {
 		for _, w := range []uint64{16, 32, 64, 128, 256} {
 			cs = append(cs, hysteresisConfig{Name: fmt.Sprintf("adaptive%d-%d_w%d", km[0], km[1], w), Down: km[0], Max: km[1], StableWindow: w})
 		}
@@ -378,6 +378,48 @@ func TestE8_HideOutagePlacement(t *testing.T) {
 				require.NoError(t, w.Write([]string{strconv.Itoa(b), strconv.FormatUint(k, 10), fmt.Sprintf("%07b", mask),
 					strconv.Itoa(maxRun), strconv.Itoa(detected), strconv.FormatFloat(share, 'f', 3, 64)}))
 			}
+		}
+	}
+}
+
+// E8/B9, adaptive variant: the same placement sweep (b = 3) with the adaptive threshold (k0=2, kmax=8) starting at flap
+// level 0 (a quiet network: effective k = 2), 1 (k = 4) and 2 (k = 8, after repeated noise or triggering).
+func TestE8_HideOutagePlacementAdaptive(t *testing.T) {
+	if os.Getenv("ENGRAM_E5C") == "" {
+		t.Skip("set ENGRAM_E5C=1")
+	}
+	f, err := os.Create(filepath.Join("results", "e8_hide_outage_placement_adaptive.csv"))
+	require.NoError(t, err)
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	require.NoError(t, w.Write([]string{"initial_flap_level", "effective_k", "placement", "blocks_to_detection"}))
+	const cycle, blocks = 7, 300
+	for _, level := range []uint64{0, 1, 2} {
+		for mask := 0; mask < 1<<cycle; mask++ {
+			pop := 0
+			for i := 0; i < cycle; i++ {
+				pop += (mask >> i) & 1
+			}
+			if pop != 3 {
+				continue
+			}
+			h := nsHarness(t, hysteresisConfig{Name: "adaptive", Down: 2, Max: 8, StableWindow: 64})
+			require.NoError(t, h.keeper.FlapLevel.Set(h.sdkCtx, level))
+			eff := keeper.EffectiveDownHysteresisThreshold(level, h.keeper.Params)
+			detected := -1
+			for i := 0; i < blocks && detected < 0; i++ {
+				byzProposer := (mask>>(i%cycle))&1 == 1
+				healSensors(h)
+				if !byzProposer {
+					h.DA.SetAvailable(false)
+				}
+				h.Advance()
+				if h.State() != types.StateAnchored {
+					detected = i + 1
+				}
+			}
+			require.NoError(t, w.Write([]string{strconv.FormatUint(level, 10), strconv.FormatUint(eff, 10), fmt.Sprintf("%07b", mask), strconv.Itoa(detected)}))
 		}
 	}
 }

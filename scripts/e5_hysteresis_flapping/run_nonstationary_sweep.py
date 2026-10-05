@@ -21,7 +21,7 @@ import run_adaptive_sweep as rad  # noqa: E402
 
 # name -> (DOWN, MAX, STABLE_WINDOW)
 CONFIGS = {"static2": (2, 2, 16), "static4": (4, 4, 16), "adaptiveW16": (2, 8, 16), "adaptiveW64": (2, 8, 64),
-           "adaptiveW128": (2, 8, 128)}
+           "adaptiveW128": (2, 8, 128), "adaptiveK4W64": (2, 4, 64)}
 
 
 def ensure_stable_window(value: int) -> None:
