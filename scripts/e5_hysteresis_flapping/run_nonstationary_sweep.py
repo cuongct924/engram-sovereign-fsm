@@ -33,12 +33,12 @@ def ensure_stable_window(value: int) -> None:
     ras.set_env_param("ENGRAM_PARAM_STABLE_WINDOW", value)
 
 
-def run_one(label: str, offset: int, health_timeout_s: float) -> str:
+def run_one(label: str, offset: int, health_timeout_s: float, runner: str = "live_nonstationary.py") -> str:
     if not ras.wait_for_healthy_anchored(timeout_s=health_timeout_s):
         return "SKIPPED-unhealthy"
     try:
-        ras.run([sys.executable, "-u", os.path.join(HERE, "live_nonstationary.py"), "--label", label,
-                 "--offset-s", str(offset)])
+        extra = ["--offset-s", str(offset)] if runner == "live_nonstationary.py" else []
+        ras.run([sys.executable, "-u", os.path.join(HERE, runner), "--label", label] + extra)
         return "OK"
     except subprocess.CalledProcessError:
         return "FAILED"
@@ -50,6 +50,8 @@ def main():
     ap.add_argument("--trials", type=int, default=3)
     ap.add_argument("--offsets", default="0,60")
     ap.add_argument("--health-timeout-s", type=float, default=1500.0)
+    ap.add_argument("--runner", default="live_nonstationary.py",
+                    help="live_nonstationary.py (three-phase noise) or live_repeated_trigger.py (adversary pulses)")
     args = ap.parse_args()
 
     backup = shutil.copy(ras.ENV_PATH, ras.ENV_PATH + ".nonstationary_sweep.bak")
@@ -65,7 +67,7 @@ def main():
                 for off in offsets:
                     ras.log(f"=== {name} trial {trial} offset {off}: fresh genesis")
                     rad.redeploy(down, mx)
-                    status = run_one(f"{name}_o{off}_t{trial}", off, args.health_timeout_s)
+                    status = run_one(f"{name}_o{off}_t{trial}", off, args.health_timeout_s, args.runner)
                     runs.append({"config": name, "trial": trial, "offset": off, "status": status})
                     ras.log(str(runs[-1]))
     finally:
