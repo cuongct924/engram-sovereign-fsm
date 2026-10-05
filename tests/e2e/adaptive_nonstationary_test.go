@@ -304,3 +304,80 @@ func TestE5c_RepeatedTriggerAdversary(t *testing.T) {
 		}
 	}
 }
+
+// E8/B9 -- can b Byzantine proposers hide a real DA outage? Placement sweep with the real FSM.
+//
+// The proposer rotation is a fixed cycle of 7. What each block's certificate says follows from the weighted median over
+// 7 vote extensions (b lying "healthy", 7-b truthfully reporting the outage) and from which quorum of 5 the proposer
+// keeps (a Byzantine proposer picks the healthiest 5, an honest one aggregates all of them):
+//
+//	b <= 2   never healthy (lies stay below the median even in the biased quorum: Lemma 1)
+//	b == 3   healthy only on blocks a Byzantine node proposes (3 lies of 5 in its quorum, 3 of 7 otherwise)
+//	b >= 4   healthy on every block
+//
+// For every placement of b Byzantine slots in the cycle and each down threshold k, the outage starts at an ANCHORED
+// chain; the test records the blocks until the first non-ANCHORED state and the share of ANCHORED blocks afterwards.
+func TestE8_HideOutagePlacement(t *testing.T) {
+	if os.Getenv("ENGRAM_E5C") == "" {
+		t.Skip("set ENGRAM_E5C=1")
+	}
+	require.NoError(t, os.MkdirAll("results", 0o755))
+	f, err := os.Create(filepath.Join("results", "e8_hide_outage_placement.csv"))
+	require.NoError(t, err)
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	require.NoError(t, w.Write([]string{"b", "k", "placement", "max_honest_run", "blocks_to_detection", "anchored_share_after"}))
+
+	const cycle, blocks = 7, 300
+	for _, b := range []int{2, 3, 4} {
+		for mask := 0; mask < 1<<cycle; mask++ {
+			pop := 0
+			for i := 0; i < cycle; i++ {
+				pop += (mask >> i) & 1
+			}
+			if pop != b {
+				continue
+			}
+			// longest run of consecutive honest slots in the cyclic order
+			maxRun := 0
+			for start := 0; start < cycle; start++ {
+				run := 0
+				for j := 0; j < cycle && (mask>>((start+j)%cycle))&1 == 0; j++ {
+					run++
+				}
+				if run > maxRun {
+					maxRun = run
+				}
+			}
+			for _, k := range []uint64{2, 3, 4} {
+				h := nsHarness(t, hysteresisConfig{Name: "k", Down: k, Max: k, StableWindow: 16})
+				detected, anchoredAfter, total := -1, 0, 0
+				for i := 0; i < blocks; i++ {
+					byzProposer := (mask>>(i%cycle))&1 == 1
+					healthy := b >= 4 || (b == 3 && byzProposer)
+					healSensors(h)
+					if !healthy {
+						h.DA.SetAvailable(false)
+					}
+					h.Advance()
+					if detected < 0 && h.State() != types.StateAnchored {
+						detected = i + 1
+					}
+					if detected >= 0 {
+						total++
+						if h.State() == types.StateAnchored {
+							anchoredAfter++
+						}
+					}
+				}
+				share := 0.0
+				if total > 0 {
+					share = float64(anchoredAfter) / float64(total)
+				}
+				require.NoError(t, w.Write([]string{strconv.Itoa(b), strconv.FormatUint(k, 10), fmt.Sprintf("%07b", mask),
+					strconv.Itoa(maxRun), strconv.Itoa(detected), strconv.FormatFloat(share, 'f', 3, 64)}))
+			}
+		}
+	}
+}
