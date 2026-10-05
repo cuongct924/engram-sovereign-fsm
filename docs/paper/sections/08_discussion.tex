@@ -131,7 +131,17 @@ number of chunks. The chunk proofs are independent given the chunk boundary
 roots, so proving them in parallel, or on a machine dedicated to proving
 rather than the shared host used here, would shorten it; we did not measure
 either, and we did not evaluate hardware acceleration such as GPUs.
-\pending{report the repeat deployments and the runs with the bound raised to 512 blocks, where the chain is expected to leave \textsc{Recovering} through an aggregate proof.}
+With the bound raised to 512 blocks and everything else unchanged, the chain
+left \textsc{Recovering} through an aggregate proof in both of two
+deployments. In the first the prover built a 514-header proof from three
+chunks in 6.5 minutes, and the tip stood 309 blocks beyond the last covered
+header when it was submitted; in the second a 512-header proof from two chunks
+took 4.6 minutes, with the tip 224 blocks beyond. All seven validators were
+then in \textsc{Anchored}, 1{,}023 and 888 seconds after the chain started.
+Proof-only recovery was on, so only the proof could have restored it. The
+interval proved in these runs is the one since genesis, not one following an
+outage injected into a healthy chain, and the runs with the bound at 128 are a
+single deployment.
 
 \subsection{Interpretation of Results}
 

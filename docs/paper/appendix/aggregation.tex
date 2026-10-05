@@ -61,7 +61,10 @@ chunks, a wrong total count, final root, first height, or validator-set hash,
 a height gap between chunks, a different validator set in the second chunk,
 an extension through padding slots, and a chunk count outside $[1,K]$. The
 valid two-chunk witness is accepted, and a 512-header aggregate passes every
-\texttt{SubmitRecoveryProof} binding against fixture chain state. A live
-re-anchoring through an aggregate proof on the Docker testbed was not run.
+\texttt{SubmitRecoveryProof} binding against fixture chain state. On the Docker
+testbed, aggregate proofs of three and two chunks (514 and 512 headers) were
+accepted by \texttt{SubmitRecoveryProof} on a live chain; whether the chain then
+leaves \textsc{Recovering} depends on the unproven-tail bound, as the
+Discussion reports.
 
 \FloatBarrier
