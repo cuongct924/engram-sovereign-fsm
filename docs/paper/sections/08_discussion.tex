@@ -45,9 +45,32 @@ the attacker's cost of sustaining it are not quantified.
 recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
 protection beyond the bounded forced-transaction queue; the adaptive
-threshold is meant to close this asymmetry, but the live sweep of
-Section~\ref{subsec:rq3} did not measure an attacker's cost, and under jitter
-alone it suppressed flapping no better than a static threshold of 2.
+threshold is meant to close this asymmetry. In the simulation of
+Section~\ref{subsec:rq3} it absorbs a naive repeated adversary (1 demotion in
+1200 blocks against 300 for a static threshold of 2) but gains little over a
+static threshold of 4, and the live sweep suppressed flapping under jitter no
+better than a static threshold of 2; the live repeated-trigger runs are
+\pending{report the live repeated-trigger runs of the adaptive threshold.}
+
+\textbf{Hysteresis: noise against concealment.} A higher down threshold $k$
+tolerates longer bursts of noise, and it also tolerates a longer run of reports
+that a Byzantine proposer interleaves with honest ones. Within the assumption
+the choice of $k$ does not matter: for each of the 21 placements of two
+Byzantine proposers in the seven-slot rotation, a real DA outage was detected
+after exactly $k$ blocks ($k\in\{2,3,4\}$, simulation). With three Byzantine
+validators, outside the assumption, a Byzantine proposer can keep a certificate
+that reports a healthy DA layer, and an honest proposer then reports the outage
+in the blocks it proposes; the outage is detected only if enough honest
+proposers follow one another to reach $k$. It was detected for all 35
+placements at $k{=}2$, missed for 14 at $k{=}3$ and for 28 at $k{=}4$, and with
+four Byzantine validators it was missed for every placement. The live check at
+$k{=}2$ agrees: with three Byzantine validators the outage was detected in 5 of
+5 runs. The adaptive threshold exposes the same
+weakness only while its flap level is high (0 of 35 placements hidden at level 0,
+28 at level 1, all 35 at level 2), whereas a static threshold of 4 or more is
+exposed permanently. A rule that demotes on the share of bad blocks in a window
+instead of a consecutive run would not be cut by interleaved reports; we have
+not tested it. \pending{report the live outage-hiding runs at $k{=}4$ with adjacent and interleaved Byzantine placements.}
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the
@@ -102,11 +125,11 @@ characterize distributions.
   with vote extensions on or off, so the gap is the cost of the
   seven-validator network and Engram's own addition is about \resOverheadPct{}
   (approximate 95\% interval \resOverheadCI{}; Section~\ref{subsec:rq4}).
-  \item \emph{Hysteresis threshold.} The default threshold of 2 flapped under
-  wide-area jitter, and only thresholds $\geq 6$ were clean
-  (Section~\ref{subsec:rq3}). We attribute this to latency variance in the
-  Bitcoin sensor crossing the threshold in consecutive samples; a run with
-  the jitter profile removed would test this.
+  \item \emph{Hysteresis threshold.} A static threshold of 2 flapped under
+  wide-area jitter (9.0 flaps per validator), and thresholds of 4, 6 and 8 did
+  not (Section~\ref{subsec:rq3}; three runs for 2 and 6, one for 4 and 8). We
+  did not isolate which sensor crosses its threshold; a run with the jitter
+  profile removed, and per-predicate logging, would show it.
   \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
   without a reaction, while depth 15 escalated through the
   suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the

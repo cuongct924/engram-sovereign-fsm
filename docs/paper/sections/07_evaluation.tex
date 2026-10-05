@@ -364,6 +364,51 @@ window of 64 blocks recovers part of the gap, but not the full suppression of a
 static $k$ of 4 or more; we did not test larger windows or the DA-blip
 environment with it.
 
+\textbf{Changing noise and a repeated-trigger adversary (simulation).} The sweep
+above holds the noise constant, the case in which a well-chosen static
+threshold needs no adaptation. The case for the adaptive threshold is noise
+that changes, and a party that triggers demotions on purpose. We tested both
+in-process with the keeper's own transition code. Noise is a sequence of
+bursts of one to three consecutive warning-level blocks, each starting with
+probability 0.03 per block; this reproduces the live demotion rate of a static
+threshold of 2 (4.6 demotions per 250 blocks, against 5.0 per 300\,s live),
+and the same 200 noise schedules drive every configuration, so differences are
+paired. A run has 150 quiet blocks, 250 noisy blocks and a quiet phase, after
+which a sustained DA outage starts and we count the blocks until the first
+non-\textsc{Anchored} state. The adversary sends warning-level bursts for 1200
+blocks and waits for \textsc{Anchored} between them: a naive one always sends
+$k_0$ blocks with one healthy block in between, a patient one waits for the flap
+level to return to zero first. The last column of Table~\ref{tab:adaptive-sim} is the concealment
+simulation of Section~\ref{sec:discussion}.
+
+\begin{table}[h]
+\caption{Static and adaptive down thresholds in the in-process simulation
+(blocks; mean $\pm$ 95\% interval over 200 paired noise schedules). ``Detect
+after noise'' starts the outage as soon as the chain is \textsc{Anchored}
+again. Repeated trigger: demotions in 1200 blocks. Outage hidden: placements
+out of 35 of three Byzantine proposers that keep a real DA outage from being
+detected, with the chain quiet and with the flap level at its highest.}
+\label{tab:adaptive-sim}
+\centering
+\footnotesize
+\resizebox{\linewidth}{!}{\input{results/adaptive_sim_table}}
+\end{table}
+
+Against a static threshold of 2, the adaptive one detects the outage as fast
+when the network is quiet (2 blocks), cuts the flaps of the noisy phase from 8.2
+to 3.4, and absorbs the naive adversary (1 demotion against 300); a patient
+adversary obtains 18. Against a static threshold of 4 it does not win on flaps
+(3.4 against 0.2). What it keeps is the 2-block detection when quiet, about two
+seconds at the block rate here, and the resistance to concealment of the
+smallest threshold (Section~\ref{sec:discussion}). Its responsiveness returns
+slowly after noise: right after the noise the detection takes 3.1--3.2 blocks,
+and 2.0 after 96 quiet blocks. An adversary that reads the committed flap level
+pays 7.9 bad blocks per demotion with $k_{\max}{=}8$ and 4 with $k_{\max}{=}4$
+(2 for a static threshold of 2). These are simulation results, calibrated to the
+live sweep above but not measured live.
+\pending{replace the simulated columns with the live three-phase and
+repeated-trigger runs of the same configurations.}
+
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
 
