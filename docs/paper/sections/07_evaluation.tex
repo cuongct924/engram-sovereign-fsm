@@ -127,7 +127,7 @@ Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
 
 \begin{table}[h]
 \caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
-$n$ trials per cell, mean and range). Rate is the fault-window block rate as a
+three runs per cell, mean and range). Rate is the fault-window block rate as a
 share of the same trial's healthy rate; ``No resume'' counts trials in which the
 chain committed no block in the 120\,s after the fault ended (``---'' in the gap
 column: it never resumed). The last two columns count withdrawals committed
@@ -330,7 +330,7 @@ adaptive threshold have three trials each; $k{=}4$ and $k{=}8$ have one.
 
 \begin{table}[h]
 \caption{Live down-edge sweep on seven validators (300\,s runs, mean $\pm$
-95\% Student-$t$ interval over $n$ trials, none for $n{=}1$; flaps and uptime
+95\% Student-$t$ interval over the runs, none for a single run; flaps and uptime
 averaged over the seven validators of a trial). ``Uptime'' is the share of the
 run in \textsc{Anchored}; ``Detection'' is the delay from stopping the bridges of the sustained outage
 to the first non-\textsc{Anchored} state on one validator, and ``To
@@ -347,7 +347,7 @@ held \textsc{Anchored} without a flap. The adaptive threshold did not behave
 like the larger values: 8.3 flaps and 85\% uptime, within the interval of
 $k{=}2$. Under DA blips no configuration stayed in \textsc{Anchored} (1--3\%
 uptime), so the threshold did not matter there. Detection delay grew with the
-threshold, from 9.4\,s at $k{=}2$ to 14.6\,s at $k{=}8$ ($n{=}1$), and the
+threshold, from 9.4\,s at $k{=}2$ to 14.6\,s at $k{=}8$ (one run), and the
 adaptive configuration sat between $k{=}2$ and $k{=}6$ at 11.7\,s. In this
 sweep the adaptive threshold therefore bought no flap suppression over a static
 $k{=}2$, whereas a static $k$ of 4 or more suppressed all flapping at a cost of
@@ -425,7 +425,7 @@ chain accepted the prover's proofs (seven in one deployment). A 256-header proof
 takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
 the tail was always longer than the bound. With the bound raised to 128 blocks
 the chain left \textsc{Recovering} 356\,s after entering it, the first proof
-being accepted 353\,s in ($n{=}1$). The bound must therefore exceed the proving
+being accepted 353\,s in (one run). The bound must therefore exceed the proving
 latency measured in blocks, and the blocks of that tail are protected by
 consensus alone. No block of these intervals was committed in a round other than
 0. The RQ2 trials above use proof-only recovery with the bound of 128; the
@@ -445,7 +445,7 @@ not grow with the interval: 37--61\,s for 75--77 blocks and 49--61\,s for
 465--475 blocks. The check is external to the chain: the gate itself rests on the
 quorum-reported contiguous height, and these runs show that height was truthful
 when all validators were honest. They cover a total DA outage on one host
-with $n{=}3$ per length. Runs under the earlier 512\,MiB bridge limit are
+with three runs per length. Runs under the earlier 512\,MiB bridge limit are
 excluded; at that limit the bridges crash-looped and the 600\,s outage never
 returned to \textsc{Recovering}.
 These runs kept the heuristic fallback of Section~\ref{subsec:reanchoring}
@@ -461,7 +461,7 @@ validators withhold data and open when three or fewer do. Table~\ref{tab:backfil
 shows that it did in all seven runs. In a third control, two validators signed
 a contiguous height of $10^{12}$ while the five honest ones withheld data; the
 median stayed at zero and the gate held, as it should against $f{=}2$
-misreporting validators. These controls use $n{=}2$--3 runs per setting, each
+misreporting validators. These controls use two to three runs per setting, each
 on a freshly deployed cluster, and the withholding validators are a test
 configuration, not a modelled adversary. A first attempt at the third control
 ran with only two of its five withholding validators because the override
@@ -469,7 +469,7 @@ file omitted three nodes; it is excluded.
 
 \begin{table}[h]
 \caption{Republication of the \textsc{Sovereign} interval after a total DA
-outage ($n{=}3$ per outage length; range over runs)}
+outage (three runs per outage length; range over runs)}
 \label{tab:backfill}
 \centering
 \footnotesize
@@ -516,7 +516,7 @@ block data; the gate must hold for 300\,s or open)}
 \cmidrule(lr){2-4}
 \textbf{Metric} & 1 process & 7 val., no ext. & 7 val., ext.\ on & 7 val. \\
 \midrule
-Repeats $n$ & 5 & 5 & 3 & 5 \\
+Repeats (runs) & 5 & 5 & 3 & 5 \\
 Rounds per height & 1.000 & 1.000 & 1.000 & 1.000 \\
 Proposals rejected / height & 0 & 0 & 0 & 0 \\
 Nil precommits / height & 0 & 0 & 0 & 0 \\
@@ -538,7 +538,7 @@ on chain; rejected proposals (distinct height/round/reason in the validators'
 logs) are the proxy for why a validator would prevote nil. ``ext.\ on'' keeps
 vote extensions enabled in the genesis with empty extensions; ``no ext.'' is a
 fresh genesis without them. The Engram arm is a fresh deployment; a first
-deployment gave 1.242\,$\pm$\,0.005\,s ($n{=}3$). Transaction counts exclude
+deployment gave 1.242\,$\pm$\,0.005\,s (three runs). Transaction counts exclude
 the health certificate in \texttt{Txs[0]}. Latency runs from submission to the
 first 0.25\,s poll that sees the transaction in a block. The 1-process arm is a
 local single node.
@@ -554,7 +554,7 @@ the ed25519 verification of seven certificates, costs \resValidationUs\,$\mu$s p
 validators); verifying a recovery proof, a one-off event, takes 26\,ms and is not
 included. \texttt{ExtendVote}, which reads
 the live Bitcoin and Celestia sensors before a validator can precommit, took
-\resExtendVoteMs\,ms on average (p95 51\,ms, $n{=}5$ repeats). None of these is large
+\resExtendVoteMs\,ms on average (p95 51\,ms, five repeats). None of these is large
 enough to explain a lower block rate at a $\sim$1\,s block interval.
 
 \textbf{Where the cost is.} Against a single local process, Engram's blocks
@@ -568,7 +568,7 @@ measurable time. Engram's own addition is about 0.03\,s per height (about
 2\%), consistent with the \resExtendVoteMs\,ms \texttt{ExtendVote} time. In all four arms every
 height committed in the first round with no nil precommit and no rejected
 proposal, so extra rounds do not contribute at 20\,tx/s without faults. A
-mean over $n{=}5$ cannot resolve a difference of a few milliseconds. The
+mean over five repeats cannot resolve a difference of a few milliseconds. The
 difference to the seven-validator arm without extensions is 0.029\,s;
 combining the two reported 95\% intervals (0.020 and 0.015\,s) gives an
 approximate 95\% interval of 0.004--0.054\,s (\resOverheadCI{}). The data show an

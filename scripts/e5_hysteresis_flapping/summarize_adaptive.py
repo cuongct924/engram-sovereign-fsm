@@ -60,7 +60,7 @@ def write_latex(cells, detect, order):
     out = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "paper", "results", "adaptive_table.tex")
     with open(out, "w") as f:
         f.write("\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n"
-                "\\textbf{Configuration} & \\textbf{$n$} & \\textbf{Flaps (WAN)} & \\textbf{Uptime (WAN, \\%)} & "
+                "\\textbf{Configuration} & \\textbf{Runs} & \\textbf{Flaps (WAN)} & \\textbf{Uptime (WAN, \\%)} & "
                 "\\textbf{Uptime (DA blips, \\%)} & \\textbf{Detection (s)} & \\textbf{To \\textsc{Sovereign} (s)} \\\\\n"
                 "\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
 
