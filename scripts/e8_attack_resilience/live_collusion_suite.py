@@ -339,6 +339,11 @@ def run_standard(case, trial, args, assignment) -> dict:
     plan = case_plan(case, args)
     byz = list(plan["byz"])
     honest = [n for n in NODE_RPC_PORTS if n not in byz]
+    # A case that does not itself drive the chain to SOVEREIGN starts from ANCHORED on every validator: b7a/b7b once
+    # started in the SOVEREIGN left by the previous case, which changes what an eclipse or a lie can do.
+    if not plan.get("sovereign") and not wait_all(list(NODE_RPC_PORTS), "ANCHORED", 900):
+        if not fresh_cluster(assignment):
+            raise RuntimeError(f"{case}: no ANCHORED start available")
     tr = Tracker(honest)
     assignment.clear()
     tr.poll(args.baseline_s, "baseline")
