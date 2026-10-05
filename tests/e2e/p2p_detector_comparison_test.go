@@ -108,6 +108,16 @@ type detectorResult struct {
 	FNR              float64 // full-intensity attack snapshots flagged healthy
 	DetectionDelay   float64 // avg. #snapshots (of 10, ramping intensity 0.1..1.0) until first flagged unhealthy; -1 if never
 	DetectionDelayOK int     // count of ramp trials that were ever detected (out of trials)
+	DetectionDelaySD float64 // sample standard deviation of the delay over the detected ramps
+}
+
+// e4ResultsDir is where the E4 CSVs go: ENGRAM_E4_OUT redirects them so a rerun cannot overwrite the committed or
+// in-progress files in results/.
+func e4ResultsDir() string {
+	if d := os.Getenv("ENGRAM_E4_OUT"); d != "" {
+		return d
+	}
+	return "results"
 }
 
 func runP2PDetectorComparison(t *testing.T, paramSetName string, p types.Params, attack string, gen attackGenerator, detectorName string, healthy func(*types.PeripheralMetrics, types.Params) bool) detectorResult {
@@ -134,7 +144,7 @@ func runP2PDetectorComparison(t *testing.T, paramSetName string, p types.Params,
 	// find the first snapshot the detector flags unhealthy.
 	const rampSteps = 10
 	const delayTrials = 500
-	totalDelay := 0.0
+	totalDelay, totalDelaySq := 0.0, 0.0
 	detected := 0
 	for i := 0; i < delayTrials; i++ {
 		for step := 1; step <= rampSteps; step++ {
@@ -142,14 +152,18 @@ func runP2PDetectorComparison(t *testing.T, paramSetName string, p types.Params,
 			m := gen(rng, p, intensity)
 			if !healthy(m, p) {
 				totalDelay += float64(step)
+				totalDelaySq += float64(step * step)
 				detected++
 				break
 			}
 		}
 	}
-	avgDelay := -1.0
+	avgDelay, sdDelay := -1.0, -1.0
 	if detected > 0 {
 		avgDelay = totalDelay / float64(detected)
+	}
+	if detected > 1 {
+		sdDelay = math.Sqrt((totalDelaySq - float64(detected)*avgDelay*avgDelay) / float64(detected-1))
 	}
 
 	return detectorResult{
@@ -160,6 +174,7 @@ func runP2PDetectorComparison(t *testing.T, paramSetName string, p types.Params,
 		FNR:              float64(falseNegatives) / float64(p2pTrials),
 		DetectionDelay:   avgDelay,
 		DetectionDelayOK: detected,
+		DetectionDelaySD: sdDelay,
 	}
 }
 
@@ -177,15 +192,15 @@ func TestE4_P2PDetectorComparison(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, os.MkdirAll("results", 0o755))
-	path := filepath.Join("results", "e4_p2p_detector_comparison.csv")
+	require.NoError(t, os.MkdirAll(e4ResultsDir(), 0o755))
+	path := filepath.Join(e4ResultsDir(), "e4_p2p_detector_comparison.csv")
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	defer f.Close()
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	_ = w.Write([]string{"param_set", "attack", "detector", "fpr", "fnr", "avg_detection_delay_snapshots", "detected_out_of_trials"})
+	_ = w.Write([]string{"param_set", "attack", "detector", "fpr", "fnr", "avg_detection_delay_snapshots", "detected_out_of_trials", "sd_detection_delay_snapshots"})
 	for _, r := range results {
 		_ = w.Write([]string{
 			r.ParamSet, r.Attack, r.Detector,
@@ -193,6 +208,7 @@ func TestE4_P2PDetectorComparison(t *testing.T) {
 			strconv.FormatFloat(r.FNR, 'f', 4, 64),
 			strconv.FormatFloat(r.DetectionDelay, 'f', 2, 64),
 			strconv.Itoa(r.DetectionDelayOK),
+			strconv.FormatFloat(r.DetectionDelaySD, 'f', 2, 64),
 		})
 		t.Logf("[%s] %s / %s: FPR=%.4f FNR=%.4f avg_delay=%.2f (detected %d/500 ramp trials)",
 			r.ParamSet, r.Attack, r.Detector, r.FPR, r.FNR, r.DetectionDelay, r.DetectionDelayOK)
@@ -254,8 +270,8 @@ func TestE4_AdaptiveAdversary(t *testing.T) {
 	rng := rand.New(rand.NewSource(4242))
 	p := productionScaleParams() // DefaultParams' thresholds are trivially separable (see its own doc)
 
-	require.NoError(t, os.MkdirAll("results", 0o755))
-	path := filepath.Join("results", "e4_adaptive_adversary.csv")
+	require.NoError(t, os.MkdirAll(e4ResultsDir(), 0o755))
+	path := filepath.Join(e4ResultsDir(), "e4_adaptive_adversary.csv")
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	defer f.Close()
@@ -313,8 +329,8 @@ func TestE4_DistributionSensitivity(t *testing.T) {
 	const rampSteps = 10
 	const trialsPerShape = 300
 
-	require.NoError(t, os.MkdirAll("results", 0o755))
-	path := filepath.Join("results", "e4_distribution_sensitivity.csv")
+	require.NoError(t, os.MkdirAll(e4ResultsDir(), 0o755))
+	path := filepath.Join(e4ResultsDir(), "e4_distribution_sensitivity.csv")
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	defer f.Close()

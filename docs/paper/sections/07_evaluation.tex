@@ -63,15 +63,16 @@ diagnostic attacks live.
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 \textbf{Attack} & \textbf{Delay} & \textbf{Evasion} & \textbf{Delay} & \textbf{Evasion} \\
 \midrule
-P1 Peer-slot exhaustion & 2.23 & 0.17 & never & 1.00 \\
-P2 Multi-subnet Sybil & 1.00 & 0.00 & never & 1.00 \\
-P3 Churn-based rotation & 1.70 & 0.12 & never & 1.00 \\
-P4 Relay-node latency & 2.71 & 0.25 & never & 1.00 \\
+P1 Peer-slot exhaustion & 2.23 $\pm$ 0.87 & 0.17 & never & 1.00 \\
+P2 Multi-subnet Sybil & 1.00 $\pm$ 0.00 & 0.00 & never & 1.00 \\
+P3 Churn-based rotation & 1.70 $\pm$ 0.61 & 0.12 & never & 1.00 \\
+P4 Relay-node latency & 2.71 $\pm$ 1.19 & 0.25 & never & 1.00 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
-\footnotesize Delay: mean snapshots to first detection over a 10-snapshot
-ramp (``never'': no ramp was detected). Evasion: largest attack intensity on
+\footnotesize Delay: mean $\pm$ sample standard deviation of the snapshots to
+first detection over the 500 ramps of 10 snapshots each (``never'': no ramp
+was detected). Evasion: largest attack intensity on
 the 0--1 scale at which the detector still reads healthy. Both detectors have
 0/2{,}000 false positives (95\% upper bound 0.15\%). The profiler has 0/2{,}000
 false negatives at full intensity; the peer-count-only detector has
