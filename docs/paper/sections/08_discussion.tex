@@ -152,9 +152,16 @@ single deployment.
 
 Our prover builds the chunk proofs one after another, so latency grows with
 the number of chunks. The chunk proofs are independent given the chunk
-boundary roots, so proving them in parallel, or on a machine dedicated to
-proving rather than the shared host used here, would shorten it; we did not
-measure either, and we did not evaluate hardware acceleration such as GPUs.
+boundary roots, so they could be built on separate machines and joined by the
+aggregator circuit. That would make the latency roughly that of one chunk plus
+one aggregation, about three minutes on our testbed by our estimate from the
+single-chunk and aggregation timings, which still exceeds the default bound of
+128 blocks. Going below it would also need faster proving of each chunk, for
+example on dedicated multi-core machines or with hardware acceleration such as
+GPUs. The aggregation step still needs all chunk proofs on one machine. We did
+not measure distributed proving or hardware acceleration. The validators
+verify the submitted proof during block execution, so the verification cost
+does not change with how the proof was built.
 
 \subsection{Interpretation of Results}
 
