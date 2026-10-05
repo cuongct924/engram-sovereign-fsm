@@ -332,6 +332,9 @@ def finish(case, trial, plan, tr, byz, since, report_from, extra=None, honest_ex
     checks = verdict(case, plan, tr, rejects, replay_res, honest_extra or {})
     row["checks"] = json.dumps(checks, sort_keys=True)
     row["pass"] = all(v for k, v in checks.items() if not k.endswith("_whole_run"))
+    # `pass` also requires the transition check, which fails on this testbed even without an adversary (control c0);
+    # the paper judges by the checks below, so they get their own column.
+    row["safety_replay_ok"] = all(checks.get(k, True) for k in ("safety_held", "liveness", "replay_clean"))
     row.update(extra or {})
     print(f"VERDICT {case}#{trial}: pass={row['pass']} checks={checks} rejects={rejects} replay={replay_res}")
     return row
