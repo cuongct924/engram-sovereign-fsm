@@ -53,7 +53,7 @@ def wait_for(state: str, timeout_s: float):
 
 def prover_log(since: float) -> list:
     p = subprocess.run(["docker", "logs", "--since", str(int(since)), "reanchoring-prover"], capture_output=True, text=True, timeout=120)
-    keep = re.compile(r"accepted|rejected|cannot build|firing|round|ERROR|error", re.I)
+    keep = re.compile(r"accepted|rejected|cannot build|firing|round|ERROR|error|aggregat|chunk", re.I)
     return [l[:260] for l in (p.stdout + p.stderr).splitlines() if keep.search(l)][-40:]
 
 

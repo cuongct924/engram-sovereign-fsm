@@ -20,6 +20,9 @@ services:
     environment:
       - NODE_URL=http://engram-node01:26657
       - POLL_INTERVAL_S=3
+      # Chunk-aggregation mode (prove_aggregate_and_submit.sh): off unless the caller exports ENGRAM_AGGREGATE=1.
+      - ENGRAM_AGGREGATE=${ENGRAM_AGGREGATE:-0}
+      - BATCH_THRESHOLD=${BATCH_THRESHOLD:-256}
       - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
     restart: unless-stopped
