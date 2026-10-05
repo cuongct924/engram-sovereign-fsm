@@ -1,0 +1,19 @@
+\begin{tabular}{@{}lrllrrr@{}}
+\toprule
+\textbf{Case} & \textbf{Byz.} & \textbf{Behaviour} & \textbf{Rejected by honest validators} & \textbf{Runs} & \textbf{Same AppHash} & \textbf{Replay clean} \\
+\midrule
+a3 & 1 & claims a DA attestation one height ahead & none & 3 & 3/3 & 3/3 \\
+a4 & 1 & forged Bitcoin checkpoint hash & btc verify receipt 216 & 3 & 3/3 & 3/3 \\
+b1 & 2 & coordinated false degraded observations & none & 3 & 3/3 & 3/3 \\
+b2 & 2 & false observations; proposer biases the certificate & none & 3 & 3/3 & 3/3 \\
+b3a & 1 & proposer keeps exactly a quorum of certificates & none & 3 & 3/3 & 3/3 \\
+b3b & 1 & proposer keeps fewer than a quorum & sub quorum certificate 210 & 3 & 3/3 & 3/3 \\
+b4 & 2 & double-signing at the same height & none & 3 & 3/3 & 3/3 \\
+b5 & 2 & withdrawal in a block of a locked state & withdrawal locked 320 & 3 & 3/3 & 3/3 \\
+b6 & 2 & stale DA receipt; forged Bitcoin hash & btc verify receipt 155, da verify receipt 165 & 3 & 3/3 & 3/3 \\
+b7a & 2 & false observations with two honest validators eclipsed & none & 3 & 3/3 & 3/3 \\
+b7b & 2 & false observations with three honest validators eclipsed & none & 3 & 3/3 & 3/3 \\
+b8 & 0 & honest split view: 3 then 4 of 7 eclipsed & none & 1 & 1/1 & 1/1 \\
+c0 & 0 & control: node04 restarted, no behaviour & none & 3 & 3/3 & 3/3 \\
+\bottomrule
+\end{tabular}

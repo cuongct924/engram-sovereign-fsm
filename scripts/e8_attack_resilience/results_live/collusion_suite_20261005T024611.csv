@@ -1,0 +1,4 @@
+case,pass,trial,blocks_advanced,byz_proposed_heights,byz_proposer_share,byzantine,checks,divergence_events,rejects,replay_kinds,replay_violations,replayed_blocks,transitions
+b0,False,1,121,0,0.0,,"{""liveness"": true, ""no_honest_transition"": false, ""no_honest_transition_whole_run"": false, ""replay_clean"": true, ""safety_held"": true}",0,{},{},0,529,"ANCHORED,SUSPICIOUS"
+b0,False,2,122,0,0.0,,"{""liveness"": true, ""no_honest_transition"": false, ""no_honest_transition_whole_run"": false, ""replay_clean"": true, ""safety_held"": true}",0,{},{},0,689,"ANCHORED,SUSPICIOUS"
+b0,False,3,123,0,0.0,,"{""liveness"": true, ""no_honest_transition"": false, ""no_honest_transition_whole_run"": false, ""replay_clean"": true, ""safety_held"": true}",0,{},{},0,853,"ANCHORED,SUSPICIOUS"

@@ -1,0 +1,2 @@
+case,pass,trial,blocks_advanced,byz_proposed_heights,byz_proposer_share,byzantine,checks,divergence_events,note,rejects,replay_kinds,replay_violations,replayed_blocks,transitions
+b8,True,1,12,0,0.0,,"{""liveness"": true, ""replay_clean"": true, ""safety_held"": true}",0,"transitions are measured, not asserted: a majority really seeing degradation may legitimately move the FSM",{},{},0,9032,

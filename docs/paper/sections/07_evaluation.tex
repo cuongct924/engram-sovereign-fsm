@@ -40,8 +40,58 @@ the committed certificate and check that it equals the committed $s^{h}$,
 that the aggregate lies within the honest range of Lemma~\ref{lem:honest-range}, and that no
 withdrawal commits while $s^{h} \in \{\textsc{Sovereign},
 \textsc{Recovering}\}$.
-\pending{run B1--B6 at $n{=}7$ and report per-case AppHash agreement,
-semantic-replay violations, and the honest-range check.}
+We ran each case three times on the 7-validator cluster, every run starting
+from \textsc{Anchored} (B5 starts from \textsc{Sovereign} by design). Table~\ref{tab:f2} lists the cases. In all 33 runs of
+cases A3--B7, the honest validators committed identical AppHashes and
+the offline replay found no block whose committed state differs from
+$\delta(s^{h-1}, \mathsf{Agg}(C^{h}))$, no aggregate outside the honest
+range, and no withdrawal committed in a locked state. Honest validators rejected the
+forged Bitcoin hash (A4: 216 rejections in total), the stale or forged receipts (B6),
+the withdrawals in a locked state (B5: 320), and the proposer that kept fewer than a quorum of certificates (B3b: 210);
+B3a, where the proposer keeps exactly a quorum, was accepted. In B4 the honest
+validators produced double-signing evidence for both validators, within two
+blocks of the second signature at the longest. B7 repeats B1 while honest validators
+are actually eclipsed, so that part of the honest observations are themselves degraded: with two eclipsed (B7a)
+the chain behaved as in the other cases, and with three (B7b) it reached
+\textsc{Sovereign} in all three runs, with every aggregate still inside the
+honest range.
+
+State transitions cannot be attributed to the adversary in this setting. The
+control c0, in which no validator misbehaves and one is only restarted, also
+moved from \textsc{Anchored} to \textsc{Suspicious} in 3 of 3 runs,
+because of ordinary sensor noise on the testbed. We therefore judge the cases by replay,
+AppHash agreement, and the honest-range check, not by whether a transition occurred.
+
+\begin{table}[h]
+\caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
+reruns; B8 is one run of an honest split view with no adversary; c0 is the control)}
+\label{tab:f2}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{\input{results/f2_table.tex}}
+\end{table}
+
+The suite fixes the number of Byzantine validators; the threshold itself is
+measured in a second sweep (Table~\ref{tab:b9}) with $b \in \{0,1,2,3\}$
+validators and two adversary goals: forcing \textsc{Sovereign} through false degraded
+observations, and hiding a real DA outage by reporting it healthy.
+Each cell is five runs, each on a fresh chain started from \textsc{Anchored}. For $b \le 2$ no block lay outside
+the honest range and the adversary reached neither goal (30 of 30 runs). For $b{=}3$ the aggregate left the honest range in 40--42 blocks and
+the adversary forced \textsc{Sovereign} in 5 of 5 runs, which is the boundary Lemma~\ref{lem:honest-range}
+predicts. Hiding an outage did not succeed at $b{=}3$ either: honest proposers' blocks
+still reported it (5--12 blocks outside the range). An outage can be hidden only
+when every run of consecutive honest proposers is shorter than the hysteresis threshold, and these
+placements did not produce that.
+
+\begin{table}[h]
+\caption{Threshold sweep: Byzantine validators $b$ at $n{=}7$ ($f{=}2$)}
+\label{tab:b9}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{\input{results/b9_table.tex}}
+\end{table}
 
 \textbf{Peripheral P2P quorum gate.} A P2P detector is useful for safety only if its
 signal cannot be abused by a minority. We first compare the six-bound
