@@ -139,9 +139,9 @@ add.
 \textbf{Peripheral P2P quorum gate.} A P2P detector is useful for safety only if its
 signal cannot be abused by a minority. We first compare the six-bound
 profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
-Monte Carlo study (2{,}000 benign and 2{,}000 attack snapshots plus 500
-ramps per cell; Section~\ref{subsec:montecarlo}), then run the two most
-diagnostic attacks live.
+Monte Carlo sensitivity study on synthetic attacks (2{,}000 benign and 2{,}000
+attack snapshots plus 500 ramps per cell; Section~\ref{subsec:montecarlo}), then
+run the two most diagnostic attacks live.
 
 \begin{table}[h]
 \caption{P2P Detector Accuracy: Six-Bound Profiler vs.\ Peer-Count-Only
@@ -172,12 +172,17 @@ false negatives at full intensity; the peer-count-only detector has
 2{,}000/2{,}000, since each attack preserves the clean-peer count.
 \end{table}
 
-Table~\ref{tab:p2p-detector} shows that the profiler detects every attack
-at every intensity an adaptive adversary could choose (evasion threshold
-$\leq 0.25$), under three ramp shapes (linear, front-loaded, slow; 300/300
-ramps detected per cell, 95\% upper bound on the miss rate 1\%) and
-regardless of concurrent Bitcoin or DA degradation. The peer-count-only
-detector detects none of the 300 ramps in any cell. The live runs show what happens after detection. In P3
+Table~\ref{tab:p2p-detector} is a sensitivity analysis of the two detectors
+against attack shapes that we define (Section~\ref{subsec:montecarlo}); it does
+not measure robustness against arbitrary eclipse or Sybil strategies. Within
+these four attacks the profiler flagged every full-intensity snapshot (0 misses
+in 2{,}000) and every ramp (300 of 300 in each cell under three ramp shapes,
+linear, front-loaded and slow; 95\% upper bound on the miss rate 1\%),
+regardless of concurrent Bitcoin or DA degradation. It reads attacks of low
+intensity as healthy: up to 0.25 for P4, 0.17 for P1 and 0.12 for P3. An
+attacker who keeps every field within its bound is not detected by the six bounds
+by construction (Section~\ref{subsec:sensors}). The peer-count-only detector
+detected none of the 300 ramps in any cell. The live runs show what happens after detection. In P3
 (churn-based rotation: eight restart cycles on two of seven validators,
 29\% of voting power), the churn metric on both attacked validators crossed
 its threshold, yet no FSM transition was committed: two validators' signed
@@ -245,17 +250,21 @@ after the layer returns in all three DA trials and the combined trials, and in
 the checkpoint trials it stops resuming as well. In the one trial observed
 beyond the recovery window, the chain was still stuck after twelve minutes, with
 proposals rejected at round 57 and above. This does not follow from the
-predicate, which is satisfiable again once the layer returns; it follows from
-this implementation. The checkpoint submitter, the DA publisher and the sensor
-reads all run inside \texttt{ExtendVote}, which ABCI++ calls only when a
-validator is about to precommit a block. Once proposals are rejected, no
-validator precommits, so no new checkpoint is submitted and no DA height is
-published, and the certificate in each new proposal is built from the extended
-commit of the last committed block and no longer changes. The dependency is
-circular, and in this implementation recovery takes a manual restart. We have not
-separated these effects experimentally: a baseline whose checkpoint producer
-runs independently of block commits would remove the first of them only, and
-the observation channel would still depend on commits.
+predicate, which is satisfiable again once the layer returns. It follows from two
+dependencies on block commits. The first is a choice of this implementation: the
+checkpoint submitter, the DA publisher and the sensor reads all run inside
+\texttt{ExtendVote}, which ABCI++ calls only when a validator is about to
+precommit a block, so once proposals are rejected no validator precommits, no new
+checkpoint is submitted and no DA height is published. The second follows from
+how observations travel: \texttt{ProcessProposal} receives no vote extensions, so
+the certificate in each proposal is built from the extended commit of the last
+committed block and does not change until another block commits. A design that
+delivers receipts as vote extensions and requires them for validity would share
+the second dependency; a design that observes the layers outside the vote
+extensions would not. The two together make the recovery circular, and in this
+implementation it takes a manual restart. We have not separated the two
+experimentally: a baseline whose checkpoint producer runs independently of block
+commits would remove the first only.
 Engram commits 147--153 blocks (96--102\% of its healthy
 rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
 and resumes within two seconds of the fault ending.

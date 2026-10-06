@@ -11,7 +11,13 @@ lock establishes, and the cost of griefing.
 in-chain transactions, application logic, and the forced-transaction queue
 continue. Cross-chain withdrawals stop. A strict receipt-gated chain under the same
 degradation commits only a fraction of its blocks and, in our implementation,
-does not resume after the layer returns (Section~\ref{subsec:rq2}).
+does not resume after the layer returns (Section~\ref{subsec:rq2}). The two
+cases differ in the sensors. Observations are produced when validators precommit,
+so the loop that reads the periphery closes only while blocks commit.
+Relaxing the receipt of the failed layer in \textsc{Sovereign} keeps blocks
+committing, which keeps the sensors reading, so the chain sees the layer return;
+the baseline rejects proposals for lack of fresh receipts and thereby stops the
+reads that would show them back.
 
 \textbf{What the lock establishes.}
 \begin{itemize}
@@ -277,18 +283,28 @@ interval proved in these runs is the one since genesis, not one following an
 outage injected into a healthy chain, and the runs with the bound at 128 are a
 single deployment.
 
-Our prover builds the chunk proofs one after another, so latency grows with
-the number of chunks. The chunk proofs are independent given the chunk
-boundary roots, so they could be built on separate machines and joined by the
-aggregator circuit. That would make the latency roughly that of one chunk plus
-one aggregation, about three minutes on our testbed by our estimate from the
-single-chunk and aggregation timings, which still exceeds the default bound of
-128 blocks. Going below it would also need faster proving of each chunk, for
-example on dedicated multi-core machines or with hardware acceleration such as
-GPUs. The aggregation step still needs all chunk proofs on one machine. We did
-not measure distributed proving or hardware acceleration. The validators
-verify the submitted proof during block execution, so the verification cost
-does not change with how the proof was built.
+Aggregation bounds the verifier's cost, not the prover's. The aggregate is one
+more proof on top of the chunk proofs, so building it takes longer than
+building the chunks alone (49\% longer at 512 headers and 22\% at 1024 in
+Appendix~\ref{app:aggregation}), and our prover builds the chunk proofs one
+after another, so latency grows with their number. The chunk proofs are
+independent given the chunk boundary roots, so they could be built on separate
+machines and joined by the aggregator circuit, and the latency would then be
+about that of one chunk plus one aggregation. On the offline workstation of
+Appendix~\ref{app:aggregation} that is about one minute (a leaf proof takes
+31.5\,s and the aggregation 25.7--29.5\,s), roughly 46 blocks at 0.8 blocks per
+second. On the shared Docker host a single chunk took about two minutes, so one
+chunk plus one aggregation would take about three minutes by our estimate from
+the single-chunk and aggregation timings, which exceeds the default bound of 128
+blocks. Going below it needs faster proving of each chunk, for example on
+dedicated multi-core machines or with hardware acceleration such as GPUs. The
+aggregation step still needs all chunk proofs on one machine. We measured neither
+parallel proving nor hardware acceleration. Whether the prover keeps up with
+block production is therefore open: aggregation makes the proof verifiable at a
+cost that does not depend on the interval, and keeping the unproven tail within
+the bound requires a faster or a parallel prover. The validators verify the
+submitted proof during block execution, so the verification cost does not change
+with how the proof was built.
 
 \subsection{Interpretation of Results}
 

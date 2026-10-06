@@ -126,7 +126,9 @@ controlling a validator's view is not detected by them. The TLA+ model assumes
 that an eclipsed honest validator reports a degraded reading and never a
 healthier one
 (Section~\ref{sec:formal}); that is a sensor-soundness assumption of the
-model, not a property derived from the six bounds.
+model, not a property derived from the six bounds. A detector that is evaded
+at every honest validator yields a healthy aggregate and no transition; it does
+not break agreement.
 
 \subsection{Health Certificates}
 \label{subsec:health-certificate}
@@ -520,7 +522,7 @@ $\mathit{rt}_{\text{last}}$ to its $\mathit{rt}_{\text{new}}$, and the next
 proof must start from that root. This costs $\lceil L/256 \rceil$ proofs for
 $L$ blocks. An aggregator circuit can fold up to four chunk proofs into one
 proof of the same size, which makes verification cost independent of $L$ up to
-1024 headers at the price of one extra proof
+1024 headers at the price of one extra proof; proving time still grows with $L$
 (Appendix~\ref{app:aggregation}).
 
 \textbf{Who verifies what.} The recovery proof is submitted as a message and

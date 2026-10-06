@@ -293,6 +293,12 @@ rate observed as 0 in $n$ trials is about $3/n$ (rule of three): 0.15\% for
 $n=2{,}000$ and 1\% for $n=300$.
 The detection delay is reported as the mean and the sample standard
 deviation over the 500 ramps of each cell.
+The study has three limits. The benign distribution, the attack directions and
+the intensity scale are our choices. Each attack perturbs only the fields it
+targets, along one direction. The evasion threshold varies one scalar, the
+intensity, by binary search against the detector, so the six dimensions are not
+searched jointly. The results therefore characterize the detectors' sensitivity
+within this generator.
 
 \subsection{Metrics}
 \label{subsec:metrics}
