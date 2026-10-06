@@ -49,3 +49,7 @@ Chạy TLC `-simulate` (lấy mẫu vết ngẫu nhiên) ở N=7, f=2 (C3) để
 1. Claude: viết `MC_ServerRefinementVacuity.tla` và mở rộng công cụ cấu hình cho nguyên khối (trước khi chạy Track 2). Viết phụ lục Track 3 sau khi có xác nhận.
 2. Bạn (máy Air): chạy Track 1 (đã có hướng dẫn), rồi Track 2 theo thang cận, mỗi bậc kèm kiểm tra tồn tại.
 3. Claude: cập nhật Section 5, README và báo cáo bằng số thật.
+
+## Trạng thái công cụ (7/10)
+- Track 1 và Track 2: sẵn sàng chạy trên Air theo `docs/FORMAL_PLAN_AIR.md` mục 3 và 3B. Đã có `MC_ServerRefinementVacuity.tla` và `make_c1_cfgs.py --layer server --ladder`. Chưa chạy lần nào.
+- Track 5 (Apalache): đã có `MC_ServerRefinementStep_Apalache.tla` và `make_apalache_refinement.py` (mục 3C của kế hoạch Air). Chưa `typecheck` lần nào; ba rủi ro đã biết nằm ở cổng A0. Phản hồi thầy (item 7): cấu hình nhỏ chỉ được gọi là bounded refinement sanity check, không phải chứng minh C1.
