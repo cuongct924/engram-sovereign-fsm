@@ -61,6 +61,9 @@ from utils import (  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
+# Seconds each cooldown waits for ANCHORED before the next scenario. 90 s was shorter than a recovery on the real Bitcoin cadence,
+# so later scenarios began in SOVEREIGN or RECOVERING; the repeated runs raise it through the environment.
+COOLDOWN_S = float(os.environ.get("ENGRAM_SCENARIO_COOLDOWN_S", "90"))
 # Figures (unlike raw CSVs/markdown) land alongside live_figure_builder.py's
 # output, not results_live/ -- one figures directory for all of E2's charts.
 FIGURES_DIR = os.path.join(os.path.dirname(__file__), "results")
@@ -367,7 +370,7 @@ def main():
     # wait_for_state, not a fixed poll -- same reasoning as S4/S5's cooldown
     # fix below: a fixed window isn't guaranteed long enough for every
     # validator to reach ANCHORED before S3 starts.
-    tr.wait_for_state("ANCHORED", 90, phase="S2_btc_congestion_cooldown")
+    tr.wait_for_state("ANCHORED", COOLDOWN_S, phase="S2_btc_congestion_cooldown")
     tr.write_scenario_csv("s2_btc_congestion", "s2")
 
     print("=== S3: DA unavailable (docker stop all 7 independent celestia bridges) ===")
@@ -375,7 +378,7 @@ def main():
     stop_all_da_bridges()
     tr.poll(60, phase="S3_da_unavailable")
     start_all_da_bridges()
-    tr.wait_for_state("ANCHORED", 90, phase="S3_da_recovery")
+    tr.wait_for_state("ANCHORED", COOLDOWN_S, phase="S3_da_recovery")
     tr.write_scenario_csv("s3_da_unavailable", "s3")
 
     net_info_log = open(NET_INFO_LOG, "w")
@@ -416,7 +419,7 @@ def main():
     # enough for every validator to reach ANCHORED before S5 -- node01 (S5's
     # isolation target) can still be mid-RECOVERING from S4, confounding S5
     # (its slow recovery becomes unattributable between the two phases).
-    tr.wait_for_state("ANCHORED", 90, phase="S4_p2p_cooldown")
+    tr.wait_for_state("ANCHORED", COOLDOWN_S, phase="S4_p2p_cooldown")
     tr.write_scenario_csv("s4_p2p_eclipse_partial", "s4")
 
     print(
@@ -434,7 +437,7 @@ def main():
     # Same reasoning as S4's cooldown: S6 stops real infrastructure
     # (bitcoin-node01, celestia-bridge); starting it against a cluster that
     # hasn't fully reconverged from S5 would confound S6's result.
-    tr.wait_for_state("ANCHORED", 90, phase="S5_cooldown")
+    tr.wait_for_state("ANCHORED", COOLDOWN_S, phase="S5_cooldown")
     tr.write_scenario_csv("s5_anchor_isolation", "s5")
     net_info_log.close()
 
