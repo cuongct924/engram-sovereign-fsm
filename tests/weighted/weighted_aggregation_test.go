@@ -273,6 +273,6 @@ func TestWeightNotCount(t *testing.T) {
 	}
 	got, _ = f.aggregate(certs)
 	if got.BtcGap != 100 {
-		t.Fatalf("median %d, want 100 (55% of the weight, 4 of 7 by count)", got.BtcGap)
+		t.Fatalf("median %d, want 100 (55%% of the weight, 4 of 7 by count)", got.BtcGap)
 	}
 }
