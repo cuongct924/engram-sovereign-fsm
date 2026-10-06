@@ -238,7 +238,13 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   \item \emph{Proposer omission.} The proposer chooses $S$, and may omit
   honest observations. If $S$ still meets (d), Lemma~\ref{lem:honest-range} still holds. The
   proposer's residual influence is choosing \emph{which} honest value in the
-  honest range is selected when honest validators genuinely disagree. If
+  honest range is selected when honest validators genuinely disagree. The same
+  freedom exists one level down: CometBFT accepts any \texttt{LastCommit} that
+  carries more than two thirds of the voting power and ignores absent
+  signatures, so a proposer also chooses which precommits the block records.
+  Requiring one observation for every commit vote of \texttt{LastCommit} would tie
+  the two choices together and make an omission visible in the block, but it
+  would not remove the choice. If
   omission drops $S$ to weight at most $2W/3$, the certificate is not
   well-formed and honest validators reject the proposal. The only exception
   is the first height after vote extensions are enabled, whose predecessor
