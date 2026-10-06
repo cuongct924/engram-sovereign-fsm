@@ -740,8 +740,8 @@ apply, on another:
 
 ### E6 — Reanchoring Feasibility Evaluation
 
-**Objective:** show the ZK recovery proof (chain continuity, FSM legality, withdrawal-lock
-invariant) is practical and scales linearly, not just correct. Answers RQ4.
+**Objective:** show the ZK recovery proof (chain continuity, mode-label and lock-flag
+consistency, root binding, boundary quorum) is practical and scales linearly, not just correct. Answers RQ4.
 
 * Correctness is verified separately, by `circuit/reanchoring/src/main.nr`'s 10 `nargo test` cases:
   * 4 positive, at count=1/4/130/256 (count=1 exercises the full `main()`, including real
@@ -865,7 +865,7 @@ statement:
 * The Noir row is frozen from before condition (e) existed — not the deployed circuit's current
   cost (~38-41s, `circuit/README.md` §1).
 
-**Fuller statement** — header-chain continuity + FSM/withdrawal-lock legality + root binding, real
+**Fuller statement** — header-chain continuity + mode-label and lock-flag consistency + root binding, real
 STARK prove/verify:
 
 | n (headers) | Prove | Verify | Proof size |

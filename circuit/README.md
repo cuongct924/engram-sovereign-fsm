@@ -12,7 +12,8 @@ state. Three architectures were evaluated:
 ## Formal Definition: Proof of Recovery
 - `SOVEREIGN`-mode blocks carry only local-PoS security, not Bitcoin-anchored finality.
 - Returning to `ANCHORED` needs a Proof of Recovery, not a Proof of Execution: it proves the
-  sovereign interval kept continuity and FSM recovery policy, AND that the interval's two boundary
+  sovereign interval kept continuity and recorded only `SOVEREIGN` or `RECOVERING` states with the lock
+  flag set (it does not check transitions against the transition function), AND that the interval's two boundary
   blocks were really committed by `>=2/3` of the genesis validator set — without re-verifying any
   transaction, keeping constraints low for $O(1)$ verification and constant proof size.
 - Built with Noir/UltraHonk (`circuit/reanchoring/src/main.nr`), Poseidon2 t=4 as the chaining hash
@@ -27,8 +28,8 @@ state. Three architectures were evaluated:
 | Condition | Constraint | Guarantee |
 |---|---|---|
 | (a) Continuity | $H_{k+i+1}$.`prev_hash` $= \mathrm{hash\_header}(H_{k+i})$ | No injected or reordered blocks |
-| (b) Policy | $H_{k+i}$.`fsm_state` $\in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | No illegal jump to `ANCHORED` |
-| (c) Circuit breaker | $H_{k+i}$.`withdrawal_locked` $= \mathrm{true}$ | No withdrawal during reduced security |
+| (b) Mode-label consistency | $H_{k+i}$.`fsm_state` $\in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | Every recorded state in the interval is one of the two; transitions are not checked against the transition function |
+| (c) Lock-flag consistency | $H_{k+i}$.`withdrawal_locked` $= \mathrm{true}$ | Every recorded lock flag is set; the flag is the chain's own record, so this does not show that no withdrawal executed |
 | (d) Root binding | $H_{k+1}$.`prev_hash` $=rt_{last}$, $\mathrm{hash\_header}(H_{k+n}) = rt_{new}$ | Endpoints bound to the on-chain accumulator, not a free witness value |
 | (e) Boundary signatures | `>=2/3` voting power's real ed25519 precommits over each boundary block, against a validator set matching a real Merkle root | Interval's two endpoints are real committed CometBFT blocks, not a fabricated chain |
 
