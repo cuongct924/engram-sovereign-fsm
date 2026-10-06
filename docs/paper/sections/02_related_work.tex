@@ -336,6 +336,32 @@ that drops the dependency gives up the guarantees that motivated it. The
 fallbacks surveyed above place the decision with users, watchers, a sequencer,
 a committee, or an L1 contract.
 
+\textbf{What a response gates.} The designs differ in what the failed
+dependency stops (Table~\ref{tab:gates}). Only the strict receipt-gated baseline
+stops block commitment. The other designs stop finality, client acceptance, L2
+derivation or nothing, or leave the chain running and gate an operation.
+
+\begin{table}[!tbp]
+\caption{What the failure of an external dependency stops, by design (entries
+from the sources of Table~\ref{tab:comparison}, except the baseline and Engram).}
+\label{tab:gates}
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.03}
+\begin{tabular}{@{}p{0.2\linewidth}p{0.4\linewidth}p{0.3\linewidth}@{}}
+\toprule
+\textbf{Gate} & \textbf{What stops} & \textbf{Design} \\
+\midrule
+Block validity & Every proposal, while the validity predicate cannot be satisfied & Strict receipt-gated baseline (this work) \\
+Finality & The finalized prefix lags; the ledger keeps growing & Ebb-and-flow \\
+Client acceptance & A client stops adding blocks whose data behind a signed checkpoint is unavailable & Babylon emergency break \\
+L2 derivation & Derivation stalls until a challenge resolves the data or the blocks are reorged & OP Alt-DA \\
+Oracle input & Nothing: an empty vote extension is valid and the chain keeps running & Vote-extension oracle \\
+An operation & Withdrawals, and the return to the anchored mode; block production continues & Engram \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 To the best of our knowledge, no published design combines (i)~a quorum-backed
 set of height-bound validator observations from which every validator
 deterministically derives the health of external layers, (ii)~use of that
@@ -369,13 +395,13 @@ Strict receipt-gated baseline (this work)\textsuperscript{a} & Missing Bitcoin o
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
 Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
 \grp{External data in consensus}
-Vote-extension oracle~\mbox{\cite{cosmos_adr064,slinky_oracle}} & External data update; signed vote extensions & Validator consensus pipeline & Stake-weighted median goes to the application; fallback not specified & Signatures from at least two thirds of voting power & Design record; open-source code \\
+Vote-extension oracle~\mbox{\cite{cosmos_adr064,slinky_oracle}} & External data update; signed vote extensions & Validator consensus pipeline & Stake-weighted median goes to the application; an unreachable oracle yields an empty vote extension that counts as valid, so the chain keeps running; the ADR prescribes no fallback & Signatures from at least two thirds of voting power & Design record; open-source code \\
 \grp{Bitcoin anchoring}
-Babylon~\mbox{\cite{tas2023bitcoinpos}} & Transaction censorship; liveness transactions & Clients and Bitcoin\textsuperscript{c} & Bitcoin orders PoS block hashes (rollup mode); the chain later exits rollup mode & Bitcoin safe and live & Security proofs; measured Bitcoin checkpoint latency \\
+Babylon~\mbox{\cite{tas2023bitcoinpos}} & Transaction censorship; a signed checkpoint whose block is unavailable & Clients and Bitcoin\textsuperscript{c} & Bitcoin orders PoS block hashes (rollup mode); the chain later exits rollup mode; clients stop adding blocks that lack available data (emergency break) & Bitcoin safe and live & Security proofs; measured Bitcoin checkpoint latency \\
 \grp{Rollup fallback}
 Escape hatch~\mbox{\cite{figueira2025escapehatch}} & No new state root within a time limit & Users & Users bypass the bridge and withdraw with a Merkle proof; a nullifier blocks a second escape & L1 live; users submit proofs & Design and use cases \\
 AnyTrust~\mbox{\cite{arbitrum_anytrust,arbitrum_orbit_anytrust}} & Too few committee signatures & Sequencer & Full batch posted to the L1 with standard rollup delay; the committee path resumes & L1 live & Public documentation \\
-OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 challenge & L1 contract & Data resolved on the L1, or affected L2 blocks reorged & L1 live; some party challenges & Experimental specification \\
+OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 challenge & L1 contract & Derivation stalls on missing data; the data is resolved on the L1, or the affected L2 blocks are reorged & L1 live; some party challenges & Experimental specification \\
 Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arranger & Honest agent and L1 contract & Fraud proof settles on the L1; liveness violations cannot be proved there & L1 safe and live; one honest agent & Fraud-proof games mechanized in Lean~4 \\
 \midrule
 \textbf{Engram} & Bitcoin, DA, or peripheral-P2P health; signed validator observations & Validator BFT pipeline & Receipt rules relaxed for the failed layer and withdrawals locked; proof, DA backfill, and hysteresis restore\textsuperscript{d} & CometBFT quorum connected; Byzantine power under $1/3$ & Per-layer bounded model checking; live fault injection (one host) \\

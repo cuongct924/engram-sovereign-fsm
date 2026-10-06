@@ -257,8 +257,9 @@ that the last blocks before the chain returns to \textsc{Anchored} are
 certified by the validator quorum alone; a coalition above $f$ could rewrite
 that stretch without the proof detecting it, which is the same residual
 exposure as in the history-divergence paragraph above, now bounded by the
-tail. At about 0.8 blocks per second, the default bound of 128 blocks is about
-2.7 minutes and a bound of 512 about 10.7 minutes.
+tail. At about 0.8 blocks per second, the bound of 128 blocks used in our
+experiments (the code default is 8) is about 2.7 minutes and a bound of 512
+about 10.7 minutes.
 
 \textbf{Measured proving latency.} In the first live deployment with chunk
 aggregation, the prover built a 512-header aggregate from two chunks in about
@@ -295,8 +296,8 @@ Appendix~\ref{app:aggregation} that is about one minute (a leaf proof takes
 31.5\,s and the aggregation 25.7--29.5\,s), roughly 46 blocks at 0.8 blocks per
 second. On the shared Docker host a single chunk took about two minutes, so one
 chunk plus one aggregation would take about three minutes by our estimate from
-the single-chunk and aggregation timings, which exceeds the default bound of 128
-blocks. Going below it needs faster proving of each chunk, for example on
+the single-chunk and aggregation timings, which exceeds the bound of 128
+blocks used in our experiments. Going below it needs faster proving of each chunk, for example on
 dedicated multi-core machines or with hardware acceleration such as GPUs. The
 aggregation step still needs all chunk proofs on one machine. We measured neither
 parallel proving nor hardware acceleration. Whether the prover keeps up with
