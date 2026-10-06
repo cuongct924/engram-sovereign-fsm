@@ -296,8 +296,49 @@ specification + bounded model checking" và nêu refinement còn mở.
 ### 28–32. Việc mới của phiên 5/10
 Xem bảng "Cập nhật 5/10/2026" ở trên. Tóm tắt: (28) đo thêm hysteresis, (29) che sự cố theo ngưỡng k và vị trí, (30) nguyên nhân FSM rời ANCHORED dưới tải là timeout RPC DA, (31) RQ3 cần composite ≥ 5 và proof-only với n lớn hơn (chưa xếp), (32) trình bày lại RQ4.
 
+### 33–35. Ba phản biện giả định của reviewer (đợt 6/10)
+Ba nhận xét mà một reviewer hệ thống nhiều khả năng đưa ra; tất cả đều đúng ở phần lập luận. Thứ tự ưu tiên: sửa văn bản
+(vài giờ, không chạy) trước, rồi mô phỏng, rồi thí nghiệm.
+
+**33. "Đánh giá vẫn là một máy" (Major 1) (🟡) [T][M]**
+Toàn bộ validator, Bitcoin, Celestia nằm trên một máy; validator không có giới hạn CPU/RAM riêng, nên nhiễu lập lịch có thể bị
+cảm biến hiểu thành suy giảm mạng (Engram lấy độ trễ, chất lượng peer, churn làm đầu vào FSM). Đây cũng là nút thắt chưa tách
+được ở RQ4 (FSM rời ANCHORED khi tải tăng).
+- Việc: Testbed B trên DigitalOcean, 7 validator ở 7 trung tâm dữ liệu (nyc3, tor1, ams3, fra1, sfo3, sgp1, blr1) và `infra01`
+  ở nyc3. Thiết kế hệ thống, checklist và kế hoạch chạy nằm trong `deploy/README.md`. Phạm vi: composite ×3 đến ×5, baseline
+  RQ2 (E11) tuỳ chọn, quét tải tuỳ chọn (cần nối E7 vào `scripts/framework/cluster.py`, hiện chỉ E9 và E11 chạy qua backend SSH).
+- Quét n = 4, 7, 13, 25, 50, 100 bằng micro-benchmark offline trên mã thật: kích thước chứng chỉ, thời gian gộp, thời gian xác
+  thực proposal; chạy khi máy chính rảnh hoặc trên Air. Chưa viết.
+- Sửa văn bản ngay: nêu rõ validator không có giới hạn tài nguyên riêng và kết luận RQ4 ở tải cao chịu ảnh hưởng của việc dồn một
+  máy.
+- Chưa chạy lần nào trên máy thật; chi phí khoảng $0,39 mỗi giờ.
+
+**34. Baseline hard-gated trộn hai yếu tố (Major 2) (⬜) [T][B]**
+Phát biểu "hard-gated không tự phục hồi, Engram thì có" gộp (a) mất liveness trong lúc lỗi, đúng cho mọi chuỗi hard-gated, và
+(b) không tự chạy lại sau lỗi, chỉ đúng cho cài đặt này: checkpoint mà đề xuất cần chỉ được tạo cho block mới, mà chuỗi đang
+không commit được block mới (vòng phụ thuộc, phải khởi động lại tay).
+- Sửa văn bản ngay: ghi "trong cài đặt này", tách (a) và (b), không dùng baseline hiện tại làm bằng chứng về mọi chuỗi hard-gated.
+- Thêm baseline thứ hai cùng binary: hard-gated với bộ theo dõi neo định kỳ nộp checkpoint của block đã commit mới nhất dù
+  không có block mới (`x/sovereignty/proposal.go` ép trạng thái ANCHORED ở chế độ hard-gated; phần nộp checkpoint nằm ở `x/anchor`,
+  chưa đọc để ước lượng). Chạy lại ba loại lỗi × 3 lần; đo thời gian tự resume sau lỗi.
+- Diễn giải kết quả mới như một đánh đổi: hard-gated độc lập dừng trong lúc lỗi nhưng không lọt giao dịch rút; Engram giữ
+  liveness nhưng lọt một số trước khi khoá. Có thể thu hẹp khoảng cách; nói đúng như vậy.
+- Công sức ước lượng: nửa ngày sửa, 2–3 giờ chạy.
+
+**35. Lỗi Bitcoin và con số phơi nhiễm (Major 3) (⬜) [T][M]**
+Ngưỡng đặt theo số block Bitcoin (Suspicious 5, Sovereign 8, K=2) và regtest nhanh khoảng 30 lần mainnet (một block mỗi 20 giây).
+Thời gian tới SOVEREIGN: 117 giây (RQ2), 141,6 ± 13,8 giây (S2) tương đương khoảng 58 và 71 phút trên mainnet. Con số "18–19 và
+45–56 giao dịch rút lọt trước khi khoá" phụ thuộc tải (một giao dịch rút mỗi 2 giây) và Bitcoin tăng tốc, không phải mức phơi
+nhiễm sản xuất. Kịch bản "congestion" chỉ là dừng nộp checkpoint, và "DA outage" là dừng bridge, không phải DAS hay withholding.
+- Sửa văn bản ngay: báo T_exposure = t_Sovereign − t_fault theo số block Bitcoin, theo số block Engram, theo giây trên testbed và
+  theo phút tương đương mainnet; ghi số giao dịch rút là phụ thuộc tải; thêm cận trên N ≤ (số block Engram trong cửa sổ) × (số giao
+  dịch rút tối đa mỗi block, lấy từ thông lượng đo được).
+- Mô phỏng tại chỗ (nửa ngày, không cần cụm): luật FSM thật với thời gian giữa các block Bitcoin kiểu Poisson 10 phút, đo (i) thời gian
+  tới SOVEREIGN sau khi dừng nộp checkpoint, (ii) tỉ lệ báo động nhầm khi chạy bình thường ở ngưỡng 5/8, K=2.
+- Thảo luận: giới hạn tốc độ rút tiền ở SUSPICIOUS sẽ chặn cận trên N nhưng chưa cài; ghi là hướng cải tiến.
+
 ### 21. Chạy đa máy có WAN impairment (🟡) [T][M]
-Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
+Kế hoạch chi tiết, thiết kế hệ thống và checklist: `deploy/README.md` (mục 33). Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
 `scripts/framework`. Chưa có dữ liệu. Nếu làm: 7 VM validator ở ≥ 3 vùng + 1 VM hạ tầng, composite
 fault × 3 trial, đặt cạnh số liệu single-host; ma trận WAN đầy đủ chỉ cho composite, lỗi đơn ở một mức
 WAN. Khi có số liệu, bật `\testbedBtrue` và thêm cột Testbed B.
