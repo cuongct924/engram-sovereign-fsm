@@ -150,25 +150,16 @@ def main():
 
     axes[-1].set_xlabel("Elapsed time (s)", fontsize=11)
 
-    # Title and subtitle as separate fig.text calls (rather than one suptitle
-    # with \n) so the descriptive subtitle can run smaller than the bold main
-    # title -- at one shared size it either overflows this figure's width
-    # (bold) or crowds the title (matching size).
-    fig.text(0.5, 0.99, "Figure 8 -- E10 FSM Reaction to Real Bitcoin Reorgs by Depth",
-              ha="center", va="top", fontsize=12, fontweight="bold")
-    fig.text(0.5, 0.965,
-              "(live 7-node Docker testnet, engram-node01, real -- all 7 validators agreed at every sample in every trial; "
-              "KDeepFinality = 2)",
-              ha="center", va="top", fontsize=8.5)
+    # No figure title or subtitle: the paper's caption carries both.
     fig.legend(
         handles=STATE_LEGEND,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.935),
+        bbox_to_anchor=(0.5, 0.995),
         ncol=len(STATES),
         frameon=False,
         fontsize=9,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.90))
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
 
     savefig_academic(fig, OUT_DIR, "figure8_reorg_depth_reaction_live")
     print(f"Figure written to {OUT_DIR}/figure8_reorg_depth_reaction_live.{{png,pdf}}")

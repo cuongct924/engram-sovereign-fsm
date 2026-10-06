@@ -205,14 +205,9 @@ def plot_figure5_live(rows, attack_start, attack_end, csv_path):
     ax_live.set_xlabel("Elapsed time (s)")
     ax_live.set_xlim(0, t_max)
 
-    fig.suptitle(
-        "Figure 5 -- FSM Cascade Under a Real Relay-Latency Attack (A4)",
-        fontsize=13, fontweight="bold", y=0.98,
-    )
-    fig.text(0.5, 0.925, f"(live 7-node Docker testnet, {os.path.basename(csv_path)})",
-              ha="center", va="top", fontsize=9)
+    # No figure title or subtitle: the paper's caption carries both, and the figure number is the LaTeX one.
     fig.tight_layout()
-    fig.subplots_adjust(top=0.85, hspace=0.4)
+    fig.subplots_adjust(hspace=0.4)
     savefig_academic(fig, OUT_DIR, "figure5_a4_cascade_timeline_live")
 
 

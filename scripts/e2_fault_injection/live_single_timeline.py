@@ -411,13 +411,7 @@ def main():
         fontsize=9,
     )
 
-    fig.suptitle(
-        "Figure 3 -- Continuous FSM-State Timeline, S1..S7\n"
-        "(live 7-node Docker testnet; equal-width phases, true block ranges)",
-        y=0.99,
-        fontsize=16,
-        fontweight="bold",
-    )
+    # No figure title or subtitle: the paper's caption carries both.
     fig.tight_layout()
     savefig_academic(fig, OUT_DIR, "figure3_single_timeline_live")
 

@@ -58,8 +58,9 @@ def savefig_academic(fig, out_dir, basename):
     import os
 
     os.makedirs(out_dir, exist_ok=True)
-    fig.savefig(os.path.join(out_dir, f"{basename}.pdf"))
-    fig.savefig(os.path.join(out_dir, f"{basename}.png"), dpi=PRINT_DPI)
+    # bbox_inches="tight" crops the margins here, so the paper includes the file without trim/clip.
+    fig.savefig(os.path.join(out_dir, f"{basename}.pdf"), bbox_inches="tight", pad_inches=0.03)
+    fig.savefig(os.path.join(out_dir, f"{basename}.png"), dpi=PRINT_DPI, bbox_inches="tight", pad_inches=0.03)
 
 
 def setup_academic_plot_style():

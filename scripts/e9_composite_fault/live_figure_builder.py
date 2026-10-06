@@ -225,39 +225,26 @@ def _draw_state_segments(ax, ts, states):
 
 
 def _finish_figure(fig, windows, colors, csv_path):
-    """Shared suptitle + single fault-window legend + save, used by both the
+    """Single fault-window legend + save (no figure title: the paper caption carries it), used by both the
     2-panel and 4-panel branches."""
     fault_handles = [
         mpatches.Patch(facecolor=colors[name], alpha=0.35, label=name)
         for name, (start, _end) in windows.items()
         if start is not None
     ]
-    # Header band (suptitle + legend) spacing follows the figure's own
-    # ~1.618 width:height ratio instead of arbitrary y-values.
-    fig.suptitle(
-        "Figure 2 -- FSM Timeline Under a Real Combined-Failure Trace",
-        fontsize=13,
-        fontweight="bold",
-        y=0.97,
-    )
-    fig.text(
-        0.5, 0.945,
-        f"(live 7-node Docker testnet, {os.path.basename(csv_path)})",
-        ha="center", va="top", fontsize=10,
-    )
     if fault_handles:
         fig.legend(
             handles=fault_handles,
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.885),
+            bbox_to_anchor=(0.5, 0.995),
             ncol=len(fault_handles),
             frameon=False,
             fontsize=8,
             title="Fault-injection windows (real markers, shaded on every panel)",
             title_fontsize=8,
         )
-    fig.tight_layout()
-    fig.subplots_adjust(top=0.78, hspace=0.55)
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.subplots_adjust(hspace=0.55)
     savefig_academic(fig, OUT_DIR, "figure2_trace_timeline_live")
 
 
