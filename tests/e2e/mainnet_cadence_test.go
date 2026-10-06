@@ -35,6 +35,9 @@ const (
 	e5eKDeep        = 2
 )
 
+// e5eMaxSuspiciousTime is the live genesis value (24 Engram blocks); TestE5e_MaxSuspiciousTimeSweep varies it.
+var e5eMaxSuspiciousTime uint64 = 24
+
 type e5eCadence struct {
 	Name    string
 	MeanS   float64
@@ -68,7 +71,7 @@ func newE5eRun(t *testing.T, k uint64, cad e5eCadence, lag int, seed int64) *e5e
 	h.keeper.Params.MaxDownHysteresisThreshold = k
 	// the live genesis (.env): SuspiciousHysteresisWait 8, MaxSuspiciousTime 24 Engram blocks
 	h.keeper.Params.SuspiciousHysteresisWait = 8
-	h.keeper.Params.MaxSuspiciousTime = 24
+	h.keeper.Params.MaxSuspiciousTime = e5eMaxSuspiciousTime
 	r := &e5eRun{h: h, rng: rand.New(rand.NewSource(seed)), cad: cad, lag: lag, btcH: 1000}
 	r.anchored = r.btcH - e5eKDeep
 	r.nextBtc = r.interval()
@@ -305,4 +308,74 @@ func TestE5e_FalseSovereignHazard(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestE5e_MaxSuspiciousTimeSweep asks how long the SUSPICIOUS timeout must be at mainnet cadence for a healthy chain to
+// stop escalating, and what that costs a real fault in time to SOVEREIGN.
+func TestE5e_MaxSuspiciousTimeSweep(t *testing.T) {
+	if os.Getenv("ENGRAM_E5E") == "" {
+		t.Skip("set ENGRAM_E5E=1")
+	}
+	defer func() { e5eMaxSuspiciousTime = 24 }()
+	cad := e5eCadence{"mainnet_poisson_600s", 600, true}
+	require.NoError(t, os.MkdirAll("results", 0o755))
+	f, err := os.Create(filepath.Join("results", "e5e_max_suspicious_time.csv"))
+	require.NoError(t, err)
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	require.NoError(t, w.Write([]string{"max_suspicious_time_blocks", "seconds", "k", "lag_blocks", "runs", "max_hours", "false_events", "exposed_days",
+		"false_events_per_day", "fault_runs", "t_sov_min_mean", "t_sov_min_p05", "t_sov_min_p95", "btc_blocks_mean"}))
+	seeds, maxHours, faults := 30, 72.0, 40
+	if os.Getenv("ENGRAM_E5E_FAST") != "" {
+		seeds, maxHours, faults = 6, 24, 10
+	}
+	for _, mst := range []uint64{24, 250, 500, 750, 1000, 1500, 2500} {
+		e5eMaxSuspiciousTime = mst
+		for _, k := range []uint64{4} {
+			lag := 3
+			events := 0
+			exposed := 0.0
+			for s := int64(1); s <= int64(seeds); s++ {
+				r := newE5eRun(t, k, cad, lag, 1000+s)
+				for i := 0; i < int(3600/e5eEngramBlockS); i++ {
+					r.step()
+				}
+				start := r.now
+				for i := 0; i < int(maxHours*3600/e5eEngramBlockS); i++ {
+					if r.step() == types.StateSovereign {
+						events++
+						break
+					}
+				}
+				exposed += (r.now - start) / 86400
+			}
+			var ts, bs []float64
+			for s := int64(1); s <= int64(faults); s++ {
+				fr, ok := e5eFaultRun(t, k, cad, lag, 5000+s)
+				if ok {
+					ts = append(ts, fr.Seconds/60)
+					bs = append(bs, float64(fr.BtcBlocks))
+				}
+			}
+			row := []string{strconv.Itoa(int(mst)), fmt.Sprintf("%.0f", float64(mst)*e5eEngramBlockS), strconv.Itoa(int(k)), strconv.Itoa(lag),
+				strconv.Itoa(seeds), fmt.Sprintf("%.0f", maxHours), strconv.Itoa(events), fmt.Sprintf("%.1f", exposed),
+				fmt.Sprintf("%.3f", float64(events)/exposed), strconv.Itoa(len(ts)), fmt.Sprintf("%.1f", e5eMean(ts)),
+				fmt.Sprintf("%.1f", e5ePercentile(ts, 0.05)), fmt.Sprintf("%.1f", e5ePercentile(ts, 0.95)), fmt.Sprintf("%.1f", e5eMean(bs))}
+			require.NoError(t, w.Write(row))
+			w.Flush()
+			fmt.Println(row)
+		}
+	}
+}
+
+func e5eMean(v []float64) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	s := 0.0
+	for _, x := range v {
+		s += x
+	}
+	return s / float64(len(v))
 }
