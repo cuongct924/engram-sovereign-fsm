@@ -1,0 +1,14 @@
+{
+ "label": "adaptiveW16_o0_t3",
+ "offset_s": 0.0,
+ "noisy_flaps": 7,
+ "noisy_demotions": 4,
+ "noisy_anchored_share": 0.8415,
+ "quiet1_anchored_share": 0.8658,
+ "regain_anchored_s": 0.1,
+ "detection_delay_s": 12.8,
+ "blocks_to_detection": 9,
+ "time_to_sovereign_s": 41.7,
+ "left_anchored_during_offset": false,
+ "recovered": true
+}

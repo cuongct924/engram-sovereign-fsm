@@ -1,0 +1,14 @@
+{
+ "label": "static4_o60_t2",
+ "offset_s": 60.0,
+ "noisy_flaps": 0,
+ "noisy_demotions": 0,
+ "noisy_anchored_share": 1.0,
+ "quiet1_anchored_share": 1.0,
+ "regain_anchored_s": 0.1,
+ "detection_delay_s": 11.2,
+ "blocks_to_detection": 10,
+ "time_to_sovereign_s": 42.6,
+ "left_anchored_during_offset": false,
+ "recovered": true
+}

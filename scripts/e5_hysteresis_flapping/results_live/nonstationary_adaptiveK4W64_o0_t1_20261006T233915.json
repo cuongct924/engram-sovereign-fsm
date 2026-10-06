@@ -1,0 +1,14 @@
+{
+ "label": "adaptiveK4W64_o0_t1",
+ "offset_s": 0.0,
+ "noisy_flaps": 3,
+ "noisy_demotions": 2,
+ "noisy_anchored_share": 0.9218,
+ "quiet1_anchored_share": 0.9329,
+ "regain_anchored_s": 0.2,
+ "detection_delay_s": 14.1,
+ "blocks_to_detection": 10,
+ "time_to_sovereign_s": 44.8,
+ "left_anchored_during_offset": false,
+ "recovered": true
+}

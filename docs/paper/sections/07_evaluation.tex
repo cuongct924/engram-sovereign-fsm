@@ -569,7 +569,40 @@ and 2.0 after 96 quiet blocks. An adversary that reads the committed flap level
 pays 7.9 bad blocks per demotion with $k_{\max}{=}8$ and 4 with $k_{\max}{=}4$
 (2 for a static threshold of 2). These are simulation results, calibrated to the
 live sweep above but not measured live.
-\pending{replace the simulated columns with the live three-phase and
+
+\textbf{Changing noise (live).} We ran the same three phases on the seven-validator
+cluster: a quiet phase, a phase under the wide-area latency and jitter profile of
+the stationary sweep, and a quiet phase after which, once the chain was
+\textsc{Anchored} again and had stayed so for an offset of 0 or 60\,s, all
+Celestia bridges were stopped. Every run used a fresh genesis, with three runs per
+configuration and offset (Table~\ref{tab:nonstationary-live}; the noisy-phase
+columns pool the six runs of a configuration).
+
+\begin{table}[h]
+\caption{Live three-phase runs: mean (range) over three runs per offset (the noisy
+phase pools six). Detection is the time from the bridge stop to the first
+non-\textsc{Anchored} state.}
+\label{tab:nonstationary-live}
+\centering
+\scriptsize
+\resizebox{\linewidth}{!}{\input{results/nonstationary_live_table}}
+\end{table}
+
+A static threshold of 4 never flapped and stayed \textsc{Anchored} through the noisy
+phase of all six runs, at a detection delay of 13.7\,s against 10.9\,s for $k{=}2$,
+which flapped 7.5 times and spent 82\% of the phase \textsc{Anchored}. The adaptive
+threshold suppressed more as its window grew, 6.8 flaps for a window of 16 blocks,
+3.0 for 64 and 1.0 for 128, which is close to the simulation for windows of 16 and
+64 (6.1 and 3.4 flaps). It paid for that in detection at offset 0, 12.7, 14.6 and
+16.2\,s. No adaptive configuration reached the flap count of the static threshold
+of 4 at a shorter delay; the only one faster than it, with a window of 16, flapped
+6.8 times. After an offset of 60\,s the adaptive level had decayed: with a window of
+64 the detection took 9.8\,s against 11.5\,s for the static threshold of 4, the
+ranges not overlapping, though with three runs each this is an observation, not an
+estimate. For $k{=}2$, a window of 16 and a window of 128 the chain left
+\textsc{Anchored} before the outage in all three runs at that offset, so no
+detection delay was measured; we did not identify the cause.
+\pending{replace the simulated repeated-trigger columns with the live
 repeated-trigger runs of the same configurations.}
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
