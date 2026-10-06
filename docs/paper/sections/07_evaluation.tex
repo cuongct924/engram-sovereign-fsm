@@ -207,14 +207,14 @@ every honest validator must move it.
 \subsection{RQ2: Liveness Under Peripheral Degradation}
 \label{subsec:rq2}
 
-\textbf{Engram versus a hard-gated modular chain.} The hard-gated baseline
+\textbf{Engram versus the strict receipt-gated baseline.} The baseline
 (Section~\ref{subsec:baselines}) enforces Bitcoin and DA receipts at every
 height; the soft baseline keeps Engram's FSM but never locks withdrawals. We
 ran each system through three faults: Bitcoin checkpoint submission suspended,
 all seven Celestia bridges stopped, and both. A trial is 60\,s healthy, 180\,s
 of fault and 120\,s of recovery, with a withdrawal-marked transaction sent every
-2\,s; each cell of Table~\ref{tab:rq2} has three trials. The hard-gated chain
-is redeployed for every trial because it does not recover on its own (below).
+2\,s; each cell of Table~\ref{tab:rq2} has three trials. The baseline
+is redeployed for every trial because, in our implementation, it does not recover on its own (below).
 Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
 (Section~\ref{subsec:reanchoring}).
 
@@ -234,23 +234,36 @@ window is applied to every system.}
 \resizebox{\linewidth}{!}{\input{results/rq2_table}}
 \end{table}
 
-Under a DA outage the hard-gated chain commits 23 blocks in 180\,s, 16\% of
-its healthy rate, with proposals reaching round 21, and commits nothing in the
-120\,s after the layer returns in all three trials; the combined fault is the
+Two observations should be kept apart. \emph{During the fault}, the baseline
+commits a fraction of its blocks, which its validity predicate predicts and the
+experiment measures. Under a DA outage it commits 23 blocks in 180\,s, 16\% of
+its healthy rate, with proposals reaching round 21; the combined fault is the
 same. Under checkpoint suspension it slows to 56\% (74 blocks, round 12): the
 receipt tolerance widens with the round up to a cap, so stale checkpoints are
-admitted for a while, but it then stops resuming as well. In the one trial observed beyond the
-recovery window, the chain was still stuck after twelve minutes, with
-proposals rejected at round 57 and above. The stall persists because the
-checkpoint a proposal needs is derived from blocks the chain can no longer
-commit, so in this implementation it takes a manual restart. Engram commits 147--153 blocks (96--102\% of its healthy
+admitted for a while. \emph{After the fault}, it commits nothing in the 120\,s
+after the layer returns in all three DA trials and the combined trials, and in
+the checkpoint trials it stops resuming as well. In the one trial observed
+beyond the recovery window, the chain was still stuck after twelve minutes, with
+proposals rejected at round 57 and above. This does not follow from the
+predicate, which is satisfiable again once the layer returns; it follows from
+this implementation. The checkpoint submitter, the DA publisher and the sensor
+reads all run inside \texttt{ExtendVote}, which ABCI++ calls only when a
+validator is about to precommit a block. Once proposals are rejected, no
+validator precommits, so no new checkpoint is submitted and no DA height is
+published, and the certificate in each new proposal is built from the extended
+commit of the last committed block and no longer changes. The dependency is
+circular, and in this implementation recovery takes a manual restart. We have not
+separated these effects experimentally: a baseline whose checkpoint producer
+runs independently of block commits would remove the first of them only, and
+the observation channel would still depend on commits.
+Engram commits 147--153 blocks (96--102\% of its healthy
 rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
 and resumes within two seconds of the fault ending.
 
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
 the breaker, because the window opens when Engram's own FSM reaches
-\textsc{Sovereign}. The hard-gated chain, which has no breaker, committed 3
+\textsc{Sovereign}. The baseline, which has no breaker, committed 3
 withdrawals after that moment under DA faults and 6--9 under checkpoint
 suspension, few only because it commits few blocks. Engram's cost shows in the
 last column: it committed 18--19 withdrawals before locking under DA faults and

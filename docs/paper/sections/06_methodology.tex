@@ -89,15 +89,30 @@ Section~\ref{subsec:implementation}.
 \subsection{Baselines}
 \label{subsec:baselines}
 
-\textbf{Hard-gated modular baseline (primary, RQ2).} The same binary with the
-FSM pinned to \textsc{Anchored}: condition (3) of the validity predicate
-(Section~\ref{subsec:proposal}) is enforced at every height, so a proposal
-is valid only if it carries a Bitcoin receipt and a DA receipt within
-tolerance. This is the behavior of a chain that makes settlement and DA
-inclusion part of block validity, and it isolates the effect of Engram's
-adaptive relaxation. It is a runtime mode of the same binary
-(\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs the RQ2
-fault schedule against it.
+\textbf{Strict receipt-gated baseline (primary, RQ2).} The same binary with the
+FSM pinned to \textsc{Anchored} (the command-line mode is called
+\texttt{hard-gated}). Condition (3) of the validity predicate
+(Section~\ref{subsec:proposal}) is enforced at every height, so a proposal is
+valid only if it satisfies the agreement checks, carries a Bitcoin receipt within
+tolerance, and carries a DA receipt within tolerance:
+$V_h(B) = V_{\mathrm{BFT}}(B) \wedge R_{\mathrm{BTC}}(B,h) \wedge R_{\mathrm{DA}}(B,h)$,
+with no other validity path while a receipt predicate cannot be satisfied. It is
+the behavior of a chain that makes settlement and DA inclusion part of block
+validity, it is a construct of this paper and not a published system, and it
+isolates the effect of Engram's adaptive relaxation. It is a runtime mode of
+the same binary (\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs
+the RQ2 fault schedule against it.
+
+\emph{What the predicate implies, and what RQ2 measures.} If, over an interval,
+some receipt predicate holds for no proposal at any height, then no value
+satisfying $V_h$ can be decided in that interval. This is the external-validity
+property of Byzantine agreement~\cite{cachin2001secure}, and in CometBFT an
+application rejection in \texttt{ProcessProposal} yields a nil prevote. It is a
+consequence of the predicate, not a result of this paper. RQ2 therefore asks
+different questions: how many blocks the implementation commits while the
+predicate is nearly unsatisfiable (the receipt tolerance widens with the round),
+whether it resumes after the fault, and what Engram commits instead. The
+first two depend on the implementation and are reported separately.
 
 \textbf{Soft baseline (RQ2).} The real FSM runs, but withdrawals are never
 locked in \textsc{Sovereign} or \textsc{Recovering}

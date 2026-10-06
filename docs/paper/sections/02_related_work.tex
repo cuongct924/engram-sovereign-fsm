@@ -348,7 +348,8 @@ and Sections~\ref{sec:model}--\ref{sec:evaluation} evaluate the combination.
 
 \begin{table}[!tbp]
 \caption{Failure handling in representative systems, from each system's
-primary publication or specification; ``n/a'': not stated by the source. The
+primary publication or specification, except the baseline and Engram rows, which
+are the two designs evaluated in this paper; ``n/a'': not stated by the source. The
 assurance column does not rank the designs.}
 \label{tab:comparison}
 \centering
@@ -362,7 +363,7 @@ assurance column does not rank the designs.}
 \textbf{System} & \textbf{Trigger and observation} & \textbf{Decided by} & \textbf{Behavior under failure and recovery} & \textbf{Assumption} & \textbf{Assurance reported} \\
 \midrule
 \multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
-Hard-gated chain\textsuperscript{a} & Missing Bitcoin or DA receipt & Validity predicate & Chain halts until the receipt returns & External layers live & n/a \\
+Strict receipt-gated baseline (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt & Validity predicate & No proposal is valid until the receipt returns & External layers live & n/a \\
 \grp{Degradation inside consensus}
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
 Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
@@ -383,7 +384,7 @@ Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arran
 {\scriptsize\raggedright
 \textit{Notes.}
 (a)~Engram's binary with the FSM pinned to \textsc{Anchored}
-(Section~\ref{subsec:baselines}).
+(Section~\ref{subsec:baselines}); a construct of this paper, not a published system.
 (b)~The finalized ledger tolerates under $1/3$ adversarial nodes, the
 available ledger under $1/2$.
 (c)~Clients force the switch to rollup mode and apply the emergency break.

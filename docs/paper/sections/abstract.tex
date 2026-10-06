@@ -32,7 +32,7 @@ fault, repeated five times, leaves the chain committing blocks through a full
 (a fixed 70\,bytes plus 118 per validator) and takes \resValidationUs\,$\mu$s to validate. Against seven vanilla CometBFT validators on the same
 hosts, the block interval is \resBlockEngram\,s against \resBlockVanilla\,s
 (a few percent at most: point estimate \resOverheadPct{}, 95\% interval \resOverheadCI{} over five deployments, which includes zero), with every
-height committing in the first round. Against our hard-gated baseline, which enforces the same receipts at every
+height committing in the first round. Against our strict receipt-gated baseline, which enforces the same receipts at every
 height, Engram keeps 96--102\% of its healthy block rate under a checkpoint
 pause, a DA outage and both, whereas the baseline falls to 56\%, 16\% and 17\%
 and commits no block in the 120\,s after the layer returns in all nine trials

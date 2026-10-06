@@ -426,8 +426,8 @@ already lags the tip plus two blocks of propagation slack.
 Theorem~\ref{thm:withdrawal} takes both tolerances at the round in which
 $B_h$ committed.
 
-$\mathsf{ReceiptsOK}$ is exactly what a \emph{hard-gated} modular chain
-enforces unconditionally. Engram's only liveness-relevant change is to make
+$\mathsf{ReceiptsOK}$ is exactly what the strict receipt-gated baseline
+(Section~\ref{subsec:baselines}) enforces unconditionally. Engram's only liveness-relevant change is to make
 it conditional on the certified state: when the certificate reports a layer
 unhealthy outside \textsc{Anchored} and \textsc{Recovering}, that layer's
 receipt is no longer required, and the circuit breaker

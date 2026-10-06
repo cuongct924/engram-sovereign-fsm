@@ -9,9 +9,9 @@ lock establishes, and the cost of griefing.
 
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
-continue. Cross-chain withdrawals stop. A hard-gated chain under the same
-degradation commits only a fraction of its blocks and does not resume after
-the layer returns (Section~\ref{subsec:rq2}).
+continue. Cross-chain withdrawals stop. A strict receipt-gated chain under the same
+degradation commits only a fraction of its blocks and, in our implementation,
+does not resume after the layer returns (Section~\ref{subsec:rq2}).
 
 \textbf{What the lock establishes.}
 \begin{itemize}
@@ -36,8 +36,8 @@ the layer returns (Section~\ref{subsec:rq2}).
 connectivity -- can drive the chain into \textsc{Sovereign} and freeze
 withdrawals for as long as the degradation lasts (P4,
 Section~\ref{subsec:rq1}). This is a new attack surface relative to a chain
-that ignores its periphery, but not relative to a hard-gated chain: the same
-attacker halts the hard-gated chain entirely, whereas Engram freezes only
+that ignores its periphery, but not relative to a strict receipt-gated chain: the same
+attacker stalls the strict receipt-gated chain, whereas Engram freezes only
 withdrawals. Lemma~\ref{lem:honest-range} prevents Byzantine validators from causing the freeze
 alone: honest validators whose peripheral view is degraded must supply the
 rest of the majority. Together with the Byzantine validators they must hold
