@@ -325,7 +325,7 @@ không commit được block mới (vòng phụ thuộc, phải khởi động l
   liveness nhưng lọt một số trước khi khoá. Có thể thu hẹp khoảng cách; nói đúng như vậy.
 - Công sức ước lượng: nửa ngày sửa, 2–3 giờ chạy.
 
-**35. Lỗi Bitcoin và con số phơi nhiễm (Major 3) (⬜) [T][M]**
+**35. Lỗi Bitcoin và con số phơi nhiễm (Major 3) (🟡) [T][M]**
 Ngưỡng đặt theo số block Bitcoin (Suspicious 5, Sovereign 8, K=2) và regtest nhanh khoảng 30 lần mainnet (một block mỗi 20 giây).
 Thời gian tới SOVEREIGN: 117 giây (RQ2), 141,6 ± 13,8 giây (S2) tương đương khoảng 58 và 71 phút trên mainnet. Con số "18–19 và
 45–56 giao dịch rút lọt trước khi khoá" phụ thuộc tải (một giao dịch rút mỗi 2 giây) và Bitcoin tăng tốc, không phải mức phơi
@@ -336,6 +336,18 @@ nhiễm sản xuất. Kịch bản "congestion" chỉ là dừng nộp checkpoin
 - Mô phỏng tại chỗ (nửa ngày, không cần cụm): luật FSM thật với thời gian giữa các block Bitcoin kiểu Poisson 10 phút, đo (i) thời gian
   tới SOVEREIGN sau khi dừng nộp checkpoint, (ii) tỉ lệ báo động nhầm khi chạy bình thường ở ngưỡng 5/8, K=2.
 - Thảo luận: giới hạn tốc độ rút tiền ở SUSPICIOUS sẽ chặn cận trên N nhưng chưa cài; ghi là hướng cải tiến.
+- Tiến độ (6/10): đã viết vào paper (Discussion, bảng `tab:exposure` và `tab:exposure-design`; RQ2 và Methodology có câu qualify).
+  B1 xong: `tests/e2e/mainnet_cadence_test.go` (FSM thật cộng mô hình chu kỳ checkpoint), kết quả `tests/e2e/results/e5e_*.csv`.
+  Mô hình khớp testbed (thời gian tới SOVEREIGN 129 giây, p5-p95 91-149 giây, so với 117 và 141,6 đo được; quiet-phase ở k=2 0,80-0,84
+  và k=4 1,00, so với 0,79-0,87 và 1,00 đo được). Ở nhịp mainnet: 49,6 phút (steady), 46,7 phút (Poisson, 18-79). Dự đoán mới: ở nhịp
+  mainnet, chuỗi khoẻ leo thang lên SOVEREIGN khoảng một lần trong tám ngày (10 sự kiện trong 77 ngày), vì `MaxSuspiciousTime`=24 block
+  Engram đặt cho nhịp 20 giây. B2 xong: `scripts/e5_hysteresis_flapping/baseline_gap_cycle.py` (`btc_gap` khoẻ chạm 5 ở 3-16% mẫu;
+  quiet-phase k=2 0,82, k=4 1,00).
+- B3 đã xếp lịch (`chain_b3`, sau seven-scenario): miner 600 giây, baseline 40 phút rồi dừng nộp checkpoint, 3 chuỗi mới, khoảng 5-6 giờ.
+  Kiểm chứng phép quy đổi và dự đoán thời gian tới SOVEREIGN; không đủ dài để thấy leo thang giả (một lần mỗi tám ngày).
+- B4 (hạn mức rút phân bậc, mặc định tắt, kèm đặc tả TLA+, test và một lần chạy bật/tắt) chưa làm. Cảnh báo: mỗi lần triển khai build image
+  từ cây mã hiện tại, nên KHÔNG sửa `x/` khi hàng đợi thí nghiệm đang chạy; phát triển trong một `git worktree` riêng hoặc sau khi hàng đợi xong.
+- Kiểm tra nên làm: đặt `MaxSuspiciousTime` theo nhịp Bitcoin và chạy lại mô phỏng để xem leo thang giả biến mất.
 
 ### 21. Chạy đa máy có WAN impairment (🟡) [T][M]
 Kế hoạch chi tiết, thiết kế hệ thống và checklist: `deploy/README.md` (mục 33). Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
