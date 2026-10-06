@@ -26,10 +26,10 @@ variable "operator_cidrs" {
   description = "CIDRs allowed to SSH in and reach the validator RPC and the infra Bitcoin RPC."
 }
 
-# DigitalOcean regions: nyc3, sfo3, ams3, fra1, sgp1, blr1, syd1 ...
+# DigitalOcean regions: nyc3, tor1, sfo3, ams3, fra1, lon1, sgp1, blr1, syd1 ... node02 is in tor1 so that no two validators share a datacenter.
 variable "validator_regions" {
   type    = list(string)
-  default = ["nyc3", "nyc3", "ams3", "fra1", "sfo3", "sgp1", "blr1"]
+  default = ["nyc3", "tor1", "ams3", "fra1", "sfo3", "sgp1", "blr1"]
   validation {
     condition     = length(var.validator_regions) >= 4
     error_message = "Need at least 4 validators."
