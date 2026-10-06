@@ -400,6 +400,7 @@ by all validators; the semantic replay check of Section~\ref{subsec:rq1}
 addresses this gap.
 
 \subsection{Future Work}
+\label{subsec:future-work}
 
 Three directions remain beyond the items marked in this paper. First,
 closing the cross-layer refinement obligation, and extending the
@@ -416,6 +417,20 @@ A further step is the external verifier named in Section~\ref{sec:protocol}: a
 light client or bridge on another chain that accepts a re-anchoring checkpoint
 only with a valid proof. We have not built one or measured its verification
 cost.
+
+\textbf{Reducing the proposer's influence on the certificate.} Two steps
+would narrow the choice of which honest observations enter the aggregate, and
+neither is implemented. The first requires one observation in the certificate
+for every commit vote of \texttt{LastCommit}. It is a single added condition in
+\texttt{ProcessProposal}, it does not affect an honest proposer, and it makes an
+omission visible and attributable, but the proposer still chooses which
+precommits \texttt{LastCommit} records, because CometBFT accepts any
+\texttt{LastCommit} with more than two thirds of the voting power. Removing that
+choice is the second step: changing how the consensus core selects the
+precommits it records. That alters the agreement protocol, needs a new safety
+and liveness analysis of the changed core, and would require every experiment to
+be run again. The quantified influence of Section~\ref{subsec:health-certificate}
+stays the guarantee of this paper.
 
 \textbf{Asset-level safety.} The lock is a necessary condition for protecting
 bridged assets, not a sufficient one. Establishing asset safety needs (i) a

@@ -276,3 +276,60 @@ func TestWeightNotCount(t *testing.T) {
 		t.Fatalf("median %d, want 100 (55%% of the weight, 4 of 7 by count)", got.BtcGap)
 	}
 }
+
+// TestProposerInfluence measures what the proposer's choice of quorum subset can do when every validator is honest and their
+// values differ. With n equal-power validators and q = floor(2n/3)+1 the subsets it may pick have size s >= q. The subset of
+// the s smallest values has median rank floor(s/2)+1 and the subset of the s largest has rank n-s+floor(s/2)+1; over s in
+// [q, n] the extremes are reached at s = q, so the aggregate ranges over [x(lo), x(hi)] of the sorted values with
+// lo = floor(q/2)+1 and hi = n-q+floor(q/2)+1. The test enumerates every subset through the real aggregation and compares.
+func TestProposerInfluence(t *testing.T) {
+	rng := rand.New(rand.NewSource(7))
+	for n := 4; n <= 10; n++ {
+		powers := make([]int64, n)
+		for i := range powers {
+			powers[i] = 1
+		}
+		f := newFixture(t, powers)
+		q := n*2/3 + 1
+		lo, hi := q/2+1, n-q+q/2+1
+		for trial := 0; trial < 30; trial++ {
+			vals := make([]uint64, n)
+			perm := rng.Perm(40)
+			for i := range vals {
+				vals[i] = uint64(perm[i] + 1) // distinct
+			}
+			certs := make([]*types.SignedHealthCertificate, n)
+			for i := range certs {
+				certs[i] = f.cert(t, i, &types.PeripheralMetrics{BtcGap: vals[i]})
+			}
+			sorted := append([]uint64(nil), vals...)
+			sort.Slice(sorted, func(a, b int) bool { return sorted[a] < sorted[b] })
+			minAgg, maxAgg := ^uint64(0), uint64(0)
+			for mask := 1; mask < 1<<n; mask++ {
+				if int(weight(mask, powers)) < q {
+					continue
+				}
+				var sub []*types.SignedHealthCertificate
+				for i := 0; i < n; i++ {
+					if mask>>i&1 == 1 {
+						sub = append(sub, certs[i])
+					}
+				}
+				got, ok := f.aggregate(sub)
+				if !ok {
+					t.Fatalf("n=%d quorum subset rejected", n)
+				}
+				if got.BtcGap < minAgg {
+					minAgg = got.BtcGap
+				}
+				if got.BtcGap > maxAgg {
+					maxAgg = got.BtcGap
+				}
+			}
+			if minAgg != sorted[lo-1] || maxAgg != sorted[hi-1] {
+				t.Fatalf("n=%d q=%d: reachable [%d,%d], predicted x(%d)=%d and x(%d)=%d", n, q, minAgg, maxAgg, lo, sorted[lo-1], hi, sorted[hi-1])
+			}
+		}
+		t.Logf("n=%d q=%d: the aggregate ranges over order statistics %d..%d of %d (the full median is %d)", n, q, lo, hi, n, n/2+1)
+	}
+}

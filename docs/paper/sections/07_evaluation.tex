@@ -136,6 +136,12 @@ implementation of the weighted median and the quorum, not the integration
 with the genesis power assignment, which a live run with unequal power would
 add.
 
+\textbf{Proposer influence.} For $n$ from 4 to 10 equal-power validators and 30
+random sets of distinct honest values each, we ran the aggregation on every
+subset the proposer may choose (all subsets of at least $\lfloor 2n/3 \rfloor + 1$
+observations). The smallest and largest aggregate matched the order statistics of
+Section~\ref{subsec:health-certificate} in every case.
+
 \textbf{Peripheral P2P quorum gate.} A P2P detector is useful for safety only if its
 signal cannot be abused by a minority. We first compare the six-bound
 profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
