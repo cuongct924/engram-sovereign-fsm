@@ -689,15 +689,15 @@ network, genesis and load produce a block every \resBlockVanilla\,s with vote ex
 disabled and every 1.229\,s with empty extensions, within 0.03\,s of Engram
 (95\% CIs of 0.015--0.023\,s). Hence the 0.2\,s is the price of running a
 seven-validator BFT network on one host, and vote extensions as such add no
-measurable time. Engram's own addition is about 0.03\,s per height (about
-2\%), consistent with the \resExtendVoteMs\,ms \texttt{ExtendVote} time. In all four arms every
-height committed in the first round with no nil precommit and no rejected
-proposal, so extra rounds do not contribute at 20\,tx/s without faults. A
-mean over five repeats cannot resolve a difference of a few milliseconds. The
-difference to the seven-validator arm without extensions is 0.029\,s;
-combining the two reported 95\% intervals (0.020 and 0.015\,s) gives an
-approximate 95\% interval of 0.004--0.054\,s (\resOverheadCI{}). The data show an
-addition of a few percent at most, not a more precise value. The
+measurable time. Engram's own point estimate is about 0.03\,s per height (2\%), the
+order of the \resExtendVoteMs\,ms \texttt{ExtendVote} time, but the data do not
+establish it. The repeats of one arm share a chain, so the unit of independence
+is the deployment: the three Engram deployments average 1.2707, 1.2423 and
+1.2620\,s and the two seven-validator vanilla deployments 1.2292 and 1.2331\,s.
+The difference of means is 0.027\,s, and its 95\% interval from the pooled
+between-deployment spread (0.012\,s, three degrees of freedom) is $-$0.008 to
+0.062\,s (\resOverheadCI{}), which includes zero. The data show an addition of a few
+percent at most, not a more precise value. \pending{report the paired estimate, which alternates the two arms on fresh deployments.} The
 arms ran on separate deployments except the first Engram and the
 extensions-on arm, which shared one chain (Engram first); the Engram arm was
 repeated on a fresh deployment to check for an order effect and moved by
