@@ -349,6 +349,15 @@ nhiễm sản xuất. Kịch bản "congestion" chỉ là dừng nộp checkpoin
   từ cây mã hiện tại, nên KHÔNG sửa `x/` khi hàng đợi thí nghiệm đang chạy; phát triển trong một `git worktree` riêng hoặc sau khi hàng đợi xong.
 - Kiểm tra nên làm: đặt `MaxSuspiciousTime` theo nhịp Bitcoin và chạy lại mô phỏng để xem leo thang giả biến mất.
 
+**36. Concern 8-12 của reviewer (RQ1 safety, P2P tự kiểm chứng, trọng số, quy mô theo n, thống kê RQ4) (🟡) [T][M]**
+- Điểm 8 (RQ1 dùng "Safety" quá rộng) ✅: giữ nhãn Safety, thu hẹp thành consensus safety + loại trừ rút khi khoá (commit 2ea19b9, 7b3d862); `Sanity_NeverAttemptWithdrawalLeakage` đổi thành `...WithdrawalWhileLocked` (chưa chạy lại TLC/Apalache sau đổi tên).
+- Điểm 9 (P2P là tự kiểm chứng trên dữ liệu tổng hợp) ⬜: sửa câu "mọi cường độ", mô tả Monte Carlo là phân tích độ nhạy; tìm kiếm đối kháng trên không gian sáu chiều với ràng buộc mục tiêu kẻ tấn công (cục bộ, `nice`). Một phần số live đang chạy ở Air.
+- Điểm 10 (trung vị có trọng số) ✅: `tests/weighted/` (phân bố [30,20,15,10,10,10,5] và hai phân bố khác; không tìm thấy lỗi; cận W/3 chặt: thoát khoảng ở 35/34). Chưa có chạy live với quyền không đều.
+- Điểm 11 (quy mô theo n, +228 B) ✅: số +228 B là của ExtendedProposal cũ; thật là 70 + 118n byte (894 ở n=7); bảng theo n=4..64 (microbenchmark); khoảng giữa block chỉ đo ở n=7.
+- Điểm 12 (thống kê RQ4) 🟡: đã đổi "2%" thành "vài phần trăm tối đa"; khoảng tin cậy theo triển khai (-0,6% đến 5,0%). Thí nghiệm cặp `chain_pair` xếp sau `chain_b3`: 12 cặp, mở rộng tới 20 nếu nửa độ rộng > 0,012 s (luật dừng đặt trước); ước tính khoảng 10 giờ (12 cặp) đến 17 giờ (20 cặp). `\pending` ở 7.4 gỡ khi có `paired_overhead.md`.
+- `MaxSuspiciousTime`: giữ mặc định 24, quy tắc 1,5 lần khoảng Bitcoin (750 ở mainnet) như tham số triển khai; bảng `tab:mst` trong Discussion.
+
+
 ### 21. Chạy đa máy có WAN impairment (🟡) [T][M]
 Kế hoạch chi tiết, thiết kế hệ thống và checklist: `deploy/README.md` (mục 33). Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
 `scripts/framework`. Chưa có dữ liệu. Nếu làm: 7 VM validator ở ≥ 3 vùng + 1 VM hạ tầng, composite
