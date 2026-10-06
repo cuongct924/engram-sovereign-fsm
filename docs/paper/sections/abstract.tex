@@ -14,7 +14,8 @@ carried as vote extensions and bounded by the range of honest observations
 \textsc{Recovering}) evaluated deterministically on that certificate. When
 Bitcoin, DA, or the peripheral P2P view degrades, the chain keeps producing
 blocks under the validator quorum, relaxes the receipt requirement of the
-unhealthy layer, and locks cross-chain withdrawals. It returns to
+unhealthy layer, and deterministically excludes withdrawal-marked transactions
+while it is not anchored; the exclusion takes effect only once the FSM locks. It returns to
 \textsc{Anchored} after recovery hysteresis, DA backfill of the degraded
 interval, and a validator-verified zero-knowledge recovery proof
 (Noir/UltraHonk, 256 headers per proof).
@@ -39,5 +40,5 @@ and commits no block in the 120\,s after the layer returns in all nine trials
 withdrawal-marked transactions were committed before it locked (41--117\,s
 after the fault began). From the lock until the fault ended it committed none,
 which checks the circuit breaker against Engram's own transition rather than
-measuring safety independently; a baseline that keeps Engram's liveness but
+measuring exclusion independently; a baseline that keeps Engram's liveness but
 never locks lets 31--72 through in the same window.

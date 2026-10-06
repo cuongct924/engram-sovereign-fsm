@@ -4,8 +4,8 @@
 \subsection{Security Envelope and Trade-offs}
 
 The fallback trades cross-chain withdrawals for in-chain liveness. We
-discuss the trade along three axes: liveness inside the chain, safety of
-cross-chain assets, and the cost of griefing.
+discuss the trade along three axes: liveness inside the chain, what the
+lock establishes, and the cost of griefing.
 
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
@@ -13,13 +13,23 @@ continue. Cross-chain withdrawals stop. A hard-gated chain under the same
 degradation commits only a fraction of its blocks and does not resume after
 the layer returns (Section~\ref{subsec:rq2}).
 
-\textbf{Safety of cross-chain assets.} The prototype has no bridge and no
-real assets: the application mounts neither \texttt{x/auth} nor
-\texttt{x/bank}, transactions are unsigned envelopes, and a withdrawal is
-recognized by the substring \texttt{TX\_WITHDRAWAL} in the transaction bytes.
-The circuit breaker is therefore evaluated as a policy: it shows that the
-decision to admit or reject withdrawals is agreed by all validators and
-applied identically, not that any economic loss is prevented.
+\textbf{What the lock establishes.}
+\begin{itemize}
+  \item \emph{Shown:} the decision to admit or reject a withdrawal-marked
+  transaction is agreed by all honest validators and applied identically once
+  the FSM is \textsc{Sovereign} or \textsc{Recovering} (Section~\ref{subsec:rq1}).
+  \item \emph{Not shown:} that cross-chain assets are protected. The prototype
+  has no bridge and no real assets: it mounts neither \texttt{x/auth} nor
+  \texttt{x/bank}, transactions are unsigned envelopes, and a withdrawal is
+  recognized by the substring \texttt{TX\_WITHDRAWAL} in the transaction bytes.
+  \item \emph{Before the lock:} nothing is excluded until the FSM reaches
+  \textsc{Sovereign}; the exposure in that window is measured in
+  Table~\ref{tab:exposure}.
+  \item \emph{What asset safety would need:} a bridge that releases funds only
+  against evidence that the Engram height is committed in an anchored state, and
+  a history that a coalition above the fault bound cannot rewrite while the chain
+  is in \textsc{Sovereign} mode (Section~\ref{sec:protocol}).
+\end{itemize}
 
 \textbf{Cost of griefing.} An adversary that degrades the peripheral view of
 \emph{all} honest validators -- for example by delaying their Bitcoin
@@ -359,3 +369,13 @@ A further step is the external verifier named in Section~\ref{sec:protocol}: a
 light client or bridge on another chain that accepts a re-anchoring checkpoint
 only with a valid proof. We have not built one or measured its verification
 cost.
+
+\textbf{Asset-level safety.} The lock is a necessary condition for protecting
+bridged assets, not a sufficient one. Establishing asset safety needs (i) a
+bridge on the counterparty chain that releases funds only against a proof that
+the Engram height is committed in an anchored state, with escrow accounting and
+replay protection, so that the sum of external and escrowed supply stays
+constant; (ii) a treatment of history rewriting by a coalition above the fault
+bound while the chain is in \textsc{Sovereign} mode, which Section~\ref{sec:protocol}
+leaves open; and (iii) a bound on the exposure before the lock, for example by a
+withdrawal quota per Bitcoin block. We evaluate none of these.

@@ -13,6 +13,14 @@ Section~\ref{subsec:metrics}.
 \subsection{RQ1: Safety Under Byzantine Behavior}
 \label{subsec:rq1}
 
+By safety we mean agreement among honest validators (identical FSM state and
+AppHash, aggregate within the honest range, forged or stale receipts rejected)
+and the lock invariant on committed blocks: no withdrawal-marked transaction
+commits while the state is \textsc{Sovereign} or \textsc{Recovering}. We do not
+claim that cross-chain assets are protected; the lock acts only once the FSM has
+reached a locked state (Section~\ref{subsec:rq2}), and the prototype has no bridge
+(Section~\ref{sec:discussion}).
+
 \textbf{Single Byzantine proposer.} The most direct attack on the extended
 consensus object is a proposer that claims an FSM state not implied by the
 certificate. One of the seven validators ($n{=}7$, 14.3\% of the voting
@@ -218,7 +226,7 @@ commit, so in this implementation it takes a manual restart. Engram commits 147-
 rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
 and resumes within two seconds of the fault ending.
 
-The withdrawal columns separate the systems on safety. After the circuit
+The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
 the breaker, because the window opens when Engram's own FSM reaches
 \textsc{Sovereign}. The hard-gated chain, which has no breaker, committed 3

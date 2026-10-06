@@ -110,9 +110,9 @@ Engram targets this combination.
     certificate, with asymmetric hysteresis and exponential backoff on repeated
     failed recovery, that changes the Bitcoin and DA receipt requirements
     without modifying CometBFT's agreement core. A withdrawal circuit
-    breaker~\cite{mendonca2020resiliency} locks cross-chain withdrawals while
+    breaker~\cite{mendonca2020resiliency} excludes withdrawal-marked transactions while
     the chain runs without external corroboration
-    (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; withdrawal-safety
+    (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; withdrawal-admission
     theorem in Section~\ref{subsec:analytical}).
     \item \textbf{Proof- and backfill-gated recovery.} A Noir/UltraHonk circuit
     that proves header-chain continuity, FSM-transition legality,
@@ -145,9 +145,9 @@ Engram targets this combination.
 \toprule
 \textbf{RQ} & \textbf{Question} \\
 \midrule
-RQ1 & \textbf{Safety.} Under Byzantine voting power below one third (two of the seven testbed validators), does
-certifying peripheral health by quorum prevent conflicting FSM states,
-forged or stale receipts, false health claims, and withdrawal leakage? \\
+RQ1 & \textbf{Safety.} Under Byzantine voting power below one third (two of the seven testbed validators), do honest
+validators stay in agreement on the FSM state and the certified health, and is no
+withdrawal-marked transaction committed while the FSM is locked? Safety here is consensus safety; asset-level safety is outside the prototype's scope (Section~\ref{sec:discussion}). \\
 RQ2 & \textbf{Liveness.} When Bitcoin settlement or DA becomes unavailable,
 does Engram keep committing blocks where a hard-gated modular baseline stalls,
 and what does it give up: how many withdrawals commit before its circuit
