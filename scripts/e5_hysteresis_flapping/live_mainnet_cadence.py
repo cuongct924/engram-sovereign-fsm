@@ -20,7 +20,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "framework"))
 from cluster import CLUSTER  # noqa: E402
-from logger import bitcoin_block_count, query_node, sample_all_nodes  # noqa: E402
+from logger import bitcoin_height, query_node, sample_all_nodes  # noqa: E402
 
 RESULTS = os.path.join(HERE, "results_live")
 OVERRIDE = "/tmp/miner_interval_override"
@@ -55,13 +55,13 @@ def main():
     set_miner(args.miner_s)
     try:
         t_start = time.time()
-        btc0 = bitcoin_block_count()
+        btc0 = bitcoin_height()
         base = []
         while time.time() - t_start < args.baseline_min * 60:
             n = query_node("engram-node01")
             base.append({"t": round(time.time() - t_start, 1), "state": n.fsm_state, "height": n.height})
             time.sleep(5)
-        btc_baseline = bitcoin_block_count() - btc0
+        btc_baseline = bitcoin_height() - btc0
         base_states = sorted({b["state"] for b in base})
         baseline_sovereign = any(b["state"] == "SOVEREIGN" for b in base)
         left = sum(1 for a, b in zip(base, base[1:]) if a["state"] == "ANCHORED" and b["state"] != "ANCHORED")
@@ -69,7 +69,7 @@ def main():
         # fault: checkpoint submission paused
         CLUSTER.anchor_pause(True)
         t_fault = time.time()
-        btc_f0 = bitcoin_block_count()
+        btc_f0 = bitcoin_height()
         h0 = query_node("engram-node01").height
         t_sus = t_sov = None
         end = t_fault + args.fault_timeout_min * 60
@@ -83,7 +83,7 @@ def main():
                 h_sov = n.height
                 break
             time.sleep(5)
-        btc_to_sov = bitcoin_block_count() - btc_f0
+        btc_to_sov = bitcoin_height() - btc_f0
         res = {"label": args.label, "miner_s": args.miner_s, "baseline_min": args.baseline_min, "baseline_states": base_states,
                "baseline_btc_blocks": btc_baseline, "baseline_demotions": left, "baseline_reached_sovereign": baseline_sovereign,
                "t_first_non_anchored_s": t_sus, "t_sovereign_s": t_sov, "btc_blocks_to_sovereign": btc_to_sov,
