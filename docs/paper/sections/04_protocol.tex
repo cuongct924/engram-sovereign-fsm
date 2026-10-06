@@ -472,6 +472,11 @@ a node syncing from genesis, or a Bitcoin observer
 the headers, it is a consistency check. The target verifier is an external
 light client that accepts a re-anchoring checkpoint only with a valid proof;
 the prototype does not include such a client.
+As a check that the proof can be verified without the node, a separate
+process on the same host read a committed block over RPC, took the proof (14{,}656\,bytes) and
+the 224-byte public inputs from its recovery-proof transaction, and verified them
+with \texttt{bb} against the verification key shipped with the repository; this was
+one proof on one chain.
 
 \textbf{Longer intervals.} An interval longer than 256 headers is covered by
 a sequence of proofs: each accepted proof advances the on-chain

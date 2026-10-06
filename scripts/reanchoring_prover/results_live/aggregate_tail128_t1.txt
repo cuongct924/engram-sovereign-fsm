@@ -1,0 +1,86 @@
+2026-10-05T12:23:41.037854875Z [watch_and_prove] watching http://engram-node01:26657, batching up to 512 headers per proof (repeating, rolling-checkpoint mode, N_MAX=256)...
+2026-10-05T12:34:18.726924962Z [watch_and_prove] N=514 -- firing prove_and_submit.sh NOW
+2026-10-05T12:34:18.731077545Z [reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+2026-10-05T12:34:18.766613670Z [reanchoring_prover] agg 1/5: querying real header history from http://engram-node01:26657...
+2026-10-05T12:34:18.804628087Z [reanchoring_prover] aggregating 514 headers as 3 chunk(s) (K=4, N_MAX=256)
+2026-10-05T12:34:18.812225337Z Scheme is: ultra_honk, num threads: 10 (mem: 4.75 MiB)
+2026-10-05T12:34:27.037447174Z CircuitProve: Proving key computed in 7123 ms (mem: 4402.29 MiB)
+2026-10-05T12:34:44.932628210Z VK saved to "target/leaf_rec/vk" (mem: 4402.29 MiB)
+2026-10-05T12:34:44.932711835Z VK Hash saved to "target/leaf_rec/vk_hash" (mem: 4402.29 MiB)
+2026-10-05T12:34:45.058392585Z [reanchoring_prover] agg 2/5: chunk 1/3 (headers 1..256, count=256): linking prev_hash chain...
+2026-10-05T12:34:46.460341877Z boundary witness written to /tmp/tmp.g1izIry9fR (first_height=1 last_height=256)
+2026-10-05T12:34:49.479837920Z [reanchoring_prover] agg 3/5: proving chunk 1/3 (noir-recursive)...
+2026-10-05T12:36:01.708393260Z [reanchoring] Circuit witness successfully solved
+2026-10-05T12:36:05.125199178Z [reanchoring] Witness saved to target/witness.gz
+2026-10-05T12:36:05.467859053Z Scheme is: ultra_honk, num threads: 10 (mem: 4.75 MiB)
+2026-10-05T12:36:12.361278292Z CircuitProve: Proving key computed in 6109 ms (mem: 4482.55 MiB)
+2026-10-05T12:36:32.568998885Z Public inputs saved to "/app/circuit/reanchoring/target/chunks_live/c0/public_inputs" (mem: 4890.33 MiB)
+2026-10-05T12:36:32.569057218Z Proof saved to "/app/circuit/reanchoring/target/chunks_live/c0/proof" (mem: 4890.33 MiB)
+2026-10-05T12:36:32.647636552Z [reanchoring_prover] agg 2/5: chunk 2/3 (headers 257..512, count=256): linking prev_hash chain...
+2026-10-05T12:36:34.044937594Z boundary witness written to /tmp/tmp.g1izIry9fR (first_height=257 last_height=512)
+2026-10-05T12:36:37.102811429Z [reanchoring_prover] agg 3/5: proving chunk 2/3 (noir-recursive)...
+2026-10-05T12:38:06.302977095Z [reanchoring] Circuit witness successfully solved
+2026-10-05T12:38:09.748724555Z [reanchoring] Witness saved to target/witness.gz
+2026-10-05T12:38:10.089169097Z Scheme is: ultra_honk, num threads: 10 (mem: 4.75 MiB)
+2026-10-05T12:38:16.748394544Z CircuitProve: Proving key computed in 5867 ms (mem: 4486.32 MiB)
+2026-10-05T12:38:36.908364637Z Public inputs saved to "/app/circuit/reanchoring/target/chunks_live/c1/public_inputs" (mem: 4831.96 MiB)
+2026-10-05T12:38:36.908413429Z Proof saved to "/app/circuit/reanchoring/target/chunks_live/c1/proof" (mem: 4831.96 MiB)
+2026-10-05T12:38:36.993631929Z [reanchoring_prover] agg 2/5: chunk 3/3 (headers 513..514, count=2): linking prev_hash chain...
+2026-10-05T12:38:37.391693304Z boundary witness written to /tmp/tmp.g1izIry9fR (first_height=513 last_height=514)
+2026-10-05T12:38:37.424880429Z [reanchoring_prover] agg 3/5: proving chunk 3/3 (noir-recursive)...
+2026-10-05T12:39:51.149085046Z [reanchoring] Circuit witness successfully solved
+2026-10-05T12:39:54.635915631Z [reanchoring] Witness saved to target/witness.gz
+2026-10-05T12:39:54.989858215Z Scheme is: ultra_honk, num threads: 10 (mem: 4.68 MiB)
+2026-10-05T12:40:01.380323718Z CircuitProve: Proving key computed in 5587 ms (mem: 4482.18 MiB)
+2026-10-05T12:40:20.882471254Z Public inputs saved to "/app/circuit/reanchoring/target/chunks_live/c2/public_inputs" (mem: 4842.74 MiB)
+2026-10-05T12:40:20.882519713Z Proof saved to "/app/circuit/reanchoring/target/chunks_live/c2/proof" (mem: 4842.74 MiB)
+2026-10-05T12:40:20.946236963Z [reanchoring_prover] agg 4/5: aggregating 3 chunk proof(s)...
+2026-10-05T12:40:21.266021963Z [reanchoring_aggregator] Circuit witness successfully solved
+2026-10-05T12:40:21.269956671Z [reanchoring_aggregator] Witness saved to target/witness.gz
+2026-10-05T12:40:21.274685421Z Scheme is: ultra_honk, num threads: 10 (mem: 4.69 MiB)
+2026-10-05T12:40:26.654920549Z CircuitProve: Proving key computed in 5379 ms (mem: 3599.36 MiB)
+2026-10-05T12:40:45.263223668Z Public inputs saved to "/app/circuit/reanchoring_aggregator/target/proof_live/public_inputs" (mem: 4008.54 MiB)
+2026-10-05T12:40:45.263303918Z Proof saved to "/app/circuit/reanchoring_aggregator/target/proof_live/proof" (mem: 4008.54 MiB)
+2026-10-05T12:40:45.294949877Z Scheme is: ultra_honk, num threads: 10 (mem: 4.64 MiB)
+2026-10-05T12:40:45.305995627Z Proof verified successfully (mem: 8.16 MiB)
+2026-10-05T12:40:45.307039335Z [reanchoring_prover] publishing real header chain to Celestia DA...
+2026-10-05T12:40:51.489034671Z [reanchoring_prover] agg 5/5: submitting aggregate proof to http://engram-node01:26657...
+2026-10-05T12:40:55.242640590Z submitted at height 835, hash B0D5BC9F89959B6F8CB052DAF0C53E3B2B36141DC1EE0ED92CF3464B4110F40E
+2026-10-05T12:40:55.252421965Z [reanchoring_prover] done.
+2026-10-05T12:40:55.256422506Z [watch_and_prove] proof #1 accepted -- checkpoint advanced, continuing to watch for the next segment.
+2026-10-05T12:44:50.448889046Z [watch_and_prove] N=512 -- firing prove_and_submit.sh NOW
+2026-10-05T12:44:50.451377421Z [reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+2026-10-05T12:44:50.488823713Z [reanchoring_prover] agg 1/5: querying real header history from http://engram-node01:26657...
+2026-10-05T12:44:50.520221004Z [reanchoring_prover] aggregating 512 headers as 2 chunk(s) (K=4, N_MAX=256)
+2026-10-05T12:44:50.537975546Z [reanchoring_prover] agg 2/5: chunk 1/2 (headers 1..256, count=256): linking prev_hash chain...
+2026-10-05T12:44:51.790876880Z boundary witness written to /tmp/tmp.EPkRrc3xu6 (first_height=515 last_height=770)
+2026-10-05T12:44:54.766359548Z [reanchoring_prover] agg 3/5: proving chunk 1/2 (noir-recursive)...
+2026-10-05T12:46:08.208270971Z [reanchoring] Circuit witness successfully solved
+2026-10-05T12:46:11.679226667Z [reanchoring] Witness saved to target/witness.gz
+2026-10-05T12:46:12.055578084Z Scheme is: ultra_honk, num threads: 10 (mem: 4.70 MiB)
+2026-10-05T12:46:20.758653629Z CircuitProve: Proving key computed in 7899 ms (mem: 4471.42 MiB)
+2026-10-05T12:46:40.826420583Z Public inputs saved to "/app/circuit/reanchoring/target/chunks_live/c0/public_inputs" (mem: 4879.37 MiB)
+2026-10-05T12:46:40.826468750Z Proof saved to "/app/circuit/reanchoring/target/chunks_live/c0/proof" (mem: 4879.37 MiB)
+2026-10-05T12:46:40.878733791Z [reanchoring_prover] agg 2/5: chunk 2/2 (headers 257..512, count=256): linking prev_hash chain...
+2026-10-05T12:46:42.219007542Z boundary witness written to /tmp/tmp.EPkRrc3xu6 (first_height=771 last_height=1026)
+2026-10-05T12:46:45.343061168Z [reanchoring_prover] agg 3/5: proving chunk 2/2 (noir-recursive)...
+2026-10-05T12:47:59.088593717Z [reanchoring] Circuit witness successfully solved
+2026-10-05T12:48:02.640915302Z [reanchoring] Witness saved to target/witness.gz
+2026-10-05T12:48:03.025673010Z Scheme is: ultra_honk, num threads: 10 (mem: 4.70 MiB)
+2026-10-05T12:48:09.813061472Z CircuitProve: Proving key computed in 5959 ms (mem: 4473.58 MiB)
+2026-10-05T12:48:30.343141676Z Public inputs saved to "/app/circuit/reanchoring/target/chunks_live/c1/public_inputs" (mem: 4842.77 MiB)
+2026-10-05T12:48:30.343219759Z Proof saved to "/app/circuit/reanchoring/target/chunks_live/c1/proof" (mem: 4842.77 MiB)
+2026-10-05T12:48:30.394313676Z [reanchoring_prover] agg 4/5: aggregating 2 chunk proof(s)...
+2026-10-05T12:48:30.705597967Z [reanchoring_aggregator] Circuit witness successfully solved
+2026-10-05T12:48:30.707888259Z [reanchoring_aggregator] Witness saved to target/witness.gz
+2026-10-05T12:48:30.713910217Z Scheme is: ultra_honk, num threads: 10 (mem: 4.70 MiB)
+2026-10-05T12:48:36.429705512Z CircuitProve: Proving key computed in 5714 ms (mem: 3581.06 MiB)
+2026-10-05T12:48:57.112310049Z Public inputs saved to "/app/circuit/reanchoring_aggregator/target/proof_live/public_inputs" (mem: 4016.47 MiB)
+2026-10-05T12:48:57.112377757Z Proof saved to "/app/circuit/reanchoring_aggregator/target/proof_live/proof" (mem: 4016.47 MiB)
+2026-10-05T12:48:57.146885507Z Scheme is: ultra_honk, num threads: 10 (mem: 4.64 MiB)
+2026-10-05T12:48:57.158597257Z Proof verified successfully (mem: 8.03 MiB)
+2026-10-05T12:48:57.161239466Z [reanchoring_prover] publishing real header chain to Celestia DA...
+2026-10-05T12:49:09.405838805Z [reanchoring_prover] agg 5/5: submitting aggregate proof to http://engram-node01:26657...
+2026-10-05T12:49:10.960860333Z submitted at height 1237, hash 34B0D3AC75658CCB196E4BEEE45AEF48D7834C657421122837B6FEE950339323
+2026-10-05T12:49:10.965192958Z [reanchoring_prover] done.
+2026-10-05T12:49:10.968303375Z [watch_and_prove] proof #2 accepted -- checkpoint advanced, continuing to watch for the next segment.
