@@ -223,6 +223,17 @@ $0.036/h each); the whole cluster costs about $0.39/h. Provider alternatives: He
 Vultr or Akamai (no stack yet). Viettel IDC has a Terraform provider (VMware Cloud Director based) but is domestic only
 and priced per month, so it cannot give the inter-continental RTTs this experiment needs.
 
+**Before the first deploy (DigitalOcean checklist).**
+- [ ] Account with a verified email and a payment method; billing alert at about $20.
+- [ ] Droplet limit is at least 8 (Settings > Droplet Limit); request an increase early if not.
+- [ ] `s-2vcpu-4gb` is offered in nyc3, tor1, ams3, fra1, sfo3, sgp1, blr1 and `s-8vcpu-16gb` in nyc3.
+- [ ] API token exported as `DIGITALOCEAN_TOKEN` (never committed) and an SSH key pair (`ssh-keygen -t ed25519`).
+- [ ] Controller: always on and on a stable network; `ansible-core` >= 2.15, Terraform >= 1.5, Go; `engram-consensus-core`
+      next to this repo at the commit used for the Docker runs (`493a201`).
+- [ ] `operator_cidrs` set to the controller's public IP (`curl ifconfig.me`); update it and re-apply if the IP changes.
+- [ ] `BITCOIN_RPC_PASSWORD` exported (long random string).
+- [ ] `terraform validate` and `terraform plan` reviewed before `terraform apply`; nothing is created until `apply`.
+
 **Phases.**
 1. *Prepare (about 1 h, you).* Cloud account with room for 8 VMs, API token, SSH key, `operator_cidrs` = the controller's
    address, `ansible-core`, Terraform, Go, `engram-consensus-core` next to this repo, `BITCOIN_RPC_PASSWORD`.
