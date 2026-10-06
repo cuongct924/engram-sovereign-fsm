@@ -637,17 +637,50 @@ local single node.
 \end{minipage}
 \end{table}
 
-\textbf{Where the cost is not.} The extended object adds a near-constant
-+\resProposalBytes\,bytes per proposal (live: 247--270 bytes across states, 100\% of 376
-sampled blocks), and the one proof-carrying block observed was 14.9\,KB,
-consistent with the 14.7\,KB proof. Validating an accepted proposal, including
-the ed25519 verification of seven certificates, costs \resValidationUs\,$\mu$s per block
-(mean of ten benchmark runs, standard deviation 4\,$\mu$s; 150\,$\mu$s with four
-validators); verifying a recovery proof, a one-off event, takes 26\,ms and is not
-included. \texttt{ExtendVote}, which reads
-the live Bitcoin and Celestia sensors before a validator can precommit, took
-\resExtendVoteMs\,ms on average (p95 51\,ms, five repeats). None of these is large
-enough to explain a lower block rate at a $\sim$1\,s block interval.
+\textbf{Where the cost is not.} Each proposal carries the health certificate as
+its first transaction: one signed vote extension per validator in the quorum plus
+the leader's claimed aggregation. At seven validators it is \resProposalBytes\,bytes on
+average (live, ANCHORED; 889--926 across states, 300 consecutive blocks), which
+splits into a fixed 70\,bytes and 118 per validator (22 for the address, 28 for
+the extension, 66 for the signature). The signatures are a copy of the vote
+extensions, kept in the proposal because \texttt{ProcessProposal} receives none
+under ABCI~2.0; they are separate from the signatures in the block's last commit,
+so the cost is paid twice. The one proof-carrying
+block observed was 14.9\,KB, consistent with the 14.7\,KB proof.
+Validating an accepted proposal, including the ed25519 verification of one
+signature per validator, costs \resValidationUs\,$\mu$s per block at seven
+validators (mean of ten benchmark runs, standard deviation 6\,$\mu$s). Size and
+validation time are linear in the number of validators
+(Table~\ref{tab:cert-scaling}); we measured the block interval only at seven
+validators, so the larger rows are a microbenchmark of the certificate, not a
+measurement of a larger network. Verifying a recovery proof, a one-off event,
+takes 26\,ms and is not included. \texttt{ExtendVote}, which reads the live
+Bitcoin and Celestia sensors before a validator can precommit, takes
+\resExtendVoteMs\,ms on average (p95 51\,ms, five repeats) and does not depend on
+the number of validators, since each validator reads only its own sensors. None
+of these is large enough to explain a lower block rate at a $\sim$1\,s block
+interval at seven validators.
+
+\begin{table}[h]
+\caption{Certificate size and \texttt{ProcessProposal} time against the number of
+validators (microbenchmark of the shipped code with real ed25519 signatures, one
+core, ten runs; sizes are from the benchmark fixture, whose extensions are about
+15\% smaller than the live ones, so the live size at $n{=}7$ is 894 against 776\,bytes).}
+\label{tab:cert-scaling}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrr@{}}
+\toprule
+\textbf{Validators} & \textbf{Certificate, bytes} & \textbf{\texttt{ProcessProposal}, $\mu$s (sd)} \\
+\midrule
+4 & 473 & 159 (10) \\
+7 & 776 & 263 (6) \\
+16 & 1{,}685 & 625 (62) \\
+32 & 3{,}301 & 1{,}177 (29) \\
+64 & 6{,}533 & 2{,}367 (50) \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \textbf{Where the cost is.} Against a single local process, Engram's blocks
 arrive 0.23\,s later (\resBlockEngram{} against 1.034\,s). Table~\ref{tab:overhead} shows

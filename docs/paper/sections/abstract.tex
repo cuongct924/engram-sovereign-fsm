@@ -28,8 +28,8 @@ cross-layer refinement obligation remains open. On a 7-validator Cosmos SDK
 testnet with live Bitcoin regtest and Celestia networks, a layered composite
 fault, repeated five times, leaves the chain committing blocks through a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
-100\% AppHash agreement. The extended consensus object adds +\resProposalBytes\,bytes per proposal and \resValidationUs\,$\mu$s
-of validation per block. Against seven vanilla CometBFT validators on the same
+100\% AppHash agreement. The health certificate in each proposal is about 0.9\,KB at seven validators
+(a fixed 70\,bytes plus 118 per validator) and takes \resValidationUs\,$\mu$s to validate. Against seven vanilla CometBFT validators on the same
 hosts, the block interval is \resBlockEngram\,s against \resBlockVanilla\,s
 (about \resOverheadPct{}; approximate 95\% interval \resOverheadCI{}), with every
 height committing in the first round. Against our hard-gated baseline, which enforces the same receipts at every

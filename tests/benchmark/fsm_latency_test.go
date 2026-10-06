@@ -110,7 +110,8 @@ func healthyAggregatedCertificateN(tb testing.TB, k *keeper.Keeper, ctx sdk.Cont
 	}
 }
 
-// Real JSON byte size of each V0-V5 cumulative payload (E7's table).
+// Real JSON byte size of each V0-V5 cumulative payload (E7's table). This is the former ExtendedProposal that sat in
+// Txs[0] before AggregatedHealthCertificate replaced it (proto doc); the shipped object's size is BenchmarkCertificateSize.
 func BenchmarkProposalSize(b *testing.B) {
 	daReceipt := da.Receipt{PublishedBlockHeight: 12345, Attestation: true}
 	btcReceipt := anchor.Receipt{CheckpointBlockHeight: 6789, CheckpointBlockHash: anchor.ExpectedBlockHash(6789)}
@@ -161,6 +162,29 @@ func BenchmarkProposalSize(b *testing.B) {
 	}
 }
 
+// certificateScalingValidators are the validator counts of the scaling table (RQ4); every certificate is an equal-power
+// quorum of all n, the largest the proposal can carry.
+var certificateScalingValidators = []int{4, 7, 16, 32, 64}
+
+// BenchmarkCertificateSize is the byte size of the shipped Txs[0] (marker plus protobuf AggregatedHealthCertificate) as a
+// function of the validator count: each SignedHealthCertificate carries its own address, extension bytes and signature.
+func BenchmarkCertificateSize(b *testing.B) {
+	for _, n := range certificateScalingValidators {
+		b.Run(fmt.Sprintf("validators=%d", n), func(b *testing.B) {
+			k, ctx := newTestKeeperCtx(b)
+			cert := healthyAggregatedCertificateN(b, k, ctx, n)
+			tx, err := sovereignty.EncodeAggregatedHealthCertificate(cert)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ReportMetric(float64(len(tx)), "bytes/op")
+			for i := 0; i < b.N; i++ {
+				_, _ = sovereignty.EncodeAggregatedHealthCertificate(cert)
+			}
+		})
+	}
+}
+
 // End-to-end NewProcessProposalHandler cost (IsValidProposal, all checks) --
 // the V5 CPU cost. Every iteration must be ACCEPTED: a handler that rejects
 // early is far cheaper and would make the number meaningless. The certificate
@@ -168,7 +192,7 @@ func BenchmarkProposalSize(b *testing.B) {
 // each ed25519 signature; ZK proof verification is a separate path, measured by
 // BenchmarkVerifyZKProof.
 func BenchmarkProcessProposal(b *testing.B) {
-	for _, n := range []int{4, 7} {
+	for _, n := range certificateScalingValidators {
 		b.Run(fmt.Sprintf("validators=%d", n), func(b *testing.B) {
 			k, ctx := newTestKeeperCtx(b)
 			cert := healthyAggregatedCertificateN(b, k, ctx, n)
@@ -197,7 +221,7 @@ func BenchmarkProcessProposal(b *testing.B) {
 // Isolates the signature work inside ProcessProposal: AggregateHealthCertificates
 // verifies every certificate's ed25519 signature and takes the weighted median.
 func BenchmarkAggregateHealthCertificates(b *testing.B) {
-	for _, n := range []int{4, 7} {
+	for _, n := range certificateScalingValidators {
 		b.Run(fmt.Sprintf("validators=%d", n), func(b *testing.B) {
 			k, ctx := newTestKeeperCtx(b)
 			cert := healthyAggregatedCertificateN(b, k, ctx, n)

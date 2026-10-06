@@ -3,8 +3,8 @@
 \newcommand{\resFSMStatesM}{4.54 million}      % Table~\ref{tab:formal-verification}, FSM (safety)
 \newcommand{\resFSMStatesExact}{4{,}542{,}271} % same row, exact count
 \newcommand{\resAblationCount}{four}           % rows of Table~\ref{tab:ablation}
-\newcommand{\resProposalBytes}{228}            % proposal overhead, bytes (Section~\ref{subsec:rq4})
-\newcommand{\resValidationUs}{253}             % ProcessProposal on an accepted proposal, 7 validators, microseconds (10 runs)
+\newcommand{\resProposalBytes}{894}            % Txs[0] certificate bytes at 7 validators, live mean in ANCHORED (certificate_size_scan.py); size = 70 + 118 n
+\newcommand{\resValidationUs}{263}             % ProcessProposal on an accepted proposal, 7 validators, microseconds (10 runs, sd 6; tests/benchmark)
 \newcommand{\resExtendVoteMs}{16.6}            % mean ExtendVote time, milliseconds
 \newcommand{\resBlockEngram}{1.262}            % Table~\ref{tab:overhead}, Engram block interval, s
 \newcommand{\resBlockVanilla}{1.233}           % Table~\ref{tab:overhead}, 7 validators without extensions, s
