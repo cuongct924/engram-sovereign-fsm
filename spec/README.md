@@ -575,7 +575,7 @@ Every property in §7–§8 carries one of these statuses:
 | L1 Health-Certificate Bound (Lemma 1) | `AggWithinHonestRange` | `MC_HealthCertificate_Apalache` | Checked (all observation vectors, N=4, f=1) |
 | 7.6 Accountability | `Accountability` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
 | Agreement | `AgreementOnValue` (in `CoreTendermintInvariant`) | `MC_TendermintSafety` | Checked |
-| L1 Consensus liveness under GST | `EventualDecisionUnderGSTLiveness` | `MC_ServerRefinementLiveness` | Open |
+| L1 Consensus liveness after GST (`AfterGST`, single monotone GST) | `EventualDecisionUnderGSTLiveness` | `MC_ServerRefinementLiveness` | Open (re-run needed after the GST change) |
 | L2 Circuit Breaker Liveness | `CircuitBreakerLiveness` | `MC_FSMLiveness` | Checked |
 | L3 Recovery Initiation | `RecoveryAttemptLiveness` | `MC_FSMLiveness` | Checked |
 | L4 Complete Re-anchoring | `CompleteRecoveryLiveness` | `MC_FSMLiveness` | Checked |
@@ -763,14 +763,17 @@ Modular blockchains face critical liveness risks when peripheral layers fail. Th
 
 Target Property 8.1 decomposes into the leads-to properties L1–L7 below, each under weak fairness. L2–L4 are checked in the completed `MC_FSMLiveness` run; L1 and L5–L7 are listed only in the open `MC_ServerRefinementLiveness` run (status table, top of §7).
 
-**Property L1 (Standard Consensus Liveness).** Under repeated GST conditions, honest validators always eventually commit a new block.
+**Property L1 (Standard Consensus Liveness).** If GST occurs, some honest validator eventually decides, in every FSM state.
 
 ```tlaplus
+GSTTime == MAX_TIMESTAMP \div 3
+AfterGST == real_time >= GSTTime
+
 EventualDecisionUnderGSTLiveness ==
-    ([]<> GSTReached) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
+    (<>AfterGST) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
 ```
 
-where `GSTReached` requires synchronized clocks, sufficient peers, and `state = ANCHORED`.
+`AfterGST` is the standard partial-synchrony notion: GST is a fixed time the protocol does not know, and once it has passed it stays passed, because `real_time` never decreases (`MonotonicitySafety`). It concerns the network only. An earlier version assumed `[]<> GSTReached`, a recurring predicate that also required sufficient peers and `state = ANCHORED`; that tied the assumption to the FSM state, so the property said nothing about executions that stay in `SOVEREIGN`, and it was not the single-GST assumption of partial synchrony. The fairness conditions (`MC_ServerFairness`) are weak fairness on delivery, timeouts and round skips; they constrain only infinite behaviours, so every finite pre-GST delay remains possible, and the antecedent restricts the claim to behaviours in which GST is reached. The status of L1 is unchanged (Open) until the run in `docs/FORMAL_PLAN_AIR.md` §3A completes. The ablation copies `EngramTendermint_Ablation_NoFastForward.tla` and `EngramServer_Ablation_NoFastForward.tla` are not regenerated and still define the old `GSTReached`; that ablation has no reliable result.
 
 **Property L2 (Circuit Breaker Liveness).** When a critical condition is detected, the network must eventually reach `SOVEREIGN`. The improved $f+1$ pacemaker (`UponfPlusOneTimeoutsAny`) guarantees that lagging nodes fast-forward once $f+1$ honest nodes have timed out.
 

@@ -57,7 +57,7 @@ Sanity_NeverRecoverFully ==
 
 \* EXPECT FAIL: Proves the Global Stabilisation Time (GST) is actually reached in the trace.
 Sanity_NeverReachGST == 
-    [] ~GSTReached
+    [] ~AfterGST
 
 \* EXPECT FAIL: Proves a transaction is eventually forced into a block due to prolonged censorship.
 Sanity_NeverForceTx == 

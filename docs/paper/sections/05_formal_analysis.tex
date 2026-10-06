@@ -114,18 +114,22 @@ is the open obligation C1 below.
 Liveness is argued separately. LiDO obtains it by adding a pacemaker to the
 abstract object and stating the liveness requirements as properties of
 bounded time segments, under a single GST. Our specification expresses the
-same kinds of requirement as TLA+ fairness hypotheses that TLC takes as given,
-and models GST as recurring (\texttt{[]<>GSTReached}) so that the temporal
-properties are checkable; this is an encoding choice, not LiDO's assumption.
+same kinds of requirement as TLA+ fairness hypotheses that TLC takes as given.
+It models GST as in partial synchrony: a predicate \texttt{AfterGST} on the
+model's real time, which never decreases, so that once GST has passed it stays
+passed. The predicate concerns the network only; it does not mention the FSM
+state or the peripheral layers, so the liveness claim covers every FSM state,
+\textsc{Sovereign} included.
 The liveness argument has two levels. The consensus layer relies on the
 first three hypotheses below, which correspond to LiDO's pacemaker and
 leader requirements; the fourth, FSM progress, concerns the FSM layer and has
 no counterpart in LiDO. The four hypotheses are:
 \begin{itemize}
-  \item \emph{Partial synchrony:} GST is reached infinitely often
-  (\texttt{[]<>GSTReached}), and after GST messages between honest
-  validators are delivered (weak fairness on each node's \texttt{Push} and
-  \texttt{Pull}).
+  \item \emph{Partial synchrony:} liveness is claimed for behaviours in which
+  GST is reached (\texttt{(<>AfterGST) \string~> decided}), and messages between
+  honest validators are delivered (weak fairness on each node's \texttt{Push}
+  and \texttt{Pull}). Weak fairness constrains only infinite behaviours, so
+  any finite delay before GST is allowed.
   \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
   on the $f{+}1$ round-skip (fast-forward) action.
   \item \emph{Proposer progress:} weak fairness on each honest node's

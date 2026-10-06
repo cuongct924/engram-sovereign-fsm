@@ -62,8 +62,50 @@ Quy tắc: chỉ dùng cấu hình nào **vừa qua cả ba kiểm tra tồn t�
 
 3.3 Quy nạp bằng Apalache cho C1: **không có file khung** (`EngramServerRefinement_Ind.tla` chưa tồn tại). Bỏ qua nếu hết thời gian; đây là việc viết mới (một ngày).
 
+## 3A. Kiểm tra lại liveness L1 sau khi sửa mô hình GST (khoảng 2–6 giờ; chưa có kết quả nào)
+
+**Đã đổi (chưa chạy TLC; chỉ phân tích cú pháp bằng SANY cho `EngramServer`, `MC_ServerRefinementLiveness`, `MC_ControlRun_FastForwardLiveness`):**
+- `spec/core/EngramServer.tla`: bỏ `GSTReached` (vị từ tái diễn, gồm cả `state = "ANCHORED"` và số peer). Thay bằng `GSTTime == MAX_TIMESTAMP \div 3` và `AfterGST == real_time >= GSTTime` (đơn điệu vì `real_time` không giảm); `EventualDecisionUnderGSTLiveness == (<>AfterGST) ~> (\E p \in HonestNodes : step[p] = "DECIDED")`.
+- `spec/core/MC_ServerRefinementLiveness.tla`: `Sanity_NeverReachGST == [] ~AfterGST`.
+- Giữ nguyên: fairness (`MC_ServerFairness`, không điều kiện, vì weak fairness chỉ ràng buộc hành vi vô hạn nên độ trễ hữu hạn trước GST vẫn được phép), các `.cfg`, các thuộc tính khác (L5–L7, `ServerEventualDecisionLiveness`). Các bản ablation `NoFastForward` là bản sao cũ, không sinh lại, vẫn định nghĩa `GSTReached` cũ (ablation đó không có kết quả tin cậy).
+- Điều cần cảnh giác khi đọc kết quả: trong mô hình `ServerAdvanceRealTime` bị tắt khi đã có QC ở vòng cao nhất, nên thời gian có thể đứng yên dưới `GSTTime`. Hành vi đó không thoả vế trái `<>AfterGST` và không phải phản ví dụ.
+
+Lệnh (trong `spec/`, `TLC` như mục 0). Chạy lần lượt, ghi lại số trạng thái và thời gian; mỗi lệnh tối đa 4 giờ, không xong thì dừng và ghi "dừng".
+```bash
+cd spec
+# 0) phân tích cú pháp (1 phút); phải không có lỗi
+for m in EngramServer MC_ServerRefinementLiveness MC_ControlRun_FastForwardLiveness; do (cd core && java -cp ~/tools/tla/tla2tools.jar tla2sany.SANY $m.tla 2>&1 | tail -3); done
+
+# A) đối chứng rẻ nhất: EngramServer thật, chỉ thuộc tính L1 (N=4, f=1)
+$TLC -workers 6 -deadlock -metadir /tmp/tlc_l1_control -config core/MC_ControlRun_FastForwardLiveness.cfg core/MC_ControlRun_FastForwardLiveness.tla | tee /tmp/l1_control.log
+
+# B) hai thời điểm GST khác (bản sao thư mục, không sửa repo)
+for g in 1 "MAX_TIMESTAMP - 3"; do
+  d=/tmp/core_gst_$(echo $g | tr -dc '0-9'); rm -rf $d; cp -r core $d
+  sed -i '' "s/^GSTTime == .*/GSTTime == $g/" $d/EngramServer.tla
+  $TLC -workers 6 -deadlock -metadir /tmp/tlc_l1_$(basename $d) -config $d/MC_ControlRun_FastForwardLiveness.cfg $d/MC_ControlRun_FastForwardLiveness.tla | tee /tmp/l1_$(basename $d).log
+done
+
+# C) mô hình đầy đủ nhưng chỉ L1 và ServerEventualDecisionLiveness
+awk '/^PROPERTIES/ {print; print "    EventualDecisionUnderGSTLiveness"; print "    ServerEventualDecisionLiveness"; skip=1; next} !skip' core/MC_ServerRefinementLiveness.cfg > core/MC_ServerRefinementLiveness_L1.cfg
+$TLC -workers 6 -deadlock -metadir /tmp/tlc_l1_full -config core/MC_ServerRefinementLiveness_L1.cfg core/MC_ServerRefinementLiveness.tla | tee /tmp/l1_full.log
+rm core/MC_ServerRefinementLiveness_L1.cfg    # không commit
+```
+Nếu TLC báo `Deadlock reached`, kiểm tra trạng thái cuối: khi mọi validator trung thực ở `DECIDED` thì đó là kết thúc dự kiến (spec nói rõ có thể bế tắc khi tất cả đã quyết) và `-deadlock` bỏ qua nó.
+
+**Cách đọc kết quả:**
+| Kết quả | Ý nghĩa | Làm gì |
+|---|---|---|
+| `No error has been found` ở A, B, C | L1 đúng, ở mọi trạng thái FSM, trong cấu hình nhỏ, với ba thời điểm GST | Cập nhật `spec/README.md` (bảng trạng thái, L1: Checked, kèm cấu hình, số trạng thái, thời gian) và đoạn liveness của mục 5 |
+| Vi phạm có vết | Có hành vi đạt `AfterGST` mà không ai quyết định. Xem trạng thái FSM tại điểm kẹt (`state`, receipts) và các hành động đang bật | Lưu vết; có thể là khoảng trống liveness thật (ví dụ ANCHORED chờ biên lai hỏng trước khi FSM chuyển) hoặc thiếu fairness cho FSM. Gửi lại cho Claude, không tự sửa |
+| TLC báo lỗi về công thức thời gian | Cách viết `(<>AfterGST) ~> ...` không được chấp nhận | Gửi nguyên văn lỗi |
+| Không xong sau 4 giờ | Không kết luận | Ghi "dừng", số trạng thái và độ sâu, như quy tắc ở mục 3.2 |
+
+Gửi lại: ba file log, phiên bản TLC (in ra khi chạy), cấu hình và vết nếu có.
+
 ## 4. Cập nhật vào paper (sau khi có số)
 - Section 5: bảng `tab:ablation` thêm hàng "DA backfill gate / premature exit before data is published" kèm độ sâu, thời gian, tính chất vi phạm; sửa mô tả (năm hàng thay vì bốn); xoá đoạn ablation f+1 chưa hoàn tất hoặc chuyển thành một câu nói rõ không claim. Nếu các số cũ đổi, thay bằng số mới.
+- Section 5 (đoạn liveness và giả thiết Partial synchrony), `spec/README.md` (L1) và Verification Scope: kết quả mục 3A.
 - Section 5, Verification Scope và mục II.A của báo cáo: số C1 mới (cấu hình đã dùng, hoàn tất hay dừng).
 - `spec/README.md`: các mục ablation (A–E) và 9.2.3, kèm phiên bản công cụ và ngày chạy; xoá câu "No ablation driver removes the gate yet".
 - `docs/NEXT_SESSION_PLAN.md` mục 19 và `docs/report_to_advisor.txt` (mục 6 và II.A).
