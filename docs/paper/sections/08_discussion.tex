@@ -126,8 +126,34 @@ than \texttt{MaxSuspiciousTime} (24 Engram blocks, about 29\,s, chosen for the
 exponential block intervals a healthy chain does so about once in eight days
 (10 events in 77 days of exposure, the same for $k{=}2$ and $k{=}4$) and never
 with steady blocks or at the testbed cadence. This is a prediction of the
-model, not an observation. \pending{confirm at a 600\,s mining interval on the
-testbed, and set \texttt{MaxSuspiciousTime} from the cadence.}
+model, not an observation. The timeout must therefore follow the Bitcoin
+cadence of the deployment: the live value of 24 blocks is 1.4 Bitcoin intervals
+at the testbed's 20\,s, and a value of about 1.5 intervals (750 blocks, 15\,min,
+at 600\,s) removes most false escalations at the price of about 14 more minutes
+to reach \textsc{Sovereign} in a real fault (Table~\ref{tab:mst}). We keep 24 as the
+default, which the testbed experiments use, and treat the timeout as a deployment
+parameter. \pending{confirm at a 600\,s mining interval on the testbed.}
+
+\begin{table}[h]
+\caption{\texttt{MaxSuspiciousTime} at mainnet cadence (simulation; exponential
+Bitcoin block intervals of mean 600\,s, $k{=}4$): false escalations of a healthy
+chain per day (30 runs of up to 72\,h; the counts behind the small rates are 10,
+3 and 1 events, so they indicate order of magnitude only) and the mean time from
+a checkpoint pause to \textsc{Sovereign} (40 runs).}
+\label{tab:mst}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+\textbf{Blocks} & \textbf{Time} & \textbf{False escalations per day} & \textbf{Mean to \textsc{Sovereign}, min} \\
+\midrule
+24 & 29\,s & 0.13 & 53 \\
+500 & 10\,min & 0.04 & 63 \\
+750 & 15\,min & 0.01 & 67 \\
+1500 & 30\,min & 0.01 & 76 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 Table~\ref{tab:exposure-design} lists ways to bound the exposure and what each
 costs. We implement none of them; the first two bound the number of withdrawals
