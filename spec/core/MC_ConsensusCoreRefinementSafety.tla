@@ -115,7 +115,7 @@ Sanity_NoCensorship ==
 (* ======================== ABLATION SANITY CHECKS (EXPECTED TO FAIL) ======================== *)
 
 \* EXPECT FAIL: Proves the attacker attempts a withdrawal while in SOVEREIGN or RECOVERING state.
-Sanity_NeverAttemptWithdrawalLeakage ==
+Sanity_NeverAttemptWithdrawalWhileLocked ==
     \A r \in Rounds : \A m \in msgs_propose[r] :
         (m.proposal.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => (m.proposal.value /= "TX_WITHDRAWAL")
 

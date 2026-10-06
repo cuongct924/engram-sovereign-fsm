@@ -951,7 +951,7 @@ Each row removes exactly one defensive mechanism and reports the property that c
       <td>Remove Circuit Breaker</td>
       <td>Withdrawal Leakage</td>
       <td>2 (Apalache, 66.7s)</td>
-      <td><code>Sanity_NeverAttemptWithdrawalLeakage</code></td>
+      <td><code>Sanity_NeverAttemptWithdrawalWhileLocked</code></td>
     </tr>
     <tr>
       <td>Remove Hysteresis</td>
@@ -989,7 +989,7 @@ Each diagram is the actual counterexample found for that row of the table above.
 ##### A. Remove Circuit Breaker
 
 * **Ablated:** the withdrawal-lock condition in `IsValidProposal` (`core/EngramTendermint_Ablation_NoCircuitBreaker.tla`).
-* **Result:** violation at depth **2**, in **66.7s** (`apalache-mc check --inv=Sanity_NeverAttemptWithdrawalLeakage --length=12`, `core/MC_Ablation_NoCircuitBreakerSafety_Apalache.tla`). Trace: `spec/traces/ablation_no_circuit_breaker.{itf.json,trace.tla}`.
+* **Result:** violation at depth **2**, in **66.7s** (`apalache-mc check --inv=Sanity_NeverAttemptWithdrawalWhileLocked --length=12`, `core/MC_Ablation_NoCircuitBreakerSafety_Apalache.tla`). Trace: `spec/traces/ablation_no_circuit_breaker.{itf.json,trace.tla}`.
 
 ```mermaid
 sequenceDiagram
@@ -1004,7 +1004,7 @@ sequenceDiagram
     N->>F: Submit proposal (fsm_state=SOVEREIGN, value=TX_WITHDRAWAL)
     Note over F: withdrawal-lock condition removed
     F-->>N: ACCEPTED
-    Note over F: Sanity_NeverAttemptWithdrawalLeakage violated
+    Note over F: Sanity_NeverAttemptWithdrawalWhileLocked violated
 ```
 
 * **Why it matters:** the circuit breaker doesn't just stop a malicious proposer — it stops an honest node from ever legally pairing "reporting reduced security" with "here's a withdrawal" in one proposal. No Byzantine behavior needed, just bad timing.

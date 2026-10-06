@@ -162,7 +162,7 @@ specific known failure mode.
 |---|---|
 | Remove hysteresis | Flapping or premature recovery |
 | Remove P2P health gate | An eclipsed node may trigger recovery incorrectly |
-| Remove circuit breaker | Withdrawal leakage during SOVEREIGN/RECOVERING |
+| Remove circuit breaker | Withdrawal-marked transaction proposed during SOVEREIGN/RECOVERING |
 | Remove f+1 timeout fast-forward | Liveness delay or round-stall increases |
 | Remove DA receipt consistency | A data-withholding proposal may get committed |
 

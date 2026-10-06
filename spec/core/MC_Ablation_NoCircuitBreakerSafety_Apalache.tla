@@ -8,7 +8,7 @@
  * demonstrate the withdrawal-leakage state, not the refinement obligation.
  *
  * Unlike the normal Server-layer pilot (which expects NoError), this driver
- * is EXPECTED to find a violation of Sanity_NeverAttemptWithdrawalLeakage --
+ * is EXPECTED to find a violation of Sanity_NeverAttemptWithdrawalWhileLocked --
  * that is the entire point of the ablation. Apalache's bounded SMT search
  * does not need to exhaustively widen at every depth the way TLC's BFS
  * does, so it can find a specific short counterexample much faster when
@@ -34,7 +34,7 @@ MC_ServerNext == ServerNext
 
 \* EXPECT VIOLATION: proves the attacker can attempt a withdrawal while in
 \* SOVEREIGN or RECOVERING state once the circuit breaker is ablated.
-Sanity_NeverAttemptWithdrawalLeakage ==
+Sanity_NeverAttemptWithdrawalWhileLocked ==
     \A r \in Rounds : \A m \in msgs_propose[r] :
         (m.proposal.fsm_state \in {"SOVEREIGN", "RECOVERING"}) => (m.proposal.value /= "TX_WITHDRAWAL")
 

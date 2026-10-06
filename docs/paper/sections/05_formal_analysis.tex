@@ -262,7 +262,7 @@ configuration.
 \toprule
 \textbf{Removed} & \textbf{Targeted threat} & \textbf{Depth} & \textbf{Time} & \textbf{Violated property} \\
 \midrule
-Circuit breaker & Withdrawal leakage & 2 & 66.7\,s & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalLeakage} \\
+Circuit breaker & Withdrawal while locked & 2 & 66.7\,s & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalWhileLocked} \\
 Hysteresis & Premature re-anchoring & 6 & 117.0\,s & \texttt{Sanity\_NoIllegal} \texttt{HysteresisExit} \\
 P2P health gate & False recovery under eclipse & 3 & 24.2\,s & \texttt{Sanity\_NoIllegal} \texttt{P2PRecovery} \\
 DA consistency & Data withholding & 2 & 63.3\,s & \texttt{Sanity\_Never} \texttt{ProposeWithheldData} \\
@@ -274,7 +274,7 @@ Table~\ref{tab:ablation} reports the ablation study. Each row removes one
 mechanism and re-runs verification against the sanity property that
 mechanism protects. Apalache's bounded SMT search found each counterexample in 24--117\,s at
 depth 2--6. Each ablation reproduced the violation its mechanism is designed
-to prevent: without the circuit breaker a withdrawal leaks; without hysteresis
+to prevent: without the circuit breaker a withdrawal can be proposed in a locked state; without hysteresis
 the chain re-anchors prematurely; without the P2P gate an eclipsed validator
 forces an illegal recovery; and without DA consistency a withholding proposal
 is accepted. Single-factor ablation does not test joint removal, so it does

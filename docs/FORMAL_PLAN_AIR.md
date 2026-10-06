@@ -30,7 +30,7 @@ Các module ablation nay được **sinh lại từ spec hiện tại** bằng `
 
 | Ablation | Driver | Lệnh `check` (thêm `core/<driver>.tla` cuối) |
 |---|---|---|
-| Circuit breaker | `MC_Ablation_NoCircuitBreakerSafety_Apalache` | `--cinit=ApalacheCInit --init=MC_ServerInit --next=MC_ServerNext --inv=Sanity_NeverAttemptWithdrawalLeakage --length=12` |
+| Circuit breaker | `MC_Ablation_NoCircuitBreakerSafety_Apalache` | `--cinit=ApalacheCInit --init=MC_ServerInit --next=MC_ServerNext --inv=Sanity_NeverAttemptWithdrawalWhileLocked --length=12` |
 | Hysteresis | `MC_Ablation_NoHysteresisSafety_FSMOnly_Apalache` | `--cinit=ApalacheCInit --init=MC_FSMInit --next=MC_FSMNext --inv=Sanity_NoIllegalHysteresisExit --length=15` |
 | P2P gate | `MC_Ablation_NoP2PGateSafety_FSMOnly_Apalache` | `--cinit=ApalacheCInit --init=MC_FSMInit --next=MC_FSMNext --inv=Sanity_NoIllegalP2PRecovery --length=15` |
 | DA consistency | `MC_Ablation_NoDAConsistencySafety_Apalache` | `--cinit=ApalacheCInit --init=MC_ServerInit --next=MC_ServerNext --inv=Sanity_NeverProposeWithheldData --length=12` |
