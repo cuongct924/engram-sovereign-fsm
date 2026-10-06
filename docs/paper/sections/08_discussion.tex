@@ -79,7 +79,11 @@ remove the cost of being fast: its detection is as slow as the static
 threshold, and an adversary that sends bursts of $m$ blocks still obtains 200
 demotions in 1200 blocks, where the adaptive threshold allows 1. Combining the
 two (an adaptive window) gave 4.6 flaps and 172 demotions, so no single rule
-won on all four criteria. We did not implement the window rule. \pending{report the live outage-hiding runs at $k{=}4$ with adjacent and interleaved Byzantine placements.}
+won on all four criteria. We did not implement the window rule. The live check at $k{=}4$ (three Byzantine validators with biased certificates, all seven bridges stopped for 120\,s, a fresh chain per run)
+agrees with the simulation for adjacent placements and not for interleaved ones. With three consecutive Byzantine slots
+the outage was detected in 3 of 3 runs, as predicted. With slots 0, 2 and 4 of the rotation, which the simulation predicts
+would hide it, the chain also left \textsc{Anchored} and reached \textsc{Sovereign} in 3 of 3 runs, with 6 to 9 blocks outside the honest range
+per run (6 to 12 over all six). We have not isolated why the prediction failed for the interleaved placement, so the concealment at $k{=}4$ rests on the simulation alone.
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the
