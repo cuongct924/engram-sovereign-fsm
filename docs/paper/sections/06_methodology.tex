@@ -39,7 +39,7 @@ dedicated full mesh of pairwise links, separate from the network that
 carries Bitcoin, Celestia, and RPC traffic; this separation lets us degrade
 peripheral connectivity without partitioning the core consensus network.
 The peripheral layers are real software, not simulators: a two-node Bitcoin
-regtest network mined continuously at roughly one block per 20\,s, and a
+regtest network mined continuously at roughly one block per 20\,s (thirty times faster than Bitcoin's 600\,s average; the thresholds are in Bitcoin blocks, so detection times measured here convert to mainnet as in Section~\ref{sec:discussion}), and a
 Celestia network with seven bridge nodes, one per validator, so that each
 validator forms its own DA view. The single-actor attacks of Appendix~\ref{app:attacks} and the $f{=}2$ collusion
 suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.

@@ -1,0 +1,13 @@
+cadence,k,lag_blocks,runs,max_hours,events,exposed_days,events_per_day,demotions_per_day_before_first_sovereign
+testbed_steady_20s,2,2,30,72,0,90.0,0.000,1440.0
+testbed_steady_20s,2,3,30,72,0,90.0,0.000,1440.0
+testbed_steady_20s,4,2,30,72,0,90.0,0.000,0.0
+testbed_steady_20s,4,3,30,72,0,90.0,0.000,0.0
+mainnet_steady_600s,2,2,30,72,0,90.0,0.000,48.0
+mainnet_steady_600s,2,3,30,72,0,90.0,0.000,48.0
+mainnet_steady_600s,4,2,30,72,0,90.0,0.000,0.0
+mainnet_steady_600s,4,3,30,72,0,90.0,0.000,0.0
+mainnet_poisson_600s,2,2,30,72,10,77.2,0.129,48.0
+mainnet_poisson_600s,2,3,30,72,10,77.2,0.129,48.0
+mainnet_poisson_600s,4,2,30,72,10,77.2,0.129,0.1
+mainnet_poisson_600s,4,3,30,72,10,77.2,0.129,0.1

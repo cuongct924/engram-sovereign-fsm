@@ -52,6 +52,93 @@ static threshold of 4, and the live sweep suppressed flapping under jitter no
 better than a static threshold of 2; the live repeated-trigger runs are
 \pending{report the live repeated-trigger runs of the adaptive threshold.}
 
+\textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
+FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a
+fault to that point, and the number of withdrawals that can commit in it is at
+most the number of Engram blocks in the window times what one block can hold.
+The window is set by the thresholds, which count Bitcoin blocks for a Bitcoin
+fault and Engram blocks for a DA fault. On the testbed Bitcoin mines thirty
+times faster than on mainnet and Engram does not, so the measured times convert
+as in Table~\ref{tab:exposure}: a checkpoint pause locks after 117\,s, 5.9
+Bitcoin blocks and about 97 Engram blocks, which at mainnet cadence is about 58
+minutes and 2{,}900 Engram blocks; the DA outage locks after 41\,s on both. The
+45--56 withdrawals of Section~\ref{subsec:rq2} follow from the workload and the
+acceleration: the same one withdrawal every 2\,s over the mainnet window would
+be about 1{,}750, and nothing but block capacity limits a faster sender.
+
+\begin{table}[h]
+\caption{Time from the start of a fault to the lock of withdrawals, as measured
+on the testbed (Bitcoin block every 20\,s) and converted to mainnet cadence
+(every 600\,s). Engram blocks are 1.2\,s on both.}
+\label{tab:exposure}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Fault} & \textbf{Testbed} & \textbf{Bitcoin blocks} & \textbf{Engram blocks} & \textbf{Mainnet} \\
+\midrule
+Checkpoint pause & 117\,s & 5.9 & 97 & 58\,min, 2{,}900 blocks \\
+DA outage & 41\,s & --- & 34 & 41\,s, 34 blocks \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+To check the conversion we drove the real FSM with Bitcoin blocks and a model of
+the checkpoint cycle of the anchor tracker: one checkpoint is pending at a time,
+it is included in the next Bitcoin block, it counts as confirmed with
+\texttt{KDeepFinality}+1 confirmations, the next one is submitted at once, and
+the committed anchored height follows the tracker after a lag of two to three
+Engram blocks, the one free parameter. At testbed cadence the model reproduces
+what we measured: the checkpoint pause reaches \textsc{Sovereign} after 129\,s
+(5th to 95th percentile 91 to 149\,s; measured 117\,s in RQ2 and $141.6 \pm
+13.8$\,s in S2), and the quiet phase of the live sweeps is 0.80--0.84 in
+\textsc{Anchored} at $k{=}2$ and 1.00 at $k{=}4$ (measured 0.79--0.87 and 1.00).
+At mainnet cadence the same fault reaches \textsc{Sovereign} after 49.6 minutes
+with steady 600\,s blocks (41 to 58) and 46.7 minutes with exponential block
+intervals (18 to 79), which is about five Bitcoin blocks and 2{,}300--2{,}500
+Engram blocks.
+
+The healthy gap is not flat. It follows the checkpoint cycle, 2, 3, 4, 5 and
+back to 2 every three Bitcoin blocks, and in the first 18\,s of the five
+composite runs, before any fault, it sat at 5, the \texttt{SuspiciousThreshold},
+in 3--16\% of the samples, for about two Engram blocks each time. This has two
+consequences. The threshold cannot simply be lowered, since the healthy cycle
+already touches it. And part of the flapping at $k{=}2$ in the live sweeps is the
+cycle, not the wide-area noise: the model gives one demotion per cycle, 1{,}440
+per day at the testbed cadence and 48 per day at mainnet cadence, so the
+accelerated testbed exaggerates the baseline flapping thirty-fold.
+
+The model also predicts a limit of the current parameters at mainnet cadence.
+When two Bitcoin blocks arrive within one polling interval, the next checkpoint
+skips a block and the gap stays at 5 for a full Bitcoin interval, much longer
+than \texttt{MaxSuspiciousTime} (24 Engram blocks, about 29\,s, chosen for the
+20\,s cadence), so the FSM escalates to \textsc{Sovereign} without a fault. With
+exponential block intervals a healthy chain does so about once in eight days
+(10 events in 77 days of exposure, the same for $k{=}2$ and $k{=}4$) and never
+with steady blocks or at the testbed cadence. This is a prediction of the
+model, not an observation. \pending{confirm at a 600\,s mining interval on the
+testbed, and set \texttt{MaxSuspiciousTime} from the cadence.}
+
+Table~\ref{tab:exposure-design} lists ways to bound the exposure and what each
+costs. We implement none of them; the first two bound the number of withdrawals
+without a lower threshold, and the last one shortens the window.
+
+\begin{table}[h]
+\caption{Ways to bound the exposure before the lock.}
+\label{tab:exposure-design}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.25\linewidth}p{0.3\linewidth}p{0.3\linewidth}@{}}
+\toprule
+\textbf{Mechanism} & \textbf{Effect} & \textbf{Cost} \\
+\midrule
+Withdrawal quota per Bitcoin block, graded by the gap & $N \le$ (Bitcoin blocks in the window) $\times$ quota, independent of the Engram block rate and of the sender & Lower withdrawal throughput also when healthy \\
+Release funds only after the block is anchored $K$ deep & Exposure close to zero & Every withdrawal waits about three Bitcoin blocks; needs a real bridge \\
+Sensor on the age of the pending checkpoint against the expected cycle & Window shortens from about six to three or four Bitcoin blocks (our estimate) & Changes the FSM input, so every experiment on the Bitcoin gap would be rerun \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \textbf{Hysteresis: noise against concealment.} A higher down threshold $k$
 tolerates longer bursts of noise, and it also tolerates a longer run of reports
 that a Byzantine proposer interleaves with honest ones. Within the assumption
@@ -208,7 +295,8 @@ characterize distributions.
 
 \begin{itemize}
   \item \emph{Testbed.} All results come from one host with accelerated
-  Bitcoin and single-bridge DA trust; the backfill gate rests on a
+  Bitcoin (thirty times mainnet; conversions and a model in the exposure
+  paragraph above) and single-bridge DA trust; the backfill gate rests on a
   quorum-reported contiguous height, not a proof of retrievability
   (Section~\ref{subsec:sim-to-real}).
   \item \emph{Proof gate.} The recovery-validity flag holds if a verified

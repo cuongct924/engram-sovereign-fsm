@@ -226,7 +226,10 @@ withdrawals after that moment under DA faults and 6--9 under checkpoint
 suspension, few only because it commits few blocks. Engram's cost shows in the
 last column: it committed 18--19 withdrawals before locking under DA faults and
 45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
-leave \textsc{Anchored} for \textsc{Sovereign}. The soft baseline shows the other side of the trade-off. It runs Engram's FSM
+leave \textsc{Anchored} for \textsc{Sovereign}. These counts follow from the
+workload (one withdrawal-marked transaction every 2\,s) and from Bitcoin running
+thirty times faster than on mainnet; they are not a production exposure. The
+workload-independent measures and a bound are in Section~\ref{sec:discussion}. The soft baseline shows the other side of the trade-off. It runs Engram's FSM
 and keeps Engram's liveness, 98--99\% of the healthy block rate with a longest
 gap of at most 2.5\,s, but it never locks, so it committed 31 withdrawals after
 the lock moment under checkpoint suspension and 71--72 under DA faults, against
