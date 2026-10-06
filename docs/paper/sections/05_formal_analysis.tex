@@ -16,11 +16,14 @@ in a well-formed certificate, and cannot overturn a Boolean value on which all
 represented honest validators agree. When honest observations straddle an FSM
 threshold, the proposer's choice of quorum subset can still influence which
 side of the threshold the aggregate falls on; hysteresis limits this
-influence but does not remove it. The second attack surface is griefing by an
+influence but does not remove it. The certificate therefore guarantees
+honest-range validity. It is not an unbiased estimate of the state of the
+peripheral layer, and it carries no information about that state beyond what
+the honest validators observed. The second attack surface is griefing by an
 adversary that degrades the peripheral view of honest validators
 (Section~\ref{sec:discussion}).
 
-\refstepcounter{theorem}\label{thm:withdrawal}\textbf{Theorem~\thetheorem{} (withdrawal admission condition).} \emph{Assume $\operatorname{wt}(B) < W/3$, no Bitcoin
+\refstepcounter{theorem}\label{thm:withdrawal}\textbf{Theorem~\thetheorem{} (Withdrawal Admission Safety).} \emph{Assume $\operatorname{wt}(B) < W/3$, no Bitcoin
 reorganization deeper than $K_{\text{DEEP\_FINALITY}}$, and an honest DA
 layer. Assume further that (M1) honest validators reject a block that
 contains a withdrawal while the state is \textsc{Sovereign} or
@@ -53,13 +56,17 @@ requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
 attests data availability up to some $c_a \geq h - \tau_{\text{DA}}$, and the DA layer
 is honest. $\square$
 
-Theorem~\ref{thm:withdrawal} guarantees settlement only through $c_s$ and
-availability only through $c_a$. The blocks after them may not yet have either
-guarantee when the withdrawal commits, and a withdrawal may depend on state created
-inside that exposure window; the theorem does not tie a withdrawal to a
-dependency height. Liveness comes from relaxing the receipt checks in
-\textsc{Sovereign}; the property a bridge would need comes from tying withdrawals to the settled
-and available prefix.
+\textbf{Scope of Theorem~\ref{thm:withdrawal}.} The theorem is a safety
+property of the committed history: it constrains which blocks may contain a
+withdrawal. It does not bound what a withdrawal depends on. Settlement is
+guaranteed only through $c_s$ and availability only through $c_a$, whereas a
+withdrawal may depend on state created inside the exposure window after them,
+and the prototype records no dependency height for a withdrawal. Asset-level
+safety would add the condition that every withdrawal depends only on state at
+heights up to $\min(c_s, c_a)$; the theorem does not establish it. Liveness
+comes from relaxing the receipt checks in \textsc{Sovereign}; the property a
+bridge would need comes from tying withdrawals to the settled and available
+prefix.
 
 The prototype realizes the three assumptions as follows:
 \begin{itemize}

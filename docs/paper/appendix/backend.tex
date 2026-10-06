@@ -46,9 +46,12 @@ Plonky3, fuller statement & \checkmark & \checkmark & \checkmark & \checkmark & 
 \bottomrule
 \end{tabular}
 \\[2pt]
-\footnotesize (a) chain continuity, (b) FSM/withdrawal-lock policy legality,
-(c) circuit-breaker adherence, (d) state-root binding, (e) boundary
-ed25519-signature verification.
+\footnotesize (a) header-chain continuity, (b) mode-label consistency (every
+recorded state is \textsc{Sovereign} or \textsc{Recovering}), (c) lock-flag
+consistency (every recorded lock flag is set), (d) root binding (the first
+header links to the last anchored root and the last header hashes to the new
+root), (e) boundary quorum certification (ed25519 signatures of the first and
+last block).
 \end{table}
 
 Table~\ref{tab:backend-coverage} makes the coverage gap explicit. Under a
@@ -58,7 +61,7 @@ Plonky3 produces a larger proof (1{,}278{,}939~B vs.\
 14{,}656~B, $\sim$87$\times$) but proves faster (0.044~s vs.\ 0.684~s,
 $\sim$15.5$\times$) with a transparent, post-quantum-secure setup versus the
 Noir/Honk backend's trusted KZG setup. Under a fuller-statement comparison
-that adds FSM legality and root binding (but still omits condition~(e)),
+that adds the mode-label, lock-flag and root-binding conditions (but still omits condition~(e)),
 Plonky3 proves in 0.024--0.096\,s with proof sizes of 84--124\,KB across
 2--256 headers. Neither comparison supports a general speed claim for Plonky3, because
 both omit the component that dominates the deployed circuit's cost. These

@@ -112,13 +112,16 @@ Engram targets this combination.
     without modifying CometBFT's agreement core. A withdrawal circuit
     breaker~\cite{mendonca2020resiliency} excludes withdrawal-marked transactions while
     the chain runs without external corroboration
-    (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; withdrawal-admission
-    theorem in Section~\ref{subsec:analytical}).
+    (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; Withdrawal Admission
+    Safety theorem in Section~\ref{subsec:analytical}).
     \item \textbf{Proof- and backfill-gated recovery.} A Noir/UltraHonk circuit
-    that proves header-chain continuity, FSM-transition legality,
-    withdrawal-lock adherence, and boundary-validator signatures for up to
-    256 \textsc{Sovereign}-interval headers at constant proving and
-    verification cost; longer intervals chain several proofs
+    that proves, for up to 256 \textsc{Sovereign}-interval headers at constant
+    proving and verification cost, header-chain continuity, that every recorded
+    state is \textsc{Sovereign} or \textsc{Recovering} with the lock flag set,
+    the binding of the interval to the last anchored root and to the new root,
+    and the quorum signatures of the two boundary blocks. It does not check
+    transitions against the transition function or show that no withdrawal
+    executed. Longer intervals chain several proofs
     (Appendix~\ref{app:aggregation}). The exit condition also requires that the
     interval's data was published to the DA layer. Validators verify each proof
     inside block execution (Section~\ref{subsec:reanchoring}).

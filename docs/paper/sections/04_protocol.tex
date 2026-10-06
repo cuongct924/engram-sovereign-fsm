@@ -170,22 +170,56 @@ without contacting any peripheral network. The TLA+ model gives every
 validator the same voting power (Section~\ref{sec:formal}).
 
 \refstepcounter{lemma}\label{lem:honest-range}\textbf{Lemma~\thelemma{} (honest-bounded aggregate).} \emph{Let $C^{h}$ be well-formed
-and $\operatorname{wt}(B) < W/3$. For every numeric metric $j$,}
+and $\operatorname{wt}(B) < W/3$, where $B$ is the set of Byzantine validators and
+$H$ the set of the others. For every numeric metric $j$,}
 \[
 \min_{i \in S \cap H} m_{i,j} \;\le\; \widehat m_j \;\le\; \max_{i \in S \cap H} m_{i,j},
 \]
 \emph{and every Boolean metric on which all members of $S \cap H$ agree takes
-that value.} \emph{Proof sketch.} Since $\operatorname{wt}(S) > 2W/3$ and
-$\operatorname{wt}(S \cap B) < W/3$, the Byzantine weight in $S$ is below
-$\operatorname{wt}(S)/2$, so the honest weight in $S$ exceeds
-$\operatorname{wt}(S)/2$. Let $a$ and $b$ be the smallest and largest honest
-values. The weight of values at most $b$ is at least the honest weight, so
-$\widehat m_j \le b$. The weight of values below $a$ is at most the
-non-honest weight, which is below $\operatorname{wt}(S)/2$, so no value below
-$a$ satisfies Eq.~\eqref{eq:agg} and $\widehat m_j \ge a$. For a Boolean
-metric on which all honest members agree on $v$, the weight backing $v$
-exceeds half, and the weight backing the other value is below half.
-$\square$
+that value.}
+
+\emph{Proof.} Write $w = \operatorname{wt}(S)$. By (d), $w > 2W/3$, and
+$\operatorname{wt}(S \cap B) \le \operatorname{wt}(B) < W/3 < w/2$. Hence
+$\operatorname{wt}(S \cap H) = w - \operatorname{wt}(S \cap B) > w/2$, and
+$S \cap H$ is not empty. Let $a$ and $b$ be the smallest and the largest value of
+metric $j$ among the members of $S \cap H$, and let
+$F(x) = \operatorname{wt}(\{i \in S : m_{i,j} \le x\})$, so that $\widehat m_j$
+is the least $x$ with $F(x) > w/2$ (Eq.~\eqref{eq:agg}); such an $x$ exists
+because $F$ reaches $w$ at the largest reported value. Every member of
+$S \cap H$ reports at most $b$, so $F(b) \ge \operatorname{wt}(S \cap H) > w/2$
+and $\widehat m_j \le b$. For $x < a$ no member of $S \cap H$ reports at most
+$x$, so $F(x) \le \operatorname{wt}(S \cap B) < w/2$; no $x < a$ satisfies the
+condition and $\widehat m_j \ge a$. For a Boolean metric on which all members of
+$S \cap H$ report $v$: if $v = 1$, the weight backing true is at least
+$\operatorname{wt}(S \cap H) > w/2$; if $v = 0$, it is at most
+$\operatorname{wt}(S \cap B) < w/2$. In both cases $\widehat b_j = v$. $\square$
+
+This is the range form of median validity~\cite{stolz2015median} for weighted
+observations. The bound on $\operatorname{wt}(B)$ is the largest the quorum rule
+supports: the proposer chooses $S$, and once it omits enough honest
+observations that $w$ is just above $2W/3$, a coalition of weight just above
+$W/3$ exceeds $w/2$ and the aggregate can leave the honest range. The
+unequal-power test of Section~\ref{subsec:rq1} found such coalitions at 34 or 35
+out of 100.
+
+\refstepcounter{corollary}\label{cor:threshold}\textbf{Corollary~\thecorollary{} (threshold decisions).}
+\emph{Under the hypotheses of Lemma~\ref{lem:honest-range}, let $\theta$ be a
+threshold on metric $j$. If every member of $S \cap H$ reports $m_{i,j} > \theta$,
+then $\widehat m_j > \theta$; if every member reports $m_{i,j} \le \theta$, then
+$\widehat m_j \le \theta$.} Both follow from $a \le \widehat m_j \le b$. A
+degradation that every honest validator in $S$ observes therefore moves the
+certified aggregate across the threshold, and a weight below $W/3$ cannot move
+it across when no honest validator in $S$ observes the degradation.
+
+\textbf{What the lemma does not give.} It bounds each metric separately. The
+aggregate vector need not equal the observation of any honest validator, so a
+condition on several metrics can hold of $\mathsf{Agg}(C^{h})$ when it holds of
+no honest observation. For example, with three equally weighted honest
+validators and three metrics, each validator seeing a different metric beyond
+its threshold, every aggregated metric is within its threshold although every
+honest validator sees a degradation. The lemma also does not say which honest
+value the aggregate takes when honest values differ (see the proposer
+discussion below).
 
 Lemma~\ref{lem:honest-range} does not require honest observations to agree; it bounds what the
 adversary can do when they disagree. Each adversarial case reduces to it:
@@ -458,9 +492,11 @@ and last blocks of the range carry ed25519 precommit signatures (round 0) from
 at least two thirds of the voting power of a validator set whose hash is a
 public input (the compiled circuit fixes the set size at seven). Unused
 slots are padding, so proving time, verification time, and proof size are
-constant in $n$ (Appendix~\ref{app:backend}). The circuit does not check each
-transition against $\delta$, and the lock flag is the one the chain recorded
-in the header.
+constant in $n$ (Appendix~\ref{app:backend}). In short, the circuit proves
+header-chain continuity and root binding (a), mode-label and lock-flag
+consistency (b), and boundary quorum certification (c). It does
+not check each transition against $\delta$, and the lock flag is the one the
+chain recorded in the header.
 
 \textbf{Intended verifier.} A CometBFT quorum certificate shows that a quorum
 signed a block. The recovery proof adds a statement about the interval

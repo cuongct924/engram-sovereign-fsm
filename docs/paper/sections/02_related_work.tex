@@ -56,7 +56,7 @@ Section~\ref{subsec:rw-gap} states the combination left open.
 \draw[->] (q2.east) -- ++(0.25,0) |- (l11.west);
 \node[leaf] (l12) at (6.9,-12.00) {Succinct header-chain proofs and light clients~\cite{xie2022zkbridge,vesely2022plumo,bonneau2020mina,bunz2020flyclient}};
 \node[leaf] (l13) at (6.9,-12.95) {Recursion and folding~\cite{bitansky2013recursive,bowe2019halo,kothapalli2022nova}};
-\node[leaf, hl] (l14) at (6.9,-13.90) {\textbf{Chunked proof of FSM legality and withdrawal lock over the degraded interval (Engram)}};
+\node[leaf, hl] (l14) at (6.9,-13.90) {\textbf{Chunked proof of interval continuity, mode and lock labels, and boundary quorum (Engram)}};
 \node[q] (q3) at (3.1,-12.95) {Q4. How does a chain return to the anchored state?};
 \draw[->] (q3.east) -- ++(0.25,0) |- (l12.west);
 \draw[->] (q3.east) -- ++(0.25,0) |- (l13.west);
@@ -299,9 +299,10 @@ rewrite the history of a proof-of-stake chain, which is the exposure of an
 interval secured only by the chain's own validators. Engram's recovery proof is
 a fixed-capacity PLONK-family~\cite{gabizon2019plonk} proof over one interval
 chunk, and chunk proofs are chained through an on-chain root, as Plumo chains
-its transition proofs. The statement differs: it covers FSM-transition legality
-and withdrawal-lock adherence in addition to header continuity
-(Section~\ref{subsec:reanchoring}).
+its transition proofs. The statement differs: besides header continuity it covers
+the recorded mode and lock-flag label of every header and the quorum signatures
+of the two boundary blocks, and it does not check transitions against the
+transition function (Section~\ref{subsec:reanchoring}).
 
 \subsection{Validation Methodology}
 \label{subsec:rw-validation}
