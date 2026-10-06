@@ -115,6 +115,27 @@ placements did not produce that.
 \resizebox{\linewidth}{!}{\input{results/b9_table.tex}}
 \end{table}
 
+\textbf{Unequal voting power.} The testbed and the TLA+ model give every
+validator the same power, where weight and count coincide, so a defect that
+confuses them would not appear in any run above. We therefore tested the
+aggregation function alone (\texttt{tests/weighted}) on three weight vectors that
+sum to 100, $[30,20,15,10,10,10,5]$, $[26,19,17,13,11,8,6]$ and $[34,33,33]$, and
+on seven equal weights. Against a reference weighted median (the element at
+position $\lfloor T/2\rfloor$ of the multiset in which each value is repeated by
+its power) the function agreed on 1{,}500 random quorum subsets with random
+values for every vector, and a verified power of exactly $\lfloor 2W/3\rfloor{+}1$
+was accepted and one below it rejected for every subset. For every Byzantine
+coalition and every set of certificates the proposer may omit while keeping a
+quorum, with the adversary reporting the lowest value, the highest, or a split,
+the aggregate stayed within the honest values and honest booleans were not
+flipped whenever the coalition's power was below $W/3$ (up to 30 of 100 for the
+first vector and 33 for the other two). A coalition of 35 (20 and 15) in the first
+vector, and of 34 in the other two, escaped the honest range by having the proposer omit
+enough honest certificates, so the bound is tight. This checks the
+implementation of the weighted median and the quorum, not the integration
+with the genesis power assignment, which a live run with unequal power would
+add.
+
 \textbf{Peripheral P2P quorum gate.} A P2P detector is useful for safety only if its
 signal cannot be abused by a minority. We first compare the six-bound
 profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
