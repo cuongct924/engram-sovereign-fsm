@@ -151,8 +151,8 @@ attack snapshots plus 500 ramps per cell; Section~\ref{subsec:montecarlo}), then
 run the two most diagnostic attacks live.
 
 \begin{table}[h]
-\caption{P2P Detector Accuracy: Six-Bound Profiler vs.\ Peer-Count-Only
-(Synthetic; 2{,}000 benign and 2{,}000 attack snapshots, 500 ramps per cell)}
+\caption{P2P detector accuracy: six-bound profiler against peer-count-only
+(synthetic sensitivity analysis; 2{,}000 benign and 2{,}000 attack snapshots, 500 ramps per cell)}
 \label{tab:p2p-detector}
 \centering
 \footnotesize
@@ -253,7 +253,8 @@ chain committed no block in the 120\,s after the fault ended (``---'' in the gap
 column: it never resumed). The last two columns count withdrawals committed
 after and before the moment Engram's circuit breaker locks, 117\,s (checkpoint
 pause), 41\,s (DA outage) and 43\,s (both) after the fault begins; the same
-window is applied to every system.}
+window is applied to every system. Recovery is proof-only with an unproven-tail
+bound of 128 blocks.}
 \label{tab:rq2}
 \centering
 \footnotesize
@@ -325,7 +326,8 @@ Fig.~\ref{fig:fsm-timeline} shows the resulting timeline.
 \includegraphics[width=0.95\linewidth]{figures/figure2_trace_timeline_live.pdf}
 \caption{FSM state timeline, sensor readings, P2P network state, and block
 height under a layered composite fault sequence (Bitcoin congestion + DA
-outage + P2P churn, overlapping at their peak).}
+outage + P2P churn, overlapping at their peak). First composite run: one trial,
+heuristic fallback enabled.}
 \label{fig:fsm-timeline}
 \end{figure}
 
@@ -377,7 +379,7 @@ block before the expected transition to \textsc{Anchored}.
 \caption{Continuous FSM-state timeline across seven sequential
 fault-injection scenarios (S1--S7), true block-height ranges, live
 7-validator testbed. Each scenario begins where the previous scenario's
-recovery ended.}
+recovery ended. One trial, heuristic fallback enabled.}
 \label{fig:s1-s7}
 \end{figure}
 
@@ -423,8 +425,8 @@ live production default.}
 \end{figure}
 
 \begin{table}[h]
-\caption{Down-Hysteresis Sweep (\textsc{Anchored}$\to$\textsc{Suspicious}),
-In-Process (101 blocks, noise probability 0.2, seed 11, one run per threshold)}
+\caption{Down-hysteresis sweep (\textsc{Anchored}$\to$\textsc{Suspicious}),
+in-process (101 blocks, noise probability 0.2, seed 11, one run per threshold)}
 \label{tab:hysteresis-down}
 \centering
 \footnotesize
@@ -632,7 +634,7 @@ file omitted three nodes; it is excluded.
 
 \begin{table}[h]
 \caption{Republication of the \textsc{Sovereign} interval after a total DA
-outage (three runs per outage length; range over runs)}
+outage (three runs per outage length; range over runs; heuristic fallback enabled)}
 \label{tab:backfill}
 \centering
 \footnotesize
@@ -649,7 +651,7 @@ outage (three runs per outage length; range over runs)}
 
 \begin{table}[h]
 \caption{Backfill-gate controls after a 120\,s DA outage (validators withholding
-block data; the gate must hold for 300\,s or open)}
+block data; the gate must hold for 300\,s or open; heuristic fallback enabled)}
 \label{tab:backfill-controls}
 \centering
 \footnotesize
@@ -668,7 +670,7 @@ block data; the gate must hold for 300\,s or open)}
 \label{subsec:rq4}
 
 \begin{table}[h]
-\caption{Overhead of the Extended Consensus Object vs.\ Vanilla CometBFT
+\caption{Overhead of the extended consensus object against vanilla CometBFT
 (20 tx/s, 60\,s per repeat, mean $\pm$ 95\% CI)}
 \label{tab:overhead}
 \centering
