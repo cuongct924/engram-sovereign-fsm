@@ -358,8 +358,10 @@ characterize distributions.
   health certificate is modelled with Boolean observations in the server
   layer; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only
   (Section~\ref{sec:formal}).
-  \item \emph{Load range.} Load was tested up to 100 tx/s; behavior at
-  higher rates is not characterized.
+  \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
+  (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
+  FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
+  ceiling or production scalability is claimed.
 \end{itemize}
 
 \subsection{Threats to Validity}
