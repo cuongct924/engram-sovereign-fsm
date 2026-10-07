@@ -373,25 +373,31 @@ returns to the externally anchored mode. Engram provides these three (with the p
 Section~\ref{subsec:limitations}), retains CometBFT as the agreement protocol,
 and Sections~\ref{sec:model}--\ref{sec:evaluation} evaluate the combination.
 
-\begin{table}[!tbp]
-\caption{Failure handling in representative systems, from each system's
-primary publication or specification, except the baseline and Engram rows, which
-are the two designs evaluated in this paper; ``n/a'': not stated by the source. The
-assurance column does not rank the designs.}
-\label{tab:comparison}
-\centering
-\footnotesize
+{\footnotesize
 \renewcommand{\arraystretch}{1.03}
 \setlength{\tabcolsep}{3pt}
 \newcommand{\rc}[1]{\raggedright\arraybackslash #1}
 \newcommand{\grp}[1]{\cmidrule(l{0pt}r{0pt}){1-6}\multicolumn{6}{@{}l}{\textbf{#1}}\\[1pt]}
-\begin{tabular}{@{}>{\rc}p{0.15\linewidth}>{\rc}p{0.145\linewidth}>{\rc}p{0.09\linewidth}>{\rc}p{0.185\linewidth}>{\rc}p{0.14\linewidth}>{\rc}p{0.13\linewidth}@{}}
+\begin{longtable}{@{}>{\rc}p{0.155\linewidth}>{\rc}p{0.16\linewidth}>{\rc}p{0.09\linewidth}>{\rc}p{0.215\linewidth}>{\rc}p{0.15\linewidth}>{\rc}p{0.13\linewidth}@{}}
+\caption{Failure handling in representative systems, from each system's
+primary publication or specification, except the baseline and Engram rows, which
+are the two designs evaluated in this paper; ``n/a'': not stated by the source. The
+assurance column does not rank the designs.}
+\label{tab:comparison}\\
 \toprule
 \textbf{System} & \textbf{Trigger and observation} & \textbf{Decided by} & \textbf{Behavior under failure and recovery} & \textbf{Assumption} & \textbf{Assurance reported} \\
 \midrule
+\endfirsthead
+\multicolumn{6}{@{}l}{\textit{Table~\thetable{} (continued)}}\\
+\toprule
+\textbf{System} & \textbf{Trigger and observation} & \textbf{Decided by} & \textbf{Behavior under failure and recovery} & \textbf{Assumption} & \textbf{Assurance reported} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 \multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
-Strict receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipt returns; in our implementation the chain does not resume & External layers live & n/a \\
-Strict receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt, read directly by each validator & Validity predicate & No proposal is valid until the receipt returns; the chain resumes, and validators can disagree on validity & External layers live; validators read consistently & n/a \\
+Receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipts return; the chain does not resume in our implementation & External layers live & n/a \\
+Receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing receipt, read at each validator & Validity predicate & No proposal is valid until the receipts return; the chain resumes, validators may disagree & External layers live & n/a \\
 \grp{Degradation inside consensus}
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
 Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
@@ -406,8 +412,8 @@ OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 chall
 Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arranger & Honest agent and L1 contract & Fraud proof settles on the L1; liveness violations cannot be proved there & L1 safe and live; one honest agent & Fraud-proof games mechanized in Lean~4 \\
 \midrule
 \textbf{Engram} & Bitcoin, DA, or peripheral-P2P health; signed validator observations & Validator BFT pipeline & Receipt rules relaxed for the failed layer and withdrawals locked; proof, DA backfill, and hysteresis restore\textsuperscript{d} & CometBFT quorum connected; Byzantine power under $1/3$ & Per-layer bounded model checking; live fault injection (one host) \\
-\bottomrule
-\end{tabular}
+\end{longtable}
+
 \par\medskip
 {\scriptsize\raggedright
 \textit{Notes.}
@@ -421,4 +427,5 @@ available ledger under $1/2$.
 (d)~The prototype enforces DA backfill; a heuristic can satisfy the proof
 condition unless proof-only recovery is on; the refinement is open
 (Sections~\ref{subsec:limitations} and~\ref{sec:formal}).\par}
-\end{table}
+}
+
