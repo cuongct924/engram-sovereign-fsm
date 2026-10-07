@@ -641,7 +641,9 @@ so the cost is paid twice. The one proof-carrying
 block observed was 14.9\,KB, consistent with the 14.7\,KB proof.
 Validating an accepted proposal, including the ed25519 verification of one
 signature per validator, costs \resValidationUs\,$\mu$s per block at seven
-validators (mean of ten benchmark runs, standard deviation 6\,$\mu$s). Size and
+validators (mean of ten benchmark runs, standard deviation 6\,$\mu$s).
+\pending{rerun the microbenchmark of Table~\ref{tab:cert-scaling} and of this paragraph on the final commit with the machine idle (queued as the last step), and update the sizes and times.}
+Size and
 validation time are linear in the number of validators
 (Table~\ref{tab:cert-scaling}); we measured the block interval only at seven
 validators, so the larger rows are a microbenchmark of the certificate, not a
