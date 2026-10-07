@@ -119,7 +119,8 @@ Engram targets this combination.
     proving and verification cost, header-chain continuity, that every recorded
     state is \textsc{Sovereign} or \textsc{Recovering} with the lock flag set,
     the binding of the interval to the last anchored root and to the new root,
-    and the quorum signatures of the two boundary blocks. It does not check
+    and the quorum signatures of the two boundary blocks, linked to chain state by
+    the public inputs that the validators check. It does not check
     transitions against the transition function or show that no withdrawal
     executed. Longer intervals chain several proofs
     (Appendix~\ref{app:aggregation}). The exit condition also requires that the

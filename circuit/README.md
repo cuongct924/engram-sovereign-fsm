@@ -3,8 +3,9 @@
 Development, results, and design decisions for Engram re-anchoring's ZK proof system.
 
 ## Overview
-The ZK system proves a blockchain header chain is valid *and really committed*, to recover system
-state. Three architectures were evaluated:
+The ZK system proves a recorded header chain (with its mode and lock labels) and two quorum-signed
+boundary blocks, to recover system state. The circuit does not tie the two together: the public
+inputs do, and `SubmitRecoveryProof` compares them with on-chain state. Three architectures were evaluated:
 1. Dynamic Padding (production leaf circuit, up to `N_MAX=256` headers per proof).
 2. Chunk Aggregation (opt-in, up to `K*N_MAX=1024` headers per proof, `circuit/reanchoring_aggregator`).
 3. Per-header recursive aggregation (research spike, rejected).
@@ -14,7 +15,9 @@ state. Three architectures were evaluated:
 - Returning to `ANCHORED` needs a Proof of Recovery, not a Proof of Execution: it proves the
   sovereign interval kept continuity and recorded only `SOVEREIGN` or `RECOVERING` states with the lock
   flag set (it does not check transitions against the transition function), AND that the interval's two boundary
-  blocks were really committed by `>=2/3` of the genesis validator set — without re-verifying any
+  blocks were really committed by `>=2/3` of the genesis validator set (the circuit does not bind the
+  boundary block hashes to `headers[0]` or `headers[count-1]`; the public inputs $h_{first}$, $H_{first}$,
+  $H_{last}$ and $rt_{new}$ and the Go handler make that link) — without re-verifying any
   transaction, keeping constraints low for $O(1)$ verification and constant proof size.
 - Built with Noir/UltraHonk (`circuit/reanchoring/src/main.nr`), Poseidon2 t=4 as the chaining hash
   (`hash_header`), standard knowledge soundness.
@@ -30,7 +33,7 @@ state. Three architectures were evaluated:
 | (a) Continuity | $H_{k+i+1}$.`prev_hash` $= \mathrm{hash\_header}(H_{k+i})$ | No injected or reordered blocks |
 | (b) Mode-label consistency | $H_{k+i}$.`fsm_state` $\in \{\texttt{SOVEREIGN},\texttt{RECOVERING}\}$ | Every recorded state in the interval is one of the two; transitions are not checked against the transition function |
 | (c) Lock-flag consistency | $H_{k+i}$.`withdrawal_locked` $= \mathrm{true}$ | Every recorded lock flag is set; the flag is the chain's own record, so this does not show that no withdrawal executed |
-| (d) Root binding | $H_{k+1}$.`prev_hash` $=rt_{last}$, $\mathrm{hash\_header}(H_{k+n}) = rt_{new}$ | Endpoints bound to the on-chain accumulator, not a free witness value |
+| (d) Root binding | $H_{k+1}$.`prev_hash` $=rt_{last}$, $\mathrm{hash\_header}(H_{k+n}) = rt_{new}$ | Endpoints bound to the public inputs $rt_{last}$ and $rt_{new}$; the on-chain accumulator check is made by `SubmitRecoveryProof`, not by the circuit |
 | (e) Boundary signatures | `>=2/3` voting power's real ed25519 precommits over each boundary block, against a validator set matching a real Merkle root | Interval's two endpoints are real committed CometBFT blocks, not a fabricated chain |
 
 Notes:
@@ -42,7 +45,9 @@ Notes:
   prover can't fabricate any header without changing `rt_new`, and only real `CommitFSMTransition`
   execution (`x/sovereignty/preblock.go`) can ever advance the on-chain accumulator to a value
   `SubmitRecoveryProof` accepts. Condition (e) then ties just the two *endpoints* to real signed
-  blocks — the whole interval is bound to real history at the cost of 2 blocks' signatures, not
+  blocks — the whole interval is bound to real history, through the public-input comparison made by
+  `SubmitRecoveryProof` (the circuit alone ties neither the headers to the blocks nor the blocks to the
+  chain's record), at the cost of 2 blocks' signatures, not
   $N_{max}$'s worth.
 - $n$ (`count`) is capped at a compile-time ceiling $N_{max} = 256$; longer intervals chain a
   rolling sequence of proofs, each starting where the last left off, `count` checked against the

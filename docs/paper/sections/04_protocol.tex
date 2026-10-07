@@ -529,9 +529,12 @@ chain recorded in the header. (Appendix~\ref{app:backend} lists five conditions
 (a)--(e); (a), (b) and (c) here correspond to its (a) with (d), (b) with (c), and (e).)
 
 \textbf{Intended verifier.} A CometBFT quorum certificate shows that a quorum
-signed a block. The recovery proof adds a statement about the interval
-between two signed blocks: every recorded state in it is \textsc{Sovereign}
-or \textsc{Recovering} with the lock flag set. This matters to a verifier that
+signed a block. The recovery proof adds a statement about the headers
+that the chain recorded between two signed blocks: each records \textsc{Sovereign}
+or \textsc{Recovering} with the lock flag set. The circuit does not tie the header
+chain to the two signed blocks; the public inputs do, and a verifier must compare
+them with its own record of the roots, the height of the first block and the hashes
+of the two boundary blocks. This matters to a verifier that
 does not replay the chain, such as a bridge or light client on another chain,
 a node syncing from genesis, or a Bitcoin observer
 (Section~\ref{subsec:security-semantics}). For validators, which already hold
@@ -584,10 +587,11 @@ edge, so \textsc{Recovering}$\to$\textsc{Anchored} cannot occur before block
 $h{+}2$.
 \texttt{ProcessProposal} does not verify the proof itself.
 
-\textbf{Resulting guarantee.} The recovery proof guarantees, to anyone who
-verifies it, that (i) the recorded headers of the \textsc{Sovereign} interval
-form a single hash chain between two boundary blocks signed by at least two
-thirds of the voting power, and (ii) every recorded state is
+\textbf{Resulting guarantee.} The recovery proof guarantees, to a verifier that
+also checks its public inputs against its own record, as the validators' message
+handler does, that (i) the recorded headers of the \textsc{Sovereign} interval
+form a single hash chain whose end points are two boundary blocks signed by at
+least two thirds of the voting power, and (ii) every recorded state is
 \textsc{Sovereign} or \textsc{Recovering} with the lock flag set. Because the
 lock flag is the chain's own record, (ii) does not prove that no withdrawal
 executed. The proof does not make the interval's \emph{ordering} secure
