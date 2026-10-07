@@ -302,10 +302,20 @@ the single-chunk and aggregation timings, which exceeds the bound of 128
 blocks used in our experiments. Going below it needs faster proving of each chunk, for example on
 dedicated multi-core machines or with hardware acceleration such as GPUs. The
 aggregation step still needs all chunk proofs on one machine. We measured neither
-parallel proving nor hardware acceleration. Whether the prover keeps up with
-block production is therefore open: aggregation makes the proof verifiable at a
-cost that does not depend on the interval, and keeping the unproven tail within
-the bound requires a faster or a parallel prover. The validators verify the
+hardware acceleration nor concurrent proving: the host had 8.7\,GiB free once the
+testbed was stopped, below the 13\,GiB that two concurrent provers need. What we
+did measure, with the testbed stopped, is the sequential cost on this ten-core
+host: a 512-header aggregate, two leaf proofs and the aggregation one after the
+other on all cores, took 52.7 and 52.2\,s in two runs (the leaf proofs 38 and
+36\,s together, the aggregation 14 and 16\,s), about 42 blocks at 0.8 blocks per
+second, inside the bound of 128. The 4.3--6.6 minutes of the live deployment were
+measured while the validators ran on the same cores, and the 31.5\,s per leaf proof
+of Appendix~\ref{app:aggregation} on the same workstation at another time, so these
+latencies depend on the load of the host. Whether the prover keeps up with block
+production therefore depends on whether it has cores of its own: aggregation makes
+the proof verifiable at a cost that does not depend on the interval, and keeping the
+unproven tail within the bound requires a prover that is not competing with the
+validators. The validators verify the
 submitted proof during block execution, so the verification cost does not change
 with how the proof was built.
 

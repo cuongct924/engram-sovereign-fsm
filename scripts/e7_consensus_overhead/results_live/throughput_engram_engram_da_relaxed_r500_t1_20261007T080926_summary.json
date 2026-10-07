@@ -1,0 +1,63 @@
+{
+  "arm": "engram",
+  "tag": "engram_da_relaxed_r500_t1",
+  "duration_s": 60.0,
+  "payload_bytes": 32,
+  "senders": 8,
+  "cells": {
+    "500.0": {
+      "n": 1,
+      "achieved_offered_tx_s": {
+        "mean": 500.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "committed_tx_s": {
+        "mean": 500.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "committed_over_offered": {
+        "mean": 1.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p50_s": {
+        "mean": 1.3848199844360352,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p95_s": {
+        "mean": 3.442030906677246,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p99_s": {
+        "mean": 4.304881811141968,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "mempool_max": {
+        "mean": 2337.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "validator_cpu_pct_max": {
+        "mean": 45.46,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "block_interval_s": {
+        "mean": 1.617320323476986,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "tx_per_block": {
+        "mean": 655.26,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "saturated_runs": 0
+    }
+  }
+}

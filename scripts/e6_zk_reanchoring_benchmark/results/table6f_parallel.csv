@@ -1,0 +1,9 @@
+date,host_ncpu,L,chunks,phase,provers,threads_each,wall_s,peak_mb_max,detail
+2026-10-07,10,512,2,witness_prep,1,1,75.857,0,go run plus nargo execute, all chunks one after another
+2026-10-07,10,512,2,leaf_sequential,1,10,38.241,4889,sum of 2 leaf proofs
+2026-10-07,10,512,2,aggregation,1,10,14.417,4471,verified
+2026-10-07,10,512,2,total_sequential,1,10,52.66,0,tail_blocks=42 at 0.8 blocks/s
+2026-10-07,10,512,2,witness_prep,1,1,74.644,0,go run plus nargo execute, all chunks one after another
+2026-10-07,10,512,2,leaf_sequential,1,10,35.899,5595,sum of 2 leaf proofs
+2026-10-07,10,512,2,aggregation,1,10,16.273,4490,verified
+2026-10-07,10,512,2,total_sequential,1,10,52.17,0,tail_blocks=42 at 0.8 blocks/s

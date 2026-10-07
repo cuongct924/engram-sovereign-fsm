@@ -850,7 +850,16 @@ state. The peer-latency sensor read round-trip times of up to 1.2\,s between
 validators under this load in the first Engram arm, above the 200\,ms bound, so we repeated the sweep
 with the bound raised to 5000\,ms. The chain still left \textsc{Anchored}:
 the share was 0.83 at 100\,tx/s, 0.13 at 200\,tx/s and 0 at 500\,tx/s, so the
-peer-latency bound is not the only reason, and we did not identify the others.
+peer-latency bound is not the only reason. A second candidate is the DA
+check: under load its RPC may exceed its timeout and read as a failed layer. We
+repeated the runs at 200 and 500\,tx/s on fresh deployments, three each, with the
+DA RPC timeout raised to 90\,s and the DA check timeout to 2.5\,s, against three
+runs with the defaults. The share of samples in \textsc{Anchored} rose from 0.68 to
+0.75 at 200\,tx/s and from 0.36 to 0.80 at 500\,tx/s, where the default runs also
+reached \textsc{Sovereign} and the relaxed ones did not; the relaxed runs still
+left \textsc{Anchored}, so the DA timeouts explain part of the departure and not
+all of it. In the relaxed runs at 500\,tx/s the p95 latency was 3.1--4.6\,s and the
+peak validator CPU was 41--46\% (three runs).
 That arm had lower latency than the default one (p95 1.9 against 3.8\,s at
 200\,tx/s) and was still above vanilla. We therefore cannot separate the cost of
 the consensus extension from the effect of a demoted FSM above 100\,tx/s on
