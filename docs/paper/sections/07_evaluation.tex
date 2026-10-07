@@ -263,8 +263,11 @@ longest gap of 6.6--6.8\,s and rounds up to 21 (12 under checkpoint suspension),
 against 96--102\% for Engram. The in-band baseline is similar: under a DA outage
 it commits 23 blocks in 180\,s, 16\% of its healthy rate, with proposals
 reaching round 21, and the combined fault is the same; under checkpoint
-suspension it slows to 56\% (74 blocks, round 12). The receipt tolerance widens
-with the round up to a cap, so stale checkpoints are admitted for a while.
+suspension it slows to 56\% (74 blocks, round 12).
+\pending{the checkpoint-pause and combined rows of the in-band, Engram and soft
+systems were measured before the Bitcoin receipt tolerance was capped on 4
+October, the out-of-band rows after it; rerun the former so that the four systems
+share one tolerance, then explain the checkpoint-pause rates.}
 
 \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in

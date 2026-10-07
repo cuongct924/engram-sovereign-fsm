@@ -442,6 +442,9 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   they would across independent nodes, and we did not inject disagreement between
   them. Neither baseline can run while a layer is down, by construction, and
   neither locks withdrawals.
+  \item \emph{Receipt parameters.} The base threshold $K_{\text{DEEP\_FINALITY}} + 2$
+  and the widening caps are fixed design parameters, and the evaluation does not
+  vary them.
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput

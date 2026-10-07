@@ -474,8 +474,7 @@ certificate already agreed upon.
 
 The tolerances are deterministic functions of the round $r$ and genesis
 parameters, so every validator computes the same bounds. Each is a base
-threshold plus a widening $w_r$ that is capped, so no number of round skips
-enlarges it beyond its maximum. A DA receipt may lag the Engram height by
+threshold plus a widening $w_r$ that is capped. A DA receipt may lag the Engram height by
 $\tau_{\text{DA}} = \Theta_{\text{DA}} + w^{\text{DA}}_r$ Engram blocks, where
 $\Theta_{\text{DA}}$ is the DA threshold and $w^{\text{DA}}_r = 0$ for
 $r \le 1$, $2$ for $r = 2$, and $4$ for $r \ge 3$. A Bitcoin receipt's
@@ -483,7 +482,10 @@ checkpoint height may lag the Bitcoin tip by
 $\tau_{\text{BTC}} = K_{\text{DEEP\_FINALITY}} + 2 + w^{\text{BTC}}_r$ Bitcoin
 blocks, where $w^{\text{BTC}}_r = 0$ for $r \le 2$ and $1$ for $r \ge 3$. The
 base $K_{\text{DEEP\_FINALITY}} + 2$ is the depth a confirmed checkpoint
-already lags the tip plus two blocks of propagation slack.
+already lags the tip plus two blocks of propagation slack. Both widenings are
+capped, so $\tau_{\text{BTC}} \le K_{\text{DEEP\_FINALITY}} + 3$ Bitcoin blocks and
+$\tau_{\text{DA}} \le \Theta_{\text{DA}} + 4$ Engram blocks at every round: a height
+that skips many rounds does not admit a staler receipt than one that skips three.
 Theorem~\ref{thm:withdrawal} takes both tolerances at the round in which
 $B_h$ committed.
 

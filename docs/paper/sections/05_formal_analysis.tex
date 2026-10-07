@@ -254,6 +254,11 @@ state satisfying the state constraint explored, so it is the diameter of the
 constrained state graph and not a cap. Hardware: Apple M1 Pro, 10 cores, 32\,GB RAM.
 \end{table}
 
+\pending{rerun the rows of Table~\ref{tab:formal-verification} on the current
+specification: the Tendermint safety row after the Bitcoin threshold was added
+(3{,}698{,}323 states generated, 525{,}544 distinct, depth 25, no violation, time
+not recorded) and the FSM rows after the adaptive-threshold and GST changes.}
+
 Table~\ref{tab:formal-verification} reports the per-layer results, each
 obtained by running that layer's own driver standalone at the configuration of
 Table~\ref{tab:formal-config}. All three runs found zero violations in their
