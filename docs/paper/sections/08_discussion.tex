@@ -60,11 +60,11 @@ the attacker's cost of sustaining it are not quantified.
 
 \textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
 \textsc{Recovering} already raises the price of forcing repeated failed
-recoveries. Without the adaptive threshold of Section~\ref{subsec:rq3}, the
+recoveries. Without the adaptive threshold of Appendix~\ref{app:adaptive}, the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
 protection beyond the bounded forced-transaction queue; the adaptive
 threshold is meant to close this asymmetry. In the simulation of
-Section~\ref{subsec:rq3} it absorbs a naive repeated adversary (1 demotion in
+Appendix~\ref{app:adaptive} it absorbs a naive repeated adversary (1 demotion in
 1200 blocks against 300 for a static threshold of 2) but gains little over a
 static threshold of 4. Live, the adaptive threshold suppressed flapping under
 changing noise only with a long stable window and never better than a static
