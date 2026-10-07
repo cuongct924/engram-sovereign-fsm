@@ -305,7 +305,7 @@ withdrawals after that moment under DA faults (in-band) or 6--9 (out-of-band) an
 admit withdrawal-marked transactions while degraded, as the soft baseline does, so
 the low count after the lock moment reflects how few blocks they commit, not a
 safeguard. Engram's cost shows in the
-last column: it committed 18--19 withdrawals before locking under DA faults and
+last column: it committed 18--20 withdrawals before locking under DA faults and
 45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
 leave \textsc{Anchored} for \textsc{Sovereign}. These counts follow from the
 workload (one withdrawal-marked transaction every 2\,s) and from Bitcoin running
@@ -357,10 +357,10 @@ runs the height advanced throughout (from 373--387 to 747--760), the
 validators agreed on the AppHash at every sampled height (zero divergent
 heights; one RPC error in one run), and the chain ended in \textsc{Anchored}.
 It reached \textsc{Sovereign} 39--52\,s after the start (mean 44.2\,s, 95\% CI
-$\pm$9.2\,s over five runs, Student $t$), four of the five passing through
+$\pm$6.5\,s over five runs, Student $t$), four of the five passing through
 \textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 312--325\,s in,
 after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
-$\pm$17.0\,s), against 3\,s in the first run; most of that time is the cost of
+$\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
 \pending{repeat the seven-scenario run ($\geq 5$ trials) and report its
@@ -437,18 +437,18 @@ in-process (101 blocks, noise probability 0.2, seed 11, one run per threshold)}
 \toprule
 \textbf{Threshold} & 1 & 2 & 4 & 6 & 8 \\
 \midrule
-Flapping (count)     & 31 & 1 & 1 & 0 & 0 \\
-Anchored uptime (\%) & 61.39 & 96.04 & 98.02 & 100.00 & 100.00 \\
-Absorption rate (\%) & 0.00 & 94.74 & 95.24 & 100.00 & 100.00 \\
+Flapping (count)     & 5 & 1 & 1 & 0 & 0 \\
+Anchored uptime (\%) & 92.08 & 96.04 & 98.02 & 100.00 & 100.00 \\
+Absorption rate (\%) & 84.21 & 94.74 & 95.24 & 100.00 & 100.00 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 On the \textsc{Anchored}$\to$\textsc{Suspicious} edge
 (Table~\ref{tab:hysteresis-down}), raising the down-hysteresis
-threshold from 1 to 4 collapses flapping from 31 events to 1 and raises
-anchored uptime from 61.4\% to 98.0\%, and the absorption rate saturates
-near 100\% by threshold 4--6. The live spot-check changes the conclusion. Under wide-area jitter alone,
+threshold from 1 to 4 reduces flapping from 5 events to 1 and raises
+anchored uptime from 92.1\% to 98.0\%, and the absorption rate rises from
+84.2\% to 95.2\% and reaches 100\% at threshold 6. The live spot-check changes the conclusion. Under wide-area jitter alone,
 with no injected fault, thresholds 1, 2, and 4 still flapped, and only
 thresholds $\geq 6$ were clean (0 flaps, 100\% uptime). The later live runs do not
 repeat this for $k{=}4$: it did not flap in the stationary sweep (one run,
@@ -487,7 +487,7 @@ chain accepted the prover's proofs (seven in one deployment). A 256-header proof
 takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
 the tail was always longer than the bound. With the bound raised to 128 blocks
 the chain left \textsc{Recovering} 341--356\,s after entering it in each of five
-runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$11.5\,s), the first valid proof
+runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$8.1\,s), the first valid proof
 being accepted 341--353\,s in (recorded in three of the five). The time is
 mostly the wait for the prover's batch of 256 headers and its build time, not
 the 68--73 blocks of the outage interval. The bound must therefore exceed the proving

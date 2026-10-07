@@ -619,14 +619,14 @@ apply, on another:
 
   | Metric | Threshold=1 | Threshold=2 | Threshold=4 | Threshold=6 | Threshold=8 |
   |---|---:|---:|---:|---:|---:|
-  | Flapping | 31 | 1 | 1 | 0 | 0 |
-  | Transitions | 32 | 2 | 2 | 0 | 0 |
+  | Flapping | 5 | 1 | 1 | 0 | 0 |
+  | Transitions | 6 | 2 | 2 | 0 | 0 |
   | WithdrawalBlocked | 0 | 0 | 0 | 0 | 0 |
-  | AnchoredUptime | 61.39% | 96.04% | 98.02% | 100.00% | 100.00% |
-  | TimeOutsideAnchored | 39 | 4 | 2 | 0 | 0 |
-  | DemotionCount | 16 | 1 | 1 | 0 | 0 |
-  | AbsorbedEvents | 0 | 18 | 20 | 21 | 21 |
-  | AbsorptionRate | 0.00% | 94.74% | 95.24% | 100.00% | 100.00% |
+  | AnchoredUptime | 92.08% | 96.04% | 98.02% | 100.00% | 100.00% |
+  | TimeOutsideAnchored | 8 | 4 | 2 | 0 | 0 |
+  | DemotionCount | 3 | 1 | 1 | 0 | 0 |
+  | AbsorbedEvents | 16 | 18 | 20 | 21 | 21 |
+  | AbsorptionRate | 84.21% | 94.74% | 95.24% | 100.00% | 100.00% |
 
   Live spot-check (5×2: DHT ∈ {1,2,4,6,8} × {stable, noisy_da}, 300s/run, real 7-node cluster):
 
