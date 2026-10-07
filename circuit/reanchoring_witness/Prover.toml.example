@@ -9,7 +9,7 @@
 # in sync (both use the raw Poseidon2 t=4 permutation, not a sponge -- see main.nr's own doc).
 # The rest of this crate's raw_fsm_state/raw_withdrawal_locked/raw_state_root pattern is this
 # example's own standalone data, not required to match reanchoring's fixture beyond header 0 --
-# this crate has no header-chain/FSM-legality assertions of its own (main.nr's doc: it only
+# this crate has no header-chain/mode-label assertions of its own (main.nr's doc: it only
 # derives prev_hash, never validates it). Verified via a real `nargo execute` pass this session
 # (prints real Header lines + `rt_new_hash=0x12acee0f8c68d5afd5c95f48e66cc48f2380a0eb9a9fdc5603be334dd63b8f69`).
 #

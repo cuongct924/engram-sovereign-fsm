@@ -10,7 +10,7 @@
 # header-chain continuity via a raw Poseidon2 t=4 permutation per header
 # (p3-poseidon2-air's Poseidon2Air, matching main.nr's own hash_header
 # construction -- see that crate's header.rs module doc for the BabyBear-
-# vs-BN254 field caveat), FSM-state/withdrawal-lock legality, and root
+# vs-BN254 field caveat), mode-label/lock-flag consistency, and root
 # binding to rt_last/rt_new. (Table 6d's n=2..256 numbers before this
 # comment predate this switch and used three chained p3-sha256-air
 # compressions per header instead -- superseded, not comparable.)

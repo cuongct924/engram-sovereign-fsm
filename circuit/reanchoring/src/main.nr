@@ -269,8 +269,8 @@ fn verify_boundary_block(
     assert((signed_power * 3) as u64 >= (total_power * 2) as u64);
 }
 
-// verify_header_chain is main()'s (a)-(d): chain continuity, FSM/
-// withdrawal-lock legality, and root binding -- split out from
+// verify_header_chain is main()'s (a)-(d): chain continuity, mode-label/
+// lock-flag consistency, and root binding -- split out from
 // boundary-signature binding (e) so header-chain-only tests skip 14
 // costly ed25519 verifications per witness-solve.
 fn verify_header_chain(rt_last: Field, rt_new: Field, count: u32, headers: [Header; N_MAX]) {
@@ -285,8 +285,10 @@ fn verify_header_chain(rt_last: Field, rt_new: Field, count: u32, headers: [Head
         assert(!active | (headers[i].prev_hash == hash_header(headers[i - 1])));
     }
 
-    // (b)/(c) FSM legality + withdrawal-lock (E6's C2/C3): every REAL header
-    // must be SOVEREIGN/RECOVERING with withdrawals locked. Same gate.
+    // (b)/(c) Mode-label and lock-flag consistency (E6's C2/C3): every REAL
+    // header must record SOVEREIGN/RECOVERING with the lock flag set. This
+    // checks the recorded labels, not each transition against the transition
+    // function. Same gate.
     for i in 0..N_MAX {
         let active = i < count;
         assert(!active | ((headers[i].fsm_state == 2) | (headers[i].fsm_state == 3)));

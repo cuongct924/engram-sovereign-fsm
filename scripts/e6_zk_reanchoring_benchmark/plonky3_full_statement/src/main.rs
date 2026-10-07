@@ -1,6 +1,6 @@
 //! Plonky3 "full statement" recovery-proof circuit: header-chain continuity
-//! (a raw Poseidon2 t=4 permutation, not a mocked hash), FSM-state/
-//! withdrawal-lock legality, and root binding to rt_last/rt_new -- the same
+//! (a raw Poseidon2 t=4 permutation, not a mocked hash), mode-label/
+//! lock-flag consistency, and root binding to rt_last/rt_new -- the same
 //! (a)-(d) conditions `circuit/reanchoring/src/main.nr`'s
 //! `verify_header_chain` proves, ported to a Plonky3 AIR instead of
 //! Noir/UltraHonk.
@@ -74,7 +74,7 @@ type HeaderPoseidon2Air = Poseidon2Air<
     PARTIAL_ROUNDS,
 >;
 
-/// The AIR: header-chain continuity + FSM/withdrawal-lock legality + root
+/// The AIR: header-chain continuity + mode-label/lock-flag consistency + root
 /// binding, for a fixed `n`-header chain whose endpoints are baked in as
 /// `rt_last`/`rt_new`. See module doc for the exact statement.
 #[derive(Debug, Clone)]
@@ -133,7 +133,7 @@ impl<AB: AirBuilder<F = F>> Air<AB> for HeaderChainAir {
             )
         };
 
-        // (b) FSM-state legality: fsm_state in {2, 3} -- main.nr's condition (b).
+        // (b) Mode-label consistency: fsm_state in {2, 3} -- main.nr's condition (b).
         builder.assert_zero((inputs[1] - AB::F::TWO) * (inputs[1] - AB::F::from_u8(3)));
 
         // (c) withdrawal_locked forced true -- main.nr's condition (c).
@@ -200,7 +200,7 @@ mod tests {
     fn tampered_fsm_state_is_rejected() {
         // Corrupt header 0's fsm_state to a value outside {2, 3} and
         // regenerate its (fully self-consistent) round trace from that --
-        // must be rejected by the fsm_state-legality constraint. Poseidon2
+        // must be rejected by the fsm_state mode-label constraint. Poseidon2
         // has no bit-decomposed bytes to flip a single bit of (unlike the
         // old SHA-256 version): the header field is a raw Field element, so
         // the direct/legible corruption is to set it outside {2, 3} itself.

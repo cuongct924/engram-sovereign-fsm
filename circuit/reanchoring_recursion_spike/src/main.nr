@@ -44,9 +44,8 @@ fn main(
         assert(headers[i].prev_hash == hash_header(headers[i - 1]));
     }
 
-    // (b)/(c) FSM legality + withdrawal-lock invariant (E6's C2/C3): every
-    // header in the interval must be SOVEREIGN/RECOVERING with withdrawals
-    // locked.
+    // (b)/(c) Mode-label and lock-flag consistency (E6's C2/C3): every header
+    // in the interval must record SOVEREIGN/RECOVERING with the lock flag set.
     for i in 0..N {
         assert((headers[i].fsm_state == 2) | (headers[i].fsm_state == 3));
         assert(headers[i].withdrawal_locked == 1);
