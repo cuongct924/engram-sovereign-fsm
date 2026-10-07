@@ -25,7 +25,7 @@ extension; the next proposer aggregates a quorum of them into a
 FSM transition is a deterministic function of that certificate and the
 previously committed FSM state (Fig.~\ref{fig:architecture}).
 
-\begin{figure}[h]
+\begin{figure}[!t]
 \centering
 \definecolor{zoneLocalFill}{RGB}{243,244,246}
 \definecolor{zoneLocalLine}{RGB}{107,114,128}
@@ -531,6 +531,12 @@ $L$ & Submission & Prove & Bytes & Verify \\
 1024 & one by one & 120.1\,s & 58{,}624 & 79.1\,ms \\
 \bottomrule
 \end{tabular}
+\\[2pt]
+\footnotesize Verify is the validators' embedded WebAssembly verifier, per proof (30
+iterations, three runs); the one-by-one rows are $n$ times the leaf cost, and the
+aggregate's proving time includes its leaf proofs. Aggregate proving and verification
+are averaged over five trials per length, each leaf proof was timed once, and the chain
+is synthetic (Appendix~\ref{app:aggregation}).
 \end{table}
 
 The aggregate has a constant size and verification time, and costs more to prove than

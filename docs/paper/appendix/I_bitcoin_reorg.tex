@@ -20,9 +20,9 @@ rounds per trial (1{,}267 samples total, 0 RPC errors).}
 
 \FloatBarrier
 
-Table~\ref{tab:reorg} summarizes the result. Depths 1--5 all orphan real,
-independently-confirmed blocks, yet none of them trip the FSM within the
-observation window: all 7 validators stay \textsc{Anchored} throughout. At
+Table~\ref{tab:reorg} summarizes the result. Depths 2--5 orphan real,
+independently-confirmed blocks (depth 1 is below the finality depth), yet none of them
+trips the FSM within the observation window: all 7 validators stay \textsc{Anchored} throughout. At
 depth~15, all 7 validators transition \textsc{Anchored}$\to$\textsc{Suspicious}
 at $t{=}43$\,s and $\to$\textsc{Sovereign} at $t{=}56$\,s, in lockstep. This
 path rules out a direct critical-condition jump: the FSM's \textsc{Anchored}

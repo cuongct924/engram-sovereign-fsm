@@ -12,28 +12,6 @@ five trials per interval length; each leaf proof was timed once. Absolute times
 are not comparable to Table~\ref{tab:reanchor-scaling}, which was measured on a
 different host.
 
-\begin{table}[h]
-\caption{Chunk aggregation against submitting chunk proofs one by one ($K{=}4$)}
-\label{tab:aggregation}
-\centering
-\footnotesize
-\begin{tabular}{@{}rrrrrrr@{}}
-\toprule
- & \multicolumn{3}{c}{\textbf{One by one}} & \multicolumn{3}{c}{\textbf{Aggregate}} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-$L$ & Prove & Bytes & Verify & Prove & Bytes & Verify \\
-\midrule
-256  & 31.5 s  & 14{,}656 & 19.8 ms & 57.2 s  & 14{,}656 & 20.2 ms \\
-512  & 60.5 s  & 29{,}312 & 39.5 ms & 89.9 s  & 14{,}656 & 20.2 ms \\
-1024 & 120.1 s & 58{,}624 & 79.1 ms & 146.7 s & 14{,}656 & 20.2 ms \\
-\bottomrule
-\end{tabular}
-\\[2pt]
-\footnotesize Verify is the validators' embedded WebAssembly verifier, measured
-per proof (30 iterations, three runs); the one-by-one column is $n$ times the
-leaf cost. Aggregate prove includes the leaf proofs. At $L{=}256$ a single
-leaf proof is submitted and the aggregate row is shown for the overhead only.
-\end{table}
 
 The aggregator verifies the chunk proofs in-circuit and checks that chunk
 $i$ starts at the root and height where chunk $i{-}1$ ended, under the same
@@ -46,7 +24,7 @@ verification of one UltraHonk proof costs about 0.7 million gates, whereas
 hashing one header costs about 12 opcodes: recursion over per-header proofs
 measured 650--1{,}200$\times$ slower than direct hashing at matched sizes.
 
-Table~\ref{tab:aggregation} shows that submitted bytes and verification time of
+Table~\ref{tab:recovery-cost} (Section~\ref{subsec:reanchoring}) shows that submitted bytes and verification time of
 the aggregate do not depend on $L$ up to $K \cdot 256 = 1024$, while the
 one-by-one cost grows linearly. The price is one extra proof: the aggregator
 circuit has 3{,}002{,}299 gates and proves in 25.7--29.5\,s using about 5.2\,GB,
