@@ -512,21 +512,20 @@ range of $n \leq N_{\max} = 256$ headers starting from the last anchored root
 $\mathit{rt}_{\text{last}}$. A header is the tuple $(\mathit{prev\_hash},
 \mathit{fsm\_state}, \mathit{withdrawal\_locked}, \mathit{state\_root})$,
 where $\mathit{state\_root}$ is CometBFT's application hash for that block.
-The circuit checks that (a) each header's $\mathit{prev\_hash}$ equals the
-Poseidon2 hash of its predecessor, the first links to $\mathit{rt}_{\text{last}}$,
-and the hash of the last header equals the claimed $\mathit{rt}_{\text{new}}$;
-(b) every header has $\mathit{fsm\_state}$ in \{\textsc{Sovereign},
-\textsc{Recovering}\} and $\mathit{withdrawal\_locked}$ set; and (c) the first
-and last blocks of the range carry ed25519 precommit signatures (round 0) from
-at least two thirds of the voting power of a validator set whose hash is a
-public input (the compiled circuit fixes the set size at seven). Unused
-slots are padding, so proving time, verification time, and proof size are
-constant in $n$ (Appendix~\ref{app:backend}). In short, the circuit proves
-header-chain continuity and root binding (a), mode-label and lock-flag
-consistency (b), and boundary quorum certification (c). It does
-not check each transition against $\delta$, and the lock flag is the one the
-chain recorded in the header. (Appendix~\ref{app:backend} lists five conditions
-(a)--(e); (a), (b) and (c) here correspond to its (a) with (d), (b) with (c), and (e).)
+The circuit checks five conditions. (a) Each header's
+$\mathit{prev\_hash}$ is the Poseidon2 hash of its predecessor. (b) Every header
+records $\mathit{fsm\_state}$ in \{\textsc{Sovereign}, \textsc{Recovering}\}. (c) Every
+header records $\mathit{withdrawal\_locked}$ set. (d) The first header links to
+$\mathit{rt}_{\text{last}}$, and the hash of the last header equals the claimed
+$\mathit{rt}_{\text{new}}$. (e) The first and the last block of the range carry
+ed25519 precommit signatures (round 0) from at least two thirds of the voting power
+of a validator set whose hash is a public input (the compiled circuit fixes the set
+size at seven). Unused slots are padding, so proving time, verification time, and
+proof size are constant in $n$ (Appendix~\ref{app:backend}). In short, the circuit
+proves header-chain continuity and root binding (a, d), mode-label and lock-flag
+consistency (b, c), and boundary quorum certification (e). It does not check each
+transition against $\delta$, and the lock flag is the one the chain recorded in the
+header.
 
 \textbf{Intended verifier.} A CometBFT quorum certificate shows that a quorum
 signed a block. The recovery proof adds a statement about the headers
