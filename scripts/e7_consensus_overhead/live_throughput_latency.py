@@ -29,6 +29,9 @@ process spun up by this script):
     python3 -u scripts/e7_consensus_overhead/live_throughput_latency.py --ramp --senders 4
 """
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "framework"))
+from stats import ci95_halfwidth  # noqa: E402
 import json
 import os
 import subprocess
@@ -244,7 +247,7 @@ def mean_stdev_ci95(values):
         return m, 0.0, 0.0
     var = sum((v - m) ** 2 for v in values) / (n - 1)
     stdev = var ** 0.5
-    ci95 = 1.96 * stdev / (n ** 0.5)
+    ci95 = ci95_halfwidth(stdev, n)
     return m, stdev, ci95
 
 

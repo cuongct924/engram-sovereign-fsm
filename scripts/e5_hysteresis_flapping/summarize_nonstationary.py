@@ -11,6 +11,9 @@ Means with 95% intervals (normal approximation: hundreds of seeds). -1 = not det
     python3 scripts/e5_hysteresis_flapping/summarize_nonstationary.py
 """
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "framework"))
+from stats import ci95_halfwidth  # noqa: E402
 import csv
 import os
 import statistics as st
@@ -26,7 +29,7 @@ def ms(vals, nd=2):
     if not vals:
         return "--"
     m = st.mean(vals)
-    ci = 1.96 * st.stdev(vals) / len(vals) ** 0.5 if len(vals) > 1 else 0.0
+    ci = ci95_halfwidth(st.stdev(vals), len(vals)) if len(vals) > 1 else 0.0
     return f"{m:.{nd}f} ± {ci:.{nd}f}"
 
 

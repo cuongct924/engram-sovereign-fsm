@@ -11,6 +11,9 @@ Prints the numbers the text quotes next to the table.
     python3 scripts/e5_hysteresis_flapping/make_adaptive_sim_table.py
 """
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "framework"))
+from stats import ci95_halfwidth  # noqa: E402
 import csv
 import os
 import statistics as st
@@ -26,7 +29,7 @@ ROWS = [("static2", r"static $k{=}2$"), ("static4", r"static $k{=}4$"),
 
 def mean_ci(vals, nd=1):
     m = st.mean(vals)
-    ci = 1.96 * st.stdev(vals) / len(vals) ** 0.5
+    ci = ci95_halfwidth(st.stdev(vals), len(vals))
     return f"{m:.{nd}f} $\\pm$ {ci:.{nd}f}"
 
 

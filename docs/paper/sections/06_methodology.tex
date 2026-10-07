@@ -310,7 +310,8 @@ are intervals over deployments. A \emph{repeat} is a further measurement on the
 chain of an earlier one (the repeats of Table~\ref{tab:overhead} share a
 deployment, so their interval describes one chain). An \emph{arm} is one
 system configuration that a table compares with the others. The number of runs
-is written out wherever it matters.
+is written out wherever it matters. Every 95\% interval over runs uses the Student $t$
+critical value for the number of runs (for example 2.78 for five), not 1.96.
 
 Let a run record the FSM state $s_b$ of every block $b$ in a window $W$.
 \begin{itemize}

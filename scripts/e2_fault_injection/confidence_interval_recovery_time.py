@@ -20,6 +20,9 @@ Usage:
     s7_recovery.csv before the next repeat overwrites it)
 """
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "framework"))
+from stats import ci95_halfwidth  # noqa: E402
 import argparse
 import csv
 import os
@@ -43,7 +46,7 @@ def mean_stdev_ci95(values):
         return m, 0.0, 0.0
     var = sum((v - m) ** 2 for v in values) / (n - 1)
     stdev = var ** 0.5
-    return m, stdev, 1.96 * stdev / (n ** 0.5)
+    return m, stdev, ci95_halfwidth(stdev, n)
 
 
 def recovery_time_from_csv(path: str) -> float:

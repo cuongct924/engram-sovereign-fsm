@@ -332,10 +332,10 @@ runs the height advanced throughout (from 373--387 to 747--760), the
 validators agreed on the AppHash at every sampled height (zero divergent
 heights; one RPC error in one run), and the chain ended in \textsc{Anchored}.
 It reached \textsc{Sovereign} 39--52\,s after the start (mean 44.2\,s, 95\% CI
-$\pm$6.5\,s over five runs), four of the five passing through
+$\pm$9.2\,s over five runs, Student $t$), four of the five passing through
 \textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 312--325\,s in,
 after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
-$\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
+$\pm$17.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
 \pending{repeat the seven-scenario run ($\geq 5$ trials) and report its
@@ -459,7 +459,7 @@ chain accepted the prover's proofs (seven in one deployment). A 256-header proof
 takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
 the tail was always longer than the bound. With the bound raised to 128 blocks
 the chain left \textsc{Recovering} 341--356\,s after entering it in each of five
-runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$8.1\,s), the first valid proof
+runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$11.5\,s), the first valid proof
 being accepted 341--353\,s in (recorded in three of the five). The time is
 mostly the wait for the prover's batch of 256 headers and its build time, not
 the 68--73 blocks of the outage interval. The bound must therefore exceed the proving
