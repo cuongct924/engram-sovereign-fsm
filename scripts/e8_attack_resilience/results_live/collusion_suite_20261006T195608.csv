@@ -1,0 +1,4 @@
+case,pass,trial,blocks_advanced,byz_proposed_heights,byz_proposer_share,byzantine,checks,divergence_events,note,rejects,replay_kinds,replay_violations,replayed_blocks,safety_replay_ok,transitions
+b8,True,1,32,0,0.0,,"{""liveness"": true, ""replay_clean"": true, ""safety_held"": true}",0,"transitions are measured, not asserted: a majority really seeing degradation may legitimately move the FSM",{},{},0,821,True,SOVEREIGN
+b8,True,2,27,0,0.0,,"{""liveness"": true, ""replay_clean"": true, ""safety_held"": true}",0,"transitions are measured, not asserted: a majority really seeing degradation may legitimately move the FSM",{},{},0,900,True,"RECOVERING,SOVEREIGN"
+b8,True,3,27,0,0.0,,"{""liveness"": true, ""replay_clean"": true, ""safety_held"": true}",0,"transitions are measured, not asserted: a majority really seeing degradation may legitimately move the FSM",{},{},0,981,True,
