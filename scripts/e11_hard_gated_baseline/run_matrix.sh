@@ -57,11 +57,12 @@ for mode in $MODES; do
 		# A hard-gated chain that stalls under a fault does not resume by itself after the fault ends (the
 		# fresh checkpoint it needs is derived from blocks it can no longer commit), so every fault, and
 		# every trial, starts from a fresh deployment. The other modes recover and share one deployment.
-		if [ "$first" = "1" ] || [ "$mode" = "hard-gated" ]; then
+		case "$mode" in hard-gated*) gated=1 ;; *) gated=0 ;; esac
+		if [ "$first" = "1" ] || [ "$gated" = "1" ]; then
 			deploy_mode "$mode" || true
 			first=0
 		fi
-		if [ "$mode" = "hard-gated" ]; then
+		if [ "$gated" = "1" ]; then
 			for t in $(seq "$FIRST_TRIAL" "$TRIALS"); do
 				python3 -u "$HERE/live_hard_gated_vs_engram.py" --mode "$mode" --fault "$fault" --first-trial "$t" --trials "$t" || true
 				[ "$t" -lt "$TRIALS" ] && { deploy_mode "$mode" || true; }

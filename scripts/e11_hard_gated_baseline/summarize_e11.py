@@ -22,10 +22,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 RESULTS_LIVE = os.path.join(HERE, "results_live")
 OUT_DIR = os.path.join(HERE, "results")
-MODES = ["hard-gated", "engram", "soft"]
+MODES = ["hard-gated", "hard-gated-oob", "engram", "soft"]
 FAULTS = ["btc", "da", "both"]
 FAULT_LABEL = {"btc": "Checkpoint-submission pause", "da": "DA outage", "both": "Both"}
-MODE_COLOR = {"hard-gated": "#d62728", "engram": "#1f77b4", "soft": "#ff7f0e"}
+MODE_COLOR = {"hard-gated": "#d62728", "hard-gated-oob": "#8c564b", "engram": "#1f77b4", "soft": "#ff7f0e"}
 
 
 def num(v):

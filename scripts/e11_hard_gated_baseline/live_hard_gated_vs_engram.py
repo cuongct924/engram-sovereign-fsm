@@ -180,7 +180,7 @@ def wait_ready(mode: str, timeout_s: float) -> bool:
             time.sleep(6)
             advancing = latest_height() > h0
             states = {n: query_node(n).fsm_state for n in NODES}
-            if advancing and (mode == "hard-gated" or all(s == "ANCHORED" for s in states.values())):
+            if advancing and (mode.startswith("hard-gated") or all(s == "ANCHORED" for s in states.values())):
                 return True
             print(f"[{now()}] waiting for readiness: advancing={advancing} states={states}")
         except Exception as e:  # noqa: BLE001
@@ -279,7 +279,7 @@ def run_trial(args, trial: int) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--mode", required=True, choices=["hard-gated", "engram", "soft"])
+    ap.add_argument("--mode", required=True, choices=["hard-gated", "hard-gated-oob", "engram", "soft"])
     ap.add_argument("--fault", required=True, choices=["btc", "da", "both"])
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--first-trial", type=int, default=1, help="resume a series: number of the first trial to run")
