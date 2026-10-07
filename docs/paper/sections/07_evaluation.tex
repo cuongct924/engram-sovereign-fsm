@@ -86,7 +86,7 @@ AppHash agreement, and the honest-range check, not by whether a transition occur
 
 \begin{table}[h]
 \caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
-reruns; B8 is one run of an honest split view with no adversary; c0 is the control)}
+reruns; B8 is one run of an honest split view with no adversary \pending{three runs queued}; c0 is the control)}
 \label{tab:f2}
 \centering
 \scriptsize
@@ -209,6 +209,8 @@ stalls through the cascade or the recovery.}
 \label{fig:a4-cascade}
 \end{figure}
 
+\pending{three repeats of A1, P3 and P4 are queued on Testbed~A; P3 and P4 above are single trials.}
+
 P3 and P4 are two outcomes of one mechanism. The same kind of
 sensor-confirmed degradation is ignored when a minority observes it and
 drives a bounded cascade when all validators do, as Lemma~\ref{lem:honest-range} predicts: a
@@ -228,8 +230,9 @@ of fault and 120\,s of recovery, with a withdrawal-marked transaction sent every
 2\,s; each cell of Table~\ref{tab:rq2} has three trials. Both
 receipt-gated baselines are redeployed for every trial, because the in-band one
 does not recover on its own in our implementation (below).
-Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
-(Section~\ref{subsec:reanchoring}).
+Engram and the soft baseline recover through proof-only re-anchoring with an
+unproven-tail bound of 128 blocks (Section~\ref{subsec:reanchoring}); the
+receipt-gated baselines have no recovery mode, since their FSM stays \textsc{Anchored}.
 
 \begin{table}[h]
 \caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
@@ -242,8 +245,8 @@ receipt-gated one in which each validator reads the layers itself
 (``direct-read receipts''). The last two columns count withdrawals committed
 after and before the moment Engram's circuit breaker locks, 117\,s (checkpoint
 pause), 41\,s (DA outage) and 43\,s (both) after the fault begins; the same
-window is applied to every system. Recovery is proof-only with an unproven-tail
-bound of 128 blocks.}
+window is applied to every system. Engram and the soft baseline recover through
+proof-only re-anchoring with an unproven-tail bound of 128 blocks.}
 \label{tab:rq2}
 \centering
 \footnotesize
@@ -443,7 +446,11 @@ threshold from 1 to 4 collapses flapping from 31 events to 1 and raises
 anchored uptime from 61.4\% to 98.0\%, and the absorption rate saturates
 near 100\% by threshold 4--6. The live spot-check changes the conclusion. Under wide-area jitter alone,
 with no injected fault, thresholds 1, 2, and 4 still flapped, and only
-thresholds $\geq 6$ were clean (0 flaps, 100\% uptime). The default of 2
+thresholds $\geq 6$ were clean (0 flaps, 100\% uptime). The later live runs do not
+repeat this for $k{=}4$: it did not flap in the stationary sweep (one run,
+Table~\ref{tab:adaptive-live}) nor in the six three-phase runs
+(Table~\ref{tab:nonstationary-live}), whereas the spot-check is a single run on
+one noise period, so we weigh the later runs more. The default of 2
 used in the other experiments is therefore too low for WAN conditions; the
 other experiments did not count flaps and cannot be taken as evidence to
 the contrary. A static default must trade reaction time (low $k$) against
@@ -864,9 +871,10 @@ in \textsc{Anchored} and was recorded for the third arm only.}
 \resizebox{\linewidth}{!}{\input{results/throughput_table}}
 \end{table}
 
-At low and medium load the addition of Engram is a few percent of the block
-interval (Table~\ref{tab:overhead}); at high load latency grows and the FSM can
-leave \textsc{Anchored}, as follows. The Engram figures above 100\,tx/s are not a steady \textsc{Anchored}
+At 20\,tx/s the addition of Engram is a few percent of the block
+interval (Table~\ref{tab:overhead}); as the load grows, latency grows and the FSM
+leaves \textsc{Anchored} for part of the time, already at 100\,tx/s, as follows. The
+Engram figures from 100\,tx/s upward are not a steady \textsc{Anchored}
 state. The peer-latency sensor read round-trip times of up to 1.2\,s between
 validators under this load in the first Engram arm, above the 200\,ms bound, so we repeated the sweep
 with the bound raised to 5000\,ms. The chain still left \textsc{Anchored}:

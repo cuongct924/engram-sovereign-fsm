@@ -48,8 +48,10 @@ suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 \label{subsec:environment}
 
 All results come from one environment, Testbed~A: the seven-validator Docker
-deployment above on a single host. Every table and figure in
-Section~\ref{sec:evaluation} is a Testbed~A measurement.
+deployment above on a single host. Unless stated otherwise, the live
+tables and figures of Section~\ref{sec:evaluation} are Testbed~A measurements; the
+in-process simulations, the microbenchmarks and the offline prover measurements of
+Appendix~\ref{app:aggregation} are labelled as such.
 \iftestbedB A second environment, Testbed~B, with one validator on each of
 seven cloud virtual machines, serves the experiments that depend on real
 wide-area conditions; results from the two environments are never pooled into
@@ -109,7 +111,7 @@ vote extensions: in \texttt{PrepareProposal} and \texttt{ProcessProposal} each
 validator reads Bitcoin and the DA layer itself and checks the proposal against
 its own reading (\texttt{ENGRAM\_MODE=hard-gated-oob}). A rejected height
 therefore cannot starve the next one of fresh receipts, which removes both
-dependencies on block commits of the in-band baseline described below. The price
+dependencies on block commits of the in-band baseline (Section~\ref{subsec:rq2}). The price
 is that two honest validators may read different values and disagree on the
 validity of a proposal, which the certificate of
 Section~\ref{subsec:health-certificate} exists to prevent. It is a second
@@ -181,7 +183,8 @@ fault in the two scripted runs of Section~\ref{subsec:rq2}. Times are
 relative to the start of each run, durations are the length of the polling
 window the script holds the fault for, and each of S2--S5 is followed by a
 wait of up to 90\,s for the validators to return to \textsc{Anchored} before
-the next scenario starts.
+the next scenario starts. \pending{the queued seven-scenario repeats use a 600\,s
+wait and a 900\,s limit for S7; update this table and the text when they are in.}
 
 \begin{table}[h]
 \caption{Fault schedules of the scripted runs}

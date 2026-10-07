@@ -134,8 +134,9 @@ Engram targets this combination.
     (Section~\ref{sec:formal}).
     \item \textbf{Live evaluation.} A 7-validator Cosmos SDK testnet against
     live Bitcoin regtest and Celestia networks with network- and
-    application-level fault injection, comparing Engram against a strict receipt-gated
-    baseline and a vanilla CometBFT control
+    application-level fault injection, comparing Engram against two strict receipt-gated
+    baselines (receipts read through vote extensions or at each validator), a
+    baseline without the withdrawal lock, and a vanilla CometBFT control
     (Sections~\ref{sec:setup}--\ref{sec:evaluation}).
 \end{itemize}
 
@@ -152,7 +153,7 @@ RQ1 & \textbf{Safety.} Under Byzantine voting power below one third (two of the 
 validators stay in agreement on the FSM state and the certified health, and is no
 withdrawal-marked transaction committed while the FSM is locked? Safety here is consensus safety; asset-level safety is outside the prototype's scope (Section~\ref{sec:discussion}). \\
 RQ2 & \textbf{Liveness.} When Bitcoin settlement or DA becomes unavailable,
-does Engram keep committing blocks where a strict receipt-gated baseline stalls,
+does Engram keep committing blocks where strict receipt-gated baselines slow to a fraction of their rate or stop resuming,
 and what does it give up: how many withdrawals commit before its circuit
 breaker locks, compared with a baseline that never locks? A degraded
 peripheral P2P view does not affect a baseline gated on receipts, so it is
