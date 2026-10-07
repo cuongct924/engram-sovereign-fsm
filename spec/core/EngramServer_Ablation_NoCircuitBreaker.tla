@@ -660,16 +660,26 @@ ForcedInclusionLiveness ==
         => <>(\E p \in HonestNodes :
                   decision[p] /= NilDecision /\ decision[p].prop.value = tx)
 
-\* Global Stabilisation Time predicate: clocks sync + enough peers + ANCHORED
-\* @type: Bool;
-GSTReached ==
-    /\ SynchronizedLocalClocks
-    /\ Cardinality(active_peers) >= MIN_PEERS
-    /\ state = "ANCHORED"
+\* Global Stabilisation Time (GST), partial synchrony. GST is a fixed time the protocol
+\* does not know: before it, any message or timeout may be delayed by any finite amount;
+\* from it on the synchrony assumptions hold, and they keep holding. AfterGST models
+\* this as a predicate on real_time, which never decreases (MonotonicitySafety), so once
+\* it is TRUE it stays TRUE. It concerns the network only: it does not mention the FSM
+\* state or the peripheral layers, so a decision is required from honest validators in
+\* every FSM state, SOVEREIGN included. GSTTime can be overridden in a .cfg
+\* (`GSTTime <- MyOp`) to check several GST instants.
+\* @type: Int;
+GSTTime == MAX_TIMESTAMP \div 3
 
-\* Under repeated GST, the system must eventually reach a decision
+\* @type: Bool;
+AfterGST == real_time >= GSTTime
+
+\* L1: if GST occurs, some honest validator eventually decides. The fairness conditions of
+\* the liveness drivers (weak fairness on delivery, timeouts and round skips) constrain
+\* only infinite behaviours, so they leave every finite pre-GST delay allowed; the
+\* antecedent restricts the claim to behaviours in which GST is reached.
 \* @type: Bool;
 EventualDecisionUnderGSTLiveness ==
-    ([]<> GSTReached) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
+    (<>AfterGST) ~> (\E p \in HonestNodes : step[p] = "DECIDED")
 
 ===================================================================
