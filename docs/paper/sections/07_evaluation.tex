@@ -513,21 +513,14 @@ block data; the gate must hold for 300\,s or open; heuristic fallback enabled)}
 \end{tabular}
 \end{table}
 
-\textbf{Exploratory extension: an adaptive down threshold.} A static threshold
-trades reaction time against noise immunity, and the right point depends on
-conditions that change. We evaluated an extension that raises $k_{\downarrow}$
-after each flap and lowers it after $T_{\text{stable}}$ healthy blocks
-(Section~\ref{subsec:transitions}); the evidence is in
-Appendix~\ref{app:adaptive} and is negative. In the stationary live sweep it
-behaved like a static $k{=}2$ (8.3 flaps, 85\% uptime). In the live three-phase
-runs its flaps fell with the stable window (6.8, 3.0 and 1.0 for 16, 64 and 128
-blocks) at detection delays of 12.7, 14.6 and 16.2\,s, against no flap at 13.7\,s
-for a static $k{=}4$. The live repeated-trigger runs did not separate the
-thresholds, so absorbing short repeated pulses rests on simulation alone. We
-therefore treat a static threshold of 4 or more as the setting to use
-(Section~\ref{sec:discussion}) and the backoff as an extension, not a
-contribution.
-
+\textbf{Exploratory extension: an adaptive down threshold.} We also evaluated an
+extension that raises $k_{\downarrow}$ after each flap and lowers it after
+$T_{\text{stable}}$ healthy blocks (Section~\ref{subsec:transitions}). The result is
+negative: in live runs it did not outperform a static threshold of 4 (no flap at a
+detection delay of 13.7\,s), and its absorption of repeated short pulses rests on
+simulation alone (Appendix~\ref{app:adaptive}). We therefore recommend a static
+threshold of 4 or more (Section~\ref{sec:discussion}) and treat the backoff as an
+extension, not a contribution.
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.

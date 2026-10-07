@@ -223,65 +223,24 @@ honest validator sees a degradation. The lemma also does not say which honest
 value the aggregate takes when honest values differ (see the proposer
 discussion below).
 
-Lemma~\ref{lem:honest-range} does not require honest observations to agree; it bounds what the
-adversary can do when they disagree. Each adversarial case reduces to it:
-\begin{itemize}
-  \item \emph{Stale or replayed observation.} A signature binds the height
-  and round; an observation signed at another height or round fails (a) and
-  is discarded.
-  \item \emph{Conflicting observations.} Two different signed observations
-  by one validator count once by (b); Byzantine weight is below $W/3$ either
-  way.
-  \item \emph{False observations.} Byzantine validators below $W/3$
-  reporting extreme values cannot move the aggregate outside the honest range
-  (Lemma~\ref{lem:honest-range}).
-  \item \emph{Proposer omission.} The proposer chooses $S$, and may omit
-  honest observations. If $S$ still meets (d), Lemma~\ref{lem:honest-range} still holds. The
-  proposer's residual influence is choosing \emph{which} honest value in the
-  honest range is selected when honest validators genuinely disagree. With $n$
-  equal-power validators, all honest, and a quorum of $q = \lfloor 2n/3 \rfloor + 1$
-  observations, the proposer can reach exactly the values from the
-  $(\lfloor q/2 \rfloor + 1)$-th to the $(n - q + \lfloor q/2 \rfloor + 1)$-th
-  smallest observation: a subset of $s \ge q$ observations has its median at
-  rank $\lfloor s/2 \rfloor + 1$ within it, which is at least $\lfloor s/2
-  \rfloor + 1$ and at most $n - s + \lfloor s/2 \rfloor + 1$ among all $n$, and
-  both extremes are reached at $s = q$. For $n{=}7$ and $q{=}5$ that is the third
-  to the fifth smallest, the median of all seven being the fourth.
-
-  Only when the
-  honest observations straddle a threshold does this choice change a decision,
-  and a transition needs the hysteresis count over consecutive blocks while
-  proposers rotate in proportion to voting power, so a Byzantine proposer
-  influences the blocks it proposes. The same
-  freedom exists one level down: CometBFT accepts any \texttt{LastCommit} that
-  carries more than two thirds of the voting power and ignores absent
-  signatures, so a proposer also chooses which precommits the block records.
-  Requiring one observation for every commit vote of \texttt{LastCommit} would tie
-  the two choices together and make an omission visible in the block, but it
-  would not remove the choice (Section~\ref{subsec:future-work}).
-
-  If
-  omission drops $S$ to weight at most $2W/3$, the certificate is not
-  well-formed and honest validators reject the proposal. The only exception
-  is the first height after vote extensions are enabled, whose predecessor
-  carries no extensions; there the certificate is replaced by a maximally
-  degraded metric vector, the conservative choice. In the live collusion suite (Section~\ref{sec:evaluation}, case B3), honest validators accepted a proposer that kept exactly a quorum of certificates in 3 of 3 repeats and rejected one that kept fewer, 210 times in total across 3 repeats.
-  \item \emph{Missing or malformed observations.} CometBFT accepts a
-  precommit's extension only if its signature verifies under the validator's
-  consensus key, and the application's \texttt{VerifyVoteExtension} accepts
-  only extensions that decode; signatures are checked again against the
-  genesis keys when the certificate is aggregated. The extended commit for
-  $h{-}1$ carries weight above $2W/3$, so an honest proposer can always build
-  a well-formed certificate, and a Byzantine validator cannot reduce the
-  usable weight by sending a decodable extension with a bad signature,
-  because CometBFT would not have accepted that vote. This relies on CometBFT
-  and the aggregation using the same key and sign bytes.
-  \item \emph{Divergent honest views.} When honest views straddle a
-  threshold, different proposers may select certificates on different sides
-  of it. Each resulting transition is legal and deterministic given its
-  certificate; the FSM's hysteresis absorbs short alternations
-  (Section~\ref{subsec:transitions}).
-\end{itemize}
+\textbf{Adversarial cases.} The lemma does not require honest observations to
+agree; it bounds what the adversary can do when they disagree, and each
+adversarial case reduces to it (Appendix~\ref{app:certificate}). A stale or
+replayed observation fails the height and round binding, two observations by one
+validator count once, and false observations below $W/3$ cannot leave the honest
+range. The proposer chooses the set $S$ and may omit honest observations; if $S$
+still meets (d) the lemma holds, and if not, the certificate is not well-formed
+and honest validators reject the proposal. The proposer's residual influence is
+choosing \emph{which} honest value in the honest range is selected when honest
+validators genuinely disagree: with $n{=}7$ equal-power validators and a quorum
+of $q{=}5$ it reaches the third to the fifth smallest observation, the median of
+all seven being the fourth. Only when honest observations straddle a threshold
+does this choice change a decision, and a transition needs the hysteresis count
+over consecutive blocks while proposers rotate, so a Byzantine proposer influences
+the blocks it proposes. In the live collusion suite (Section~\ref{sec:evaluation},
+case B3), honest validators accepted a proposer that kept exactly a quorum of
+certificates in 3 of 3 repeats and rejected one that kept fewer, 210 times in total
+across the 3 repeats.
 
 \textbf{Height and round binding.} The certificate committed at height $h$
 describes observations signed at height $h{-}1$, one block of lag. A
