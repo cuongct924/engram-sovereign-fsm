@@ -4,7 +4,7 @@
 Which file feeds which case (every run of a case starts from ANCHORED unless the case drives the chain to SOVEREIGN itself):
   suite rerun  collusion_suite_<stamp>.csv written by the rerun of a3 a4 b1 b2 b3a b3b b4 b6 b7a b7b  (latest file containing them)
   b5           first suite (20261004T204848): b5 starts from SOVEREIGN by design, so its run was not affected
-  b8           20261004T211305
+  b8           20261006T195608 (3 repeats on the Air second machine, 2026-10-06; supersedes the 1-repeat 20261004T211305)
   c0           20261005T024611 (named b0 when it ran)
   b9           20261005T100618
 
@@ -57,7 +57,7 @@ def pick_rows():
     for r in read(os.path.join(LIVE, "collusion_suite_20261004T204848.csv")):
         if r["case"] == "b5":
             rows["b5"].append(r)
-    for r in read(os.path.join(LIVE, "collusion_suite_20261004T211305.csv")):
+    for r in read(os.path.join(LIVE, "collusion_suite_20261006T195608.csv")):
         rows["b8"].append(r)
     for r in read(os.path.join(LIVE, "collusion_suite_20261005T024611.csv")):
         rows["c0"].append(r)

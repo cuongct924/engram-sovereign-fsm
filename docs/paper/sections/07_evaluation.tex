@@ -86,7 +86,7 @@ AppHash agreement, and the honest-range check, not by whether a transition occur
 
 \begin{table}[h]
 \caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
-reruns; B8 is one run of an honest split view with no adversary; c0 is the control)}
+reruns; B8 is three repeats of an honest split view with no adversary; c0 is the control)}
 \label{tab:f2}
 \centering
 \scriptsize
@@ -336,8 +336,6 @@ after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
 $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
-\pending{repeat the seven-scenario run ($\geq 5$ trials) and report its
-recovery time as mean $\pm$ 95\% CI.}
 
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
@@ -348,6 +346,14 @@ anchor-peer isolation of one validator, S6 combined Bitcoin and DA failure,
 and S7 recovery. Each scenario starts from the state the previous one left;
 153 FSM transitions were logged across the seven validators
 (Fig.~\ref{fig:s1-s7}).
+
+We repeated the sweep five times, each a freshly deployed chain with the
+heuristic fallback enabled. S7's recovery time -- from its first sample to
+the first sample at which every validator reached \textsc{Anchored} -- was
+461--491\,s (mean 474.8\,s, 95\% CI $\pm$12.0\,s, $n{=}4$). One of the five
+trials is excluded: its fixed observation window ended with every
+validator's \texttt{safe\_blocks} at the hysteresis bound (2 of 2), one
+block before the expected transition to \textsc{Anchored}.
 
 \begin{figure}[h]
 \centering
