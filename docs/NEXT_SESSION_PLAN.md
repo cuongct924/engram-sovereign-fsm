@@ -48,7 +48,6 @@ Quy tắc chung:
 | 22 | Demo verifier ZK bên ngoài (tuỳ chọn) | ⬜ | Chỉ nếu còn thời gian |
 | 23 | Tổ chức Evaluation | ✅ | Giữ RQ1–RQ4 |
 | 24 | Hoàn thiện trước khi nộp | 🟡 | Xem mục 24 |
-| 25–27 | Việc chờ quyết định và tồn đọng | — | — |
 | 28 | Đo thêm hysteresis thích nghi (mô phỏng, live 3 pha, kẻ tấn công lặp lại) | 🟡 | Mô phỏng + đối chiếu keeper xong; live đã xếp lịch |
 | 29 | Che sự cố DA khi vượt f theo ngưỡng k và vị trí Byzantine | 🟡 | Mô phỏng xong; live k=4 (h4a, h4i) đã xếp |
 | 30 | Vì sao FSM rời ANCHORED dưới tải | 🟡 | Timeout RPC DA (xác nhận); probe CPU Celestia đã xếp; quyết định nới timeout |
@@ -376,28 +375,6 @@ verify recovery proof thật, đo gas. Nếu không làm, §4.7 giữ ở mức 
 - Rà toàn bài theo checklist skill `paper-writing` mục X.
 - `\draftfalse` build thành công, `grep -rn pending docs/paper/sections/` rỗng.
 
----
-
-## Việc chờ quyết định và tồn đọng
-
-### 25. Chờ quyết định: thí nghiệm Celestia light client (DAS) song song
-Ở quy mô này, bridge cho mỗi validator (tải và kiểm tra toàn bộ block) mạnh hơn DAS sampling; light
-client chỉ thêm tính thực tế. Cách ít rủi ro: container `celestia-light-node0X` chạy cạnh bridge như
-một thí nghiệm riêng, `x/da/publisher.go` vẫn dùng bridge. Cần đồng ý trước khi làm.
-
-### 26. Chờ quyết định: validator dùng Bitcoin light client (SPV thật)
-`IsBtcSpvFailed` không phải SPV: `VerifyAnchor`/`BlockContainsTag` gọi `getblock` verbosity=2 lên
-`bitcoind` full node của từng validator. Việc nên làm là đổi tên (ví dụ `IsAnchorReverificationFailed`);
-paper đã dùng "anchor re-verification". SPV thật (BIP157/158, ví dụ `btcsuite/neutrino`) chỉ đáng làm
-nếu validator bỏ full node. Thay đổi kiến trúc; cần đồng ý trước khi làm.
-
-### 27. Tồn đọng
-- `reanchoring-prover` chạy trong container bị OOM quá 8192M kể cả với Docker Desktop VM 12 GB; dùng
-  `watch_and_prove.sh` trên host (`make testnet-up PROVER=host`). Chi tiết trong comment của
-  `docker/reanchoring-prover.yml`.
-- `docs/FEEDBACK.md` giữ untracked/riêng tư, không commit.
-
----
 
 ## Đã xong (chỉ còn tiêu đề)
 
