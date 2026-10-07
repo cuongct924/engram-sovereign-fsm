@@ -397,7 +397,7 @@ failure mode in isolation, and returns to \textsc{Anchored} in every case.
 \subsection{RQ3: Recovery and Flapping}
 \label{subsec:rq3}
 
-Hysteresis should suppress oscillation (``flapping'') without unduly
+\textbf{Hysteresis and flapping.} Hysteresis should suppress oscillation (``flapping'') without unduly
 delaying legitimate transitions. We swept the threshold on each of the
 three gated edges -- \textsc{Recovering}$\to$\textsc{Anchored},
 \textsc{Anchored}$\to$\textsc{Suspicious}, and
@@ -461,7 +461,7 @@ before the timeout forced \textsc{Sovereign}. Any adaptive threshold
 must therefore stay below the \textsc{Suspicious} timeout, which bounds
 $k_{\max}$. 
 
-\textbf{What ends \textsc{Recovering}.} The state exposes whether the proof
+\textbf{Recovery: what ends \textsc{Recovering}.} The state exposes whether the proof
 condition holds, not which path set it, so we ran one 120\,s DA outage per
 setting and read the prover's log. With the heuristic fallback enabled, the
 chain left \textsc{Recovering} after 36\,s while the prover's single proof was
