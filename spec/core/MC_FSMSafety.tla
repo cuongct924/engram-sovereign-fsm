@@ -32,7 +32,8 @@ MC_MockProposal == [
     fsm_state    |-> "mock",
     da_receipt   |-> MC_MockDA,
     btc_receipt  |-> MC_MockBTC,
-    zk_proof_ref |-> FALSE
+    zk_proof_ref |-> FALSE,
+    healthy      |-> FALSE
 ]
 
 MC_MockDecision == [prop |-> MC_MockProposal, round |-> 0]

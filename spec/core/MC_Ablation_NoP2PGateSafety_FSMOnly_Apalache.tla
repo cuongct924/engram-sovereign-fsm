@@ -42,7 +42,8 @@ MC_MockProposal == [
     fsm_state    |-> "mock",
     da_receipt   |-> MC_MockDA,
     btc_receipt  |-> MC_MockBTC,
-    zk_proof_ref |-> FALSE
+    zk_proof_ref |-> FALSE,
+    healthy      |-> FALSE
 ]
 MC_MockDecision == [prop |-> MC_MockProposal, round |-> 0]
 
@@ -60,6 +61,9 @@ MC_MockInit ==
     /\ proposal_received_time = [r \in NoRounds |-> 0]
     /\ forced_tx_queue = {} /\ tx_ignored_rounds = [p \in NoProcs |-> [tx \in NoProcs |-> 0]]
     /\ quorum_certs = {} /\ timeout_certs = {}
+    /\ sensor_view = [p \in NoProcs |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE,
+                                          btc_gap_obs |-> 0, da_gap_obs |-> 0]]
+    /\ health_certs = {}
 
 MC_FSMInit ==
     /\ FSMInit
@@ -78,6 +82,7 @@ MC_FSMNext ==
     /\ UNCHANGED <<tendermintCoreVars, temporalVars>>
     /\ UNCHANGED <<bookkeepingVars, invariantVars>>
     /\ UNCHANGED <<certificateVars>>
+    /\ UNCHANGED <<sensorAggVars>>
 
 \* EXPECT VIOLATION: proves an eclipsed node (bad P2P) can still enter
 \* RECOVERING once the P2P health gate is ablated from IsHealthyCondition.
