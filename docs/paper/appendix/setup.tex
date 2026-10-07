@@ -1,0 +1,90 @@
+\section{Experimental Setup: Details}
+\label{app:setup}
+
+This appendix holds the fault schedules and the synthetic workloads summarized in Section~\ref{sec:setup}.
+
+\subsection*{Fault schedules}
+
+\begin{table}[h]
+\caption{Fault schedules of the scripted runs}
+\label{tab:schedule}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.07\linewidth}p{0.5\linewidth}p{0.2\linewidth}@{}}
+\toprule
+\textbf{Step} & \textbf{Fault and mechanism} & \textbf{Duration} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Composite run (standing WAN latency baseline)}} \\
+C1 & Baseline, no fault & 15\,s \\
+C2 & Bitcoin fault: 500\,$\pm$\,100\,ms RPC delay on one \texttt{bitcoind} (profile length 2\,min) & 60\,s \\
+C3 & All seven Celestia bridges stopped, added to C2 & 60\,s \\
+C4 & Three cycles of 5\% packet loss on validators 1 and 2 (WAN baseline suspended) & 3\,$\times$\,(20\,s on, 10\,s off) \\
+C5 & Hold; bridges still stopped & 30\,s \\
+C6 & Heal: Bitcoin profile cleaned up, bridges restarted & 30\,s \\
+C7 & Wait for \textsc{Anchored} (limit 600\,s) & until recovery \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Seven-scenario sweep}} \\
+S1 & Healthy baseline & 15\,s \\
+S2 & Checkpoint submission suspended on all validators & 180\,s \\
+S3 & All seven Celestia bridges stopped & 60\,s \\
+S4 & 300\,$\pm$\,50\,ms delay on the six validator links of validator 1 & 120\,s \\
+S5 & 100\% packet loss on validator 1 & 180\,s \\
+S6 & One \texttt{bitcoind} and all seven bridges stopped & 90\,s \\
+S7 & Faults removed; wait for \textsc{Anchored} (limit 600\,s) & until recovery \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Synthetic workloads}
+
+\textbf{Noise profile (in-process).} The hysteresis sweeps drive the real
+state machine with sensor readings generated per block. Each block is
+disturbed independently with probability 0.2 and healthy otherwise, for 100
+blocks, from a fixed pseudo-random seed (7 for the
+\textsc{Recovering}$\to$\textsc{Anchored} sweep, 11 for the
+\textsc{Anchored}$\to$\textsc{Suspicious} sweep), so every threshold value
+sees the same noise sequence. A disturbance sets sensors to a failing
+reading for one block. Critical disturbances set the Bitcoin gap to
+\texttt{SovereignThreshold}. Warning-level disturbances set the Bitcoin gap
+to \texttt{SuspiciousThreshold}, mark DA unavailable, or give the P2P sensor
+a snapshot with no clean peers, diversity, or tenure and only the minimum
+anchor count. The combined environments apply several at once.
+
+\textbf{Monte Carlo P2P study.} A \emph{snapshot} is one synthetic tuple of
+the six P2P sensor fields (subnet diversity, active anchors, clean peers,
+churn rate, mean tenure, latency). A benign snapshot draws each field inside its healthy range
+with a uniform random margin. An attack of \emph{intensity}
+$x\in[0,1]$ perturbs the fields it targets in proportion to $x$ (for
+example, the relay attack adds $x\,(\texttt{MaxPeerLatency}{+}150)$\,ms of
+latency and leaves the other fields benign); $x=0$ is benign and $x=1$ is
+the full attack. Detectors are the six-bound profiler and the
+peer-count-only rule $\text{CleanPeers}\ge\texttt{MinPeers}$. The study uses
+production-scale P2P thresholds: 8 subnets, 4 anchors, 20 clean peers, churn
+5, tenure 300\,s, latency 200\,ms. Four measurements per cell follow, all
+from fixed seeds.
+\begin{itemize}
+  \item \emph{False-positive rate:} the share of 2{,}000 benign snapshots
+  flagged unhealthy.
+  \item \emph{False-negative rate:} the share of 2{,}000 full-intensity
+  snapshots flagged healthy.
+  \item \emph{Detection delay:} over 500 ramps, the number of snapshots until
+  the first flag, with intensity rising $0.1,0.2,\ldots,1.0$ over 10
+  snapshots. The mean is taken over ramps that were detected.
+  \item \emph{Evasion threshold:} the largest intensity (on the 0--1 scale)
+  at which a majority of 20 probes still read healthy, found by a 12-step
+  binary search that queries the detector, so it bounds an adversary with
+  oracle access.
+\end{itemize}
+The ramp-shape study uses 300 ramps per shape and the three shapes
+$x$ (linear), $\sqrt{x}$ (front-loaded), and $x^2$ (slow). The upper 95\% confidence bound on a
+rate observed as 0 in $n$ trials is about $3/n$ (rule of three): 0.15\% for
+$n=2{,}000$ and 1\% for $n=300$.
+The detection delay is reported as the mean and the sample standard
+deviation over the 500 ramps of each cell.
+The study has three limits. The benign distribution, the attack directions and
+the intensity scale are our choices. Each attack perturbs only the fields it
+targets, along one direction. The evasion threshold varies one scalar, the
+intensity, by binary search against the detector, so the six dimensions are not
+searched jointly. The results therefore characterize the detectors' sensitivity
+within this generator.
+

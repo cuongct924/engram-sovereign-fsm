@@ -1110,6 +1110,8 @@ sequenceDiagram
 - This closes Property 7.5's open item: `P2PAdversaryAttack` (`EngramFSM.tla`) only exercises FSM-sensor mechanics, never `IsValidProposal`/`FSMStateConsistency` (`EngramTendermint.tla`/`EngramServer.tla`) — no prior check combined a real eclipse with a proposer forging `fsm_state`.
 - The new action `ByzantineForgedFSMState`, gated on `~IsP2PQualityHealthy`, lets an eclipsed Byzantine proposer broadcast an otherwise honest, well-formed proposal with any `fsm_state` other than the real `CalculateNextFSMState` — isolating forgery as the only defect under test.
 
+- **Status (not part of the paper's evidence):** this scenario is kept as supplementary material. It is not one of the ablation rows, the paper does not cite it, and its Apalache results below date from August 2026 (the scenario files were created on 10 Aug). The spec has since been edited (adaptive down-hysteresis, `BTC_THRESHOLD`) and the checks were not rerun on the current specification, so the timings and the partial result are those of the older specification.
+
 Two checks, same driver (`core/MC_EclipseForgedProposalSafety_Apalache.tla`), same bound (`--length=12`):
 
 * **Check 1 — `Sanity_ForgedProposalReachable`** (sanity: attack is reachable): violated at depth **2** in **30.792s**. Trace: `spec/traces/eclipse_forged_proposal.{itf.json,trace.tla}`.

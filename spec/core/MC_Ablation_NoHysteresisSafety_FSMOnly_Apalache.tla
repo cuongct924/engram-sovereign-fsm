@@ -115,6 +115,11 @@ MC_FSMNext ==
 Sanity_NoIllegalHysteresisExit ==
     ~illegal_early_exit
 
+\* TLC bound, as in MC_FSMSafety: the sensor heights are otherwise unbounded.
+StateSpaceLimit ==
+    /\ h_btc_current < 10
+    /\ h_engram_current < 10
+
 ApalacheCInit ==
     /\ SUSPICIOUS_THRESHOLD = 2
     /\ SOVEREIGN_THRESHOLD  = 4

@@ -65,8 +65,8 @@ type Params struct {
 }
 
 // DefaultParams returns this repo's tuned defaults for the real N=4 Docker
-// testnet -- NOT spec/core/MC_StressC1Safety.cfg's THRESHOLDS block (that's
-// TLC's tractable config, not a viable runtime default).
+// testnet -- NOT the THRESHOLDS blocks of the TLC configs under spec/core (those are
+// TLC's tractable configs, not a viable runtime default).
 func DefaultParams() Params {
 	return Params{
 		// Regtest reorg-safety depth; mainnet ~6 confirmations.

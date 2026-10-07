@@ -59,14 +59,9 @@ the attacker's cost of sustaining it are not quantified.
 \textsc{Recovering} raises the price of forcing repeated failed recoveries; the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
 protection beyond the bounded forced-transaction queue. The adaptive down
-threshold of Appendix~\ref{app:adaptive} was meant to close this asymmetry. In
-simulation it absorbs a naive repeated adversary (1 demotion in 1200 blocks
-against 300 for a static threshold of 2) but gains little over a static threshold
-of 4. Live, it suppressed flapping under changing noise only with a long stable
-window and never better than a static threshold of 4 at a shorter detection delay,
-and the repeated-trigger runs did not separate the thresholds (every configuration
-escalated to \textsc{Sovereign} at the first pulse), so the absorption of short
-pulses has no live evidence.
+threshold meant to close this asymmetry did not beat a static threshold of 4 in
+live runs, and its absorption of short pulses has no live evidence
+(Appendix~\ref{app:adaptive}).
 
 \textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
 FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a
@@ -99,144 +94,32 @@ DA outage & 41\,s & --- & 34 & 41\,s, 34 blocks \\
 \end{tabular}
 \end{table}
 
-To check the conversion we drove the real FSM with Bitcoin blocks and a model of
-the checkpoint cycle of the anchor tracker: one checkpoint is pending at a time,
-it is included in the next Bitcoin block, it counts as confirmed with
-\texttt{KDeepFinality}+1 confirmations, the next one is submitted at once, and
-the committed anchored height follows the tracker after a lag of two to three
-Engram blocks, the one free parameter. At testbed cadence the model reproduces
-what we measured: the checkpoint pause reaches \textsc{Sovereign} after 129\,s
-(5th to 95th percentile 91 to 149\,s; measured 117\,s in RQ2 and $141.6 \pm
-13.8$\,s in S2), and the quiet phase of the live sweeps is 0.80--0.84 in
-\textsc{Anchored} at $k{=}2$ and 1.00 at $k{=}4$ (measured 0.79--0.87 and 1.00).
-At mainnet cadence the same fault reaches \textsc{Sovereign} after 49.6 minutes
-with steady 600\,s blocks (41 to 58) and 46.7 minutes with exponential block
-intervals (18 to 79), which is about five Bitcoin blocks and 2{,}300--2{,}500
-Engram blocks. This is lower than the 58 minutes and 2{,}900 blocks of
-Table~\ref{tab:exposure}, which scales the measured 117\,s by thirty: the table is
-the plain conversion and the model follows the checkpoint cycle, so the two
-bracket the lock time at mainnet cadence.
-
-The healthy gap is not flat. It follows the checkpoint cycle, 2, 3, 4, 5 and
-back to 2 every three Bitcoin blocks, and in the first 18\,s of the five
-composite runs, before any fault, it sat at 5, the \texttt{SuspiciousThreshold},
-in 3--16\% of the samples, for about two Engram blocks each time. This has two
-consequences. The threshold cannot simply be lowered, since the healthy cycle
-already touches it. And part of the flapping at $k{=}2$ in the live sweeps is the
-cycle, not the wide-area noise: the model gives one demotion per cycle, 1{,}440
-per day at the testbed cadence and 48 per day at mainnet cadence, so the
-accelerated testbed exaggerates the baseline flapping thirty-fold.
-
-The model also predicts a limit of the current parameters at mainnet cadence.
-When two Bitcoin blocks arrive within one polling interval, the next checkpoint
-skips a block and the gap stays at 5 for a full Bitcoin interval, much longer
-than \texttt{MaxSuspiciousTime} (24 Engram blocks, about 29\,s, chosen for the
-20\,s cadence), so the FSM escalates to \textsc{Sovereign} without a fault. With
-exponential block intervals a healthy chain does so about once in eight days
-(10 events in 77 days of exposure, the same for $k{=}2$ and $k{=}4$) and never
-with steady blocks or at the testbed cadence. This is a prediction of the
-model, not an observation. The timeout must therefore follow the Bitcoin
-cadence of the deployment: the live value of 24 blocks is 1.4 Bitcoin intervals
-at the testbed's 20\,s, and a value of about 1.5 intervals (750 blocks, 15\,min,
-at 600\,s) removes most false escalations at the price of about 14 more minutes
-to reach \textsc{Sovereign} in a real fault (Table~\ref{tab:mst}). We keep 24 as the
-default, which the testbed experiments use, and treat the timeout as a deployment
-parameter. \pending{live check at a 600\,s mining interval: one run reached \textsc{Sovereign} after 60.7\,min (6 Bitcoin blocks, 2{,}921 Engram blocks), above the model's range and close to the plain conversion; two more runs are queued.}
-
-\begin{table}[h]
-\caption{\texttt{MaxSuspiciousTime} at mainnet cadence (simulation; exponential
-Bitcoin block intervals of mean 600\,s, $k{=}4$): false escalations of a healthy
-chain per day (30 runs of up to 72\,h; the counts behind the small rates are 10,
-3 and 1 events, so they indicate order of magnitude only) and the mean time from
-a checkpoint pause to \textsc{Sovereign} (40 runs).}
-\label{tab:mst}
-\centering
-\footnotesize
-\begin{tabular}{@{}rrrr@{}}
-\toprule
-\textbf{Blocks} & \textbf{Time} & \textbf{False escalations per day} & \textbf{Mean to \textsc{Sovereign}, min} \\
-\midrule
-24 & 29\,s & 0.13 & 53 \\
-500 & 10\,min & 0.04 & 63 \\
-750 & 15\,min & 0.01 & 67 \\
-1500 & 30\,min & 0.01 & 76 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:exposure-design} lists ways to bound the exposure and what each
-costs. We implement none of them; the first two bound the number of withdrawals
-without a lower threshold, and the last one shortens the window.
-
-\begin{table}[h]
-\caption{Ways to bound the exposure before the lock.}
-\label{tab:exposure-design}
-\centering
-\footnotesize
-\begin{tabular}{@{}p{0.25\linewidth}p{0.3\linewidth}p{0.3\linewidth}@{}}
-\toprule
-\textbf{Mechanism} & \textbf{Effect} & \textbf{Cost} \\
-\midrule
-Withdrawal quota per Bitcoin block, graded by the gap & $N \le$ (Bitcoin blocks in the window) $\times$ quota, independent of the Engram block rate and of the sender & Lower withdrawal throughput also when healthy \\
-Release funds only after the block is anchored $K$ deep & Exposure close to zero & Every withdrawal waits about three Bitcoin blocks; needs a real bridge \\
-Sensor on the age of the pending checkpoint against the expected cycle & Window shortens from about six to three or four Bitcoin blocks (our estimate) & Changes the FSM input, so every experiment on the Bitcoin gap would be rerun \\
-\bottomrule
-\end{tabular}
-\end{table}
+The testbed conversion is a scaling of the measured time. A model of the
+checkpoint cycle, validated against the testbed, puts the lock at 47--50 minutes at
+mainnet cadence, below the 58 minutes of the plain conversion, so the two bracket
+it. The same model shows that the healthy gap already touches the
+\textsc{Suspicious} threshold every checkpoint cycle, so the threshold cannot be
+lowered, and that \texttt{MaxSuspiciousTime} must follow the Bitcoin cadence of the
+deployment; a live check at a 600\,s mining interval is still pending (Appendix~\ref{app:envelope}). We do not implement any of the ways of
+bounding the exposure that the appendix lists.
 
 \textbf{Hysteresis: noise against concealment.} A higher down threshold $k$
 tolerates longer bursts of noise, and it also tolerates a longer run of reports
-that a Byzantine proposer interleaves with honest ones. Within the assumption
-the choice of $k$ does not matter: for each of the 21 placements of two
-Byzantine proposers in the seven-slot rotation, a real DA outage was detected
-after exactly $k$ blocks ($k\in\{2,3,4\}$, simulation). With three Byzantine
-validators, outside the assumption, a Byzantine proposer can keep a certificate
-that reports a healthy DA layer, and an honest proposer then reports the outage
-in the blocks it proposes; the outage is detected only if enough honest
-proposers follow one another to reach $k$. In the simulation it was detected for all 35
-placements at $k{=}2$, missed for 14 at $k{=}3$ and for 28 at $k{=}4$, and with
-four Byzantine validators it was missed for every placement. The live check at
-$k{=}2$ agrees: with three Byzantine validators the outage was detected in 5 of
-5 runs. The adaptive threshold exposes the same
-weakness only while its flap level is high (0 of 35 placements hidden at level 0,
-28 at level 1, all 35 at level 2), whereas a static threshold of 4 or more is
-exposed permanently.
-
-\textbf{A window rule.} A rule that demotes when at least $m$ of the last $w$ blocks are bad,
-instead of after a consecutive run, is not cut by interleaved reports. In a
-reduced model of the \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} edge,
-validated against the keeper-based simulation above (static thresholds and the
-adaptive $2\to4$ reproduce its flaps, detection delays and hidden placements),
-4 of 8 hid the outage in 0 of 35 placements, against 28 for a static threshold
-of 4, at 0.8 flaps against 0.2 and the same 4-block detection. It does not
-remove the cost of being fast: its detection is as slow as the static
-threshold, and an adversary that sends bursts of $m$ blocks still obtains 200
-demotions in 1200 blocks, where the adaptive threshold allows 1. Combining the
-two (an adaptive window) gave 4.6 flaps and 172 demotions, so no single rule
-won on all four criteria. We did not implement the window rule.
-
-\textbf{Live check of concealment.} The live check at $k{=}4$ (three Byzantine validators with biased certificates, all seven bridges stopped for 120\,s, a fresh chain per run)
-agrees with the simulation for adjacent placements and not for interleaved ones. With three consecutive Byzantine slots
-the outage was detected in 3 of 3 runs, as predicted. With slots 0, 2 and 4 of the rotation, which the simulation predicts
-would hide it, the chain also left \textsc{Anchored} and reached \textsc{Sovereign} in 3 of 3 runs, with 6 to 9 blocks outside the honest range
-per run (6 to 12 over all six). We have not isolated why the prediction failed for the interleaved placement, so the concealment at $k{=}4$ rests on the simulation alone.
-
-\textbf{Choosing the down threshold.} The experiments ran with
-\texttt{DownHysteresisThreshold} of 2, and the live runs show that value to be too
-low for a wide-area network: under the three-phase noise a static $k{=}2$ flapped
-7.5 times and spent 82\% of the noisy phase in \textsc{Anchored}, a static $k{=}4$
-did not flap and stayed \textsc{Anchored} throughout, at a detection delay of 13.7\,s
-against 10.9\,s (an earlier single-run spot-check at $k{=}4$ did flap,
-Section~\ref{subsec:rq3}). At the testbed's accelerated Bitcoin cadence the healthy checkpoint
-cycle reaches the suspicious threshold in 3--16\% of the samples, and $k{=}2$ spent only
-0.79--0.87 of the quiet phase in \textsc{Anchored}, against 1.00 for $k{=}4$; the
-model of the cycle accounts for this, though we did not isolate it live.
-We therefore recommend $k_{\downarrow} \geq 4$ as a deployment setting, set from the
-noise of the environment like \texttt{MaxSuspiciousTime} is set from the Bitcoin
-cadence, and keep 2 as the value of the reported experiments. The price is the
-concealment of the preceding paragraph: an outage is detected only if $k$
-consecutive proposers are honest, so the larger the threshold, the easier it is to
-hide one.
+that a Byzantine proposer interleaves with honest ones. Within the assumption the
+choice of $k$ does not matter for detection: for each of the 21 placements of two
+Byzantine proposers in the seven-slot rotation, a real DA outage was detected after
+exactly $k$ blocks ($k\in\{2,3,4\}$, simulation). With three Byzantine validators,
+outside the assumption, a larger $k$ makes concealment easier: in the simulation
+the outage was missed for 14 of 35 placements at $k{=}3$ and for 28 at $k{=}4$. The
+live runs at $k{=}2$ detected it in 5 of 5 runs; at $k{=}4$ the live runs did not
+reproduce the simulation's concealment for interleaved placements, so concealment
+at $k{=}4$ rests on the simulation alone. The experiments ran with
+$k_{\downarrow}{=}2$, which the live noise sweeps show to be too low for a
+wide-area network (flapping, 82\% of the noisy phase in \textsc{Anchored}); we
+recommend $k_{\downarrow} \geq 4$ as a deployment setting, set from the noise of
+the environment, at the price of easier concealment. Appendix~\ref{app:envelope}
+gives the detail, including a window rule that is not cut by interleaving and that
+we did not implement.
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the certificate
@@ -245,14 +128,6 @@ proposers can therefore bias the timing of transitions, but cannot produce a
 transition that no honest view supports. A persistent split straddling an FSM
 threshold (for example three against four validators) has not been tested live;
 the RQ4 scan shows no extra rounds in the unfaulted case.
-
-\textbf{Restart after a long chain.} The publisher's contiguous height is
-kept in memory. A validator that restarts therefore republishes the chain from
-height 0 and reports DA as failed until it has caught up. In one run, four
-validators restarted on a chain of about 7{,}400 heights; the certified DA
-health stayed failed and the chain remained in \textsc{Sovereign} for more than
-half an hour. Persisting the contiguous height would remove the dependence on
-chain length; the prototype does not.
 
 \textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the
 ordering of blocks rests on the validator quorum alone. A coalition
@@ -268,78 +143,16 @@ block stores. The backfill gate of Section~\ref{subsec:reanchoring} makes its
 publication a precondition for returning to \textsc{Anchored}.
 
 \textbf{The unproven tail: liveness against trust.} A recovery proof is built
-while the chain keeps producing blocks, so by the time it is submitted the
-tip stands beyond the last header it covers. The gate accepts the proof only
-if that unproven tail is at most a bound, \texttt{MaxUnprovenTailBlocks}, so
-the bound must be at least the proving latency times the block rate. The bound
-sets a trade-off. A small bound keeps almost all of the \textsc{Sovereign}
-interval under proof when withdrawals reopen, but a proof that takes longer
-than the bound allows to build never satisfies the gate, and the chain stays in
-\textsc{Recovering}. A larger bound lets slower proofs through, at the price
-that the last blocks before the chain returns to \textsc{Anchored} are
-certified by the validator quorum alone; a coalition above $f$ could rewrite
-that stretch without the proof detecting it, which is the same residual
-exposure as in the history-divergence paragraph above, now bounded by the
-tail. At about 0.8 blocks per second, the bound of 128 blocks used in our
-experiments (the code default is 8) is about 2.7 minutes and a bound of 512
-about 10.7 minutes.
-
-\textbf{Measured proving latency.} In the first live deployment with chunk
-aggregation, the prover built a 512-header aggregate from two chunks in about
-4.3 minutes and a 514-header aggregate from three in about 6.6 minutes; the
-tip then stood 211 and 321 blocks beyond the last covered header, close to the
-product of latency and block rate. Both proofs were accepted by
-\texttt{SubmitRecoveryProof}, but with the bound at 128 neither made the
-recovery flag hold, and the chain stayed in \textsc{Recovering}. A single
-256-header proof takes about two minutes, about 110 blocks, and fits, but
-with little margin: at a block rate about 17\% higher, or a slower prover, it
-would not, so the recovery times of the proof-only runs hold for this
-testbed's block rate and proving speed. With the bound raised to 512 blocks and
-everything else unchanged, the chain left \textsc{Recovering} through an
-aggregate proof in both of two deployments. In the first the prover built a
-514-header proof from three chunks in 6.5 minutes, and the tip stood 309
-blocks (about 6.4 minutes) beyond the last covered header when it was
-submitted; in the second a 512-header proof from two chunks took 4.6 minutes,
-with the tip 224 blocks (about 4.7 minutes) beyond. All seven validators were
-then in \textsc{Anchored}, 1{,}023 and 888 seconds after the chain started.
-Proof-only recovery was on, so only the proof could have restored it. The
-interval proved in these runs is the one since genesis, not one following an
-outage injected into a healthy chain, and the runs with the bound at 128 are a
-single deployment.
-
-Aggregation bounds the verifier's cost, not the prover's. The aggregate is one
-more proof on top of the chunk proofs, so building it takes longer than
-building the chunks alone (49\% longer at 512 headers and 22\% at 1024 in
-Appendix~\ref{app:aggregation}), and our prover builds the chunk proofs one
-after another, so latency grows with their number. The chunk proofs are
-independent given the chunk boundary roots, so they could be built on separate
-machines and joined by the aggregator circuit, and the latency would then be
-about that of one chunk plus one aggregation. On the offline workstation of
-Appendix~\ref{app:aggregation} that is about one minute (a leaf proof takes
-31.5\,s and the aggregation 25.7--29.5\,s), roughly 46 blocks at 0.8 blocks per
-second. On the shared Docker host a single chunk took about two minutes, so one
-chunk plus one aggregation would take about three minutes by our estimate from
-the single-chunk and aggregation timings, which exceeds the bound of 128
-blocks used in our experiments. Going below it needs faster proving of each chunk, for example on
-dedicated multi-core machines or with hardware acceleration such as GPUs. The
-aggregation step still needs all chunk proofs on one machine. We measured neither
-hardware acceleration nor concurrent proving
-\pending{the single-host parallel benchmark is queued; report its result here}: the host had 8.7\,GiB free once the
-testbed was stopped, below the 13\,GiB that two concurrent provers need. What we
-did measure, with the testbed stopped, is the sequential cost on this ten-core
-host: a 512-header aggregate, two leaf proofs and the aggregation one after the
-other on all cores, took 52.7 and 52.2\,s in two runs (the leaf proofs 38 and
-36\,s together, the aggregation 14 and 16\,s), about 42 blocks at 0.8 blocks per
-second, inside the bound of 128. The 4.3--6.6 minutes of the live deployment were
-measured while the validators ran on the same cores, and the 31.5\,s per leaf proof
-of Appendix~\ref{app:aggregation} on the same workstation at another time, so these
-latencies depend on the load of the host. Whether the prover keeps up with block
-production therefore depends on whether it has cores of its own: aggregation makes
-the proof verifiable at a cost that does not depend on the interval, and keeping the
-unproven tail within the bound requires a prover that is not competing with the
-validators. The validators verify the
-submitted proof during block execution, so the verification cost does not change
-with how the proof was built.
+while the chain keeps producing blocks, so the gate accepts it only if the
+unproven tail is at most \texttt{MaxUnprovenTailBlocks}, which must be at least
+the proving latency times the block rate. A small bound keeps almost all of the
+\textsc{Sovereign} interval under proof but may never be satisfied if the proof
+takes longer to build; a larger bound lets slower proofs through, at the price
+that the last blocks before the return to \textsc{Anchored} are certified by the
+validator quorum alone, the same residual exposure as above, now bounded by the
+tail. The experiments used 128 blocks (the code default is 8). Measured proving
+latencies, and why they depend on the load of the host, are in
+Appendix~\ref{app:envelope}.
 
 \subsection{Interpretation of Results}
 
@@ -375,7 +188,7 @@ Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof
 Blocks keep committing under peripheral faults & 96--102\% of the healthy rate, against 16--61\% for two receipt-gated baselines; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
 Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the exit gate is qualified in Section~\ref{subsec:limitations} \\
 The cost is a few percent of the block interval & Seven-validator vanilla arms on the same host; interval includes zero & One host; Engram's latency grows with load above 100\,tx/s \\
-Layered specification has no violations & Bounded model checking per layer; four-mechanism ablation & Cross-layer refinement open; no end-to-end proof \\
+Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
 A static down threshold of 4 or more suppresses flapping & Live three-phase and stationary sweeps & Few runs per cell; the adaptive backoff did not beat it (Appendix~\ref{app:adaptive}) \\
 \bottomrule
 \end{tabular}
@@ -429,10 +242,11 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   (Section~\ref{subsec:rq1}) addresses colluding validators.
   \item \emph{Fixed validator set.} The prototype assumes one validator set
   throughout a degraded interval (Section~\ref{subsec:threat-model}).
-  \item \emph{Formal scope.} The cross-layer refinement is open, and the
-  health certificate is modelled with Boolean observations in the server
-  layer; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only
-  (Section~\ref{sec:formal}).
+  \item \emph{Formal scope.} The cross-layer refinement is open, and attempts to
+  find a configuration in which it completes did not succeed; consensus liveness
+  after GST is specified, but its check did not complete. The health certificate is
+  modelled with Boolean observations in the server layer; numeric aggregation is
+  covered by Lemma~\ref{lem:honest-range} only (Section~\ref{sec:formal}).
   \item \emph{Receipt-gated baselines.} Both are constructs of this paper, not
   published systems. The out-of-band one lets every validator read Bitcoin and
   Celestia itself, which is not deterministic: honest validators can disagree on
@@ -445,6 +259,10 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   \item \emph{Receipt parameters.} The base threshold $K_{\text{DEEP\_FINALITY}} + 2$
   and the widening caps are fixed design parameters, and the evaluation does not
   vary them.
+  \item \emph{Prototype robustness.} A validator that restarts republishes its DA
+  height from zero, so the certified DA health stays failed until it catches up (more
+  than half an hour at a chain of about 7{,}400 heights); persisting the height would
+  remove this, and the prototype does not (Appendix~\ref{app:envelope}).
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
@@ -475,7 +293,9 @@ addresses this gap.
 Four directions remain beyond the items marked in this paper. First,
 closing the cross-layer refinement obligation, and extending the
 certificate model from Boolean to numeric observations, would extend the
-formal results to the composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
+formal results to the composed system, and a compositional argument for the
+interleaving of environment and consensus steps would extend the partial results
+of Section~\ref{subsec:verification-scope}; deductive methods~\cite{padon2016ivy,lotan2025implicit}
 are a natural complement where bounded model checking does not scale.
 Second, replacing the fixed-arity aggregator with incremental recursion
 would make the recovery artifact constant-size for intervals of any length,

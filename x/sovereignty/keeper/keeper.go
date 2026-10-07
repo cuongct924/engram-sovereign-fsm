@@ -15,8 +15,7 @@ type Keeper struct {
 	storeService store.KVStoreService
 	Schema       collections.Schema
 
-	// Genesis-configured params (defaults from MC_StressC1Safety.cfg's
-	// verified values), overridden by InitChainer from validated genesis.
+	// Genesis-configured params (tuned defaults, see types.DefaultParams), overridden by InitChainer from validated genesis.
 	Params types.Params
 
 	// Baseline selects a same-binary RQ2 comparison system; the zero value

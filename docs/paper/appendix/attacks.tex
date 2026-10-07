@@ -44,3 +44,82 @@ attack-specific metric such as A5's blocked-withdrawal flag or A9's detection
 latency. No scenario drove block production toward zero.
 
 \FloatBarrier
+
+\subsection*{Function-level checks of the weighted aggregation}
+
+The testbed and the TLA+ model give every
+validator the same power, where weight and count coincide, so a defect that
+confuses them would not appear in any run above. We therefore tested the
+aggregation function alone (\texttt{tests/weighted}) on three weight vectors that
+sum to 100, $[30,20,15,10,10,10,5]$, $[26,19,17,13,11,8,6]$ and $[34,33,33]$, and
+on seven equal weights. Against a reference weighted median (the element at
+position $\lfloor T/2\rfloor$ of the multiset in which each value is repeated by
+its power) the function agreed on 1{,}500 random quorum subsets with random
+values for every vector, and a verified power of exactly $\lfloor 2W/3\rfloor{+}1$
+was accepted and one below it rejected for every subset. For every Byzantine
+coalition and every set of certificates the proposer may omit while keeping a
+quorum, with the adversary reporting the lowest value, the highest, or a split,
+the aggregate stayed within the honest values and honest booleans were not
+flipped whenever the coalition's power was below $W/3$ (up to 30 of 100 for the
+first vector and 33 for the other two). A coalition of 35 (20 and 15) in the first
+vector, and of 34 in the other two, escaped the honest range by having the proposer omit
+enough honest certificates, so the bound is tight. This checks the
+implementation of the weighted median and the quorum, not the integration
+with the genesis power assignment, which a live run with unequal power would
+add.
+
+\textbf{Proposer influence.} For $n$ from 4 to 10 equal-power validators and 30
+random sets of distinct honest values each, we ran the aggregation on every
+subset the proposer may choose (all subsets of at least $\lfloor 2n/3 \rfloor + 1$
+observations). The smallest and largest aggregate matched the order statistics of
+Section~\ref{subsec:health-certificate} in every case.
+
+\subsection*{P2P detector sensitivity}
+
+A P2P detector is useful for safety only if its
+signal cannot be abused by a minority. We compare the six-bound
+profiler (Section~\ref{subsec:sensors}) with a peer-count-only detector in a
+Monte Carlo sensitivity study on synthetic attacks (2{,}000 benign and 2{,}000
+attack snapshots plus 500 ramps per cell; Section~\ref{subsec:montecarlo}); the
+two most diagnostic attacks were then run live (Section~\ref{subsec:rq1}).
+
+\begin{table}[h]
+\caption{P2P detector accuracy: six-bound profiler against peer-count-only
+(synthetic sensitivity analysis; 2{,}000 benign and 2{,}000 attack snapshots, 500 ramps per cell)}
+\label{tab:p2p-detector}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \multicolumn{2}{c}{\textbf{Six-bound profiler}} & \multicolumn{2}{c}{\textbf{Peer-count-only}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Attack} & \textbf{Delay} & \textbf{Evasion} & \textbf{Delay} & \textbf{Evasion} \\
+\midrule
+P1 Peer-slot exhaustion & 2.23 $\pm$ 0.87 & 0.17 & never & 1.00 \\
+P2 Multi-subnet Sybil & 1.00 $\pm$ 0.00 & 0.00 & never & 1.00 \\
+P3 Churn-based rotation & 1.70 $\pm$ 0.61 & 0.12 & never & 1.00 \\
+P4 Relay-node latency & 2.71 $\pm$ 1.19 & 0.25 & never & 1.00 \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Delay: mean $\pm$ sample standard deviation of the snapshots to
+first detection over the 500 ramps of 10 snapshots each (``never'': no ramp
+was detected). Evasion: largest attack intensity on
+the 0--1 scale at which the detector still reads healthy. Both detectors have
+0/2{,}000 false positives (95\% upper bound 0.15\%). The profiler has 0/2{,}000
+false negatives at full intensity; the peer-count-only detector has
+2{,}000/2{,}000, since each attack preserves the clean-peer count.
+\end{table}
+
+Table~\ref{tab:p2p-detector} is a sensitivity analysis of the two detectors
+against attack shapes that we define (Section~\ref{subsec:montecarlo}); it does
+not measure robustness against arbitrary eclipse or Sybil strategies. Within
+these four attacks the profiler flagged every full-intensity snapshot (0 misses
+in 2{,}000) and every ramp (300 of 300 in each cell under three ramp shapes,
+linear, front-loaded and slow; 95\% upper bound on the miss rate 1\%),
+regardless of concurrent Bitcoin or DA degradation. It reads attacks of low
+intensity as healthy: up to 0.25 for P4, 0.17 for P1 and 0.12 for P3. An
+attacker who keeps every field within its bound is not detected by the six bounds
+by construction (Section~\ref{subsec:sensors}). The peer-count-only detector
+detected none of the 300 ramps in any cell.
