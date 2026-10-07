@@ -107,6 +107,18 @@ its own Celestia bridge node. This is bridge-level retrievability, not a
 data-availability-sampling proof; Section~\ref{subsec:sim-to-real} describes
 what the prototype publishes.
 
+\textbf{Units of the gaps.} The two gaps count different things because the two
+layers guarantee different things. The Bitcoin gap counts Bitcoin blocks, since a
+checkpoint's guarantee is its confirmation depth; it grows only with the Bitcoin
+blocks that arrive while no checkpoint is anchored, so a slow Bitcoin chain adds no
+gap. The DA gap counts Engram heights, since the guarantee of the DA layer is that
+every Engram height is retrievable. Each threshold is read in the unit of its own
+layer and converts to time at that layer's cadence: a Bitcoin block takes 600\,s on
+mainnet and 20\,s on the testbed, an Engram block about 1.2\,s on both. A time bound
+that must cover a Bitcoin fault, such as the \textsc{Suspicious} timeout
+$T_{\text{sus}}$ (Section~\ref{subsec:transitions}), therefore follows the Bitcoin
+cadence of the deployment (Section~\ref{sec:discussion}).
+
 \textbf{P2P health.} Peer count alone cannot distinguish a long-lived honest
 peer from a fresh Sybil, and eclipse attacks combine vectors no single
 metric captures~\cite{rehman2025eclipse,heilman2015eclipse}. The profiler

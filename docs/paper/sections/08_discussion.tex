@@ -252,6 +252,10 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   they would across independent nodes, and we did not inject disagreement between
   them. Neither baseline can run while a layer is down, by construction, and
   neither locks withdrawals.
+  \item \emph{Sensor units.} The Bitcoin gap counts Bitcoin blocks and the DA gap
+  Engram heights (Section~\ref{subsec:sensors}), so their thresholds do not compare
+  with each other, and a time bound that covers a Bitcoin fault must follow the Bitcoin
+  cadence of the deployment.
   \item \emph{Receipt parameters.} The base threshold $K_{\text{DEEP\_FINALITY}} + 2$
   and the widening caps are fixed design parameters, and the evaluation does not
   vary them.
