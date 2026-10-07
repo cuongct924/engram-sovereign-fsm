@@ -337,8 +337,8 @@ fallbacks surveyed above place the decision with users, watchers, a sequencer,
 a committee, or an L1 contract.
 
 \textbf{What a response gates.} The designs differ in what the failed
-dependency stops (Table~\ref{tab:gates}). Only the strict receipt-gated baseline
-stops block commitment. The other designs stop finality, client acceptance, L2
+dependency stops (Table~\ref{tab:gates}). Only the strict receipt-gated baselines
+stop block commitment. The other designs stop finality, client acceptance, L2
 derivation or nothing, or leave the chain running and gate an operation.
 
 \begin{table}[!tbp]
@@ -352,7 +352,7 @@ from the sources of Table~\ref{tab:comparison}, except the baseline and Engram).
 \toprule
 \textbf{Gate} & \textbf{What stops} & \textbf{Design} \\
 \midrule
-Block validity & Every proposal, while the validity predicate cannot be satisfied & Strict receipt-gated baseline (this work) \\
+Block validity & Every proposal, while the validity predicate cannot be satisfied & Strict receipt-gated baselines, in-band and out-of-band (this work) \\
 Finality & The finalized prefix lags; the ledger keeps growing & Ebb-and-flow \\
 Client acceptance & A client stops adding blocks whose data behind a signed checkpoint is unavailable & Babylon emergency break \\
 L2 derivation & Derivation stalls until a challenge resolves the data or the blocks are reorged & OP Alt-DA \\
@@ -390,7 +390,8 @@ assurance column does not rank the designs.}
 \textbf{System} & \textbf{Trigger and observation} & \textbf{Decided by} & \textbf{Behavior under failure and recovery} & \textbf{Assumption} & \textbf{Assurance reported} \\
 \midrule
 \multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
-Strict receipt-gated baseline (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt & Validity predicate & No proposal is valid until the receipt returns & External layers live & n/a \\
+Strict receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipt returns; in our implementation the chain does not resume & External layers live & n/a \\
+Strict receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing Bitcoin or DA receipt, read directly by each validator & Validity predicate & No proposal is valid until the receipt returns; the chain resumes, and validators can disagree on validity & External layers live; validators read consistently & n/a \\
 \grp{Degradation inside consensus}
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
 Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
@@ -411,7 +412,9 @@ Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arran
 {\scriptsize\raggedright
 \textit{Notes.}
 (a)~Engram's binary with the FSM pinned to \textsc{Anchored}
-(Section~\ref{subsec:baselines}); a construct of this paper, not a published system.
+(Section~\ref{subsec:baselines}); the two rows differ only in whether the receipts
+come through the vote extensions or from each validator's own reading. Both are constructs of
+this paper, not published systems.
 (b)~The finalized ledger tolerates under $1/3$ adversarial nodes, the
 available ledger under $1/2$.
 (c)~Clients force the switch to rollup mode and apply the emergency break.

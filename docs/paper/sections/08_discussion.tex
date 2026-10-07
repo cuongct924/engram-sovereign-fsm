@@ -10,14 +10,16 @@ lock establishes, and the cost of griefing.
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
 continue. Cross-chain withdrawals stop. A strict receipt-gated chain under the same
-degradation commits only a fraction of its blocks and, in our implementation,
-does not resume after the layer returns (Section~\ref{subsec:rq2}). The two
-cases differ in the sensors. Observations are produced when validators precommit,
-so the loop that reads the periphery closes only while blocks commit.
-Relaxing the receipt of the failed layer in \textsc{Sovereign} keeps blocks
-committing, which keeps the sensors reading, so the chain sees the layer return;
-the baseline rejects proposals for lack of fresh receipts and thereby stops the
-reads that would show them back.
+degradation commits only a fraction of its blocks and, when it reads the periphery
+through the vote extensions as ours does, does not resume after the layer returns;
+a variant that reads the periphery at each validator resumes
+(Section~\ref{subsec:rq2}). The two cases differ in the sensors. Observations
+in the in-band design are produced when validators precommit, so the loop that
+reads the periphery closes only while blocks commit. Relaxing the receipt of the
+failed layer in \textsc{Sovereign} keeps blocks committing, which keeps the
+sensors reading, so the chain sees the layer return; the in-band baseline rejects
+proposals for lack of fresh receipts and thereby stops the reads that would show
+them back.
 
 \textbf{What the lock establishes.}
 \begin{itemize}
@@ -403,6 +405,15 @@ characterize distributions.
   health certificate is modelled with Boolean observations in the server
   layer; numeric aggregation is covered by Lemma~\ref{lem:honest-range} only
   (Section~\ref{sec:formal}).
+  \item \emph{Receipt-gated baselines.} Both are constructs of this paper, not
+  published systems. The out-of-band one lets every validator read Bitcoin and
+  Celestia itself, which is not deterministic: honest validators can disagree on
+  the validity of a proposal, as the rounds and the longest gaps in
+  Table~\ref{tab:rq2} show. All seven validators read the same Bitcoin node and the
+  same Celestia chain on one host, so their readings agree far more often than
+  they would across independent nodes, and we did not inject disagreement between
+  them. Neither baseline can run while a layer is down, by construction, and
+  neither locks withdrawals.
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
@@ -430,7 +441,7 @@ addresses this gap.
 \subsection{Future Work}
 \label{subsec:future-work}
 
-Three directions remain beyond the items marked in this paper. First,
+Four directions remain beyond the items marked in this paper. First,
 closing the cross-layer refinement obligation, and extending the
 certificate model from Boolean to numeric observations, would extend the
 formal results to the composed system; deductive methods~\cite{padon2016ivy,lotan2025implicit}
@@ -441,7 +452,12 @@ and proving the chunks in parallel or on dedicated hardware would shorten the
 recovery whose latency the unproven-tail discussion measures. Third,
 replacing single-bridge DA trust with sampling across independent peers
 would let the DA sensor detect partial withholding rather than only outages.
-A further step is the external verifier named in Section~\ref{sec:protocol}: a
+Fourth, a receipt-gated baseline whose proposals carry verifiable evidence
+(a Bitcoin header chain with a Merkle proof, and a proof that the blob was
+posted) would remove the disagreement between validators of the out-of-band
+baseline; it would still stall while a layer is down, so it would not change
+what the receipt-gated chains commit during a fault. We have not built one. A
+further step is the external verifier named in Section~\ref{sec:protocol}: a
 light client or bridge on another chain that accepts a re-anchoring checkpoint
 only with a valid proof. We have not built one or measured its verification
 cost.

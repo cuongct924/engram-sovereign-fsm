@@ -103,6 +103,22 @@ isolates the effect of Engram's adaptive relaxation. It is a runtime mode of
 the same binary (\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs
 the RQ2 fault schedule against it.
 
+\textbf{Out-of-band receipt-gated baseline (RQ2).} The same predicate and the
+same pinned \textsc{Anchored} state, but the receipts are not read through the
+vote extensions: in \texttt{PrepareProposal} and \texttt{ProcessProposal} each
+validator reads Bitcoin and the DA layer itself and checks the proposal against
+its own reading (\texttt{ENGRAM\_MODE=hard-gated-oob}). A rejected height
+therefore cannot starve the next one of fresh receipts, which removes both
+dependencies on block commits of the in-band baseline described below. The price
+is that two honest validators may read different values and disagree on the
+validity of a proposal, which the certificate of
+Section~\ref{subsec:health-certificate} exists to prevent. It is a second
+construct of this paper, built to show whether the in-band baseline's failure to
+resume is a property of where the receipts are observed rather than of gating
+validity on them. In what follows the first baseline is called in-band and this
+one out-of-band observation; both are receipt-gated and neither locks
+withdrawals.
+
 \emph{What the predicate implies, and what RQ2 measures.} If, over an interval,
 some receipt predicate holds for no proposal at any height, then no value
 satisfying $V_h$ can be decided in that interval. This is the external-validity
@@ -112,7 +128,8 @@ consequence of the predicate, not a result of this paper. RQ2 therefore asks
 different questions: how many blocks the implementation commits while the
 predicate is nearly unsatisfiable (the receipt tolerance widens with the round),
 whether it resumes after the fault, and what Engram commits instead. The
-first two depend on the implementation and are reported separately.
+first two depend on the implementation and are reported separately for the two
+variants.
 
 \textbf{Soft baseline (RQ2).} The real FSM runs, but withdrawals are never
 locked in \textsc{Sovereign} or \textsc{Recovering}

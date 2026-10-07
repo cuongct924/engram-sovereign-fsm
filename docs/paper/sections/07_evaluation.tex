@@ -218,14 +218,16 @@ every honest validator must move it.
 \subsection{RQ2: Liveness Under Peripheral Degradation}
 \label{subsec:rq2}
 
-\textbf{Engram versus the strict receipt-gated baseline.} The baseline
-(Section~\ref{subsec:baselines}) enforces Bitcoin and DA receipts at every
-height; the soft baseline keeps Engram's FSM but never locks withdrawals. We
-ran each system through three faults: Bitcoin checkpoint submission suspended,
+\textbf{Engram versus the strict receipt-gated baselines.} The two receipt-gated
+baselines (Section~\ref{subsec:baselines}) enforce Bitcoin and DA receipts at
+every height, one reading them through the vote extensions (in-band) and one
+directly at each validator (out-of-band observation); the soft baseline keeps
+Engram's FSM but never locks withdrawals. We ran each system through three faults: Bitcoin checkpoint submission suspended,
 all seven Celestia bridges stopped, and both. A trial is 60\,s healthy, 180\,s
 of fault and 120\,s of recovery, with a withdrawal-marked transaction sent every
-2\,s; each cell of Table~\ref{tab:rq2} has three trials. The baseline
-is redeployed for every trial because, in our implementation, it does not recover on its own (below).
+2\,s; each cell of Table~\ref{tab:rq2} has three trials. Both
+receipt-gated baselines are redeployed for every trial, because the in-band one
+does not recover on its own in our implementation (below).
 Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
 (Section~\ref{subsec:reanchoring}).
 
@@ -234,7 +236,8 @@ Recovery uses proof-only re-anchoring with an unproven-tail bound of 128 blocks
 three runs per cell, mean and range). Rate is the fault-window block rate as a
 share of the same trial's healthy rate; ``No resume'' counts trials in which the
 chain committed no block in the 120\,s after the fault ended (``---'' in the gap
-column: it never resumed). The last two columns count withdrawals committed
+column: it never resumed). The out-of-band baseline is the receipt-gated
+baseline that reads the layers at each validator. The last two columns count withdrawals committed
 after and before the moment Engram's circuit breaker locks, 117\,s (checkpoint
 pause), 41\,s (DA outage) and 43\,s (both) after the fault begins; the same
 window is applied to every system. Recovery is proof-only with an unproven-tail
@@ -246,13 +249,18 @@ bound of 128 blocks.}
 \resizebox{\linewidth}{!}{\input{results/rq2_table}}
 \end{table}
 
-Two observations should be kept apart. \emph{During the fault}, the baseline
-commits a fraction of its blocks, which its validity predicate predicts and the
-experiment measures. Under a DA outage it commits 23 blocks in 180\,s, 16\% of
+Two observations should be kept apart. \emph{During the fault}, the receipt-gated
+baselines commit a fraction of their blocks, which the validity predicate
+predicts and the experiment measures. The in-band baseline commits the numbers
+given next; the out-of-band one commits 20\% (29--30 blocks) of its healthy rate
+under a DA outage, 20\% (27--33 blocks) under the combined fault and
+61\% (89 blocks) under checkpoint suspension, with a longest gap of 6.6--6.8\,s
+and rounds up to 21 (12 under checkpoint suspension), against 96--102\% for
+Engram. Under a DA outage it commits 23 blocks in 180\,s, 16\% of
 its healthy rate, with proposals reaching round 21; the combined fault is the
 same. Under checkpoint suspension it slows to 56\% (74 blocks, round 12): the
 receipt tolerance widens with the round up to a cap, so stale checkpoints are
-admitted for a while. \emph{After the fault}, it commits nothing in the 120\,s
+admitted for a while. \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in
 the checkpoint trials it stops resuming as well. In the one trial observed
 beyond the recovery window, the chain was still stuck after twelve minutes, with
@@ -265,13 +273,19 @@ precommit a block, so once proposals are rejected no validator precommits, no ne
 checkpoint is submitted and no DA height is published. The second follows from
 how observations travel: \texttt{ProcessProposal} receives no vote extensions, so
 the certificate in each proposal is built from the extended commit of the last
-committed block and does not change until another block commits. A design that
-delivers receipts as vote extensions and requires them for validity would share
-the second dependency; a design that observes the layers outside the vote
-extensions would not. The two together make the recovery circular, and in this
-implementation it takes a manual restart. We have not separated the two
-experimentally: a baseline whose checkpoint producer runs independently of block
-commits would remove the first only.
+committed block and does not change until another block commits. The two together make the recovery circular, and in this implementation it
+takes a manual restart. The out-of-band baseline removes both dependencies at
+once, since each validator reads the layers whether or not a block commits, and
+it resumes in every one of its nine trials: 48--57\,s after the fault ended under
+checkpoint suspension, 21--25\,s under a DA outage and 51--74\,s under the
+combined fault. The failure to resume is therefore a property of where the
+receipts are observed in the in-band baseline, not of gating validity on them;
+we have not separated the two dependencies from each other. The price of the
+out-of-band design is that two honest validators can read different values and
+disagree on a proposal, which shows in the rounds above and in the longest gap
+of about 6.7\,s. All seven validators read the same Bitcoin node and the same
+Celestia chain on one host, so their readings are far more alike here than they
+would be across independent nodes.
 Engram commits 147--153 blocks (96--102\% of its healthy
 rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
 and resumes within two seconds of the fault ending.
@@ -279,9 +293,10 @@ and resumes within two seconds of the fault ending.
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
 the breaker, because the window opens when Engram's own FSM reaches
-\textsc{Sovereign}. The baseline, which has no breaker, committed 3
-withdrawals after that moment under DA faults and 6--9 under checkpoint
-suspension, few only because it commits few blocks. Engram's cost shows in the
+\textsc{Sovereign}. The receipt-gated baselines, which have no breaker, committed 3
+withdrawals after that moment under DA faults (in-band) or 6--9 (out-of-band) and
+6--9 under checkpoint suspension, few only because they commit few blocks; both
+still admit withdrawals while degraded, as the soft baseline does. Engram's cost shows in the
 last column: it committed 18--19 withdrawals before locking under DA faults and
 45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
 leave \textsc{Anchored} for \textsc{Sovereign}. These counts follow from the
