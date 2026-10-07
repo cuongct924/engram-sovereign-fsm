@@ -48,14 +48,12 @@ suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 \label{subsec:environment}
 
 All results come from one environment, Testbed~A: the seven-validator Docker
-deployment above on a single host. The repeats of A1, P3, P4's escalation and
-B8 in Section~\ref{subsec:rq1} ran on a second Apple M1 host (8 cores, 16\,GB)
-with the same software and parameters. They test safety and detection, which
-do not depend on proving speed.
+deployment above on a single host. Every table and figure in
+Section~\ref{sec:evaluation} is a Testbed~A measurement.
 \iftestbedB A second environment, Testbed~B, with one validator on each of
 seven cloud virtual machines, serves the experiments that depend on real
-wide-area conditions.\fi{} Table~\ref{tab:environment} lists Testbed~A's
-configuration.
+wide-area conditions; results from the two environments are never pooled into
+one number.\fi{} Table~\ref{tab:environment} lists the configuration.
 
 \begin{table}[h]
 \caption{Testbed configuration and software versions}

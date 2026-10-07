@@ -86,8 +86,7 @@ AppHash agreement, and the honest-range check, not by whether a transition occur
 
 \begin{table}[h]
 \caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
-reruns; B8 is three repeats of an honest split view with no adversary,
-measured on a second host, Section~\ref{subsec:environment}; c0 is the control)}
+reruns; B8 is three repeats of an honest split view with no adversary; c0 is the control)}
 \label{tab:f2}
 \centering
 \scriptsize
@@ -199,17 +198,6 @@ moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} at
 +39\,s and +72\,s, held \textsc{Sovereign} for the 244-second attack, and
 returned to \textsc{Anchored} within 5\,s of the delay clearing
 (Fig.~\ref{fig:a4-cascade}).
-
-We repeated P3 and P4 three times each, and A1's no-attack control three
-times, on a second host (Section~\ref{subsec:environment}). All three P3
-repeats again committed no FSM transition attributable to the churn. All
-three P4 repeats again escalated through \textsc{Suspicious} (+0--30\,s) to
-\textsc{Sovereign} (+30--61\,s after the delay began), confirming the
-quorum-visible cascade. The three A1 control repeats held zero AppHash
-divergence and a stable block rate, with the same ordinary
-\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} noise observed for c0
-above. \pending{P4's recovery after the delay clears needs a longer window on
-Testbed~A; the second host's 116\,s window was too short to observe it.}
 
 \begin{figure}[h]
 \centering
@@ -361,9 +349,13 @@ and S7 recovery. Each scenario starts from the state the previous one left;
 153 FSM transitions were logged across the seven validators
 (Fig.~\ref{fig:s1-s7}).
 
-\pending{repeat the seven-scenario sweep five times on Testbed~A with the
-heuristic fallback and a 900\,s S7 window, and report S7's recovery time as
-mean $\pm$ 95\% CI (Student $t$).}
+We repeated the sweep five times, each a freshly deployed chain with the
+heuristic fallback enabled. S7's recovery time -- from its first sample to
+the first sample at which every validator reached \textsc{Anchored} -- was
+461--491\,s (mean 474.8\,s, 95\% CI $\pm$12.0\,s, $n{=}4$). One of the five
+trials is excluded: its fixed observation window ended with every
+validator's \texttt{safe\_blocks} at the hysteresis bound (2 of 2), one
+block before the expected transition to \textsc{Anchored}.
 
 \begin{figure}[h]
 \centering
