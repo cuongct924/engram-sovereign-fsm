@@ -257,7 +257,7 @@ constrained state graph and not a cap. Hardware: Apple M1 Pro, 10 cores, 32\,GB 
 \pending{rerun the rows of Table~\ref{tab:formal-verification} on the current
 specification: the Tendermint safety row after the Bitcoin threshold was added
 (3{,}698{,}323 states generated, 525{,}544 distinct, depth 25, no violation, time
-not recorded) and the FSM rows after the adaptive-threshold and GST changes.}
+not recorded) and the FSM rows after the adaptive-threshold and GST changes. Also run the ablation that removes the DA-backfill gate (queued with TLC at the FSM layer, a violation of the sanity invariant expected) and, if it reproduces, add it as a fifth row of Table~\ref{tab:ablation} and update the count of mechanisms in the abstract, the contributions and Table~\ref{tab:claims}.}
 
 Table~\ref{tab:formal-verification} reports the per-layer results, each
 obtained by running that layer's own driver standalone at the configuration of
