@@ -1,0 +1,12 @@
+{
+ "label": "static2_o0_t3",
+ "pulses": 22,
+ "pulse_s_nominal": 3.0,
+ "bridge_down_s_mean": 16.4,
+ "demotions": 1,
+ "flaps": 34,
+ "anchored_share": 0.0166,
+ "reached_sovereign": true,
+ "samples": 602,
+ "recovered": true
+}

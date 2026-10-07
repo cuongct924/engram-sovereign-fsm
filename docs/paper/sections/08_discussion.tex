@@ -64,9 +64,11 @@ protection beyond the bounded forced-transaction queue; the adaptive
 threshold is meant to close this asymmetry. In the simulation of
 Section~\ref{subsec:rq3} it absorbs a naive repeated adversary (1 demotion in
 1200 blocks against 300 for a static threshold of 2) but gains little over a
-static threshold of 4, and the live sweep suppressed flapping under jitter no
-better than a static threshold of 2; the live repeated-trigger runs are
-\pending{report the live repeated-trigger runs of the adaptive threshold.}
+static threshold of 4. Live, the adaptive threshold suppressed flapping under
+changing noise only with a long stable window and never better than a static
+threshold of 4 at a shorter detection delay, and the live repeated-trigger runs did
+not separate the thresholds (every configuration escalated to \textsc{Sovereign} at
+the first pulse), so the absorption of short pulses has no live evidence.
 
 \textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
 FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a

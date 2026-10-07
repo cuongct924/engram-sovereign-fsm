@@ -1,0 +1,12 @@
+{
+ "label": "adaptiveW16_o0_t2",
+ "pulses": 21,
+ "pulse_s_nominal": 3.0,
+ "bridge_down_s_mean": 16.7,
+ "demotions": 1,
+ "flaps": 22,
+ "anchored_share": 0.0211,
+ "reached_sovereign": true,
+ "samples": 569,
+ "recovered": true
+}

@@ -602,8 +602,19 @@ ranges not overlapping, though with three runs each this is an observation, not 
 estimate. For $k{=}2$, a window of 16 and a window of 128 the chain left
 \textsc{Anchored} before the outage in all three runs at that offset, so no
 detection delay was measured; we did not identify the cause.
-\pending{replace the simulated repeated-trigger columns with the live
-repeated-trigger runs of the same configurations.}
+
+\textbf{Repeated trigger (live).} The live adversary stops every Celestia bridge
+for a nominal pulse of 3\,s and restarts them, 21 to 23 times in about ten
+minutes (15 runs, three per configuration, each on a fresh genesis). Stopping and
+restarting take time: the bridges were down for 15--17\,s per pulse on average,
+far longer than the nominal pulse and than any threshold, so a pulse is a full DA
+outage and not the short warning-level burst of the simulation. In all 15 runs,
+whatever the configuration, the chain left \textsc{Anchored} at the first pulse
+(one demotion), reached \textsc{Sovereign}, and spent 0.2--2.2\% of the run in
+\textsc{Anchored}. This experiment therefore does not separate the thresholds, and
+it gives no live evidence that the adaptive threshold absorbs short pulses: the
+simulation remains the only evidence for that case, and a live adversary needs a
+fault faster than stopping a bridge to produce pulses shorter than the threshold.
 
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.

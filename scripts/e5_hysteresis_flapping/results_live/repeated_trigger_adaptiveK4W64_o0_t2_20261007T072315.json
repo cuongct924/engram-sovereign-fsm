@@ -1,0 +1,12 @@
+{
+ "label": "adaptiveK4W64_o0_t2",
+ "pulses": 23,
+ "pulse_s_nominal": 3.0,
+ "bridge_down_s_mean": 15.2,
+ "demotions": 1,
+ "flaps": 39,
+ "anchored_share": 0.0216,
+ "reached_sovereign": true,
+ "samples": 602,
+ "recovered": true
+}
