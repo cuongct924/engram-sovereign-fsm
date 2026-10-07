@@ -216,6 +216,22 @@ the outage was detected in 3 of 3 runs, as predicted. With slots 0, 2 and 4 of t
 would hide it, the chain also left \textsc{Anchored} and reached \textsc{Sovereign} in 3 of 3 runs, with 6 to 9 blocks outside the honest range
 per run (6 to 12 over all six). We have not isolated why the prediction failed for the interleaved placement, so the concealment at $k{=}4$ rests on the simulation alone.
 
+\textbf{Choosing the down threshold.} The experiments ran with
+\texttt{DownHysteresisThreshold} of 2, and the live runs show that value to be too
+low for a wide-area network: under the three-phase noise a static $k{=}2$ flapped
+7.5 times and spent 82\% of the noisy phase in \textsc{Anchored}, a static $k{=}4$
+did not flap and stayed \textsc{Anchored} throughout, at a detection delay of 13.7\,s
+against 10.9\,s. At the testbed's accelerated Bitcoin cadence the healthy checkpoint
+cycle reaches the suspicious threshold in 3--16\% of the samples, and $k{=}2$ spent only
+0.79--0.87 of the quiet phase in \textsc{Anchored}, against 1.00 for $k{=}4$; the
+model of the cycle accounts for this, though we did not isolate it live.
+We therefore recommend $k_{\downarrow} \geq 4$ as a deployment setting, set from the
+noise of the environment like \texttt{MaxSuspiciousTime} is set from the Bitcoin
+cadence, and keep 2 as the value of the reported experiments. The price is the
+concealment of the preceding paragraph: an outage is detected only if $k$
+consecutive proposers are honest, so the larger the threshold, the easier it is to
+hide one.
+
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the
 certificate selects (Section~\ref{subsec:health-certificate}). This cannot

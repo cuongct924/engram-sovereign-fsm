@@ -452,7 +452,8 @@ used in the other experiments is therefore too low for WAN conditions; the
 other experiments did not count flaps and cannot be taken as evidence to
 the contrary. A static default must trade reaction time (low $k$) against
 noise immunity (high $k$), and the right point depends on network
-conditions that change over time.
+conditions that change over time; the extension evaluated at the end of this section
+tries to adapt to them.
 
 The other two edges show the opposite side of the trade-off. On the \textsc{Recovering}$\to$\textsc{Anchored} edge, a
 larger hysteresis wait strictly reduces anchored uptime under sustained
@@ -468,7 +469,102 @@ before the timeout forced \textsc{Sovereign}. Any adaptive threshold
 must therefore stay below the \textsc{Suspicious} timeout, which bounds
 $k_{\max}$. 
 
-\textbf{Adaptive hysteresis.} We therefore extend the backoff already used on
+\textbf{What ends \textsc{Recovering}.} The state exposes whether the proof
+condition holds, not which path set it, so we ran one 120\,s DA outage per
+setting and read the prover's log. With the heuristic fallback enabled, the
+chain left \textsc{Recovering} after 36\,s while the prover's single proof was
+rejected as invalid (the interval had grown while it was built): the fallback,
+not the proof, ended recovery. With proof-only recovery and the default bound of
+8 unproven tail blocks, the chain never left \textsc{Recovering}, not even after
+genesis (observed for over thirty minutes in two deployments), although the
+chain accepted the prover's proofs (seven in one deployment). A 256-header proof
+takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
+the tail was always longer than the bound. With the bound raised to 128 blocks
+the chain left \textsc{Recovering} 341--356\,s after entering it in each of five
+runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$8.1\,s), the first valid proof
+being accepted 341--353\,s in (recorded in three of the five). The time is
+mostly the wait for the prover's batch of 256 headers and its build time, not
+the 68--73 blocks of the outage interval. The bound must therefore exceed the proving
+latency measured in blocks, and the blocks of that tail are protected by
+consensus alone. No block of these intervals was committed in a round other than
+0. The RQ2 trials above and the repeated composite runs use proof-only recovery
+with the bound of 128; the first composite run, the seven-scenario run and the
+data-availability runs used the fallback.
+
+\textbf{Data availability of the \textsc{Sovereign} interval.} The exit
+condition of Section~\ref{subsec:reanchoring} requires the interval's block
+data to be republished before \textsc{Recovering}$\to$\textsc{Anchored}. We
+stopped all seven Celestia bridges for 120, 300 and 600\,s, restarted them, and
+after the chain returned to \textsc{Anchored} re-fetched every height of the
+interval from Celestia through \texttt{blob.GetAll}, comparing the bytes with
+the Engram block. Table~\ref{tab:backfill} shows that all 2{,}291 heights over
+nine runs were found and identical. The chain entered \textsc{Sovereign}
+46--49\,s after the bridges stopped, and the time in \textsc{Recovering} did
+not grow with the interval: 37--61\,s for 75--77 blocks and 49--61\,s for
+465--475 blocks. The check is external to the chain: the gate itself rests on the
+quorum-reported contiguous height, and these runs show that height was truthful
+when all validators were honest. They cover a total DA outage on one host
+with three runs per length. Runs under the earlier 512\,MiB bridge limit are
+excluded; at that limit the bridges crash-looped and the 600\,s outage never
+returned to \textsc{Recovering}.
+These runs kept the heuristic fallback of Section~\ref{subsec:reanchoring}
+enabled (proof-only recovery off), so the time in \textsc{Recovering} does not
+isolate the cost of the recovery proof; the data-availability results are
+independent of that choice.
+A gate that always opens would pass the runs above, so we also withheld
+data. A test hook makes a validator publish only head markers: its DA liveness
+stays healthy, so the chain can reach \textsc{Recovering}, but its contiguous
+height never advances. The certified height is a weighted median over the
+certificates, so the gate should hold when four or more of the seven
+validators withhold data and open when three or fewer do. Table~\ref{tab:backfill-controls}
+shows that it did in all seven runs. In a third control, two validators signed
+a contiguous height of $10^{12}$ while the five honest ones withheld data; the
+median stayed at zero and the gate held, as it should against $f{=}2$
+misreporting validators. These controls use two to three runs per setting, each
+on a freshly deployed cluster, and the withholding validators are a test
+configuration, not a modelled adversary. A first attempt at the third control
+ran with only two of its five withholding validators because the override
+file omitted three nodes; it is excluded.
+
+\begin{table}[h]
+\caption{Republication of the \textsc{Sovereign} interval after a total DA
+outage (three runs per outage length; range over runs; heuristic fallback enabled)}
+\label{tab:backfill}
+\centering
+\footnotesize
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+\textbf{Outage (s)} & \textbf{Interval (blocks)} & \textbf{Time in \textsc{Recovering} (s)} & \textbf{Heights found, identical} \\
+\midrule
+120 & 75--77 & 36.6--61.1 & 229 / 229 \\
+300 & 217--219 & 60.9--67.3 & 655 / 655 \\
+600 & 465--475 & 49.0--61.2 & 1407 / 1407 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Backfill-gate controls after a 120\,s DA outage (validators withholding
+block data; the gate must hold for 300\,s or open; heuristic fallback enabled)}
+\label{tab:backfill-controls}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrr>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
+\toprule
+\textbf{Setting} & \textbf{Runs} & \textbf{Interval (blocks)} & \textbf{Outcome} \\
+\midrule
+4 of 7 withhold data & 3 & 201--208 & held in \textsc{Recovering} 3 / 3 \\
+3 of 7 withhold data & 2 & 67--72 & left \textsc{Recovering} after 34 and 43\,s; data identical \\
+2 inflated claims + 5 withhold & 2 & 202--208 & held in \textsc{Recovering} 2 / 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Exploratory extension: an adaptive down threshold.} A static threshold
+trades reaction time against noise immunity, and the right point depends on
+network conditions that change over time. The rest of this section evaluates an
+extension that tries to follow them. We report it as exploratory and do not claim
+it as a contribution; the summary at its end gives the reason. We extend the backoff already used on
 \textsc{Recovering} to the down threshold $k_{\downarrow}$ of both demotion
 edges (Section~\ref{subsec:transitions}). The effective threshold is
 $k_{\downarrow} = \min(k_{\max},\, k_0 \cdot 2^{c})$, where the flap level $c$
@@ -575,8 +671,9 @@ cluster: a quiet phase, a phase under the wide-area latency and jitter profile o
 the stationary sweep, and a quiet phase after which, once the chain was
 \textsc{Anchored} again and had stayed so for an offset of 0 or 60\,s, all
 Celestia bridges were stopped. Every run used a fresh genesis, with three runs per
-configuration and offset (Table~\ref{tab:nonstationary-live}; the noisy-phase
-columns pool the six runs of a configuration).
+configuration and offset (Table~\ref{tab:nonstationary-live} and
+Fig.~\ref{fig:live-tradeoff}; the noisy-phase columns pool the six runs of a
+configuration).
 
 \begin{table}[h]
 \caption{Live three-phase runs: mean (range) over three runs per offset (the noisy
@@ -587,6 +684,15 @@ non-\textsc{Anchored} state.}
 \scriptsize
 \resizebox{\linewidth}{!}{\input{results/nonstationary_live_table}}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{figures/figure_live_tradeoff.pdf}
+\caption{Flaps against detection delay in the live three-phase runs. Squares are
+static thresholds, circles the adaptive ones; the bars span the three runs at offset
+0. Lower and to the left is better.}
+\label{fig:live-tradeoff}
+\end{figure}
 
 A static threshold of 4 never flapped and stayed \textsc{Anchored} through the noisy
 phase of all six runs, at a detection delay of 13.7\,s against 10.9\,s for $k{=}2$,
@@ -616,99 +722,18 @@ it gives no live evidence that the adaptive threshold absorbs short pulses: the
 simulation remains the only evidence for that case, and a live adversary needs a
 fault faster than stopping a bridge to produce pulses shorter than the threshold.
 
+\emph{Summary of the extension.} In the stationary live sweep the adaptive threshold
+behaved like $k{=}2$ (8.3 flaps, 85\% uptime), and with a window of 64 blocks it
+flapped 3.0 times. In the live three-phase runs the flaps fell with the window (6.8,
+3.0 and 1.0 for 16, 64 and 128 blocks) at detection delays of 12.7, 14.6 and
+16.2\,s, against no flap at 13.7\,s for a static threshold of 4. The live
+repeated-trigger runs did not separate the thresholds, and the case the extension is
+meant for, absorbing short repeated pulses, rests on the simulation alone. We
+therefore treat a static threshold of 4 or more as the setting to use
+(Section~\ref{sec:discussion}) and the backoff as a result that did not hold up.
+
 Appendix~\ref{app:reorg} complements these results by measuring how deep a
 real Bitcoin reorganization must be before the FSM reacts.
-
-\textbf{What ends \textsc{Recovering}.} The state exposes whether the proof
-condition holds, not which path set it, so we ran one 120\,s DA outage per
-setting and read the prover's log. With the heuristic fallback enabled, the
-chain left \textsc{Recovering} after 36\,s while the prover's single proof was
-rejected as invalid (the interval had grown while it was built): the fallback,
-not the proof, ended recovery. With proof-only recovery and the default bound of
-8 unproven tail blocks, the chain never left \textsc{Recovering}, not even after
-genesis (observed for over thirty minutes in two deployments), although the
-chain accepted the prover's proofs (seven in one deployment). A 256-header proof
-takes about two minutes to build and submit, more than 90 blocks at 1.2\,s, so
-the tail was always longer than the bound. With the bound raised to 128 blocks
-the chain left \textsc{Recovering} 341--356\,s after entering it in each of five
-runs on fresh chains (mean 347.2\,s, 95\% CI $\pm$8.1\,s), the first valid proof
-being accepted 341--353\,s in (recorded in three of the five). The time is
-mostly the wait for the prover's batch of 256 headers and its build time, not
-the 68--73 blocks of the outage interval. The bound must therefore exceed the proving
-latency measured in blocks, and the blocks of that tail are protected by
-consensus alone. No block of these intervals was committed in a round other than
-0. The RQ2 trials above and the repeated composite runs use proof-only recovery
-with the bound of 128; the first composite run, the seven-scenario run and the
-data-availability runs used the fallback.
-
-\textbf{Data availability of the \textsc{Sovereign} interval.} The exit
-condition of Section~\ref{subsec:reanchoring} requires the interval's block
-data to be republished before \textsc{Recovering}$\to$\textsc{Anchored}. We
-stopped all seven Celestia bridges for 120, 300 and 600\,s, restarted them, and
-after the chain returned to \textsc{Anchored} re-fetched every height of the
-interval from Celestia through \texttt{blob.GetAll}, comparing the bytes with
-the Engram block. Table~\ref{tab:backfill} shows that all 2{,}291 heights over
-nine runs were found and identical. The chain entered \textsc{Sovereign}
-46--49\,s after the bridges stopped, and the time in \textsc{Recovering} did
-not grow with the interval: 37--61\,s for 75--77 blocks and 49--61\,s for
-465--475 blocks. The check is external to the chain: the gate itself rests on the
-quorum-reported contiguous height, and these runs show that height was truthful
-when all validators were honest. They cover a total DA outage on one host
-with three runs per length. Runs under the earlier 512\,MiB bridge limit are
-excluded; at that limit the bridges crash-looped and the 600\,s outage never
-returned to \textsc{Recovering}.
-These runs kept the heuristic fallback of Section~\ref{subsec:reanchoring}
-enabled (proof-only recovery off), so the time in \textsc{Recovering} does not
-isolate the cost of the recovery proof; the data-availability results are
-independent of that choice.
-A gate that always opens would pass the runs above, so we also withheld
-data. A test hook makes a validator publish only head markers: its DA liveness
-stays healthy, so the chain can reach \textsc{Recovering}, but its contiguous
-height never advances. The certified height is a weighted median over the
-certificates, so the gate should hold when four or more of the seven
-validators withhold data and open when three or fewer do. Table~\ref{tab:backfill-controls}
-shows that it did in all seven runs. In a third control, two validators signed
-a contiguous height of $10^{12}$ while the five honest ones withheld data; the
-median stayed at zero and the gate held, as it should against $f{=}2$
-misreporting validators. These controls use two to three runs per setting, each
-on a freshly deployed cluster, and the withholding validators are a test
-configuration, not a modelled adversary. A first attempt at the third control
-ran with only two of its five withholding validators because the override
-file omitted three nodes; it is excluded.
-
-\begin{table}[h]
-\caption{Republication of the \textsc{Sovereign} interval after a total DA
-outage (three runs per outage length; range over runs; heuristic fallback enabled)}
-\label{tab:backfill}
-\centering
-\footnotesize
-\begin{tabular}{@{}rrrr@{}}
-\toprule
-\textbf{Outage (s)} & \textbf{Interval (blocks)} & \textbf{Time in \textsc{Recovering} (s)} & \textbf{Heights found, identical} \\
-\midrule
-120 & 75--77 & 36.6--61.1 & 229 / 229 \\
-300 & 217--219 & 60.9--67.3 & 655 / 655 \\
-600 & 465--475 & 49.0--61.2 & 1407 / 1407 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[h]
-\caption{Backfill-gate controls after a 120\,s DA outage (validators withholding
-block data; the gate must hold for 300\,s or open; heuristic fallback enabled)}
-\label{tab:backfill-controls}
-\centering
-\footnotesize
-\begin{tabular}{@{}lrr>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
-\toprule
-\textbf{Setting} & \textbf{Runs} & \textbf{Interval (blocks)} & \textbf{Outcome} \\
-\midrule
-4 of 7 withhold data & 3 & 201--208 & held in \textsc{Recovering} 3 / 3 \\
-3 of 7 withhold data & 2 & 67--72 & left \textsc{Recovering} after 34 and 43\,s; data identical \\
-2 inflated claims + 5 withhold & 2 & 202--208 & held in \textsc{Recovering} 2 / 2 \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \subsection{RQ4: Cost}
 \label{subsec:rq4}

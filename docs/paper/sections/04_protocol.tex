@@ -387,7 +387,7 @@ Section~\ref{subsec:transitions}).}
 \toprule
 \textbf{Wait} & \textbf{Applies to} & \textbf{Default} & \textbf{Adaptive} \\
 \midrule
-Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2, doubles per flap level up to 8 & Yes \\
+Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2; with the optional backoff, doubles per flap level up to a cap (8 on the testbed) & Optional \\
 Suspicious exit $k_{\uparrow}$ & \textsc{Suspicious}$\to$\textsc{Anchored} & 2 & No \\
 Recovery $H$ & \textsc{Recovering}$\to$\textsc{Anchored} & 2 & No \\
 \bottomrule
@@ -410,8 +410,11 @@ safe-block counter to reach $H$ plus the exit gate of
 Section~\ref{subsec:reanchoring}. \textsc{Sovereign}$\to$\textsc{Recovering}
 needs only a healthy certificate.
 
-To resist an adversary who repeatedly toggles a peripheral, the down
-threshold $k_{\downarrow}$ is adaptive. It starts at a genesis value and
+The down threshold $k_{\downarrow}$ has an optional backoff against an adversary
+who repeatedly toggles a peripheral. It is an extension that we evaluate in
+Section~\ref{subsec:rq3} and do not claim as a contribution: it did not outperform a
+static threshold of 4 in our live runs. With the cap equal to the initial value
+$k_{\downarrow}$ is static. With backoff, it starts at a genesis value and
 doubles per flap level, up to a genesis cap, and both demotion edges
 (\textsc{Anchored}$\to$\textsc{Suspicious} and the non-critical
 \textsc{Recovering}$\to$\textsc{Sovereign}) use it. The flap level rises by

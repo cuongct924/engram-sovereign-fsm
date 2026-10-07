@@ -246,8 +246,8 @@ packet-loss cycles of C4). Blocks arrive about once per second.
 \end{tabular}
 \\[2pt]
 \footnotesize Overrides: the Docker testbed runs the table's
-\texttt{DownHysteresisThreshold} of 2 with the backoff cap of 8, so the down
-threshold is adaptive, and sets \texttt{SuspiciousHysteresisWait} to 8, which is
+\texttt{DownHysteresisThreshold} of 2 with the backoff cap of 8, so the optional
+backoff of the down threshold is enabled, and sets \texttt{SuspiciousHysteresisWait} to 8, which is
 not adaptive. The hysteresis sweeps of Section~\ref{subsec:rq3}
 vary the down threshold, a static value being \texttt{MaxDownHysteresisThreshold}
 equal to \texttt{DownHysteresisThreshold}; the Monte Carlo study of
