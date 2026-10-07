@@ -444,7 +444,12 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   neither locks withdrawals.
   \item \emph{Receipt parameters.} The base threshold $K_{\text{DEEP\_FINALITY}} + 2$
   and the widening caps are fixed design parameters, and the evaluation does not
-  vary them.
+  vary them. A Bitcoin receipt is refused once the checkpoint lags the tip by more
+  than $K_{\text{DEEP\_FINALITY}} + 3$ blocks, whereas the FSM treats the Bitcoin
+  gap as a warning from 5 blocks and demotes only after $k_{\downarrow}$ committed
+  blocks; we did not measure how many rounds a height skips in between. The
+  Bitcoin-fault rows of the baselines and of Engram were measured under different
+  Bitcoin tolerances (Section~\ref{subsec:rq2}).
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
