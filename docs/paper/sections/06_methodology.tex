@@ -1,7 +1,7 @@
 \section{Implementation and Evaluation Methodology}
 \label{sec:setup}
 
-\subsection{Implementation}
+\subsection{Prototype and Testbed}
 \label{subsec:implementation}
 
 The reference implementation is a Cosmos SDK application, \texttt{engramd},
@@ -29,8 +29,7 @@ a \textsc{Sovereign} backlog, builds the proof from committed headers, and
 submits it as a transaction that every validator verifies during block
 execution. Section~\ref{subsec:environment} lists the versions.
 
-\subsection{Testbed}
-\label{subsec:testbed}
+\textbf{Testbed.}\label{subsec:testbed}
 
 The testbed runs the reference implementation of Section~\ref{subsec:implementation}
 as seven validators with equal voting power ($n{=}7$, $f{=}2$), each in its
@@ -44,8 +43,7 @@ Celestia network with seven bridge nodes, one per validator, so that each
 validator forms its own DA view. The single-actor attacks of Appendix~\ref{app:attacks} and the $f{=}2$ collusion
 suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 
-\subsection{Environments and Software Versions}
-\label{subsec:environment}
+\textbf{Environment and versions.}\label{subsec:environment}
 
 All results come from one environment, Testbed~A: the seven-validator Docker
 deployment above on a single host. Unless stated otherwise, the live
@@ -55,38 +53,8 @@ Appendix~\ref{app:aggregation} are labelled as such.
 \iftestbedB A second environment, Testbed~B, with one validator on each of
 seven cloud virtual machines, serves the experiments that depend on real
 wide-area conditions; results from the two environments are never pooled into
-one number.\fi{} Table~\ref{tab:environment} lists the configuration.
+one number.\fi{} Table~\ref{tab:environment} in Appendix~\ref{app:setup} lists the configuration and the versions.
 
-\begin{table}[h]
-\caption{Testbed configuration and software versions}
-\label{tab:environment}
-\centering
-\footnotesize
-\begin{tabular}{@{}p{0.2\linewidth}p{0.7\linewidth}@{}}
-\toprule
-\textbf{Component} & \textbf{Testbed A} \\
-\midrule
-Host & Apple M1 Pro (10 cores: 8P + 2E), 32\,GB RAM, 1\,TB SSD; macOS 27.0 \\
-Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM \\
-Validators (7) & No CPU or memory limit per container \\
-Consensus core & CometBFT v0.39.3 module path, replaced by the fork
-\texttt{engram-consensus-core} at commit \texttt{493a20121} \\
-Application & Cosmos SDK v0.54.3; this repository at \pending{results commit} \\
-Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) \\
-Celestia & celestia-app v1.11.0 (0.5 CPU, 1\,GB); seven celestia-node
-v0.14.1 bridges (0.3 CPU, 512\,MB each) \\
-Prover & nargo 1.0.0-beta.22, \texttt{bb} 5.0.0-nightly.20260522
-(6 CPU, 8\,GB limit) \\
-Fault injection & Pumba (image tag \texttt{latest}) driving kernel
-\texttt{tc netem} \\
-Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 \\
-\bottomrule
-\end{tabular}
-\\[2pt]
-\footnotesize CPU and memory figures are container limits. The fork's
-differences from upstream CometBFT are listed in
-Section~\ref{subsec:implementation}.
-\end{table}
 
 \subsection{Baselines}
 \label{subsec:baselines}
@@ -149,7 +117,7 @@ contribution of the six-bound profiler (RQ1), and each hysteresis edge with
 its threshold set to its floor isolates the contribution of hysteresis
 (RQ3).
 
-\subsection{Fault Injection and Schedules}
+\subsection{Fault Model, Schedules and Parameters}
 \label{subsec:schedules}
 
 Network-level faults use kernel traffic control (\texttt{tc netem} via
@@ -187,60 +155,25 @@ wait and a 900\,s limit for S7; update this table and the text when they are in.
 
 The table is in Appendix~\ref{app:setup}: the composite run holds a Bitcoin fault, adds a DA outage, cycles packet loss on two validators, heals, and waits for recovery; the seven-scenario sweep applies one fault at a time (S2--S6) between a healthy baseline and a recovery wait.
 
-\subsection{FSM Parameters}
-\label{subsec:params}
+\textbf{FSM parameters.}\label{subsec:params}
 
-FSM parameters are fixed in the genesis file, so every validator holds
-identical values. All live experiments use the defaults of
-Table~\ref{tab:fsm-params} unless a section states an override. Sensors are
-sampled once per block, when a validator signs its vote extension; the
-measurement scripts poll each validator's RPC every 3\,s (2\,s during the
-packet-loss cycles of C4). Blocks arrive about once per second.
+The parameters are fixed in the genesis file, so every validator holds identical
+values; Table~\ref{tab:fsm-params} in Appendix~\ref{app:setup} lists them. The live
+experiments use a Bitcoin gap of 5 blocks for \textsc{Suspicious} and 8 for
+\textsc{Sovereign}, a DA gap of 30 blocks, a finality depth
+$K_{\text{DEEP\_FINALITY}}{=}2$, hysteresis waits of 2 blocks, a down threshold
+$k_{\downarrow}{=}2$, a \textsc{Suspicious} escalation bound of 24 blocks, and a
+recovery gate that accepts only a verified proof with an unproven tail of at most
+128 blocks, unless a section states an override. Sensors are sampled once per
+block, when a validator signs its vote extension; the measurement scripts poll
+each validator's RPC every 3\,s (2\,s during the packet-loss cycles of C4). Blocks
+arrive about once per second.
 
-\begin{table}[h]
-\caption{FSM parameters used in the live experiments}
-\label{tab:fsm-params}
-\centering
-\footnotesize
-\begin{tabular}{@{}p{0.34\linewidth}rp{0.38\linewidth}@{}}
-\toprule
-\textbf{Parameter} & \textbf{Value} & \textbf{Unit and role} \\
-\midrule
-\texttt{SuspiciousThreshold} & 5 & Bitcoin gap, blocks \\
-\texttt{SovereignThreshold} & 8 & Bitcoin gap, blocks \\
-\texttt{DAThreshold} & 30 & DA gap, blocks \\
-\texttt{KDeepFinality} & 2 & Reorg depth, Bitcoin blocks \\
-\texttt{MinPeers} & 3 & Clean peers \\
-\texttt{MinSubnetDiversity} & 2 & Distinct subnets \\
-\texttt{MinAnchorPeers} & 2 & Active anchor peers \\
-\texttt{MaxChurnRate} & 5 & Peer churn events \\
-\texttt{MinAvgTenure} & 300 & Mean peer tenure, s \\
-\texttt{MaxPeerLatency} & 200 & Round-trip time, ms \\
-\texttt{RecoveryHysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
-\texttt{DownHysteresisThreshold} & 2 & \textsc{Anchored}$\to$\textsc{Suspicious}, blocks \\
-\texttt{MaxDownHysteresisThreshold} & 8 & Cap on the backed-off threshold \\
-\texttt{MaxUnprovenTailBlocks} & 128 & Tail after the proved checkpoint that still counts (default 8) \\
-\texttt{ProofOnlyRecovery} & true & Recovery requires a verified proof (default false) \\
-\texttt{StableWindow} & 16 & Healthy \textsc{Anchored} blocks that lower the flap level by one \\
-\texttt{SuspiciousHysteresisWait} & 2 & \textsc{Suspicious}$\to$\textsc{Anchored}, blocks \\
-\texttt{MaxSuspiciousTime} & 24 & \textsc{Suspicious} escalation bound, blocks \\
-\bottomrule
-\end{tabular}
-\\[2pt]
-\footnotesize Overrides: the Docker testbed runs the table's
-\texttt{DownHysteresisThreshold} of 2 with the backoff cap of 8, so the optional
-backoff of the down threshold is enabled, and sets \texttt{SuspiciousHysteresisWait} to 8, which is
-not adaptive. The hysteresis sweeps of Section~\ref{subsec:rq3}
-vary the down threshold, a static value being \texttt{MaxDownHysteresisThreshold}
-equal to \texttt{DownHysteresisThreshold}; the Monte Carlo study of
-Section~\ref{subsec:rq1} uses the P2P thresholds of
-Section~\ref{subsec:montecarlo}.
-\end{table}
 
-\subsection{Synthetic Workloads}
-\label{subsec:montecarlo}
+\subsection{Workloads, Metrics and Statistics}
+\label{subsec:metrics}
 
-Two synthetic workloads feed the in-process studies; both use fixed seeds, and
+\textbf{Synthetic workloads.}\label{subsec:montecarlo} Two synthetic workloads feed the in-process studies; both use fixed seeds, and
 Appendix~\ref{app:setup} gives the generators and their limits. The hysteresis
 sweeps drive the real state machine with sensor readings in which each block is
 disturbed independently with probability 0.2, for 100 blocks, so every threshold
@@ -251,9 +184,6 @@ production-scale thresholds; it measures false-positive and false-negative rates
 detection delay and an evasion threshold. The benign distribution, the attack
 directions and the intensity scale are our choices, so the results characterize
 the detectors' sensitivity within this generator.
-
-\subsection{Metrics}
-\label{subsec:metrics}
 
 \textbf{Terms.} $n$ is the number of validators ($n{=}7$ on the main testbed). A \emph{run} is one execution of a
 scenario; unless stated otherwise it starts from \textsc{Anchored} on a freshly

@@ -156,18 +156,16 @@ Appendix~\ref{app:envelope}.
 
 \subsection{Interpretation of Results}
 
-The formal and empirical results cover complementary ground. The TLA+ results
-establish, per layer and within bounded configurations, that the FSM's safety
-invariants hold and that removing any of four defensive mechanisms reproduces
-the violation it targets; Lemma~\ref{lem:honest-range} bounds the certified
-health input by honest observations. The live evaluation shows that the
-composed implementation behaves as specified under real peripheral failures.
-Because the cross-layer refinement is open, the whole-system claim rests on
-the empirical side. Single-trial live results (the first composite run, the
-seven-scenario sweep, P4, reorg depth) show that correct behavior occurs without
-characterizing its distribution; the repeated experiments (the five composite repeats, the hysteresis sweeps,
-the five-repeat overhead benchmark, the 2{,}000-trial detector study) do
-characterize distributions.
+The formal and empirical results cover complementary ground. TLC establishes, per
+layer and within bounded configurations, that the FSM's safety invariants hold and
+that removing each mechanism of the ablation study reproduces the violation it
+targets; Lemma~\ref{lem:honest-range} bounds the certified health input by honest
+observations. The live evaluation shows the composed implementation behaving as
+specified under real peripheral failures, and because the cross-layer refinement is
+open, the whole-system claim rests on it. Single-trial live results show that
+correct behavior occurs without characterizing its distribution; the repeated
+experiments (the composite repeats, the hysteresis sweeps, the overhead benchmark)
+do.
 
 Table~\ref{tab:claims} states each claim of the paper with the evidence behind it
 and its scope, so that no claim is read as stronger than its evidence.
@@ -185,7 +183,7 @@ and its scope, so that no claim is read as stronger than its evidence.
 Certified metrics stay within the honest range & Lemma~\ref{lem:honest-range} (proof); Apalache check at $N{=}4$; weighted-median tests on random subsets; live threshold sweep & Equal power live; unequal power tested as a function only \\
 Honest validators agree on state and aggregate under $f{=}2$ & Collusion suite: 33 repeats, offline replay of every committed height & Seven validators, one host; repeats share a chain \\
 Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof under M1--M3; lock invariant checked on committed blocks & Admission, not asset safety; no bridge in the prototype \\
-Blocks keep committing under peripheral faults & 96--102\% of the healthy rate, against 16--61\% for two receipt-gated baselines; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
+Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoBase{} for two receipt-gated baselines; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
 Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the exit gate is qualified in Section~\ref{subsec:limitations} \\
 The cost is a few percent of the block interval & Seven-validator vanilla arms on the same host; interval includes zero & One host; Engram's latency grows with load above 100\,tx/s \\
 Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
@@ -317,49 +315,43 @@ addresses this gap.
 \subsection{Future Work}
 \label{subsec:future-work}
 
-Four directions remain beyond the items marked in this paper. First,
-closing the cross-layer refinement obligation, and extending the
-certificate model from Boolean to numeric observations, would extend the
-formal results to the composed system, and a compositional argument for the
-interleaving of environment and consensus steps would extend the partial results
-of Section~\ref{subsec:verification-scope}; deductive methods~\cite{padon2016ivy,lotan2025implicit}
-are a natural complement where bounded model checking does not scale.
-Second, replacing the fixed-arity aggregator with incremental recursion
-would make the recovery artifact constant-size for intervals of any length,
-and proving the chunks in parallel or on dedicated hardware would shorten the
-recovery whose latency the unproven-tail discussion measures. Third,
-replacing single-bridge DA trust with sampling across independent peers
-would let the DA sensor detect partial withholding rather than only outages.
-Fourth, a receipt-gated baseline whose proposals carry verifiable evidence
-(a Bitcoin header chain with a Merkle proof, and a proof that the blob was
-posted) would remove the disagreement between validators of the out-of-band
-baseline; it would still stall while a layer is down, so it would not change
-what the receipt-gated chains commit during a fault. We have not built one. A
-further step is the external verifier named in Section~\ref{sec:protocol}: a
-light client or bridge on another chain that accepts a re-anchoring checkpoint
-only with a valid proof. We have not built one or measured its verification
-cost.
-
-\textbf{Reducing the proposer's influence on the certificate.} Two steps
-would narrow the choice of which honest observations enter the aggregate, and
-neither is implemented. The first requires one observation in the certificate
-for every commit vote of \texttt{LastCommit}. It is a single added condition in
-\texttt{ProcessProposal}, it does not affect an honest proposer, and it makes an
-omission visible and attributable, but the proposer still chooses which
-precommits \texttt{LastCommit} records, because CometBFT accepts any
-\texttt{LastCommit} with more than two thirds of the voting power. Removing that
-choice is the second step: changing how the consensus core selects the
-precommits it records. That alters the agreement protocol, needs a new safety
-and liveness analysis of the changed core, and would require every experiment to
-be run again. The quantified influence of Section~\ref{subsec:health-certificate}
-stays the guarantee of this paper.
-
-\textbf{Asset-level safety.} The lock is a necessary condition for protecting
-bridged assets, not a sufficient one. Establishing asset safety needs (i) a
-bridge on the counterparty chain that releases funds only against a proof that
-the Engram height is committed in an anchored state, with escrow accounting and
-replay protection, so that the sum of external and escrowed supply stays
-constant; (ii) a treatment of history rewriting by a coalition above the fault
-bound while the chain is in \textsc{Sovereign} mode, which Section~\ref{sec:protocol}
-leaves open; and (iii) a bound on the exposure before the lock, for example by a
-withdrawal quota per Bitcoin block. We evaluate none of these.
+\begin{itemize}
+  \item \emph{Formal scope.} Closing the cross-layer refinement and extending
+  the certificate model from Boolean to numeric observations would extend the
+  formal results to the composed system; a compositional argument for the
+  interleaving of environment and consensus steps would extend the partial results
+  of Section~\ref{subsec:verification-scope}. Deductive
+  methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
+  where it does not scale.
+  \item \emph{Prover.} Incremental recursion would make the recovery artifact
+  constant-size for intervals of any length, and proving the chunks in parallel
+  or on dedicated hardware would shorten the recovery whose latency the
+  unproven-tail discussion measures.
+  \item \emph{Data availability.} Replacing single-bridge trust with sampling
+  across independent peers would let the DA sensor detect partial withholding
+  rather than only outages.
+  \item \emph{Baselines and verifiers.} A receipt-gated baseline whose proposals
+  carry verifiable evidence (a Bitcoin header chain with a Merkle proof, and a proof
+  that the blob was posted) would remove the disagreement between validators of the
+  out-of-band baseline, but it would still stall while a layer is down. An external
+  verifier (Section~\ref{sec:protocol}), a light client or bridge on another chain
+  that accepts a re-anchoring checkpoint only with a valid proof, is also unbuilt, so
+  its verification cost is unmeasured.
+  \item \emph{The proposer's influence on the certificate.} Requiring one observation
+  in the certificate for every commit vote of \texttt{LastCommit} is a single added
+  condition in \texttt{ProcessProposal}; it does not affect an honest proposer and
+  makes an omission visible and attributable. The proposer would still choose which
+  precommits \texttt{LastCommit} records, because CometBFT accepts any
+  \texttt{LastCommit} with more than two thirds of the voting power; removing that
+  choice changes the agreement protocol, needs a new safety and liveness analysis and
+  would require every experiment to be run again. The quantified influence of
+  Section~\ref{subsec:health-certificate} stays the guarantee of this paper.
+  \item \emph{Asset-level safety.} The lock is a necessary condition for protecting
+  bridged assets, not a sufficient one. It needs (i) a bridge on the counterparty
+  chain that releases funds only against a proof that the Engram height is committed
+  in an anchored state, with escrow accounting and replay protection; (ii) a treatment
+  of history rewriting by a coalition above the fault bound while the chain is in
+  \textsc{Sovereign} mode (Section~\ref{sec:protocol}); and (iii) a bound on the
+  exposure before the lock, for example by a withdrawal quota per Bitcoin block. We
+  evaluate none of these.
+\end{itemize}

@@ -512,7 +512,30 @@ proof must start from that root. This costs $\lceil L/256 \rceil$ proofs for
 $L$ blocks. An aggregator circuit can fold up to four chunk proofs into one
 proof of the same size, which makes verification cost independent of $L$ up to
 1024 headers at the price of one extra proof; proving time still grows with $L$
-(Appendix~\ref{app:aggregation}).
+(Table~\ref{tab:recovery-cost}, Appendix~\ref{app:aggregation}).
+
+\begin{table}[h]
+\caption{Cost of the recovery proof by interval length $L$ (offline workstation,
+synthetic chain; one by one against aggregate, from Appendix~\ref{app:aggregation})}
+\label{tab:recovery-cost}
+\centering
+\footnotesize
+\begin{tabular}{@{}rlrrr@{}}
+\toprule
+$L$ & Submission & Prove & Bytes & Verify \\
+\midrule
+256 & single proof & 31.5\,s & 14{,}656 & 19.8\,ms \\
+512 & aggregate of 2 & 89.9\,s & 14{,}656 & 20.2\,ms \\
+512 & one by one & 60.5\,s & 29{,}312 & 39.5\,ms \\
+1024 & aggregate of 4 & 146.7\,s & 14{,}656 & 20.2\,ms \\
+1024 & one by one & 120.1\,s & 58{,}624 & 79.1\,ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The aggregate has a constant size and verification time, and costs more to prove than
+the chunks alone; the prover's chunks were built one after another, and proving them
+concurrently was not measured.
 
 \textbf{Who verifies what.} The recovery proof is submitted as a message and
 verified by \emph{every Engram validator} during block execution, using an

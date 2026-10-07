@@ -141,6 +141,16 @@ Engram targets this combination.
     (Sections~\ref{sec:setup}--\ref{sec:evaluation}).
 \end{itemize}
 
+\textbf{Headline results.} Under a Bitcoin checkpoint pause or a DA outage, Engram
+kept \resRQTwoEngram{} of its healthy block rate, where two strict receipt-gated
+baselines committed \resRQTwoBase{}, and \resExposure{} withdrawal-marked
+transactions committed before its circuit breaker locked. A composite fault repeated
+five times ended in a full recovery with identical \texttt{AppHash} at all seven
+validators each time. Against seven vanilla validators on the same hosts, Engram's
+block interval grows by \resOverheadPct{} (95\% interval \resOverheadCI{}).
+Section~\ref{sec:evaluation} gives the evidence and its limits, and
+Table~\ref{tab:rq} the questions it answers.
+
 \begin{table}[h]
 \caption{Research questions}
 \label{tab:rq}

@@ -6,9 +6,9 @@ most directly; the remaining attack scenarios, the prover-backend
 comparison, and the Bitcoin-reorg boundary test appear in
 Appendices~\ref{app:attacks}, \ref{app:backend}, \ref{app:aggregation} and~\ref{app:reorg}. Unless stated otherwise, all
 numbers are live measurements on Testbed~A, the seven-validator testbed of
-Section~\ref{sec:setup} (Table~\ref{tab:environment}); FSM parameters are
-those of Table~\ref{tab:fsm-params}, and metrics follow
-Section~\ref{subsec:metrics}.
+Section~\ref{sec:setup}; its configuration and the FSM parameters are in
+Appendix~\ref{app:setup} (Tables~\ref{tab:environment} and~\ref{tab:fsm-params}), and
+metrics follow Section~\ref{subsec:metrics}.
 
 \subsection{RQ1: Safety Under Byzantine Behavior}
 \label{subsec:rq1}
@@ -207,7 +207,7 @@ predicts and the experiment measures. The out-of-band baseline commits 20\%
 (29--30 blocks) of its healthy rate under a DA outage, 20\% (27--33 blocks)
 under the combined fault and 61\% (89 blocks) under checkpoint suspension, with a
 longest gap of 6.6--6.8\,s and rounds up to 21 (12 under checkpoint suspension),
-against 96--102\% for Engram. The in-band baseline is similar: under a DA outage
+against \resRQTwoEngram{} for Engram. The in-band baseline is similar: under a DA outage
 it commits 23 blocks in 180\,s, 16\% of its healthy rate, with proposals
 reaching round 21, and the combined fault is the same; under checkpoint
 suspension it slows to 56\% (74 blocks, round 12).

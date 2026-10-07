@@ -1,7 +1,82 @@
 \section{Experimental Setup: Details}
 \label{app:setup}
 
-This appendix holds the fault schedules and the synthetic workloads summarized in Section~\ref{sec:setup}.
+This appendix holds the testbed configuration, the FSM parameters, the fault schedules and the synthetic workloads summarized in Section~\ref{sec:setup}.
+
+\subsection*{Testbed configuration and software versions}
+
+\begin{table}[h]
+\caption{Testbed configuration and software versions}
+\label{tab:environment}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.2\linewidth}p{0.7\linewidth}@{}}
+\toprule
+\textbf{Component} & \textbf{Testbed A} \\
+\midrule
+Host & Apple M1 Pro (10 cores: 8P + 2E), 32\,GB RAM, 1\,TB SSD; macOS 27.0 \\
+Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM \\
+Validators (7) & No CPU or memory limit per container \\
+Consensus core & CometBFT v0.39.3 module path, replaced by the fork
+\texttt{engram-consensus-core} at commit \texttt{493a20121} \\
+Application & Cosmos SDK v0.54.3; this repository at \pending{results commit} \\
+Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) \\
+Celestia & celestia-app v1.11.0 (0.5 CPU, 1\,GB); seven celestia-node
+v0.14.1 bridges (0.3 CPU, 512\,MB each) \\
+Prover & nargo 1.0.0-beta.22, \texttt{bb} 5.0.0-nightly.20260522
+(6 CPU, 8\,GB limit) \\
+Fault injection & Pumba (image tag \texttt{latest}) driving kernel
+\texttt{tc netem} \\
+Formal tools & TLC 2026.04.18 (rev.\ c45c125); Apalache v0.58.3 on JDK 17 \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize CPU and memory figures are container limits. The fork's
+differences from upstream CometBFT are listed in
+Section~\ref{subsec:implementation}.
+\end{table}
+
+\subsection*{FSM parameters}
+
+\begin{table}[h]
+\caption{FSM parameters used in the live experiments}
+\label{tab:fsm-params}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{0.34\linewidth}rp{0.38\linewidth}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Unit and role} \\
+\midrule
+\texttt{SuspiciousThreshold} & 5 & Bitcoin gap, blocks \\
+\texttt{SovereignThreshold} & 8 & Bitcoin gap, blocks \\
+\texttt{DAThreshold} & 30 & DA gap, blocks \\
+\texttt{KDeepFinality} & 2 & Reorg depth, Bitcoin blocks \\
+\texttt{MinPeers} & 3 & Clean peers \\
+\texttt{MinSubnetDiversity} & 2 & Distinct subnets \\
+\texttt{MinAnchorPeers} & 2 & Active anchor peers \\
+\texttt{MaxChurnRate} & 5 & Peer churn events \\
+\texttt{MinAvgTenure} & 300 & Mean peer tenure, s \\
+\texttt{MaxPeerLatency} & 200 & Round-trip time, ms \\
+\texttt{RecoveryHysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
+\texttt{DownHysteresisThreshold} & 2 & \textsc{Anchored}$\to$\textsc{Suspicious}, blocks \\
+\texttt{MaxDownHysteresisThreshold} & 8 & Cap on the backed-off threshold \\
+\texttt{MaxUnprovenTailBlocks} & 128 & Tail after the proved checkpoint that still counts (default 8) \\
+\texttt{ProofOnlyRecovery} & true & Recovery requires a verified proof (default false) \\
+\texttt{StableWindow} & 16 & Healthy \textsc{Anchored} blocks that lower the flap level by one \\
+\texttt{SuspiciousHysteresisWait} & 2 & \textsc{Suspicious}$\to$\textsc{Anchored}, blocks \\
+\texttt{MaxSuspiciousTime} & 24 & \textsc{Suspicious} escalation bound, blocks \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize Overrides: the Docker testbed runs the table's
+\texttt{DownHysteresisThreshold} of 2 with the backoff cap of 8, so the optional
+backoff of the down threshold is enabled, and sets \texttt{SuspiciousHysteresisWait} to 8, which is
+not adaptive. The hysteresis sweeps of Section~\ref{subsec:rq3}
+vary the down threshold, a static value being \texttt{MaxDownHysteresisThreshold}
+equal to \texttt{DownHysteresisThreshold}; the Monte Carlo study of
+Section~\ref{subsec:rq1} uses the P2P thresholds of
+Section~\ref{subsec:montecarlo}.
+\end{table}
 
 \subsection*{Fault schedules}
 
