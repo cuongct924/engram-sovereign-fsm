@@ -1,39 +1,8 @@
 \documentclass[11pt]{article}
-
-% ==========================================
-% PACKAGES
-% ==========================================
-\usepackage[a4paper,margin=1in]{geometry}
-\usepackage{cite}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
-\usepackage{algorithm}
-\usepackage{graphicx}
-\usepackage{textcomp}
-\usepackage{xcolor}
-\usepackage{array}
-\usepackage{booktabs}
-\usepackage{longtable}
-\usepackage{multirow}
-\usepackage{tikz}
-\usetikzlibrary{automata,positioning,arrows.meta,backgrounds,calc}
-\usepackage{placeins}
-\usepackage{forest}
-\usepackage{microtype}
-\usepackage[hidelinks]{hyperref}
-\usepackage{titlesec}
-\usepackage{parskip}
-\emergencystretch=3em
-
-\input{macros}
-\input{results/result_macros}
-
-% Single-column, prose-first layout: numbered sections in small caps,
-% generous paragraph spacing instead of two-column IEEE formatting.
-\titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{0.6em}{}
-\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{0.6em}{}
-
-\input{metadata}
+% Default manuscript. To submit elsewhere, copy this file, replace the document class and the next line with the journal's,
+% adapt the title block and the abstract, and keep the \input lines of the preamble and the content below (STATUS.md, "Porting to a journal template").
+\input{template/article}
+\input{preamble}
 
 \begin{document}
 
@@ -44,40 +13,14 @@
 \input{sections/00_abstract}
 
 \vspace{6pt}
-\noindent\textbf{Keywords:} blockchain consensus, Byzantine fault
-tolerance, modular blockchain, finite state machine, formal verification,
-TLA+, zero-knowledge proofs
+\noindent\textbf{Keywords:} \paperkeywords
 \end{abstract}
 
-\input{sections/01_introduction}
-\input{sections/02_related_work}
-\input{sections/03_system_model}
-\input{sections/04_protocol}
-\input{sections/05_formal_analysis}
-\input{sections/06_methodology}
-\input{sections/07_evaluation}
-\input{sections/08_discussion}
-\input{sections/09_conclusion}
+\input{content/body}
 
-\bibliographystyle{IEEEtran}
+\bibliographystyle{\paperbibstyle}
 \bibliography{references}
 
-\appendix
-\clearpage
-\begin{center}
-{\Large\bfseries Appendix}
-\end{center}
-\vspace{6pt}
-\input{appendix/A_related_work_comparison}
-\input{appendix/B_certificate_adversarial_cases}
-\input{appendix/C_zk_backend_comparison}
-\input{appendix/D_zk_chunk_aggregation}
-\input{appendix/E_formal_verification_details}
-\input{appendix/F_experimental_setup}
-\input{appendix/G_network_emulation}
-\input{appendix/H_extended_attack_results}
-\input{appendix/I_bitcoin_reorg}
-\input{appendix/J_adaptive_threshold}
-\input{appendix/K_security_envelope}
+\input{content/appendix}
 
 \end{document}

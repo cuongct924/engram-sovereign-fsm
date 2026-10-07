@@ -1,0 +1,9 @@
+% Layout of the default single-column manuscript. Everything that depends on the journal lives here (page geometry, section
+% format, bibliography style); the content and the packages it needs do not. To port the paper, copy this file and main.tex
+% (see STATUS.md, "Porting to a journal template").
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{titlesec}
+\usepackage{parskip}
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{0.6em}{}
+\newcommand{\paperbibstyle}{IEEEtran}

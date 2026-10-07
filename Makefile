@@ -4,7 +4,7 @@ BUILD_DIR=./build
 # Version from git tag, falling back to a commit hash if none exists.
 VERSION=$(shell git describe --tags --always)
 
-.PHONY: testnet-verify all build build-linux clean test lint proto-gen docker-build help paper paper-split \
+.PHONY: testnet-verify all build build-linux clean test lint proto-gen docker-build help paper paper-split paper-pending \
 	e1-guard e1-fsm-safety e1-fsm-liveness e1-tendermint-safety \
 	e1-server-safety e1-server-liveness \
 	testnet-up testnet-down testnet-status \
@@ -102,6 +102,10 @@ paper:
 # docs/paper_main.pdf (front matter, body, references) and docs/paper_supplement.pdf (appendices).
 paper-split: paper
 	scripts/paper/split_pdf.sh docs/paper.pdf docs/paper_main.pdf docs/paper_supplement.pdf
+
+# Lists every \pending{...} of the manuscript with its file and line.
+paper-pending:
+	@scripts/paper/list_pending.py
 
 # buf.gen.yaml generates into .tmp-proto-gen/ (mirroring the proto package
 # path) since the proto package (engram.sovereignty.v1) and the Go package
