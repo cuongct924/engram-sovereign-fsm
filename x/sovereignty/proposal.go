@@ -156,7 +156,10 @@ func applyByzantineBehavior(behavior string, cert *types.AggregatedHealthCertifi
 // the leader's own last-height precommit vote extensions
 // (req.LocalLastCommit) into the same certified PeripheralMetrics every
 // validator independently recomputes in ProcessProposal.
-func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.PrepareProposalHandler {
+//
+// The optional sensors are used only by the out-of-band hard-gated baseline,
+// which reads the layers itself instead of aggregating a certificate.
+func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string, sensors ...*Sensors) sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
 		certs := certificatesFromExtendedCommit(req.LocalLastCommit)
 		if byzantineBehavior != "" {
@@ -164,6 +167,9 @@ func NewPrepareProposalHandler(k *keeper.Keeper, byzantineBehavior string) sdk.P
 		}
 		extHeight := req.Height - 1
 		metrics, ok := AggregateHealthCertificates(ctx, k, ctx.ChainID(), extHeight, certs)
+		if k.Baseline.OutOfBand() {
+			metrics, ok = liveMetrics(ctx, k, sensors)
+		}
 		if !ok {
 			metrics = degradedMetrics(k.Params)
 		}
@@ -303,7 +309,9 @@ func containsWithdrawal(tx []byte) bool {
 // claimed BTC/DA checkpoint can only be spot-checked one block later (vote
 // extensions lag proposals by a height); structural checks still gate
 // proposal-time acceptance.
-func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
+//
+// The optional sensors are used only by the out-of-band hard-gated baseline.
+func NewProcessProposalHandler(k *keeper.Keeper, sensors ...*Sensors) sdk.ProcessProposalHandler {
 	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	accept := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}
 
@@ -347,7 +355,7 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 
 		// Observations must come from the round that committed ext.Height,
 		// by validators in that commit (certificatesBoundToCommit).
-		if voteExtensionsAvailableAt(ctx, ext.Height) && !certificatesBoundToCommit(ext.Certificates, req.ProposedLastCommit) {
+		if !k.Baseline.OutOfBand() && voteExtensionsAvailableAt(ctx, ext.Height) && !certificatesBoundToCommit(ext.Certificates, req.ProposedLastCommit) {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=certificate_not_bound_to_commit commitRound=%d certs=%d\n", req.Height, req.Round, req.ProposedLastCommit.Round, len(ext.Certificates))
 			return reject, nil
 		}
@@ -355,6 +363,9 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 		// Recompute the SAME deterministic aggregation the leader claims to
 		// have derived -- pure function over ext.Certificates, no live read.
 		metrics, aggOk := AggregateHealthCertificates(ctx, k, ctx.ChainID(), ext.Height, ext.Certificates)
+		if k.Baseline.OutOfBand() {
+			metrics, aggOk = liveMetrics(ctx, k, sensors)
+		}
 		if !aggOk {
 			// Once extensions exist, >=2f+1 is always available to an honest
 			// proposer; accepting less would let one proposer omit observations
@@ -380,7 +391,10 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 
 		// 1b. Healthy cross-check. Independent recomputation of health status
 		// to safely validate ext.Healthy before CommitFSMTransition.
-		if ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
+		// The out-of-band baseline compares against this validator's own live
+		// read, which legitimately differs from the leader's, so the flags are
+		// not cross-checked (the FSM is pinned to ANCHORED there anyway).
+		if !k.Baseline.OutOfBand() && ext.Healthy != types.IsHealthyCondition(in.Metrics, k.Params) {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=healthy_mismatch ext.Healthy=%v computed=%v\n",
 				req.Height, req.Round, ext.Healthy, types.IsHealthyCondition(in.Metrics, k.Params))
 			return reject, nil
@@ -388,7 +402,7 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 
 		// 1c. Critical cross-check, same reason as 1b: CommitFSMTransition feeds
 		// ext.Critical into flap_level, so it must be independently recomputed.
-		if computed := types.IsCriticalCondition(in.Metrics, k.Params, in.SuspiciousDuration); ext.Critical != computed {
+		if computed := types.IsCriticalCondition(in.Metrics, k.Params, in.SuspiciousDuration); !k.Baseline.OutOfBand() && ext.Critical != computed {
 			fmt.Printf("engramd: ProcessProposal REJECT height=%d round=%d reason=critical_mismatch ext.Critical=%v computed=%v\n",
 				req.Height, req.Round, ext.Critical, computed)
 			return reject, nil
@@ -458,4 +472,22 @@ func NewProcessProposalHandler(k *keeper.Keeper) sdk.ProcessProposalHandler {
 
 		return accept, nil
 	}
+}
+
+// liveMetrics is the out-of-band hard-gated baseline's observation: this
+// validator's own sensor read at proposal time, with no certificate. It is
+// deliberately non-deterministic across validators -- that is the cost of not
+// routing the observation through the quorum.
+func liveMetrics(ctx sdk.Context, k *keeper.Keeper, sensors []*Sensors) (*types.PeripheralMetrics, bool) {
+	if len(sensors) == 0 || sensors[0] == nil {
+		return nil, false
+	}
+	if err := RefreshMetrics(ctx, k, sensors[0]); err != nil {
+		return nil, false
+	}
+	m, err := k.Metrics.Get(ctx)
+	if err != nil {
+		return nil, false
+	}
+	return m, true
 }

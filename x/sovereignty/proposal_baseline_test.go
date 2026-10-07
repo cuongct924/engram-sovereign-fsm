@@ -105,3 +105,20 @@ func TestBaselineSoft_AdmitsWithdrawalWhileSovereign(t *testing.T) {
 	require.True(t, processAt(t, k, ctx, daOutageCertificate(t, k, ctx, types.StateSovereign), 0, withdrawal),
 		"soft never locks withdrawals")
 }
+
+func TestBaselineHardGatedOutOfBand_ModeFlags(t *testing.T) {
+	m, err := types.ParseBaselineMode("hard-gated-oob")
+	require.NoError(t, err)
+	require.True(t, m.HardGated(), "the out-of-band baseline is still gated on receipts at every height")
+	require.True(t, m.OutOfBand())
+	require.False(t, types.BaselineHardGated.OutOfBand())
+	require.False(t, m.SkipsCircuitBreaker())
+}
+
+func TestBaselineHardGatedOutOfBand_StillPinnedToAnchored(t *testing.T) {
+	k, ctx := newTestKeeperCtx(t)
+	k.Baseline = types.BaselineHardGatedOutOfBand
+	// No sensors are wired in the handler, so the live read falls back to the
+	// degraded view; a SOVEREIGN claim must still be invalid.
+	require.False(t, processAt(t, k, ctx, daOutageCertificate(t, k, ctx, types.StateSovereign), 0))
+}

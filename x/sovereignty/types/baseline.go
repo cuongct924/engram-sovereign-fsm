@@ -12,25 +12,39 @@ const (
 	// BaselineHardGated pins the FSM to ANCHORED, so IsValidProposal's BTC/DA
 	// receipt checks (EngramTendermint.tla:290-312) apply at every height.
 	BaselineHardGated BaselineMode = "hard-gated"
+	// BaselineHardGatedOutOfBand is BaselineHardGated with the receipts observed
+	// outside the vote extensions: each validator reads Bitcoin and Celestia
+	// itself in PrepareProposal/ProcessProposal, so a rejected height cannot
+	// starve the next one of fresh receipts. It exists to show whether the
+	// hard-gated baseline's non-recovery is an artefact of our design.
+	BaselineHardGatedOutOfBand BaselineMode = "hard-gated-oob"
 	// BaselineSoft runs the real FSM but never locks withdrawals, so liveness
 	// is kept at the cost of the circuit breaker's safety guarantee.
 	BaselineSoft BaselineMode = "soft"
 )
 
-// ParseBaselineMode accepts "", "engram", "hard-gated" and "soft".
+// ParseBaselineMode accepts "", "engram", "hard-gated", "hard-gated-oob" and "soft".
 func ParseBaselineMode(s string) (BaselineMode, error) {
 	switch s {
 	case "", "engram":
 		return BaselineEngram, nil
 	case string(BaselineHardGated):
 		return BaselineHardGated, nil
+	case string(BaselineHardGatedOutOfBand):
+		return BaselineHardGatedOutOfBand, nil
 	case string(BaselineSoft):
 		return BaselineSoft, nil
 	}
-	return BaselineEngram, fmt.Errorf("unknown baseline mode %q (want engram, hard-gated or soft)", s)
+	return BaselineEngram, fmt.Errorf("unknown baseline mode %q (want engram, hard-gated, hard-gated-oob or soft)", s)
 }
 
-func (m BaselineMode) HardGated() bool { return m == BaselineHardGated }
+func (m BaselineMode) HardGated() bool {
+	return m == BaselineHardGated || m == BaselineHardGatedOutOfBand
+}
+
+// OutOfBand reports whether receipts come from each validator's own live
+// read instead of the vote-extension certificate.
+func (m BaselineMode) OutOfBand() bool { return m == BaselineHardGatedOutOfBand }
 
 // SkipsCircuitBreaker reports whether withdrawals stay admissible in
 // SOVEREIGN/RECOVERING (the soft baseline's defining difference).

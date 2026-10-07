@@ -117,8 +117,8 @@ func NewEngramApp(logger log.Logger, db dbm.DB, chainID string, vanilla bool, ba
 	sovereigntytypes.RegisterQueryServer(bApp.GRPCQueryRouter(), sovereigntykeeper.NewQueryServerImpl(sovKeeper))
 
 	if !vanilla {
-		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, byzantineBehavior))
-		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper))
+		bApp.SetPrepareProposal(sovereignty.NewPrepareProposalHandler(sovKeeper, byzantineBehavior, sensorBundle))
+		bApp.SetProcessProposal(sovereignty.NewProcessProposalHandler(sovKeeper, sensorBundle))
 		bApp.SetExtendVoteHandler(sovereignty.NewExtendVoteHandler(sovKeeper, sensorBundle, byzantineBehavior))
 		bApp.SetVerifyVoteExtensionHandler(sovereignty.NewVerifyVoteExtensionHandler(sovKeeper))
 		bApp.SetPreBlocker(sovereignty.NewPreBlocker(sovKeeper))
