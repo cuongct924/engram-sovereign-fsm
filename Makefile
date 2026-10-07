@@ -90,19 +90,18 @@ lint:
 	@echo "--> Running golangci-lint..."
 	golangci-lint run
 
-# Builds in docs/paper/ (aux files stay there) and publishes docs/paper.pdf.
+# Builds out of tree (docs/paper/ holds only sources) in build/paper/ and publishes docs/paper.pdf.
 paper:
 	@echo "--> Building docs/paper.pdf..."
+	mkdir -p build/paper
 	cd docs/paper && export PATH="$$PATH:/Library/TeX/texbin" && \
-		pdflatex -interaction=nonstopmode main.tex && bibtex main && \
-		pdflatex -interaction=nonstopmode main.tex && \
-		pdflatex -interaction=nonstopmode main.tex
-	mv docs/paper/main.pdf docs/paper.pdf
+		latexmk -pdf -interaction=nonstopmode -outdir=../../build/paper main.tex
+	cp build/paper/main.pdf docs/paper.pdf
 
 # Splits docs/paper.pdf into the main text and the appendices (one build, so cross-references agree):
 # docs/paper_main.pdf (front matter, body, references) and docs/paper_supplement.pdf (appendices).
 paper-split: paper
-	docs/paper/split_pdf.sh docs/paper.pdf docs/paper_main.pdf docs/paper_supplement.pdf
+	scripts/paper/split_pdf.sh docs/paper.pdf docs/paper_main.pdf docs/paper_supplement.pdf
 
 # buf.gen.yaml generates into .tmp-proto-gen/ (mirroring the proto package
 # path) since the proto package (engram.sovereignty.v1) and the Go package
