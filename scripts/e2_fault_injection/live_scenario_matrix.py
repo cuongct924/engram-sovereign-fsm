@@ -64,6 +64,8 @@ RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
 # Seconds each cooldown waits for ANCHORED before the next scenario. 90 s was shorter than a recovery on the real Bitcoin cadence,
 # so later scenarios began in SOVEREIGN or RECOVERING; the repeated runs raise it through the environment.
 COOLDOWN_S = float(os.environ.get("ENGRAM_SCENARIO_COOLDOWN_S", "90"))
+# S7 waits this long for every validator to reach ANCHORED; a recovery slower than 600 s was cut off in a repeat.
+S7_WAIT_S = float(os.environ.get("ENGRAM_S7_WAIT_S", "600"))
 # Figures (unlike raw CSVs/markdown) land alongside live_figure_builder.py's
 # output, not results_live/ -- one figures directory for all of E2's charts.
 FIGURES_DIR = os.path.join(os.path.dirname(__file__), "results")
@@ -457,7 +459,7 @@ def main():
     tr.set_scenario("s7")
     docker("start", BITCOIN_NODE)
     start_all_da_bridges()
-    reached = tr.wait_for_state("ANCHORED", 600, phase="S7_recovery")
+    reached = tr.wait_for_state("ANCHORED", S7_WAIT_S, phase="S7_recovery")
     tr.write_scenario_csv("s7_recovery", "s7")
 
     tr.write_throughput_summary(os.path.join(RESULTS_DIR, "s2e_throughput_latency.md"))
