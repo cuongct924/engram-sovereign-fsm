@@ -264,7 +264,9 @@ against 96--102\% for Engram. The in-band baseline is similar: under a DA outage
 it commits 23 blocks in 180\,s, 16\% of its healthy rate, with proposals
 reaching round 21, and the combined fault is the same; under checkpoint
 suspension it slows to 56\% (74 blocks, round 12). The receipt tolerance widens
-with the round up to a cap, so stale checkpoints are admitted for a while. \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
+with the round up to a cap, so stale checkpoints are admitted for a while.
+
+\emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in
 the checkpoint trials it stops resuming as well. In the one trial observed
 beyond the recovery window, the chain was still stuck after twelve minutes, with
@@ -308,7 +310,9 @@ last column: it committed 18--19 withdrawals before locking under DA faults and
 leave \textsc{Anchored} for \textsc{Sovereign}. These counts follow from the
 workload (one withdrawal-marked transaction every 2\,s) and from Bitcoin running
 thirty times faster than on mainnet; they are not a production exposure. The
-workload-independent measures and a bound are in Section~\ref{sec:discussion}. The soft baseline shows the other side of the trade-off. It runs Engram's FSM
+workload-independent measures and a bound are in Section~\ref{sec:discussion}. 
+
+The soft baseline shows the other side of the trade-off. It runs Engram's FSM
 and keeps Engram's liveness, 98--99\% of the healthy block rate with a longest
 gap of at most 2.5\,s, but it never locks, so it committed 31 withdrawals after
 the lock moment under checkpoint suspension and 71--72 under DA faults, against
@@ -454,9 +458,8 @@ one noise period, so we weigh the later runs more. The default of 2
 used in the other experiments is therefore too low for WAN conditions; the
 other experiments did not count flaps and cannot be taken as evidence to
 the contrary. A static default must trade reaction time (low $k$) against
-noise immunity (high $k$), and the right point depends on network
-conditions that change over time; the extension of Appendix~\ref{app:adaptive}
-tries to adapt to them.
+noise immunity (high $k$); the adaptive alternative is the exploratory extension
+at the end of this section.
 
 The other two edges show the opposite side of the trade-off. On the \textsc{Recovering}$\to$\textsc{Anchored} edge, a
 larger hysteresis wait strictly reduces anchored uptime under sustained

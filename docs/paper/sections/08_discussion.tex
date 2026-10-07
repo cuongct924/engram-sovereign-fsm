@@ -9,17 +9,14 @@ lock establishes, and the cost of griefing.
 
 \textbf{Liveness inside the chain.} In \textsc{Sovereign}, block production,
 in-chain transactions, application logic, and the forced-transaction queue
-continue. Cross-chain withdrawals stop. A strict receipt-gated chain under the same
-degradation commits only a fraction of its blocks and, when it reads the periphery
-through the vote extensions as ours does, does not resume after the layer returns;
-a variant that reads the periphery at each validator resumes
-(Section~\ref{subsec:rq2}). The two cases differ in the sensors. Observations
-in the in-band design are produced when validators precommit, so the loop that
-reads the periphery closes only while blocks commit. Relaxing the receipt of the
-failed layer in \textsc{Sovereign} keeps blocks committing, which keeps the
-sensors reading, so the chain sees the layer return; the in-band baseline rejects
-proposals for lack of fresh receipts and thereby stops the reads that would show
-them back.
+continue. Cross-chain withdrawals stop. A strict receipt-gated chain under the
+same degradation commits only a fraction of its blocks, and it resumes after the
+layer returns only if it observes the layer outside the vote extensions
+(Section~\ref{subsec:rq2}). The reason is that observations in the in-band design
+are produced when validators precommit, so the loop that reads the periphery
+closes only while blocks commit. Relaxing the receipt of the failed layer in
+\textsc{Sovereign} keeps blocks committing and the sensors reading, which is how
+the chain sees the layer return.
 
 \textbf{What the lock establishes.}
 \begin{itemize}
@@ -59,18 +56,17 @@ unverifiable periphery, not a safety violation. Its economic cost to users and
 the attacker's cost of sustaining it are not quantified.
 
 \textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
-\textsc{Recovering} already raises the price of forcing repeated failed
-recoveries. Without the adaptive threshold of Appendix~\ref{app:adaptive}, the
+\textsc{Recovering} raises the price of forcing repeated failed recoveries; the
 \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
-protection beyond the bounded forced-transaction queue; the adaptive
-threshold is meant to close this asymmetry. In the simulation of
-Appendix~\ref{app:adaptive} it absorbs a naive repeated adversary (1 demotion in
-1200 blocks against 300 for a static threshold of 2) but gains little over a
-static threshold of 4. Live, the adaptive threshold suppressed flapping under
-changing noise only with a long stable window and never better than a static
-threshold of 4 at a shorter detection delay, and the live repeated-trigger runs did
-not separate the thresholds (every configuration escalated to \textsc{Sovereign} at
-the first pulse), so the absorption of short pulses has no live evidence.
+protection beyond the bounded forced-transaction queue. The adaptive down
+threshold of Appendix~\ref{app:adaptive} was meant to close this asymmetry. In
+simulation it absorbs a naive repeated adversary (1 demotion in 1200 blocks
+against 300 for a static threshold of 2) but gains little over a static threshold
+of 4. Live, it suppressed flapping under changing noise only with a long stable
+window and never better than a static threshold of 4 at a shorter detection delay,
+and the repeated-trigger runs did not separate the thresholds (every configuration
+escalated to \textsc{Sovereign} at the first pulse), so the absorption of short
+pulses has no live evidence.
 
 \textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
 FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a
@@ -204,7 +200,9 @@ $k{=}2$ agrees: with three Byzantine validators the outage was detected in 5 of
 5 runs. The adaptive threshold exposes the same
 weakness only while its flap level is high (0 of 35 placements hidden at level 0,
 28 at level 1, all 35 at level 2), whereas a static threshold of 4 or more is
-exposed permanently. A rule that demotes when at least $m$ of the last $w$ blocks are bad,
+exposed permanently.
+
+\textbf{A window rule.} A rule that demotes when at least $m$ of the last $w$ blocks are bad,
 instead of after a consecutive run, is not cut by interleaved reports. In a
 reduced model of the \textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} edge,
 validated against the keeper-based simulation above (static thresholds and the
@@ -215,7 +213,9 @@ remove the cost of being fast: its detection is as slow as the static
 threshold, and an adversary that sends bursts of $m$ blocks still obtains 200
 demotions in 1200 blocks, where the adaptive threshold allows 1. Combining the
 two (an adaptive window) gave 4.6 flaps and 172 demotions, so no single rule
-won on all four criteria. We did not implement the window rule. The live check at $k{=}4$ (three Byzantine validators with biased certificates, all seven bridges stopped for 120\,s, a fresh chain per run)
+won on all four criteria. We did not implement the window rule.
+
+\textbf{Live check of concealment.} The live check at $k{=}4$ (three Byzantine validators with biased certificates, all seven bridges stopped for 120\,s, a fresh chain per run)
 agrees with the simulation for adjacent placements and not for interleaved ones. With three consecutive Byzantine slots
 the outage was detected in 3 of 3 runs, as predicted. With slots 0, 2 and 4 of the rotation, which the simulation predicts
 would hide it, the chain also left \textsc{Anchored} and reached \textsc{Sovereign} in 3 of 3 runs, with 6 to 9 blocks outside the honest range
@@ -239,13 +239,12 @@ consecutive proposers are honest, so the larger the threshold, the easier it is 
 hide one.
 
 \textbf{Proposer bias within the honest range.} When honest observations
-straddle a threshold, a proposer can choose which honest value the
-certificate selects (Section~\ref{subsec:health-certificate}). This cannot
-produce a transition that no honest view supports, but a sequence of
-Byzantine proposers can bias the timing of transitions. A persistent split
-straddling an FSM threshold (e.g.\ three versus four validators on each side)
-has not been tested live; the RQ4 scan shows no extra rounds in the unfaulted case, and the
-split case itself remains untested.
+straddle a threshold, a proposer can choose which honest value the certificate
+selects (Section~\ref{subsec:health-certificate}). A sequence of Byzantine
+proposers can therefore bias the timing of transitions, but cannot produce a
+transition that no honest view supports. A persistent split straddling an FSM
+threshold (for example three against four validators) has not been tested live;
+the RQ4 scan shows no extra rounds in the unfaulted case.
 
 \textbf{Restart after a long chain.} The publisher's contiguous height is
 kept in memory. A validator that restarts therefore republishes the chain from
@@ -263,10 +262,10 @@ certifies the history's continuity, its recorded mode and lock labels, and the b
 uniqueness beyond the $f$ bound. The withdrawal lock limits what such a
 history can extract.
 
-\textbf{Data availability of the \textsc{Sovereign} interval.} During \textsc{Sovereign}, the interval's block data is held by the validators' own block stores, so its
-recoverability depends on those validators until it is published. The
-backfill gate of Section~\ref{subsec:reanchoring} makes publication a
-precondition for returning to \textsc{Anchored}.
+\textbf{Data availability of the \textsc{Sovereign} interval.} During
+\textsc{Sovereign} the interval's block data is held only by the validators' own
+block stores. The backfill gate of Section~\ref{subsec:reanchoring} makes its
+publication a precondition for returning to \textsc{Anchored}.
 
 \textbf{The unproven tail: liveness against trust.} A recovery proof is built
 while the chain keeps producing blocks, so by the time it is submitted the
@@ -410,19 +409,18 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   \item \emph{Equal power.} The live runs and the TLA+ model use equal voting power. The weighted aggregation is tested on unequal power
   only as a function (Section~\ref{subsec:rq1}), not on a live network.
   \item \emph{Testbed.} \pending{a multi-host run on seven cloud virtual machines in at least three regions is planned (five composite runs, and Engram against vanilla at 100\,tx/s).} All results come from one host with accelerated
-  Bitcoin (thirty times mainnet; conversions and a model in the exposure
-  paragraph above) and single-bridge DA trust; the backfill gate rests on a
-  quorum-reported contiguous height, not a proof of retrievability
+  Bitcoin (thirty times mainnet; the conversion to mainnet cadence is model-based,
+  see the exposure paragraph above) and single-bridge DA trust, and the backfill
+  gate rests on a quorum-reported contiguous height, not a proof of retrievability
   (Section~\ref{subsec:sim-to-real}).
   \item \emph{Proof gate.} The recovery-validity flag holds if a verified
   proof was submitted within the permitted unproven tail of the tracked tip,
   or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
   the anchored depth. A protocol parameter disables the heuristic, so that
-  only a verified proof satisfies the gate. The RQ2 trials and the five repeated composite runs used proof-only
-  recovery with an unproven-tail bound of 128 blocks; the first composite run,
-  the seven-scenario run and the data-availability runs of
-  Section~\ref{subsec:rq3} were made with the heuristic enabled, so their
-  time in \textsc{Recovering} does not isolate the cost of the recovery proof.
+  only a verified proof satisfies the gate. Section~\ref{subsec:rq3} states which runs used which mode; the runs made with
+  the heuristic enabled (the first composite run, the seven-scenario run and the
+  data-availability runs) do not isolate the cost of the recovery proof in their
+  time in \textsc{Recovering}.
   Recovery through a proof also depends on the unproven-tail bound and on the
   testbed's block rate and proving speed, as discussed under the unproven tail
   above.

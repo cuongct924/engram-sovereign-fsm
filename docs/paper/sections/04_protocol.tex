@@ -246,7 +246,9 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   rank $\lfloor s/2 \rfloor + 1$ within it, which is at least $\lfloor s/2
   \rfloor + 1$ and at most $n - s + \lfloor s/2 \rfloor + 1$ among all $n$, and
   both extremes are reached at $s = q$. For $n{=}7$ and $q{=}5$ that is the third
-  to the fifth smallest, the median of all seven being the fourth. Only when the
+  to the fifth smallest, the median of all seven being the fourth.
+
+  Only when the
   honest observations straddle a threshold does this choice change a decision,
   and a transition needs the hysteresis count over consecutive blocks while
   proposers rotate in proportion to voting power, so a Byzantine proposer
@@ -256,7 +258,9 @@ adversary can do when they disagree. Each adversarial case reduces to it:
   signatures, so a proposer also chooses which precommits the block records.
   Requiring one observation for every commit vote of \texttt{LastCommit} would tie
   the two choices together and make an omission visible in the block, but it
-  would not remove the choice (Section~\ref{subsec:future-work}). If
+  would not remove the choice (Section~\ref{subsec:future-work}).
+
+  If
   omission drops $S$ to weight at most $2W/3$, the certificate is not
   well-formed and honest validators reject the proposal. The only exception
   is the first height after vote extensions are enabled, whose predecessor
