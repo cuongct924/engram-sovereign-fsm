@@ -22,6 +22,8 @@ cd engram-sovereign-fsm && git checkout main && git pull
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt 2>/dev/null || .venv/bin/pip install matplotlib seaborn numpy pandas requests
 ```
 4. `.env`: sao chép từ máy chính (không nằm trong git, có thông tin RPC của Bitcoin). Đặt `ENGRAM_PARAM_PROOF_ONLY_RECOVERY=true` (mặc định của bài); `run_seven.sh` tự đổi sang false rồi khôi phục. Kiểm tra `ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS=128`, `ENGRAM_PARAM_DOWN_HYSTERESIS_THRESHOLD=2`, `ENGRAM_PARAM_MAX_DOWN_HYSTERESIS_THRESHOLD=2`, `ENGRAM_PARAM_STABLE_WINDOW=16` (cùng giá trị máy chính).
+
+   **Ngoại lệ đã gặp (2026-10-06, M1 Air 8 lõi):** với `MAX_UNPROVEN_TAIL_BLOCKS=128`, `RECOVERING` không bao giờ lên `ANCHORED` — độ trễ nộp-chứng-minh (submit height trừ proven height) hội tụ ổn định ~168-172 block qua 6 lần nộp proof, luôn vượt 128, vì CPU của Air chứng minh circuit N=256 chậm hơn máy chính. Đã đổi riêng trên Air thành `ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS=320` (margin ~150 block so với độ trễ đo được); mọi tham số khác giữ như máy chính. Ghi rõ trong paper là Testbed A' dùng giá trị này, khác máy chính.
 5. Dựng thử một lần và kiểm tra: `scripts/testnet_redeploy_clean.sh engram` (khoảng 12–20 phút lần đầu vì build image), sau đó trong venv:
 ```bash
 python3 - <<'PY'
