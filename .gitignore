@@ -94,6 +94,8 @@ build/
 # build; docs/paper.pdf (from `make paper`) is committed intentionally so the
 # paper is viewable without a LaTeX toolchain.
 docs/paper/main.pdf
+docs/paper_main.pdf
+docs/paper_supplement.pdf
 *.aux
 *.bbl
 *.blg

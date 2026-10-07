@@ -4,7 +4,7 @@ BUILD_DIR=./build
 # Version from git tag, falling back to a commit hash if none exists.
 VERSION=$(shell git describe --tags --always)
 
-.PHONY: testnet-verify all build build-linux clean test lint proto-gen docker-build help paper \
+.PHONY: testnet-verify all build build-linux clean test lint proto-gen docker-build help paper paper-split \
 	e1-guard e1-fsm-safety e1-fsm-liveness e1-tendermint-safety \
 	e1-server-safety e1-server-liveness \
 	testnet-up testnet-down testnet-status \
@@ -98,6 +98,11 @@ paper:
 		pdflatex -interaction=nonstopmode main.tex && \
 		pdflatex -interaction=nonstopmode main.tex
 	mv docs/paper/main.pdf docs/paper.pdf
+
+# Splits docs/paper.pdf into the main text and the appendices (one build, so cross-references agree):
+# docs/paper_main.pdf (front matter, body, references) and docs/paper_supplement.pdf (appendices).
+paper-split: paper
+	docs/paper/split_pdf.sh docs/paper.pdf docs/paper_main.pdf docs/paper_supplement.pdf
 
 # buf.gen.yaml generates into .tmp-proto-gen/ (mirroring the proto package
 # path) since the proto package (engram.sovereignty.v1) and the Go package

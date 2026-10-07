@@ -8,6 +8,7 @@ synthetic.
 
 ```bash
 make paper    # runs pdflatex/bibtex in docs/paper/, outputs docs/paper.pdf
+make paper-split    # also writes docs/paper_main.pdf (body + references) and docs/paper_supplement.pdf (appendices)
 ```
 
 | Switch (`macros.tex`) | Default | Effect |
