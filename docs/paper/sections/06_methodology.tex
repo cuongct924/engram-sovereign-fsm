@@ -43,6 +43,17 @@ Celestia network with seven bridge nodes, one per validator, so that each
 validator forms its own DA view. The single-actor attacks of Appendix~\ref{app:attacks} and the $f{=}2$ collusion
 suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 
+\textbf{Celestia.} The DA layer is Celestia software, not the Celestia network. A private
+\texttt{celestia-app} chain with one validator produces a block every 11.0\,s (median
+11.0\,s, standard deviation 0.04\,s over 80 consecutive blocks; no timing parameter is set,
+so this is the image default), about nine Engram blocks, and the seven bridges download
+and verify its full blocks. There is no public network, no light node or data availability
+sampling, and no independent operator, so a DA fault is the loss of the bridges and not the
+partial withholding of data. The DA gap counts Engram heights (Section~\ref{subsec:sensors}):
+its threshold of 30 blocks, about 36\,s, spans about three Celestia blocks, and the lock time
+after a DA outage does not scale with the Celestia cadence. The DA results therefore show
+what Engram does when the DA layer is lost, not that it detects partial withholding.
+
 \textbf{Environment and versions.}\label{subsec:environment}
 
 All results come from one environment, Testbed~A: the seven-validator Docker
