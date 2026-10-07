@@ -292,7 +292,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
 
     # No figure-level title or legend note: the paper's caption carries both, and the figure number is the LaTeX one.
     fig.subplots_adjust(top=0.88, bottom=0.13, wspace=0.55)
-    savefig_academic(fig, OUT_DIR, "figure4_hysteresis_tradeoffs")
+    savefig_academic(fig, OUT_DIR, "hysteresis_tradeoffs")
 
 
 def build_table(rows):
@@ -338,7 +338,7 @@ def main():
     print(table)
 
     build_figure4(rows, load_rows_5b(), load_rows_5c())
-    print(f"\nFigure 4 written to {OUT_DIR}/figure4_hysteresis_tradeoffs.{{png,pdf}}")
+    print(f"\nFigure 4 written to {OUT_DIR}/hysteresis_tradeoffs.{{png,pdf}}")
 
 
 if __name__ == "__main__":

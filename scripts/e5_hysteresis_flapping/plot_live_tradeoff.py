@@ -56,11 +56,11 @@ def main():
     ax.set_xlim(10, 21)
     ax.set_ylim(-0.5, 8.5)
     fig.tight_layout()
-    savefig_academic(fig, OUT, "figure_live_tradeoff")
+    savefig_academic(fig, OUT, "adaptive_live_tradeoff")
     os.makedirs(PAPER, exist_ok=True)
     for ext in ("pdf", "png"):
-        shutil.copy(os.path.join(OUT, f"figure_live_tradeoff.{ext}"), os.path.join(PAPER, f"figure_live_tradeoff.{ext}"))
-    print("wrote figure_live_tradeoff")
+        shutil.copy(os.path.join(OUT, f"adaptive_live_tradeoff.{ext}"), os.path.join(PAPER, f"adaptive_live_tradeoff.{ext}"))
+    print("wrote adaptive_live_tradeoff")
 
 
 if __name__ == "__main__":

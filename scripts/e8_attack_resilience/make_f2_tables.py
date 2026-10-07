@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""docs/paper/results/f2_table.tex and b9_table.tex from the live f=2 collusion-suite CSVs.
+"""docs/paper/results/collusion_f2_table.tex and collusion_b9_table.tex from the live f=2 collusion-suite CSVs.
 
 Which file feeds which case (every run of a case starts from ANCHORED unless the case drives the chain to SOVEREIGN itself):
   suite rerun  collusion_suite_<stamp>.csv written by the rerun of a3 a4 b1 b2 b3a b3b b4 b6 b7a b7b  (latest file containing them)
@@ -8,7 +8,7 @@ Which file feeds which case (every run of a case starts from ANCHORED unless the
   c0           20261005T024611 (named b0 when it ran)
   b9           20261005T100618
 
-    python3 scripts/e8_attack_resilience/make_f2_tables.py
+    python3 scripts/e8_attack_resilience/make_collusion_f2_tables.py
 """
 
 import csv
@@ -72,7 +72,7 @@ def reasons(rs):
     return ", ".join(f"{k.replace('_', ' ')} {v}" for k, v in sorted(tot.items())) or "none"
 
 
-def f2_table(rows):
+def collusion_f2_table(rows):
     lines = [r"\begin{tabular}{@{}lrllrrr@{}}", r"\toprule",
              r"\textbf{Case} & \textbf{Byz.} & \textbf{Behaviour} & \textbf{Rejected by honest validators} & \textbf{Repeats} & "
              r"\textbf{Same AppHash} & \textbf{Replay clean} \\", r"\midrule"]
@@ -88,7 +88,7 @@ def f2_table(rows):
     return "\n".join(lines) + "\n"
 
 
-def b9_table():
+def collusion_b9_table():
     rows = [r for r in read(os.path.join(LIVE, "collusion_suite_20261005T100618.csv")) if r["case"].startswith("b9_")]
     g = defaultdict(list)
     for r in rows:
@@ -112,12 +112,12 @@ def b9_table():
 def main():
     rows = pick_rows()
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "f2_table.tex"), "w") as f:
-        f.write(f2_table(rows))
-    with open(os.path.join(OUT, "b9_table.tex"), "w") as f:
-        f.write(b9_table())
-    print(open(os.path.join(OUT, "f2_table.tex")).read())
-    print(open(os.path.join(OUT, "b9_table.tex")).read())
+    with open(os.path.join(OUT, "collusion_f2_table.tex"), "w") as f:
+        f.write(collusion_f2_table(rows))
+    with open(os.path.join(OUT, "collusion_b9_table.tex"), "w") as f:
+        f.write(collusion_b9_table())
+    print(open(os.path.join(OUT, "collusion_f2_table.tex")).read())
+    print(open(os.path.join(OUT, "collusion_b9_table.tex")).read())
     print({c: len(r) for c, r in rows.items()})
 
 

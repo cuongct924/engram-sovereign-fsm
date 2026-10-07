@@ -413,10 +413,10 @@ def main():
 
     # No figure title or subtitle: the paper's caption carries both.
     fig.tight_layout()
-    savefig_academic(fig, OUT_DIR, "figure3_single_timeline_live")
+    savefig_academic(fig, OUT_DIR, "seven_scenario_timeline")
 
     print(f"Plotted {len(SCENARIO_ORDER)} scenarios on one equal-width phase row over {boundaries[-1]:,} blocks")
-    print(f"Figure written to {OUT_DIR}/figure3_single_timeline_live.{{png,pdf}}")
+    print(f"Figure written to {OUT_DIR}/seven_scenario_timeline.{{png,pdf}}")
 
 
 if __name__ == "__main__":

@@ -208,7 +208,7 @@ def plot_figure5_live(rows, attack_start, attack_end, csv_path):
     # No figure title or subtitle: the paper's caption carries both, and the figure number is the LaTeX one.
     fig.tight_layout()
     fig.subplots_adjust(hspace=0.4)
-    savefig_academic(fig, OUT_DIR, "figure5_a4_cascade_timeline_live")
+    savefig_academic(fig, OUT_DIR, "p4_relay_cascade_timeline")
 
 
 def main():
@@ -228,7 +228,7 @@ def main():
 
     print(f"Loaded {len(rows)} real live samples from {csv_path}")
     print(f"Attack window: t={attack_start}s to t={attack_end}s (from {os.path.basename(summary_path)}'s own phase markers)")
-    print(f"Figure written to {OUT_DIR}/figure5_a4_cascade_timeline_live.{{png,pdf}}")
+    print(f"Figure written to {OUT_DIR}/p4_relay_cascade_timeline.{{png,pdf}}")
 
 
 if __name__ == "__main__":

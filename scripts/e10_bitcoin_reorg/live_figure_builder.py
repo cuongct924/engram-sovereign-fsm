@@ -161,8 +161,8 @@ def main():
     )
     fig.tight_layout(rect=(0, 0, 1, 0.94))
 
-    savefig_academic(fig, OUT_DIR, "figure8_reorg_depth_reaction_live")
-    print(f"Figure written to {OUT_DIR}/figure8_reorg_depth_reaction_live.{{png,pdf}}")
+    savefig_academic(fig, OUT_DIR, "reorg_depth_reaction")
+    print(f"Figure written to {OUT_DIR}/reorg_depth_reaction.{{png,pdf}}")
 
 
 if __name__ == "__main__":

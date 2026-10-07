@@ -4,7 +4,7 @@
 Each research question is answered by the live experiments that bear on it
 most directly; the remaining attack scenarios, the prover-backend
 comparison, and the Bitcoin-reorg boundary test appear in
-Appendices~\ref{app:attacks}--\ref{app:reorg}. Unless stated otherwise, all
+Appendices~\ref{app:attacks}, \ref{app:backend}, \ref{app:aggregation} and~\ref{app:reorg}. Unless stated otherwise, all
 numbers are live measurements on Testbed~A, the seven-validator testbed of
 Section~\ref{sec:setup} (Table~\ref{tab:environment}); FSM parameters are
 those of Table~\ref{tab:fsm-params}, and metrics follow
@@ -91,7 +91,7 @@ reruns; B8 is one run of an honest split view with no adversary \pending{three r
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\resizebox{\linewidth}{!}{\input{results/f2_table.tex}}
+\resizebox{\linewidth}{!}{\input{results/collusion_f2_table.tex}}
 \end{table}
 
 The suite fixes the number of Byzantine validators; the threshold itself is
@@ -112,7 +112,7 @@ placements did not produce that.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\resizebox{\linewidth}{!}{\input{results/b9_table.tex}}
+\resizebox{\linewidth}{!}{\input{results/collusion_b9_table.tex}}
 \end{table}
 
 \textbf{Function-level checks.} The testbed and the TLA+ model give every
@@ -148,7 +148,7 @@ returned to \textsc{Anchored} within 5\,s of the delay clearing
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\linewidth]{figures/figure5_a4_cascade_timeline_live.pdf}
+\includegraphics[width=\linewidth]{figures/p4_relay_cascade_timeline.pdf}
 \caption{FSM cascade under a real, quorum-visible P2P relay-latency attack
 (P4): all 7 validators independently sense the degradation, the transition
 commits once quorum is met, and block production (bottom panel) never
@@ -279,7 +279,7 @@ Fig.~\ref{fig:fsm-timeline} shows the resulting timeline.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/figure2_trace_timeline_live.pdf}
+\includegraphics[width=0.95\linewidth]{figures/composite_fault_timeline.pdf}
 \caption{FSM state timeline, sensor readings, P2P network state, and block
 height under a layered composite fault sequence (Bitcoin congestion + DA
 outage + P2P churn, overlapping at their peak). First composite run: one trial,
@@ -325,7 +325,7 @@ and S7 recovery. Each scenario starts from the state the previous one left;
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/figure3_single_timeline_live.pdf}
+\includegraphics[width=0.95\linewidth]{figures/seven_scenario_timeline.pdf}
 \caption{Continuous FSM-state timeline across seven sequential
 fault-injection scenarios (S1--S7), true block-height ranges, live
 7-validator testbed. Each scenario begins where the previous scenario's
@@ -365,7 +365,7 @@ noise (Fig.~\ref{fig:hysteresis}).
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{figures/figure4_hysteresis_tradeoffs.pdf}
+\includegraphics[width=0.95\linewidth]{figures/hysteresis_tradeoffs.pdf}
 \caption{Hysteresis parameter sweep across all three absorb edges. Lines:
 in-process sweep under different noise profiles; diamonds: live spot-checks
 on the real 7-validator cluster (divergence from the in-process line is

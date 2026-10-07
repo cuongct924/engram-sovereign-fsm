@@ -245,7 +245,7 @@ def _finish_figure(fig, windows, colors, csv_path):
         )
     fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.subplots_adjust(hspace=0.55)
-    savefig_academic(fig, OUT_DIR, "figure2_trace_timeline_live")
+    savefig_academic(fig, OUT_DIR, "composite_fault_timeline")
 
 
 def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
@@ -499,7 +499,7 @@ def main():
         print(f"Loaded {len(sensor_rows)} diagnostic sensor_snapshot rows -- 4-panel figure (state+actions, sensor health, P2P, liveness)")
     else:
         print("No sensor_snapshot data found -- 2-panel figure (state+actions + liveness only; sensor-health/P2P panels unavailable)")
-    print(f"Figure written to {OUT_DIR}/figure2_trace_timeline_live.{{png,pdf}}")
+    print(f"Figure written to {OUT_DIR}/composite_fault_timeline.{{png,pdf}}")
 
 
 if __name__ == "__main__":
