@@ -381,7 +381,7 @@ and Sections~\ref{sec:model}--\ref{sec:evaluation} evaluate the combination.
 \begin{longtable}{@{}>{\rc}p{0.155\linewidth}>{\rc}p{0.16\linewidth}>{\rc}p{0.09\linewidth}>{\rc}p{0.215\linewidth}>{\rc}p{0.15\linewidth}>{\rc}p{0.13\linewidth}@{}}
 \caption{Failure handling in representative systems, from each system's
 primary publication or specification, except the baseline and Engram rows, which
-are the two designs evaluated in this paper; ``n/a'': not stated by the source. The
+are designs evaluated in this paper. The
 assurance column does not rank the designs.}
 \label{tab:comparison}\\
 \toprule
@@ -396,8 +396,8 @@ assurance column does not rank the designs.}
 \bottomrule
 \endfoot
 \multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
-Receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipts return; the chain does not resume in our implementation & External layers live & n/a \\
-Receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing receipt, read at each validator & Validity predicate & No proposal is valid until the receipts return; the chain resumes, validators may disagree & External layers live & n/a \\
+Receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipts return; the chain does not resume in our implementation & External layers live & Measured here (RQ2, three runs per cell) \\
+Receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing receipt, read at each validator & Validity predicate & No proposal is valid until the receipts return; the chain resumes, validators may disagree & External layers live & Measured here (RQ2, three runs per cell) \\
 \grp{Degradation inside consensus}
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
 Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validators stop voting & Validator protocol & Inactivity leak drains non-voting deposits; formula left open & PoW overlay; under $1/3$ slashable stake (safety); $2/3$ voting (liveness) & Accountable-safety and plausible-liveness proofs \\
