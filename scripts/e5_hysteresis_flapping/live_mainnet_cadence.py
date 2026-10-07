@@ -19,6 +19,13 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "framework"))
+# The Bitcoin RPC credentials live in .env; logger.bitcoin_cli reads them from the environment.
+_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env")
+if os.path.exists(_env):
+    for _line in open(_env):
+        _k, _, _v = _line.strip().partition("=")
+        if _k.startswith("BITCOIN_RPC_") and _v:
+            os.environ.setdefault(_k, _v.strip("'\""))
 from cluster import CLUSTER  # noqa: E402
 from logger import bitcoin_height, query_node, sample_all_nodes  # noqa: E402
 

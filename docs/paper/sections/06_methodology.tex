@@ -47,21 +47,14 @@ suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 \subsection{Environments and Software Versions}
 \label{subsec:environment}
 
-Most results come from one environment, Testbed~A: the seven-validator Docker
-deployment above on a single host. Unless stated otherwise, every table and
-figure in Section~\ref{sec:evaluation} is a Testbed~A measurement. The
-repeated P2P-detection trials of Section~\ref{subsec:rq1}, the repeated
-seven-scenario sweep of Section~\ref{subsec:rq2}, and B8's repeats in
-Table~\ref{tab:f2} were measured on a second environment, Testbed~A$'$: the
-same deployment and software versions on an Apple M1 (8 cores), 16\,GB RAM,
-with Docker Desktop allocated 8 CPUs, 11.67\,GiB RAM and 2\,GB swap. Its
-slower proof hardware required raising \texttt{MaxUnprovenTailBlocks} from
-128 to 320 blocks; every other FSM parameter matches
-Table~\ref{tab:fsm-params}.
-\iftestbedB A third environment, Testbed~B, with one validator on each of
+All results come from one environment, Testbed~A: the seven-validator Docker
+deployment above on a single host. The repeats of A1, P3, P4's escalation and
+B8 in Section~\ref{subsec:rq1} ran on a second Apple M1 host (8 cores, 16\,GB)
+with the same software and parameters. They test safety and detection, which
+do not depend on proving speed.
+\iftestbedB A second environment, Testbed~B, with one validator on each of
 seven cloud virtual machines, serves the experiments that depend on real
-wide-area conditions.\fi{} Results from different environments are never
-pooled into one number. Table~\ref{tab:environment} lists Testbed~A's
+wide-area conditions.\fi{} Table~\ref{tab:environment} lists Testbed~A's
 configuration.
 
 \begin{table}[h]
