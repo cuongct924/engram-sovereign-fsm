@@ -140,17 +140,14 @@ In P3
 29\% of voting power), no FSM transition was committed in any of three runs (in
 the first, the churn metric on both attacked validators crossed its threshold):
 two validators' signed observations cannot move a certified aggregate backed by a
-quorum. In P4 (a sustained 350$\pm$50\,ms delay on all of one
-validator's P2P interfaces, observed by all seven validators), the chain
-moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} in each of three
-runs on fresh chains, 30--35\,s (mean 33.6\,s) and 60--66\,s (mean 63.8\,s) after the delay began, held
-\textsc{Sovereign} for the 244-second attack, and ended in \textsc{Anchored} at all seven validators in all three runs.
-The return took 267--288\,s after the delay cleared (mean 279\,s, 95\% interval $\pm$26\,s, Student $t$), with proof-only recovery
-and an unproven-tail bound of 128 blocks; most of it is the time in \textsc{Recovering} (227--247\,s). In every run at least
-one fall-back from \textsc{Recovering} to \textsc{Sovereign} occurred, once in two runs and twice in one, each lasting about 5\,s (one polling interval); we did not
-isolate its cause. No validator went from \textsc{Sovereign} to \textsc{Anchored} without \textsc{Recovering}. After the return, the
-validators left \textsc{Anchored} for about 10\,s every 60\,s, as they did before the attack, which is sensor noise of the testbed
-(Fig.~\ref{fig:a4-cascade}, an earlier single trial with the heuristic fallback enabled).
+quorum. In P4 (a sustained delay of 350$\pm$50\,ms on all of one validator's P2P interfaces,
+which all seven validators observe), the chain escalated in each of three runs on fresh chains: all
+validators entered \textsc{Suspicious} 30--35\,s and \textsc{Sovereign} 60--66\,s after the delay began.
+After the delay cleared, every run returned to \textsc{Anchored} at all seven validators, on average 279\,s later
+(95\% interval $\pm$26\,s, Student $t$). The return is paced by the recovery proof that proof-only recovery with an unproven tail
+of 128 blocks requires (Section~\ref{subsec:rq3}), not by the hysteresis waits; an earlier single trial with the heuristic fallback
+returned within seconds (Fig.~\ref{fig:a4-cascade}). Each run also showed a brief fall-back from \textsc{Recovering} to \textsc{Sovereign}
+whose cause we did not isolate.
 
 \begin{figure}[h]
 \centering
