@@ -32,6 +32,21 @@ def cell(values, nd=0):
     return f"{mean:.{nd}f} ({lo:.{nd}f}--{hi:.{nd}f})"
 
 
+def open_gap(r):
+    """Seconds from the last block of a trial that never resumed to the end of its observation: a lower bound
+    of the gap that never closed (longest_gap_s is empty for such a trial)."""
+    tl = s._timeline(r)
+    top = max(h for _, h, _ in tl)
+    return tl[-1][0] - min(t for t, h, _ in tl if h == top)
+
+
+def gap_cell(g):
+    if all(r["longest_gap_s"] in ("", None) for r in g):
+        v = [open_gap(r) for r in g]
+        return "$>$" + cell(v)
+    return cell([s.num(r["longest_gap_s"]) for r in g], 1)
+
+
 def main() -> int:
     rows = s.load_rows()
     lock = s.lock_times(rows)
@@ -53,7 +68,7 @@ def main() -> int:
             out.append(" & ".join([
                 label, SYSTEM[mode], str(len(g)),
                 cell([s.num(r["fault_blocks"]) for r in g]), cell(ratio) + "\\%",
-                cell([s.num(r["longest_gap_s"]) for r in g], 1), cell([s.num(r["max_round_in_fault"]) for r in g]),
+                gap_cell(g), cell([s.num(r["max_round_in_fault"]) for r in g]),
                 f"{stalled}/{len(g)}",
                 cell([a for _, a in around]) if around else "---", cell([b for b, _ in around]) if around else "---",
             ]) + " \\\\")

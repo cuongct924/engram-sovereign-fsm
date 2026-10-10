@@ -186,8 +186,9 @@ receipt-gated baselines have no recovery mode, since their FSM stays \textsc{Anc
 \caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
 three runs per cell, mean and range). Rate is the fault-window block rate as a
 share of the same trial's healthy rate; ``No resume'' counts trials in which the
-chain committed no block in the 120\,s after the fault ended (``---'' in the gap
-column: it never resumed). The in-band baseline is the receipt-gated one whose receipts come
+chain committed no block in the 120\,s after the fault ended. A gap entered as
+$>$$x$ is a chain that never resumed: $x$ is the time from its last block to the end
+of the trial, a lower bound of a gap that never closed. The in-band baseline is the receipt-gated one whose receipts come
 through the vote extensions (``vote-extension receipts''), the out-of-band one the
 receipt-gated one in which each validator reads the layers itself
 (``direct-read receipts''). The last two columns count withdrawals committed
@@ -203,15 +204,18 @@ proof-only re-anchoring with an unproven-tail bound of 128 blocks.}
 \end{table}
 
 Two observations should be kept apart. \emph{During the fault}, the receipt-gated
-baselines commit a fraction of their blocks, which the validity predicate
+baselines commit a fraction of their blocks or stop, which the validity predicate
 predicts and the experiment measures. The out-of-band baseline commits 20\%
 (29--30 blocks) of its healthy rate under a DA outage, 20\% (27--33 blocks)
 under the combined fault and 61\% (89 blocks) under checkpoint suspension, with a
 longest gap of 6.6--6.8\,s and rounds up to 21 (12 under checkpoint suspension),
-against \resRQTwoEngram{} for Engram. The in-band baseline is similar: under a DA outage
-it commits 23--28 blocks in 180\,s, 24\% of its healthy rate on average, with proposals
-reaching round 21--22, and the combined fault gives 17\% (24--28 blocks, round 21); under checkpoint
-suspension it slows to 56--78\% (79--82 blocks, round 13). Its healthy
+against \resRQTwoEngram{} for Engram. The in-band baseline does not slow but halts: it commits
+79--82 blocks under checkpoint suspension, 23--28 under a DA outage and 24--28 under the combined
+fault, all before it stops, 120--121\,s after a checkpoint fault begins and 44--52\,s after a DA or
+combined fault begins, and it commits no block again until the end of the trial (the open gap is at least
+181\,s and 259\,s). The fault-window rate in the table, 56--78\%, 22--25\% and 16--18\% of the healthy rate,
+is therefore the count of blocks before the halt divided by 180\,s; proposals reach round 13 under
+checkpoint suspension and 21--22 otherwise. Its healthy
 rate differs between trials (0.55 to 0.82 blocks/s), which is why that rate
 range is wider than the block counts. In the four trials with the lowest healthy
 rate (0.55 to 0.60) the 60\,s healthy window contains three or four blocks decided after
@@ -221,7 +225,7 @@ a healthy chain reaches the receipt tolerance once per checkpoint cycle
 record the rejected proposals (Section~\ref{subsec:limitations}).
 Because the rate of Table~\ref{tab:rq2} divides by each trial's own healthy rate, we
 also divided the fault-window rate of every trial by one reference, the median healthy rate of the
-36 trials (0.80 blocks/s). The in-band baseline then commits 55--57\% under checkpoint
+36 trials (0.80 blocks/s). The in-band baseline then has 55--57\% under checkpoint
 suspension, 15--18\% under a DA outage and 16--18\% under both; the out-of-band baseline
 62\%, 19--20\% and 18--22\%; Engram 96--100\% and the soft baseline 96--100\% under every fault.
 The comparison does not depend on the normalization. One further in-band DA trial is not in the table: its
