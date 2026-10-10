@@ -7,8 +7,8 @@ synthetic.
 ## Build
 
 ```bash
-make paper    # latexmk out of tree into build/paper/, outputs docs/paper.pdf
-make paper-split    # also writes docs/paper_main.pdf (body + references) and docs/paper_supplement.pdf (appendices)
+make paper    # latexmk out of tree into build/paper/, outputs docs/paper_$(PAPER_VERSION).pdf (default v0; raise it on every rebuild after a source change: make paper PAPER_VERSION=v1)
+make paper-split    # same PAPER_VERSION; also writes docs/paper_main.pdf (body + references) and docs/paper_supplement.pdf (appendices)
 ```
 
 ## Layout

@@ -90,18 +90,20 @@ lint:
 	@echo "--> Running golangci-lint..."
 	golangci-lint run
 
-# Builds out of tree (docs/paper/ holds only sources) in build/paper/ and publishes docs/paper.pdf.
+# Builds out of tree (docs/paper/ holds only .tex/.bib sources) in build/paper/ and publishes docs/paper_$(PAPER_VERSION).pdf.
+# Raise PAPER_VERSION (v0, v1, ...) whenever the sources change and the paper is rebuilt, so each build keeps its own file.
+PAPER_VERSION ?= v0
 paper:
-	@echo "--> Building docs/paper.pdf..."
+	@echo "--> Building docs/paper_$(PAPER_VERSION).pdf..."
 	mkdir -p build/paper
 	cd docs/paper && export PATH="$$PATH:/Library/TeX/texbin" && \
 		latexmk -pdf -interaction=nonstopmode -outdir=../../build/paper main.tex
-	cp build/paper/main.pdf docs/paper.pdf
+	cp build/paper/main.pdf docs/paper_$(PAPER_VERSION).pdf
 
-# Splits docs/paper.pdf into the main text and the appendices (one build, so cross-references agree):
+# Splits docs/paper_$(PAPER_VERSION).pdf into the main text and the appendices (one build, so cross-references agree):
 # docs/paper_main.pdf (front matter, body, references) and docs/paper_supplement.pdf (appendices).
 paper-split: paper
-	scripts/paper/split_pdf.sh docs/paper.pdf docs/paper_main.pdf docs/paper_supplement.pdf
+	scripts/paper/split_pdf.sh docs/paper_$(PAPER_VERSION).pdf docs/paper_main.pdf docs/paper_supplement.pdf
 
 # Lists every \pending{...} of the manuscript with its file and line.
 paper-pending:
