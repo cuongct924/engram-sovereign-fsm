@@ -362,7 +362,7 @@ Section~\ref{subsec:transitions}).}
 \toprule
 \textbf{Wait} & \textbf{Applies to} & \textbf{Default} & \textbf{Adaptive} \\
 \midrule
-Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2; with the optional backoff, doubles per flap level up to a cap (8 on the testbed) & Optional \\
+Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2; with the optional backoff, doubles per flap level up to a cap (equal to the threshold on the testbed, so the threshold is static) & Optional \\
 Suspicious exit $k_{\uparrow}$ & \textsc{Suspicious}$\to$\textsc{Anchored} & 2 (8 on the testbed) & No \\
 Recovery $H$ & \textsc{Recovering}$\to$\textsc{Anchored} & 2 & No \\
 \bottomrule

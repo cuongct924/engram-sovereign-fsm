@@ -59,7 +59,7 @@ Section~\ref{subsec:implementation}.
 \texttt{MaxPeerLatency} & 200 & Round-trip time, ms \\
 \texttt{RecoveryHysteresisWait} & 2 & \textsc{Recovering}$\to$\textsc{Anchored}, blocks \\
 \texttt{DownHysteresisThreshold} & 2 & \textsc{Anchored}$\to$\textsc{Suspicious}, blocks \\
-\texttt{MaxDownHysteresisThreshold} & 8 & Cap on the backed-off threshold \\
+\texttt{MaxDownHysteresisThreshold} & 2 & Cap on the backed-off threshold (equal to \texttt{DownHysteresisThreshold}: static) \\
 \texttt{MaxUnprovenTailBlocks} & 128 & Tail after the proved checkpoint that still counts (default 8) \\
 \texttt{ProofOnlyRecovery} & true & Recovery requires a verified proof (default false) \\
 \texttt{StableWindow} & 16 & Healthy \textsc{Anchored} blocks that lower the flap level by one \\
@@ -69,9 +69,9 @@ Section~\ref{subsec:implementation}.
 \end{tabular}
 \\[2pt]
 \footnotesize Overrides: the Docker testbed runs the table's
-\texttt{DownHysteresisThreshold} of 2 with the backoff cap of 8, so the optional
-backoff of the down threshold is enabled, and sets \texttt{SuspiciousHysteresisWait} to 8, which is
-not adaptive. The hysteresis sweeps of Section~\ref{subsec:rq3}
+\texttt{DownHysteresisThreshold} of 2 with the cap equal to it, so the down threshold
+is static and the optional backoff is disabled, and sets \texttt{SuspiciousHysteresisWait} to 8, which
+is not adaptive. The hysteresis sweeps of Section~\ref{subsec:rq3}
 vary the down threshold, a static value being \texttt{MaxDownHysteresisThreshold}
 equal to \texttt{DownHysteresisThreshold}; the Monte Carlo study of
 Section~\ref{subsec:rq1} uses the P2P thresholds of

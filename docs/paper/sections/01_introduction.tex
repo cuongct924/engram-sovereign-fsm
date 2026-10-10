@@ -107,9 +107,11 @@ Engram targets this combination.
     whichever observations a Byzantine proposer includes or omits
     (Section~\ref{subsec:health-certificate}).
     \item \textbf{Dependency-aware adaptive execution.} A four-state FSM on the
-    certificate, with asymmetric hysteresis and exponential backoff on repeated
-    failed recovery, that changes the Bitcoin and DA receipt requirements
-    without modifying CometBFT's agreement core. A withdrawal circuit
+    certificate, with asymmetric hysteresis (quick to degrade, slow to restore), that
+    changes the Bitcoin and DA receipt requirements without modifying CometBFT's
+    agreement core. A down threshold of 2 flapped under wide-area noise and a
+    threshold of 4 did not, at about 3\,s more detection delay, while an adaptive
+    threshold did not beat the static one (Section~\ref{subsec:rq3}). A withdrawal circuit
     breaker~\cite{mendonca2020resiliency} excludes withdrawal-marked transactions while
     the chain runs without external corroboration
     (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; Withdrawal Admission

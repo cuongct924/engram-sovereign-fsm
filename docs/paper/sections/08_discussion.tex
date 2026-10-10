@@ -55,12 +55,13 @@ suffices. The freeze is the intended response to an
 unverifiable periphery, not a safety violation. Its economic cost to users and
 the attacker's cost of sustaining it are not quantified.
 
-\textbf{Repeated triggering of \textsc{Suspicious}.} Backoff on
-\textsc{Recovering} raises the price of forcing repeated failed recoveries; the
-\textsc{Anchored}$\leftrightarrow$\textsc{Suspicious} boundary has no such
-protection beyond the bounded forced-transaction queue. The adaptive down
-threshold meant to close this asymmetry did not beat a static threshold of 4 in
-live runs, and its absorption of short pulses has no live evidence
+\textbf{Repeated triggering of \textsc{Suspicious}.} An adversary that repeatedly
+pushes the chain into \textsc{Suspicious} is limited only by the bounded
+forced-transaction queue and the down threshold. An optional backoff of the down
+threshold, which we did not evaluate on the \textsc{Recovering}$\to$\textsc{Sovereign}
+edge, was meant to raise the price of such repetition. On the
+\textsc{Anchored}$\to$\textsc{Suspicious} edge it did not beat a static threshold of 4
+in live runs, and its absorption of short pulses has no live evidence
 (Appendix~\ref{app:adaptive}).
 
 \textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
