@@ -147,7 +147,7 @@ After the delay cleared, every run returned to \textsc{Anchored} at all seven va
 (95\% interval $\pm$26\,s, Student $t$). The return is paced by the recovery proof that proof-only recovery with an unproven tail
 of 128 blocks requires (Section~\ref{subsec:rq3}), not by the hysteresis waits; an earlier single trial with the heuristic fallback
 returned within seconds (Fig.~\ref{fig:a4-cascade}). Each run also showed a brief fall-back from \textsc{Recovering} to \textsc{Sovereign}
-whose cause we did not isolate.
+(Section~\ref{subsec:limitations}).
 
 \begin{figure}[h]
 \centering
@@ -218,7 +218,7 @@ rate (0.55 to 0.60) the 60\,s healthy window contains three or four blocks decid
 round 0, each preceded by a gap of about 6.5\,s; the other five in-band trials and all Engram trials contain none. The Bitcoin height gap of
 a healthy chain reaches the receipt tolerance once per checkpoint cycle
 (Appendix~\ref{app:envelope}), which is consistent with this, but we did not
-record the rejected proposals and do not confirm the cause.
+record the rejected proposals (Section~\ref{subsec:limitations}).
 Because the rate of Table~\ref{tab:rq2} divides by each trial's own healthy rate, we
 also divided the fault-window rate of every trial by one reference, the median healthy rate of the
 36 trials (0.80 blocks/s). The in-band baseline then commits 55--57\% under checkpoint
@@ -236,26 +236,21 @@ difference to the 17--25\% above is of the size of the variation between trials 
 baseline, and we do not attribute it to the cap.
 
 \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
-after the layer returns in all three DA trials and the combined trials, and in
-the checkpoint trials it stops resuming as well. In one earlier trial observed
-beyond the recovery window, the chain was still stuck after twelve minutes, with
-proposals rejected at round 57 and above. This does not follow from the
-predicate, which is satisfiable again once the layer returns. It follows from two
-dependencies on block commits. The first is a choice of this implementation: the
-checkpoint submitter, the DA publisher and the sensor reads all run inside
+after the layer returns in all three DA trials, in the combined trials and in
+the checkpoint trials. In one earlier trial observed beyond the recovery
+window, the chain was still stuck after twelve minutes, with proposals rejected
+at round 57 and above. The predicate is satisfiable again once the layer
+returns, so the stall comes from where this baseline reads the receipts. The
+checkpoint submitter, the DA publisher and the sensor reads run inside
 \texttt{ExtendVote}, which ABCI++ calls only when a validator is about to
-precommit a block, so once proposals are rejected no validator precommits, no new
-checkpoint is submitted and no DA height is published. The second follows from
-how observations travel: \texttt{ProcessProposal} receives no vote extensions, so
-the certificate in each proposal is built from the extended commit of the last
-committed block and does not change until another block commits. The two together make the recovery circular, and in this implementation it
-takes a manual restart. The out-of-band baseline removes both dependencies at
-once, since each validator reads the layers whether or not a block commits, and
+precommit, and \texttt{ProcessProposal} receives no vote extensions, so the
+certificate of a proposal is built from the last committed block. Once
+proposals are rejected, no validator precommits and no new receipt is produced,
+so the baseline has no path back without an external restart. The out-of-band
+baseline reads the layers at each validator whether or not a block commits, and
 it resumes in every one of its nine trials: 48--57\,s after the fault ended under
 checkpoint suspension, 21--25\,s under a DA outage and 51--74\,s under the
-combined fault. The failure to resume is therefore a property of where the
-receipts are observed in the in-band baseline, not of gating validity on them;
-we have not separated the two dependencies from each other. The price of the
+combined fault. We did not separate the two dependencies from each other. The price of the
 out-of-band design is that two honest validators can read different values and
 disagree on a proposal, which shows in the rounds above and in the longest gap
 of about 6.7\,s. All seven validators read the same Bitcoin node and the same
@@ -266,7 +261,7 @@ rate) under every fault, with a longest gap of 1.4\,s under DA faults and about 
 under checkpoint suspension (rounds 2--3), and resumes within two seconds of the fault ending.
 The 6\,s gap occurs once in each of the three checkpoint trials, at round 0 and
 35--38\,s before the FSM first reaches \textsc{Sovereign}; the soft baseline, which
-runs the same FSM, shows it in its three trials as well. We did not isolate its cause.
+runs the same FSM, shows it in its three trials as well (Section~\ref{subsec:limitations}).
 
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
@@ -375,10 +370,7 @@ returning to \textsc{Anchored} at all seven validators. From entering \textsc{Re
 fall-backs (median 334\,s; mean 387\,s with a 95\% interval of $\pm$133\,s, which the one long run dominates).
 The seventh run did not return: after S4 it stayed in \textsc{Sovereign} through
 S5, S6 and the 898\,s of S7, with all seven validators agreeing on it and the chain still
-committing blocks. The run kept no sensor log, so we do not know why the FSM did not
-leave \textsc{Sovereign}; the two later runs, which kept it, did not reproduce the behavior.
-The fall-backs also occurred in the relay-latency (P4) runs, and
-we have not isolated their cause. The statement that the chain returns to \textsc{Anchored}
+committing blocks (Section~\ref{subsec:limitations}). The statement that the chain returns to \textsc{Anchored}
 after the faults are removed therefore holds in six of the seven runs, and the recovery time
 is long and variable under the heuristic fallback.
 
