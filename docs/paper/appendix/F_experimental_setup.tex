@@ -163,3 +163,54 @@ intensity, by binary search against the detector, so the six dimensions are not
 searched jointly. The results therefore characterize the detectors' sensitivity
 within this generator.
 
+
+\subsection*{Provenance of the reported results}
+\label{subsec:provenance}
+
+Table~\ref{tab:provenance} states, for each result of Section~\ref{sec:evaluation}, what kind of measurement it is,
+what one replicate is, and which recovery mode the runs used. ``Live'' means a measurement on the seven-validator
+Docker deployment (Testbed~A) against real Bitcoin regtest and Celestia processes; ``in-process'' means the real FSM code
+driven by a simulated sensor input; ``model-based'' means a conversion or a prediction computed from a model and not
+observed. ``Proof-only'' and ``fallback'' are the recovery modes of Section~\ref{subsec:reanchoring}. Repeats of one
+case that share a chain are not independent deployments. \pending{rows marked $\dagger$ are being rerun; update them from the new data.}
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.13\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.20\linewidth}@{}}
+\caption{Provenance of the evaluation results}\label{tab:provenance}\\
+\toprule
+\textbf{Result} & \textbf{Kind} & \textbf{Replicate} & \textbf{Recovery mode} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Result} & \textbf{Kind} & \textbf{Replicate} & \textbf{Recovery mode} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Single Byzantine proposer and nine single-actor attacks (RQ1, Appendix~\ref{app:attacks}) & Live & Attack runs on the seven-validator cluster; counts in Appendix~\ref{app:attacks} & Not the subject \\
+Collusion suite A3--B7 (Table~\ref{tab:f2}) & Live, with offline replay & Three repeats per case on one chain (33 repeats of A3--B7) & Not the subject \\
+Threshold sweep (Table~\ref{tab:b9}) & Live & Five runs per cell, each on a fresh chain & Not the subject \\
+Weighted-aggregation checks & In-process (function level) & 1{,}500 random quorum subsets per weight vector & Not applicable \\
+P2P detector comparison & In-process, synthetic & Fixed seeds, 2{,}000 snapshots or 500 ramps per cell & Not applicable \\
+P3 churn attack & Live & Three runs & Not the subject \\
+P4 relay-latency attack$^\dagger$ & Live & One trial in the text; repeats being rerun & Fallback \\
+Baselines under peripheral faults (Table~\ref{tab:rq2})$^\dagger$ & Live & Three trials per cell; baselines redeployed per trial & Proof-only, bound 128 (Engram, soft) \\
+Composite fault, first run & Live & One trial & Fallback \\
+Composite fault, repeats & Live & Five runs, each on a freshly deployed chain & Proof-only, bound 128 \\
+Seven-scenario sweep$^\dagger$ & Live & One trial in the text; repeats being rerun & Fallback \\
+Hysteresis sweep (Table~\ref{tab:hysteresis-down}) & In-process, synthetic & One run per threshold, fixed seed & Not applicable \\
+Hysteresis spot-checks and flapping runs & Live & Single runs per threshold; six three-phase runs; one stationary run & Not the subject \\
+What ends \textsc{Recovering} & Live & One run per setting; five runs with bound 128 & Fallback and proof-only \\
+Backfill of the \textsc{Sovereign} interval (Table~\ref{tab:backfill}) & Live & Three runs per outage length, nine in all & Fallback \\
+Withheld-data controls (Table~\ref{tab:backfill-controls}) & Live & As in the table & Fallback \\
+Overhead against vanilla (Table~\ref{tab:overhead}) & Live, paired & Twenty paired deployments on one host, 20\,tx/s & Not applicable \\
+Certificate size and \texttt{ProcessProposal} time & Microbenchmark & Repeated calls in a process & Not applicable \\
+Load sensitivity (Table~\ref{tab:throughput}) & Live & Five repeats per rate on one host & Not applicable \\
+Exposure in mainnet time & Model-based & Conversion by the thirty-fold Bitcoin acceleration & Not applicable \\
+False escalations per day at mainnet cadence (Appendix~\ref{app:envelope}) & Model-based (simulation) & Simulated Bitcoin block intervals; not observed on the testbed & Not applicable \\
+Proving and witness times (Appendices~\ref{app:aggregation} and~\ref{app:envelope}) & Offline measurement & Prover run on a recorded header range, not on the live chain & Not applicable \\
+Model checking (Section~\ref{sec:formal}) & TLC and Apalache runs & One run per configuration, bounds in Table~\ref{tab:formal-config} & Not applicable \\
+\end{longtable}
+}
