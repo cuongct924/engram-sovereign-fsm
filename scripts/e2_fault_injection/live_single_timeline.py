@@ -28,6 +28,7 @@ Usage:
 
 import csv
 import glob
+import textwrap
 import os
 import sys
 
@@ -195,34 +196,11 @@ def _plot_step_line(ax, name, scenarios, band_of):
             ax.scatter(
                 xs[i],
                 STATE_Y[states[i]],
-                s=90,
+                s=26,
                 facecolor="black",
                 edgecolor="white",
-                linewidth=1.5,
+                linewidth=0.8,
                 zorder=4,
-            )
-            # Block height + cause BELOW every marker (halo so it stays readable over
-            # the state-colored area fill). Placing all annotations at the same
-            # vertical side (rather than alternating above/below) keeps every
-            # label exactly one state-level apart, so adjacent transitions --
-            # e.g. a phase-end "re-anchored" and the next phase's "gap>100" --
-            # can never overlap. y=0 still has room below (ylim bottom -0.5).
-            ax.annotate(
-                f"{hs[i]} · {TRANSITION_CAUSE[states[i]]}",
-                (xs[i], STATE_Y[states[i]]),
-                xytext=(0, -16),
-                textcoords="offset points",
-                ha="center",
-                va="top",
-                fontsize=7.5,
-                color="0.15",
-                zorder=6,
-                bbox=dict(
-                    boxstyle="round,pad=0.15",
-                    facecolor="white",
-                    edgecolor="0.6",
-                    alpha=0.75,
-                ),
             )
 
 
@@ -279,28 +257,11 @@ def _connect_phases(ax, scenarios, band_of):
             ax.scatter(
                 x2,
                 y2,
-                s=90,
+                s=26,
                 facecolor="black",
                 edgecolor="white",
-                linewidth=1.5,
+                linewidth=0.8,
                 zorder=4,
-            )
-            ax.annotate(
-                f"{rep2[0]['height']} · {TRANSITION_CAUSE[s2[0]]}",
-                (x2, y2),
-                xytext=(0, -16),
-                textcoords="offset points",
-                ha="center",
-                va="top",
-                fontsize=7.5,
-                color="0.15",
-                zorder=6,
-                bbox=dict(
-                    boxstyle="round,pad=0.15",
-                    facecolor="white",
-                    edgecolor="0.6",
-                    alpha=0.75,
-                ),
             )
 
 
@@ -321,7 +282,7 @@ def main():
     # One continuous row; each phase takes equal visual width (phase units
     # 0..7). True block ranges are printed under the labels, so no information
     # is lost despite the non-linear x-scale.
-    fig, ax = plt.subplots(figsize=(15, 5.4))
+    fig, ax = plt.subplots(figsize=(15, 4.6))
 
     # Region boundaries: each scenario's band runs from the previous phase's
     # end to this phase's end (contiguous).
@@ -358,11 +319,11 @@ def main():
     for idx, name in enumerate(SCENARIO_ORDER):
         ax.text(
             idx + 0.5,
-            3.9,
-            SCENARIO_TITLES[name],
+            3.55,
+            textwrap.fill(SCENARIO_TITLES[name], 16),
             ha="center",
             va="center",
-            rotation=45,
+            rotation=0,
             fontsize=9,
             fontweight="bold",
             color="0.15",
@@ -379,7 +340,7 @@ def main():
     for label, state in zip(ytick_labels, STATES):
         label.set_color(STATE_COLOR[state])
         label.set_fontweight("bold")
-    ax.set_ylim(-0.5, 4.8)
+    ax.set_ylim(-0.5, 4.2)
     ax.set_xlim(-0.25, len(SCENARIO_ORDER) + 0.45)
     # Phase centers labelled S1..S7, single line so the two bottom x-axes
     # never overlap; the block-height ruler below carries the true heights.
@@ -405,7 +366,7 @@ def main():
     ax.legend(
         handles=STATE_LEGEND,
         loc="upper left",
-        bbox_to_anchor=(0.0, 1.25),
+        bbox_to_anchor=(0.0, 1.14),
         ncol=len(STATES),
         frameon=False,
         fontsize=9,
