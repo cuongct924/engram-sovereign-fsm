@@ -157,14 +157,14 @@ def _plot_step_line(ax, name, scenarios, band_of):
                 0,
                 step="post",
                 color=STATE_COLOR[states[run_start]],
-                alpha=0.18,
+                alpha=0.0,
                 zorder=2,
             )
             ax.plot(
                 xs[run_start:i + 1],
                 [STATE_Y[s] for s in states[run_start:i + 1]],
                 drawstyle="steps-post",
-                linewidth=2.4,
+                linewidth=3.0,
                 color=STATE_COLOR[states[run_start]],
                 zorder=3,
             )
@@ -175,14 +175,14 @@ def _plot_step_line(ax, name, scenarios, band_of):
         0,
         step="post",
         color=STATE_COLOR[states[run_start]],
-        alpha=0.18,
+        alpha=0.0,
         zorder=2,
     )
     ax.plot(
         xs[run_start:],
         [STATE_Y[s] for s in states[run_start:]],
         drawstyle="steps-post",
-        linewidth=2.4,
+        linewidth=3.0,
         color=STATE_COLOR[states[run_start]],
         zorder=3,
     )
@@ -196,7 +196,7 @@ def _plot_step_line(ax, name, scenarios, band_of):
             ax.scatter(
                 xs[i],
                 STATE_Y[states[i]],
-                s=26,
+                s=34,
                 facecolor="black",
                 edgecolor="white",
                 linewidth=0.8,
@@ -233,13 +233,13 @@ def _connect_phases(ax, scenarios, band_of):
             0,
             step="post",
             color=STATE_COLOR[s1[-1]],
-            alpha=0.18,
+            alpha=0.0,
             zorder=2,
         )
         ax.plot(
             [x1, x2],
             [y1, y1],
-            linewidth=2.4,
+            linewidth=3.0,
             color=STATE_COLOR[s1[-1]],
             zorder=3,
         )
@@ -248,7 +248,7 @@ def _connect_phases(ax, scenarios, band_of):
             ax.plot(
                 [x2, x2],
                 [y1, y2],
-                linewidth=2.4,
+                linewidth=3.0,
                 color=STATE_COLOR[s2[0]],
                 zorder=3,
             )
@@ -257,7 +257,7 @@ def _connect_phases(ax, scenarios, band_of):
             ax.scatter(
                 x2,
                 y2,
-                s=26,
+                s=34,
                 facecolor="black",
                 edgecolor="white",
                 linewidth=0.8,
@@ -352,6 +352,7 @@ def main():
     )
     ax.set_ylabel("FSM State")
     ax.grid(axis="y", linestyle=":", alpha=0.6, zorder=1)
+    ax.grid(axis="x", visible=False)
 
     # True block-height ruler along the bottom: a secondary x-axis marking the
     # actual block heights at each phase boundary (0..7), so the non-linear
