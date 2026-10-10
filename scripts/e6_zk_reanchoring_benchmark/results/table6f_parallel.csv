@@ -7,3 +7,29 @@ date,host_ncpu,L,chunks,phase,provers,threads_each,wall_s,peak_mb_max,detail
 2026-10-07,10,512,2,leaf_sequential,1,10,35.899,5595,sum of 2 leaf proofs
 2026-10-07,10,512,2,aggregation,1,10,16.273,4490,verified
 2026-10-07,10,512,2,total_sequential,1,10,52.17,0,tail_blocks=42 at 0.8 blocks/s
+2026-10-09,10,512,2,witness_prep,1,1,109.455,0,go run plus nargo execute, all chunks one after another
+2026-10-09,10,512,2,leaf_sequential,1,10,56.359,7639,sum of 2 leaf proofs
+2026-10-09,10,512,2,aggregation,1,10,25.654,5142,verified
+2026-10-09,10,512,2,total_sequential,1,10,82.01,0,tail_blocks=66 at 0.8 blocks/s
+2026-10-09,10,512,2,leaf_parallel,2,5,47.924,7109,1 wave(s); per-prover walls: 47.876 47.289 
+2026-10-09,10,512,2,total_parallel,2,5,73.58,0,tail_blocks=59 at 0.8 blocks/s; aggregate verified
+2026-10-09,10,1024,4,witness_prep,1,1,211.641,0,go run plus nargo execute, all chunks one after another
+2026-10-09,10,1024,4,leaf_sequential,1,10,111.755,7647,sum of 4 leaf proofs
+2026-10-09,10,1024,4,aggregation,1,10,24.958,5146,verified
+2026-10-09,10,1024,4,total_sequential,1,10,136.71,0,tail_blocks=109 at 0.8 blocks/s
+2026-10-09,10,512,2,witness_prep,1,1,105.619,0,go run plus nargo execute, all chunks one after another
+2026-10-09,10,512,2,leaf_sequential,1,10,55.780,7636,sum of 2 leaf proofs
+2026-10-09,10,512,2,aggregation,1,10,24.771,5169,verified
+2026-10-09,10,512,2,total_sequential,1,10,80.55,0,tail_blocks=64 at 0.8 blocks/s
+2026-10-09,10,512,2,leaf_parallel,2,5,46.835,7120,1 wave(s); per-prover walls: 46.785 46.492 
+2026-10-09,10,512,2,total_parallel,2,5,71.61,0,tail_blocks=57 at 0.8 blocks/s; aggregate verified
+2026-10-09,10,1024,4,witness_prep,1,1,214.194,0,go run plus nargo execute, all chunks one after another
+2026-10-09,10,1024,4,leaf_sequential,1,10,111.271,7642,sum of 4 leaf proofs
+2026-10-09,10,1024,4,aggregation,1,10,25.019,5171,verified
+2026-10-09,10,1024,4,total_sequential,1,10,136.29,0,tail_blocks=109 at 0.8 blocks/s
+2026-10-09,10,1024,4,leaf_parallel,2,5,93.916,7079,2 wave(s); per-prover walls: 47.352 46.872 46.463 45.647 
+2026-10-09,10,1024,4,total_parallel,2,5,118.94,0,tail_blocks=95 at 0.8 blocks/s; aggregate verified
+2026-10-09,10,256,1,leaf_by_threads,1,10,28.318,7624,one leaf proof, alone on the host
+2026-10-09,10,256,1,leaf_by_threads,1,5,36.269,7553,one leaf proof, alone on the host
+2026-10-09,10,256,1,leaf_by_threads,1,2,60.223,7014,one leaf proof, alone on the host
+2026-10-09,10,256,1,leaf_by_threads,1,2,60.247,7003,one leaf proof, alone on the host

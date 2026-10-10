@@ -183,7 +183,7 @@ Honest validators agree on state and aggregate under $f{=}2$ & Collusion suite: 
 Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof under M1--M3; lock invariant checked on committed blocks & Admission, not asset safety; no bridge in the prototype \\
 Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoBase{} for two receipt-gated baselines; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
 Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the exit gate is qualified in Section~\ref{subsec:limitations} \\
-The cost is a few percent of the block interval & Seven-validator vanilla arms on the same host; interval includes zero & One host; Engram's latency grows with load above 100\,tx/s \\
+The cost is about 2\% of the block interval & Seven-validator vanilla arms, 20 paired deployments on the same host; the interval excludes zero & One host; Engram's latency grows with load above 100\,tx/s \\
 Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
 A static down threshold of 4 or more suppresses flapping & Live three-phase and stationary sweeps & Few runs per cell; the adaptive backoff did not beat it (Appendix~\ref{app:adaptive}) \\
 \bottomrule
@@ -196,8 +196,8 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   block interval is longer, which at first suggested a cost of the extended
   object. Seven vanilla validators on the same hosts give the same interval,
   with vote extensions on or off, so the gap is the cost of the
-  seven-validator network and Engram's own addition is a few percent at most (point estimate \resOverheadPct{},
-  95\% interval \resOverheadCI{} over five deployments; Section~\ref{subsec:rq4}).
+  seven-validator network and Engram's own addition is \resOverheadPct{} (95\% interval
+  \resOverheadCI{} over 20 paired deployments; Section~\ref{subsec:rq4}).
   \item \emph{Hysteresis threshold.} A static threshold of 2 flapped under
   wide-area jitter (9.0 flaps per validator), and thresholds of 4, 6 and 8 did
   not (Section~\ref{subsec:rq3}; three runs for 2 and 6, one for 4 and 8). We

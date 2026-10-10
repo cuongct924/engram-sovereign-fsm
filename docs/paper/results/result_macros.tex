@@ -4,12 +4,14 @@
 \newcommand{\resFSMStatesExact}{2{,}126{,}591} % same row, exact count
 \newcommand{\resAblationCount}{five}           % rows of Table~\ref{tab:ablation}
 \newcommand{\resProposalBytes}{894}            % Txs[0] certificate bytes at 7 validators, live mean in ANCHORED (certificate_size_scan.py); size = 70 + 118 n
-\newcommand{\resValidationUs}{263}             % ProcessProposal on an accepted proposal, 7 validators, microseconds (10 runs, sd 6; tests/benchmark)
+\newcommand{\resValidationUs}{301}             % ProcessProposal on an accepted proposal, 7 validators, microseconds (10 runs, sd 13; tests/benchmark)
 \newcommand{\resExtendVoteMs}{16.6}            % mean ExtendVote time, milliseconds
 \newcommand{\resBlockEngram}{1.262}            % Table~\ref{tab:overhead}, Engram block interval, s
 \newcommand{\resBlockVanilla}{1.233}           % Table~\ref{tab:overhead}, 7 validators without extensions, s
-\newcommand{\resOverheadPct}{2\%}              % point estimate of Engram's addition over the seven-validator arm
-\newcommand{\resOverheadCI}{$-$0.6 to 5.0\%}   % 95\% interval of the point estimate, five deployments (overhead_ci.py)
+\newcommand{\resOverheadPct}{1.8\%}              % paired estimate of Engram's addition over the seven-validator arm (20 pairs)
+\newcommand{\resOverheadCI}{0.4 to 3.1\%}   % 95\% interval of the point estimate, five deployments (overhead_ci.py)
 \newcommand{\resRQTwoEngram}{96--102\%}         % Table~\ref{tab:rq2}: Engram's block count against its healthy rate, across faults (E11 rerun pending)
 \newcommand{\resRQTwoBase}{16--61\%}           % same table: the two strict receipt-gated baselines
 \newcommand{\resExposure}{18--56}              % same table: withdrawal-marked transactions committed before the lock, Engram, across faults
+\newcommand{\resPairedVanilla}{1.225}         % paired design, vanilla block interval, s (scripts/e7_consensus_overhead/paired_overhead.py)
+\newcommand{\resPairedEngram}{1.246}          % same, Engram (vanilla plus the paired difference of 0.0216 s)

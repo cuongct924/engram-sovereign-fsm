@@ -1,0 +1,16 @@
+{
+ "label": "mainnet600_t3",
+ "miner_s": 600,
+ "baseline_min": 40.0,
+ "baseline_states": [
+  "ANCHORED",
+  "SUSPICIOUS"
+ ],
+ "baseline_btc_blocks": 4,
+ "baseline_demotions": 2,
+ "baseline_reached_sovereign": false,
+ "t_first_non_anchored_s": 0.07301664352416992,
+ "t_sovereign_s": 3640.8050508499146,
+ "btc_blocks_to_sovereign": 6,
+ "engram_blocks_to_sovereign": 2921
+}

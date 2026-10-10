@@ -1,0 +1,217 @@
+a29f527
+goos: darwin
+goarch: arm64
+pkg: github.com/cuongct220020/engram-sovereign-fsm/tests/benchmark
+cpu: Apple M1 Pro
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	21946585	        57.35 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	21886843	        62.27 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	22496835	        57.92 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	21627450	        59.55 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	22927581	        58.30 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	21145016	        60.96 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	17411175	        60.53 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	17115828	        58.58 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	18571430	        57.01 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V0_Vanilla_NoExtension-10         	21789013	        61.36 ns/op	         2.000 bytes/op	       8 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	11558697	        97.97 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	11716588	       102.7 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	11892236	       102.8 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	10530126	       102.6 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	12171464	        98.41 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	12400761	       100.0 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	12785736	       100.7 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	13561869	       100.9 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	10796835	        99.49 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V1_FSMStateOnly-10                	11529296	        98.83 ns/op	        24.00 bytes/op	      24 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5389360	       209.5 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5994417	       216.5 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5482526	       224.2 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5443455	       209.8 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5460678	       216.8 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 6091434	       206.2 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5638660	       213.7 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5253478	       214.9 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 6801426	       207.9 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V2_PlusDAReceipt-10               	 5607733	       214.4 ns/op	        87.00 bytes/op	      96 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 2866880	       377.8 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 3500689	       422.6 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 2989278	       410.5 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 3021355	       397.9 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 3142556	       404.6 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 3034188	       411.8 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 3113836	       397.0 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 2461472	       440.9 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 2705365	       445.4 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V3_PlusBTCReceipt-10              	 2964145	       427.4 ns/op	       188.0 bytes/op	     192 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 2097609	       663.1 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1656476	       626.6 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1796403	       655.4 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1837948	       691.2 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1821501	       638.1 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1861629	       626.8 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 2087977	       642.6 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1786224	       654.7 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1942407	       641.2 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V4_PlusP2PDigest-10               	 1970083	       658.3 ns/op	       320.0 bytes/op	     320 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2646897	       426.5 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2796828	       438.6 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2755689	       397.1 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2753560	       461.0 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2849065	       449.2 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2495198	       474.6 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2783889	       420.7 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2815094	       439.4 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2648204	       419.0 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkProposalSize/V5_PlusZKProofRef-10              	 2672901	       424.6 ns/op	       208.0 bytes/op	     208 B/op	       1 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1123 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1018 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1036 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1057 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1116 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1128 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1029 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1119115	      1039 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	 1000000	      1060 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=4-10                	  944023	      1105 ns/op	       473.0 bytes/op	     976 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  805303	      1647 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  710235	      1564 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  808537	      1710 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  707420	      1559 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	 1000000	      1670 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  768256	      1609 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  860504	      1606 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  756555	      1568 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  725256	      1562 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=7-10                	  708726	      1623 ns/op	       776.0 bytes/op	    1712 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  449164	      2794 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  424182	      3213 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  401626	      2813 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  379801	      2831 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  416640	      3223 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  564832	      3020 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  388436	      2900 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  469426	      3035 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  464433	      2787 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=16-10               	  412060	      2990 ns/op	      1685 bytes/op	    3632 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  216228	      5168 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  220975	      5410 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  226513	      5562 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  272944	      5978 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  214141	      5080 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  259500	      5527 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  266451	      5362 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  230803	      5262 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  235345	      5329 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=32-10               	  184011	      5861 ns/op	      3301 bytes/op	    6960 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  109684	     12075 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  111721	     11234 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  131166	     10870 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  120186	     11181 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  112154	     11561 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  111752	     10282 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  102778	     10240 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  108378	     10293 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  107768	     11974 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkCertificateSize/validators=64-10               	  112225	     10525 ns/op	      6533 bytes/op	   13361 B/op	       3 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    7479	    181616 ns/op	   27956 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    7986	    173876 ns/op	   27955 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    8239	    175894 ns/op	   27954 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    7927	    184655 ns/op	   27955 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    7999	    182361 ns/op	   27955 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    8198	    195301 ns/op	   27955 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    8096	    174457 ns/op	   27955 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    8185	    182953 ns/op	   27954 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    7658	    186556 ns/op	   27954 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=4-10                	    8172	    176271 ns/op	   27954 B/op	     260 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    3978	    298015 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4116	    303004 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4767	    296017 ns/op	   36860 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4687	    295720 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4592	    335265 ns/op	   36862 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    3886	    299193 ns/op	   36860 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4800	    295058 ns/op	   36861 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    3716	    291239 ns/op	   36861 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4707	    294653 ns/op	   36860 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=7-10                	    4170	    301740 ns/op	   36860 B/op	     365 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1892	    650098 ns/op	   62277 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1683	    621159 ns/op	   62275 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1779	    668726 ns/op	   62275 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1869	    648510 ns/op	   62275 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1628	    625579 ns/op	   62276 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1886	    618940 ns/op	   62274 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    2002	    626992 ns/op	   62274 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1911	    621424 ns/op	   62275 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1903	    623214 ns/op	   62275 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=16-10               	    1903	    677085 ns/op	   62273 B/op	     639 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     876	   1282965 ns/op	  107086 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	    1044	   1234616 ns/op	  107083 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     906	   1249859 ns/op	  107086 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	    1009	   1261371 ns/op	  107084 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     952	   1243875 ns/op	  107082 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     998	   1253043 ns/op	  107082 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     967	   1219995 ns/op	  107081 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	    1040	   1207663 ns/op	  107080 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     984	   1234580 ns/op	  107079 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=32-10               	     958	   1228135 ns/op	  107080 B/op	    1120 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     488	   2463600 ns/op	  196765 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     510	   2572192 ns/op	  196764 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     523	   2497028 ns/op	  196758 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     501	   2433152 ns/op	  196760 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     495	   2465065 ns/op	  196756 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     476	   2413388 ns/op	  196753 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     495	   2432612 ns/op	  196753 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     470	   2436192 ns/op	  196757 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     514	   2391994 ns/op	  196751 B/op	    2084 allocs/op
+BenchmarkProcessProposal/validators=64-10               	     506	   2550863 ns/op	  196753 B/op	    2084 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8397	    149086 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8426	    155341 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    6679	    149980 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8556	    151334 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8226	    150195 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    7902	    148449 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8305	    147727 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    8395	    155239 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    7320	    152808 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=4-10    	    7339	    150406 ns/op	   12616 B/op	     155 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4414	    257867 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4332	    276143 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4708	    255606 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4428	    271329 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4347	    255300 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4990	    261834 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4837	    266244 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4968	    272849 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4610	    257794 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=7-10    	    4888	    278716 ns/op	   20760 B/op	     247 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    1959	    589528 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2167	    594691 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2144	    589902 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2016	    616401 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    1917	    587613 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    1966	    595711 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2149	    598640 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2136	    592461 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2110	    631586 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=16-10   	    2179	    600085 ns/op	   43952 B/op	     484 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	     914	   1199860 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	     993	   1210392 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	     997	   1214067 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1058	   1213525 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1008	   1219844 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1024	   1219886 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1072	   1203334 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1048	   1170368 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1041	   1178902 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=32-10   	    1060	   1172106 ns/op	   84784 B/op	     900 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     504	   2397930 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     477	   2369600 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     493	   2359987 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     516	   2440840 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     494	   2567662 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     486	   2367904 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     494	   2448343 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     513	   2374913 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     513	   2383992 ns/op	  166512 B/op	    1735 allocs/op
+BenchmarkAggregateHealthCertificates/validators=64-10   	     522	   2421330 ns/op	  166512 B/op	    1735 allocs/op
+PASS
+ok  	github.com/cuongct220020/engram-sovereign-fsm/tests/benchmark	312.785s

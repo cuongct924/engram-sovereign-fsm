@@ -86,7 +86,7 @@ AppHash agreement, and the honest-range check, not by whether a transition occur
 
 \begin{table}[h]
 \caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
-reruns; B8 is one run of an honest split view with no adversary \pending{three runs queued}; c0 is the control)}
+reruns; B8 is three runs of an honest split view with no adversary; c0 is the control)}
 \label{tab:f2}
 \centering
 \scriptsize
@@ -137,9 +137,10 @@ as healthy, and that a peer-count-only detector detects none of them
 eclipse or Sybil strategies. We then ran the two most diagnostic attacks live.
 In P3
 (churn-based rotation: eight restart cycles on two of seven validators,
-29\% of voting power), the churn metric on both attacked validators crossed
-its threshold, yet no FSM transition was committed: two validators' signed
-observations cannot move a certified aggregate backed by a quorum. In P4 (a sustained 350$\pm$50\,ms delay on all of one
+29\% of voting power), no FSM transition was committed in any of three runs (in
+the first, the churn metric on both attacked validators crossed its threshold):
+two validators' signed observations cannot move a certified aggregate backed by a
+quorum. In P4 (a sustained 350$\pm$50\,ms delay on all of one
 validator's P2P interfaces, observed by all seven validators), the chain
 moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} at
 +39\,s and +72\,s, held \textsc{Sovereign} for the 244-second attack, and
@@ -156,7 +157,7 @@ stalls through the cascade or the recovery.}
 \label{fig:a4-cascade}
 \end{figure}
 
-\pending{three repeats of A1, P3 and P4 are queued on Testbed~A; P3 and P4 above are single trials.}
+\pending{P4 above is a single trial; three repeats reached \textsc{Sovereign}, but none returned to the baseline states within the 300\,s recovery window. State the recovery mode of both runs and rewrite the recovery sentence.}
 
 P3 and P4 are two outcomes of one mechanism. The same kind of
 sensor-confirmed degradation is ignored when a minority observes it and
@@ -581,8 +582,7 @@ so the cost is paid twice. The one proof-carrying
 block observed was 14.9\,KB, consistent with the 14.7\,KB proof.
 Validating an accepted proposal, including the ed25519 verification of one
 signature per validator, costs \resValidationUs\,$\mu$s per block at seven
-validators (mean of ten benchmark runs, standard deviation 6\,$\mu$s).
-\pending{rerun the microbenchmark of Table~\ref{tab:cert-scaling} and of this paragraph on the final commit with the machine idle (queued as the last step), and update the sizes and times.}
+validators (mean of ten benchmark runs on the final commit with the machine idle, standard deviation 13\,$\mu$s).
 Size and
 validation time are linear in the number of validators
 (Table~\ref{tab:cert-scaling}); we measured the block interval only at seven
@@ -607,11 +607,11 @@ core, ten runs; sizes are from the benchmark fixture, whose extensions are about
 \toprule
 \textbf{Validators} & \textbf{Certificate, bytes} & \textbf{\texttt{ProcessProposal}, $\mu$s (sd)} \\
 \midrule
-4 & 473 & 159 (10) \\
-7 & 776 & 263 (6) \\
-16 & 1{,}685 & 625 (62) \\
-32 & 3{,}301 & 1{,}177 (29) \\
-64 & 6{,}533 & 2{,}367 (50) \\
+4 & 473 & 181 (7) \\
+7 & 776 & 301 (13) \\
+16 & 1{,}685 & 638 (21) \\
+32 & 3{,}301 & 1{,}242 (22) \\
+64 & 6{,}533 & 2{,}466 (58) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -623,19 +623,25 @@ network, genesis and load produce a block every \resBlockVanilla\,s with vote ex
 disabled and every 1.229\,s with empty extensions, within 0.03\,s of Engram
 (95\% CIs of 0.015--0.023\,s). Hence the 0.2\,s is the price of running a
 seven-validator BFT network on one host, and vote extensions as such add no
-measurable time. Engram's own point estimate is about 0.03\,s per height (2\%), the
-order of the \resExtendVoteMs\,ms \texttt{ExtendVote} time, but the data do not
-establish it. The repeats of one arm share a chain, so the unit of independence
-is the deployment: the three Engram deployments average 1.2707, 1.2423 and
-1.2620\,s and the two seven-validator vanilla deployments 1.2292 and 1.2331\,s.
-The difference of means is 0.027\,s, and its 95\% interval from the pooled
-between-deployment spread (0.012\,s, three degrees of freedom) is $-$0.008 to
-0.062\,s (\resOverheadCI{}), which includes zero. The data show an addition of a few
-percent at most, not a more precise value. \pending{report the paired estimate, which alternates the two arms on fresh deployments.} The
-arms ran on separate deployments except the first Engram and the
-extensions-on arm, which shared one chain (Engram first); the Engram arm was
-repeated on a fresh deployment to check for an order effect and moved by
-0.02\,s.
+measurable time. The paired design isolates Engram's own addition. It alternates the two arms on
+fresh deployments of the same hosts, genesis and load, with the arm that runs first
+alternating, so that drift of the host cancels within a pair. Over 20 pairs Engram's
+block interval exceeds the vanilla one by 0.022\,s per height (1.8\%;
+\resPairedEngram\,s against \resPairedVanilla\,s). The 95\% interval is 0.005 to
+0.038\,s from the Student $t$ distribution on the pair differences and 0.008 to
+0.038\,s from a bootstrap over pairs; it excludes zero, so Engram adds a small cost,
+of the order of the \resExtendVoteMs\,ms \texttt{ExtendVote} time. One pair
+(+0.144\,s) is an outlier; without it the estimate is 0.015\,s (0.005 to 0.026\,s).
+We planned to stop when the half-width fell below 0.012\,s or at 20 pairs; at 20 pairs
+it was 0.017\,s, so the interval is wider than planned. The unpaired deployments of
+Table~\ref{tab:overhead} agree: the three Engram deployments average 1.2707, 1.2423 and
+1.2620\,s and the two seven-validator vanilla deployments 1.2292 and 1.2331\,s, a
+difference of 0.027\,s with a 95\% interval of $-$0.008 to 0.062\,s from the pooled
+between-deployment spread (0.012\,s, three degrees of freedom). The repeats of one
+arm share a chain, so the unit of independence is the deployment. Those arms ran on
+separate deployments except the first Engram and the extensions-on arm, which shared
+one chain (Engram first); the Engram arm was repeated on a fresh deployment to check
+for an order effect and moved by 0.02\,s.
 
 \textbf{Load sensitivity.} Table~\ref{tab:overhead} is measured at 20\,tx/s. Both
 systems accepted every submitted transaction into the mempool across an
