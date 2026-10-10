@@ -13,14 +13,14 @@ it is included in the next Bitcoin block, it counts as confirmed with
 the committed anchored height follows the tracker after a lag of two to three
 Engram blocks, the one free parameter. At testbed cadence the model reproduces
 what we measured: the checkpoint pause reaches \textsc{Sovereign} after 129\,s
-(5th to 95th percentile 91 to 149\,s; measured 117\,s in RQ2 and $141.6 \pm
+(5th to 95th percentile 91 to 149\,s; measured 125\,s in RQ2 and $141.6 \pm
 13.8$\,s in S2), and the quiet phase of the live sweeps is 0.80--0.84 in
 \textsc{Anchored} at $k{=}2$ and 1.00 at $k{=}4$ (measured 0.79--0.87 and 1.00).
 At mainnet cadence the same fault reaches \textsc{Sovereign} after 49.6 minutes
 with steady 600\,s blocks (41 to 58) and 46.7 minutes with exponential block
 intervals (18 to 79), which is about five Bitcoin blocks and 2{,}300--2{,}500
-Engram blocks. This is lower than the 58 minutes and 2{,}900 blocks of
-Table~\ref{tab:exposure}, which scales the measured 117\,s by thirty: the table is
+Engram blocks. This is lower than the 62 minutes and 3{,}100 blocks of
+Table~\ref{tab:exposure}, which scales the measured 125\,s by thirty: the table is
 the plain conversion and the model follows the checkpoint cycle, so the two
 bracket the lock time at mainnet cadence.
 

@@ -1,0 +1,2 @@
+tag,reason
+hard-gated-da-t2-20261010T180208,pre-fault window never ran healthy (4 blocks in 60 s; chain stalled at round >=3 before the fault was injected); repeated as hard-gated-da-t2-20261010T214221

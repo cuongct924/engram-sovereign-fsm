@@ -33,8 +33,15 @@ def num(v):
 
 
 def load_rows():
+    """All trials of e11_summary.csv except those listed in excluded_trials.csv (a trial whose pre-fault window
+    did not run healthy measures nothing about the fault; the exclusion is decided on that window alone)."""
+    excluded = set()
+    path = os.path.join(RESULTS_LIVE, "excluded_trials.csv")
+    if os.path.exists(path):
+        with open(path, newline="") as f:
+            excluded = {x["tag"] for x in csv.DictReader(f)}
     with open(os.path.join(RESULTS_LIVE, "e11_summary.csv"), newline="") as f:
-        return list(csv.DictReader(f))
+        return [r for r in csv.DictReader(f) if r["tag"] not in excluded]
 
 
 def _timeline(r):

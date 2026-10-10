@@ -172,7 +172,7 @@ what one replicate is, and which recovery mode the runs used. ``Live'' means a m
 Docker deployment (Testbed~A) against real Bitcoin regtest and Celestia processes; ``in-process'' means the real FSM code
 driven by a simulated sensor input; ``model-based'' means a conversion or a prediction computed from a model and not
 observed. ``Proof-only'' and ``fallback'' are the recovery modes of Section~\ref{subsec:reanchoring}. Repeats of one
-case that share a chain are not independent deployments. \pending{rows marked $\dagger$ are being rerun; update them from the new data.}
+case that share a chain are not independent deployments. The row marked $\dagger$ is being rerun.
 
 {\footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -196,7 +196,7 @@ Weighted-aggregation checks & In-process (function level) & 1{,}500 random quoru
 P2P detector comparison & In-process, synthetic & Fixed seeds, 2{,}000 snapshots or 500 ramps per cell & Not applicable \\
 P3 churn attack & Live & Three runs & Not the subject \\
 P4 relay-latency attack & Live & Three runs, each on a fresh chain, 600\,s recovery window; the figure shows an earlier single trial & Proof-only, bound 128 (runs); fallback (figure) \\
-Baselines under peripheral faults (Table~\ref{tab:rq2})$^\dagger$ & Live & Three trials per cell; baselines redeployed per trial & Proof-only, bound 128 (Engram, soft) \\
+Baselines under peripheral faults (Table~\ref{tab:rq2}) & Live & Three trials per cell; baselines redeployed per trial & Proof-only, bound 128 (Engram, soft) \\
 Composite fault, first run & Live & One trial & Fallback \\
 Composite fault, repeats & Live & Five runs, each on a freshly deployed chain & Proof-only, bound 128 \\
 Seven-scenario sweep$^\dagger$ & Live & One trial in the text; repeats being rerun & Fallback \\

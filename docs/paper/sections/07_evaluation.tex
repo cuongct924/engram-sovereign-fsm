@@ -191,8 +191,8 @@ column: it never resumed). The in-band baseline is the receipt-gated one whose r
 through the vote extensions (``vote-extension receipts''), the out-of-band one the
 receipt-gated one in which each validator reads the layers itself
 (``direct-read receipts''). The last two columns count withdrawals committed
-after and before the moment Engram's circuit breaker locks, 117\,s (checkpoint
-pause), 41\,s (DA outage) and 43\,s (both) after the fault begins; the same
+after and before the moment Engram's circuit breaker locks, 125\,s (checkpoint
+pause), 40\,s (DA outage) and 40\,s (both) after the fault begins; the same
 window is applied to every system. Engram and the soft baseline recover through
 proof-only re-anchoring with an unproven-tail bound of 128 blocks.}
 \label{tab:rq2}
@@ -209,10 +209,18 @@ predicts and the experiment measures. The out-of-band baseline commits 20\%
 under the combined fault and 61\% (89 blocks) under checkpoint suspension, with a
 longest gap of 6.6--6.8\,s and rounds up to 21 (12 under checkpoint suspension),
 against \resRQTwoEngram{} for Engram. The in-band baseline is similar: under a DA outage
-it commits 23 blocks in 180\,s, 16\% of its healthy rate, with proposals
-reaching round 21, and the combined fault is the same; under checkpoint
-suspension it slows to 56\% (74 blocks, round 12).
-\pending{the rows of the in-band, Engram and soft systems are being rerun on the current binary (capped Bitcoin receipt tolerance); update Table~\ref{tab:rq2} and every number of this section from the new rows, and explain the checkpoint-pause rates.}
+it commits 23--28 blocks in 180\,s, 24\% of its healthy rate on average, with proposals
+reaching round 21--22, and the combined fault gives 17\% (24--28 blocks, round 21); under checkpoint
+suspension it slows to 56--78\% (79--82 blocks, round 13). Its healthy
+rate differs between trials (0.55 to 0.82 blocks/s), which is why that rate
+range is wider than the block counts. One further in-band DA trial is not in the table: its
+pre-fault window did not run healthy (4 blocks in 60\,s, with proposals already at
+round 3), so it measures nothing about the fault, and it was repeated; the
+criterion is the pre-fault window alone, and the excluded trial is kept in the
+repository. As a sensitivity check, an earlier set of in-band trials, taken before the
+Bitcoin receipt tolerance was capped, committed 53--57\% of the healthy rate under checkpoint
+suspension and 12--17\% under the DA and combined faults, so the cap moves the
+checkpoint-pause rate by a few points and leaves the other faults in the same range.
 
 \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in
@@ -240,32 +248,35 @@ disagree on a proposal, which shows in the rounds above and in the longest gap
 of about 6.7\,s. All seven validators read the same Bitcoin node and the same
 Celestia chain on one host, so their readings are far more alike here than they
 would be across independent nodes.
-Engram commits 147--153 blocks (96--102\% of its healthy
-rate) under every fault, with a longest gap of at most 2.5\,s and rounds 0--1,
-and resumes within two seconds of the fault ending.
+Engram commits 139--151 blocks (94--103\% of its healthy
+rate) under every fault, with a longest gap of 1.4\,s under DA faults and about 6\,s
+under checkpoint suspension (rounds 2--3), and resumes within two seconds of the fault ending.
+The 6\,s gap occurs in each of the three checkpoint trials, while the FSM is in
+\textsc{Suspicious} and before it reaches \textsc{Sovereign}; the soft baseline, which
+runs the same FSM, shows the same gap, and we did not isolate its cause.
 
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
 the breaker, because the window opens when Engram's own FSM reaches
-\textsc{Sovereign}. The receipt-gated baselines, which have no breaker, committed 3
-withdrawals after that moment under DA faults (in-band) or 6--9 (out-of-band) and
-6--9 under checkpoint suspension, few only because they commit few blocks; both
+\textsc{Sovereign}. The receipt-gated baselines, which have no breaker, committed 3--7
+withdrawals after that moment under DA faults (in-band) or 7--10 (out-of-band) and
+none (in-band) or 3 (out-of-band) under checkpoint suspension, few only because they commit few blocks; both
 admit withdrawal-marked transactions while degraded, as the soft baseline does, so
 the low count after the lock moment reflects how few blocks they commit, not a
 safeguard. Engram's cost shows in the
-last column: it committed 18--20 withdrawals before locking under DA faults and
-45--56 under checkpoint suspension, because it needs about 41\,s and 117\,s to
+last column: it committed 15--19 withdrawals before locking under DA faults and
+55--59 under checkpoint suspension, because it needs about 40\,s and 125\,s to
 leave \textsc{Anchored} for \textsc{Sovereign}. These counts follow from the
 workload (one withdrawal-marked transaction every 2\,s) and from Bitcoin running
 thirty times faster than on mainnet; they are not a production exposure. The
 workload-independent measures and a bound are in Section~\ref{sec:discussion}. 
 
 The soft baseline shows the other side of the trade-off. It runs Engram's FSM
-and keeps Engram's liveness, 98--99\% of the healthy block rate with a longest
-gap of at most 2.5\,s, but it never locks, so it committed 31 withdrawals after
-the lock moment under checkpoint suspension and 71--72 under DA faults, against
-none for Engram. Counted by the FSM state at each height, 87--97 of its 175
-withdrawals under checkpoint suspension and 132--137 of about 180 under DA faults
+and keeps Engram's liveness, 96--100\% of the healthy block rate with a longest
+gap of 1.4\,s under DA faults and about 6\,s under checkpoint suspension, but it never locks, so it committed 27--29 withdrawals after
+the lock moment under checkpoint suspension and 72--73 under DA faults, against
+none for Engram. Counted by the FSM state at each height, 71--97 of its 175
+withdrawals under checkpoint suspension and 131--133 of about 180 under DA faults
 were committed while the state was \textsc{Sovereign} or \textsc{Recovering}.
 Only Engram combines the liveness of the soft chain with the zero count of a
 chain that locks.

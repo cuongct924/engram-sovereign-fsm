@@ -44,11 +44,40 @@ while time.time() < deadline:
 sys.exit("cluster never reached ANCHORED in engram mode")
 PY
 	if [ "$mode" != "engram" ]; then
-		echo "--> switching validators to $mode (state kept)"
-		svcs=$(for i in $(seq 1 "$N"); do printf 'engram-node%02d ' "$i"; done)
-		ENGRAM_MODE="$mode" docker compose --env-file .env -f docker-compose.yml --profile seven-node up -d --no-deps --force-recreate $svcs
-		sleep 45
+		warm_switch "$mode"
 	fi
+}
+
+# A hard-gated chain accepts a Bitcoin receipt only while the checkpoint is within Threshold+Tolerance (4, or 5 from round 3)
+# of the Bitcoin tip, and its checkpoint submitter runs inside ExtendVote, which needs a precommit. The gap of a healthy chain
+# cycles between 3 and 6, so a switch at a bad moment (and the recreate takes tens of seconds, during which the miner keeps
+# going) leaves a stale checkpoint that no proposal can replace: the chain never commits another block. The switch therefore
+# waits for a gap of at most 3 and holds the miner while the validators restart.
+current_btc_gap() {
+	docker logs --tail 60 engram-node01 2>&1 | grep -o 'btc_gap=[0-9]*' | tail -1 | cut -d= -f2
+}
+set_miner_hold() { # $1 = 1 to hold, 0 to release
+	if [ "$1" = "1" ]; then
+		docker exec bitcoin-miner-loop sh -c 'echo 99999 > /tmp/miner_interval_override'
+	else
+		docker exec bitcoin-miner-loop rm -f /tmp/miner_interval_override
+	fi
+}
+warm_switch() { # $1 = mode
+	local mode="$1" gap deadline
+	deadline=$(( $(date +%s) + 600 ))
+	while [ "$(date +%s)" -lt "$deadline" ]; do
+		gap="$(current_btc_gap || true)"
+		[ -n "$gap" ] && [ "$gap" -le 3 ] && break
+		sleep 2
+	done
+	echo "--> switching validators to $mode (state kept), btc_gap=${gap:-unknown}, miner held during the restart"
+	set_miner_hold 1
+	local svcs
+	svcs=$(for i in $(seq 1 "$N"); do printf 'engram-node%02d ' "$i"; done)
+	ENGRAM_MODE="$mode" docker compose --env-file .env -f docker-compose.yml --profile seven-node up -d --no-deps --force-recreate $svcs
+	sleep 45
+	set_miner_hold 0
 }
 
 for mode in $MODES; do
