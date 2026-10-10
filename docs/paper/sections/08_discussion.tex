@@ -325,10 +325,13 @@ addresses this gap.
   of Section~\ref{subsec:verification-scope}. Deductive
   methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
   where it does not scale.
-  \item \emph{Prover.} Incremental recursion would make the recovery artifact
-  constant-size for intervals of any length, and proving the chunks in parallel
-  or on dedicated hardware would shorten the recovery whose latency the
-  unproven-tail discussion measures.
+  \item \emph{Prover.} The cost of the recovery proof is dominated by the witnesses,
+  which we prepare one chunk after another once the interval has ended, not by proving.
+  Preparing and proving each chunk while the chain is still in \textsc{Sovereign}, on a
+  prover with cores of its own, would leave only the last chunk and the aggregation after
+  the interval ends and is the measurement that would show whether the prover keeps up
+  with block production (Appendix~\ref{app:envelope}). Incremental recursion would
+  also make the recovery artifact constant-size for intervals of any length.
   \item \emph{Data availability.} Replacing single-bridge trust with sampling
   across independent peers would let the DA sensor detect partial withholding
   rather than only outages.
