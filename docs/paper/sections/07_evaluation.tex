@@ -218,7 +218,13 @@ rate (0.55 to 0.60) the 60\,s healthy window contains three or four blocks decid
 round 0, each preceded by a gap of about 6.5\,s; the other five in-band trials and all Engram trials contain none. The Bitcoin height gap of
 a healthy chain reaches the receipt tolerance once per checkpoint cycle
 (Appendix~\ref{app:envelope}), which is consistent with this, but we did not
-record the rejected proposals and do not confirm the cause. One further in-band DA trial is not in the table: its
+record the rejected proposals and do not confirm the cause.
+Because the rate of Table~\ref{tab:rq2} divides by each trial's own healthy rate, we
+also divided the fault-window rate of every trial by one reference, the median healthy rate of the
+36 trials (0.80 blocks/s). The in-band baseline then commits 55--57\% under checkpoint
+suspension, 15--18\% under a DA outage and 16--18\% under both; the out-of-band baseline
+62\%, 19--20\% and 18--22\%; Engram 96--100\% and the soft baseline 96--100\% under every fault.
+The comparison does not depend on the normalization. One further in-band DA trial is not in the table: its
 pre-fault window did not run healthy (4 blocks in 60\,s, with proposals already at
 round 3), so it measures nothing about the fault, and it was repeated; the
 criterion is the pre-fault window alone, and the excluded trial is kept in the
