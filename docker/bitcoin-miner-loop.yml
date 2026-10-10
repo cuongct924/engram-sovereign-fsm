@@ -16,6 +16,8 @@ services:
       - BITCOIN_RPC_USER=${BITCOIN_RPC_USER:-engram_admin}
       - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD:-secure_password_123}
       - BITCOIN_WALLET=engramwallet
+      # 1 draws each gap from an exponential distribution with the mean interval (see the script); steady by default.
+      - MINER_EXPONENTIAL=${MINER_EXPONENTIAL:-0}
     entrypoint: ["/bin/sh", "/scripts/bitcoin_miner_loop.sh", "20"]
     volumes:
       - ../scripts/bitcoin_miner_loop.sh:/scripts/bitcoin_miner_loop.sh:ro

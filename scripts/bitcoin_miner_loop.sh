@@ -20,6 +20,11 @@
 # slow real BTC confirmation mid-run -- read fresh every loop iteration,
 # mirroring the fresh-every-call Reachable checks in x/anchor/x/da.
 #
+# MINER_EXPONENTIAL=1 draws every gap from an exponential distribution with the mean interval, as Bitcoin's block arrivals are
+# (Poisson), instead of mining at a steady cadence; short gaps then occur, which the steady cadence above avoids on purpose.
+# The override file value, if present when a gap is drawn, is used as the mean; it is not re-read during the gap, so a pause
+# for a reorg test needs the steady mode.
+#
 # Usage: scripts/bitcoin_miner_loop.sh [interval_seconds]
 set -eu
 
@@ -52,9 +57,22 @@ while true; do
   # reorg-test pause/resume left bitcoin-miner-loop stuck not mining for the
   # remainder of that stale sleep, well after resume had already run.
   elapsed=0
+  DRAW=""
+  if [ "${MINER_EXPONENTIAL:-0}" = "1" ]; then
+    MEAN="$INTERVAL"
+    if [ -f "$OVERRIDE_FILE" ]; then
+      OV="$(cat "$OVERRIDE_FILE" 2>/dev/null || true)"
+      case "$OV" in ''|*[!0-9]*) : ;; *) MEAN="$OV" ;; esac
+    fi
+    SEED=$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')
+    DRAW=$(awk -v m="$MEAN" -v s="$SEED" 'BEGIN { srand(s); printf "%d", -m * log(1 - rand()) + 1 }')
+    echo "[bitcoin_miner_loop] next block in ${DRAW}s (exponential, mean ${MEAN}s)"
+  fi
   while true; do
     target="$INTERVAL"
-    if [ -f "$OVERRIDE_FILE" ]; then
+    if [ -n "$DRAW" ]; then
+      target="$DRAW"
+    elif [ -f "$OVERRIDE_FILE" ]; then
       OVERRIDE="$(cat "$OVERRIDE_FILE" 2>/dev/null || true)"
       case "$OVERRIDE" in
         ''|*[!0-9]*) : ;; # not a positive integer -- ignore, keep target
