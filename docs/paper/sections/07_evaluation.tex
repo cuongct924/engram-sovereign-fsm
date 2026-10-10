@@ -142,10 +142,15 @@ the first, the churn metric on both attacked validators crossed its threshold):
 two validators' signed observations cannot move a certified aggregate backed by a
 quorum. In P4 (a sustained 350$\pm$50\,ms delay on all of one
 validator's P2P interfaces, observed by all seven validators), the chain
-moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} at
-+39\,s and +72\,s, held \textsc{Sovereign} for the 244-second attack, and
-returned to \textsc{Anchored} within 5\,s of the delay clearing
-(Fig.~\ref{fig:a4-cascade}).
+moved \textsc{Anchored}$\to$\textsc{Suspicious}$\to$\textsc{Sovereign} in each of three
+runs on fresh chains, 30--35\,s (mean 33.6\,s) and 60--66\,s (mean 63.8\,s) after the delay began, held
+\textsc{Sovereign} for the 244-second attack, and ended in \textsc{Anchored} at all seven validators in all three runs.
+The return took 267--288\,s after the delay cleared (mean 279\,s, 95\% interval $\pm$26\,s, Student $t$), with proof-only recovery
+and an unproven-tail bound of 128 blocks; most of it is the time in \textsc{Recovering} (227--247\,s). In every run at least
+one fall-back from \textsc{Recovering} to \textsc{Sovereign} occurred, once in two runs and twice in one, each lasting about 5\,s (one polling interval); we did not
+isolate its cause. No validator went from \textsc{Sovereign} to \textsc{Anchored} without \textsc{Recovering}. After the return, the
+validators left \textsc{Anchored} for about 10\,s every 60\,s, as they did before the attack, which is sensor noise of the testbed
+(Fig.~\ref{fig:a4-cascade}, an earlier single trial with the heuristic fallback enabled).
 
 \begin{figure}[h]
 \centering
@@ -153,11 +158,9 @@ returned to \textsc{Anchored} within 5\,s of the delay clearing
 \caption{FSM cascade under a real, quorum-visible P2P relay-latency attack
 (P4): all 7 validators independently sense the degradation, the transition
 commits once quorum is met, and block production (bottom panel) never
-stalls through the cascade or the recovery.}
+stalls through the cascade or the recovery. An earlier single trial, with the heuristic fallback enabled; the three runs of the text used proof-only recovery.}
 \label{fig:a4-cascade}
 \end{figure}
-
-\pending{P4 above is a single trial; three repeats reached \textsc{Sovereign}, but none returned to the baseline states within the 300\,s recovery window. State the recovery mode of both runs and rewrite the recovery sentence.}
 
 P3 and P4 are two outcomes of one mechanism. The same kind of
 sensor-confirmed degradation is ignored when a minority observes it and
