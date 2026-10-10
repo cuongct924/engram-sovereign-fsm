@@ -4,7 +4,7 @@
 (FilterPeerByAddr, Params.MaxPeersPerSubnet) against real attacker traffic.
 
 Two legs, driven by docker/attacker-peer-swarm.yml's two profiles:
-  a1 -- 10 attacker containers, all on engram-net (same /24 as the 4 real
+  a1 -- 10 attacker containers, all on engram-net (same /24 as the real
         validators), all dialing engram-node01. Tests that the filter caps
         same-subnet admission at MaxPeersPerSubnet (8) well before
         CometBFT's own MaxNumInboundPeers (40) would matter.
@@ -49,7 +49,7 @@ LEGS = {
     "a1": {
         "profile": "attacker-swarm-a1",
         "services": [f"attacker-a1-{i:02d}" for i in range(1, 11)],
-        "description": "10 attackers, all on engram-net (same subnet as the 4 real validators)",
+        "description": "10 attackers, all on engram-net (same subnet as the real validators)",
     },
     "a2": {
         "profile": "attacker-swarm-a2",
@@ -147,7 +147,7 @@ class Tracker:
 
     def poll_once(self, phase: str, stats_containers=None):
         t = self.elapsed()
-        # One round-trip over all 4 validators -- both the existing
+        # One round-trip over all validators -- both the existing
         # target-node subnet-count check AND the divergence/liveness checks
         # (added for E8's safety-metric standardization) read from it.
         node_samples = sample_all_nodes()
@@ -262,7 +262,7 @@ def main():
     )
     parser.add_argument(
         "--sample-stats", action="store_true",
-        help="also sample docker stats (CPU%%/MiB) on the 4 validators + this leg's attacker "
+        help="also sample docker stats (CPU%%/MiB) on the validators + this leg's attacker "
         "containers during the attack phase -- E8's resource-exhaustion signal, most relevant "
         "here since A1/A2 spin up 10-12 extra containers",
     )
@@ -357,7 +357,7 @@ def main():
             f"(no false SOVEREIGN degradation from a defended attack): **{fsm_stayed_healthy}**\n"
         )
         f.write(
-            f"- Safety held (all 4 validators' AppHash never diverged at the same height): "
+            f"- Safety held (all validators' AppHash never diverged at the same height): "
             f"**{safety_held}**\n"
         )
         f.write(f"- Divergence events: {len(tr.divergence_events)}\n")

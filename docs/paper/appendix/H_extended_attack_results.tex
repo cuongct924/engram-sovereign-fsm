@@ -36,9 +36,12 @@ A10 & Timeout flood & 14.3\% & Cadence held: 0.754$\to$0.785, 0.791$\to$0.791 an
 
 The \textsc{Suspicious} excursions in A1 and A2 occur in the attack phase and
 again in the recovery phase, after the attacker is gone, and the baseline phase
-was always \textsc{Anchored}. These two scenarios have no control run without
-an attacker, so we cannot separate an effect of the attack from the sensor
-noise that the collusion suite's control c0 shows on the same testbed. A3 and
+was always \textsc{Anchored}. A control run of A1 without an attacker (three runs, the same phases and timing,
+seven validators) shows the same excursions: the validators were in
+\textsc{Suspicious} in 17\% to 19\% of the samples and never in \textsc{Sovereign}. The
+excursions of A1 are therefore the sensor noise of the testbed, which the collusion
+suite's control c0 also shows, and not an effect of the attack. A2 has no control of
+its own. A3 and
 A4 were instrumented only for safety, divergence and rejections, without an
 attack-specific metric such as A5's blocked-withdrawal flag or A9's detection
 latency. No scenario drove block production toward zero.
