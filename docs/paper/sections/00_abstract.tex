@@ -25,10 +25,10 @@ On a seven-validator testbed with live Bitcoin and Celestia networks, a composit
 fault repeated five times left the chain committing blocks through a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
 complete AppHash agreement. Under a checkpoint pause, a DA outage and both,
-Engram kept \resRQTwoEngram{} of its healthy block rate, against \resRQTwoBase{} for two strict
-receipt-gated baselines; the one that reads receipts through vote extensions
-never resumed after the layer returned, and the one that reads them at each
-validator resumed after 21--74\,s (three runs per cell, one host). Against seven
+Engram kept \resRQTwoEngram{} of its healthy block rate. A strict receipt-gated baseline that reads receipts at each
+validator kept \resRQTwoOob{} and resumed 21--74\,s after the layer returned; one that reads them through
+vote extensions stopped committing \resInBandHalt\,s after the fault began and did not resume
+(three runs per cell, one host). Against seven
 vanilla validators the block interval grows by \resOverheadPct{} (95\% interval
 \resOverheadCI{}, 20 paired deployments).
 The price is the detection delay: \resExposure{} withdrawal-marked transactions committed

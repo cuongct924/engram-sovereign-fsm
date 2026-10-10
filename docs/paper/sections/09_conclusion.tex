@@ -19,9 +19,9 @@ seven-validator testbed with live Bitcoin and Celestia networks kept
 committing blocks under a composite fault and completed a full recovery cycle
 with complete AppHash agreement in each of five runs. Against strict
 receipt-gated baselines under the same faults, Engram kept \resRQTwoEngram{} of its
-block rate where they committed \resRQTwoBase{}; the baseline that reads receipts through
-vote extensions did not resume after the layer returned and the one that reads
-them at each validator did, and neither locks withdrawals, so Engram's cost is
+block rate; the baseline that reads receipts at each validator kept \resRQTwoOob{} and resumed, and the
+one that reads them through vote extensions stopped committing \resInBandHalt\,s after the fault began and
+did not resume. Neither locks withdrawals, so Engram's cost is
 the detection delay before its lock. Against seven vanilla validators on the same
 hosts, Engram lengthens the block interval by \resOverheadPct{} (95\% interval \resOverheadCI{};
 \resPairedEngram\,s against \resPairedVanilla\,s over 20 paired deployments).

@@ -144,8 +144,9 @@ Engram targets this combination.
 \end{itemize}
 
 \textbf{Headline results.} Under a Bitcoin checkpoint pause or a DA outage, Engram
-kept \resRQTwoEngram{} of its healthy block rate, where two strict receipt-gated
-baselines committed \resRQTwoBase{}, and \resExposure{} withdrawal-marked
+kept \resRQTwoEngram{} of its healthy block rate, where a strict receipt-gated
+baseline that reads receipts at each validator kept \resRQTwoOob{} and one that reads them through
+vote extensions stopped committing \resInBandHalt\,s after the fault began and did not resume, and \resExposure{} withdrawal-marked
 transactions committed before its circuit breaker locked. A composite fault repeated
 five times ended in a full recovery with identical \texttt{AppHash} at all seven
 validators each time. Against seven vanilla validators on the same hosts, Engram's
