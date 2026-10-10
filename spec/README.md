@@ -940,7 +940,7 @@ The $f{+}1$ fast-forward ablation (`EventualDecisionUnderGSTLiveness`) is a live
 
 #### 9.3.2. Deep-Dive Trace Analysis
 
-Each diagram is the actual counterexample found for that row of the table above.
+The diagrams below come from the earlier Apalache runs (August, on an earlier version of the specification; the `*.itf.json` and `*.trace.tla` files in `spec/traces/`), so their depths and times differ from the table above, which reports the TLC runs on the current specification (`ablation_no_*.tlc.json`). The mechanism each row exposes is the same.
 
 ##### A. Remove Circuit Breaker
 
