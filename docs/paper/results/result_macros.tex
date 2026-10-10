@@ -9,7 +9,7 @@
 \newcommand{\resBlockEngram}{1.262}            % Table~\ref{tab:overhead}, Engram block interval, s
 \newcommand{\resBlockVanilla}{1.233}           % Table~\ref{tab:overhead}, 7 validators without extensions, s
 \newcommand{\resOverheadPct}{1.8\%}              % paired estimate of Engram's addition over the seven-validator arm (20 pairs)
-\newcommand{\resOverheadCI}{0.4 to 3.1\%}   % 95\% interval of the point estimate, five deployments (overhead_ci.py)
+\newcommand{\resOverheadCI}{0.4 to 3.1\%}   % 95\% interval (Student t) of the paired estimate, 20 pairs (scripts/e7_consensus_overhead/paired_overhead.py)
 \newcommand{\resRQTwoEngram}{96--100\%}         % Table~\ref{tab:rq2}: Engram's block count against its healthy rate, across faults (cell means)
 \newcommand{\resRQTwoOob}{20--61\%}           % same table: the receipt-gated baseline that reads the layers at each validator (cell means)
 \newcommand{\resInBandHalt}{44--121}          % seconds after the fault began at which the vote-extension baseline stopped committing (DA and both: 44--52, checkpoint: 120--121; three trials per cell, every trial)
