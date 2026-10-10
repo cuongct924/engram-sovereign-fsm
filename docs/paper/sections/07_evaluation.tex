@@ -213,7 +213,12 @@ it commits 23--28 blocks in 180\,s, 24\% of its healthy rate on average, with pr
 reaching round 21--22, and the combined fault gives 17\% (24--28 blocks, round 21); under checkpoint
 suspension it slows to 56--78\% (79--82 blocks, round 13). Its healthy
 rate differs between trials (0.55 to 0.82 blocks/s), which is why that rate
-range is wider than the block counts. One further in-band DA trial is not in the table: its
+range is wider than the block counts. In the four trials with the lowest healthy
+rate (0.55 to 0.60) the 60\,s healthy window contains three or four blocks decided after
+round 0, each preceded by a gap of about 6.5\,s; the other five in-band trials and all Engram trials contain none. The Bitcoin height gap of
+a healthy chain reaches the receipt tolerance once per checkpoint cycle
+(Appendix~\ref{app:envelope}), which is consistent with this, but we did not
+record the rejected proposals and do not confirm the cause. One further in-band DA trial is not in the table: its
 pre-fault window did not run healthy (4 blocks in 60\,s, with proposals already at
 round 3), so it measures nothing about the fault, and it was repeated; the
 criterion is the pre-fault window alone, and the excluded trial is kept in the
