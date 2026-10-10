@@ -335,18 +335,15 @@ after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
 $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
-\pending{repeat the seven-scenario run ($\geq 5$ trials) and report its
-recovery time as mean $\pm$ 95\% CI.}
-
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
-through seven sequential scenarios in one 864-second run (one trial; Table~\ref{tab:schedule}): S1 healthy
+through seven sequential scenarios (Table~\ref{tab:schedule}): S1 healthy
 baseline, S2 Bitcoin congestion (checkpoint submission suspended), S3 DA
 outage (bridges stopped), S4 partial P2P eclipse, S5
 anchor-peer isolation of one validator, S6 combined Bitcoin and DA failure,
-and S7 recovery. Each scenario starts from the state the previous one left;
-153 FSM transitions were logged across the seven validators
-(Fig.~\ref{fig:s1-s7}).
+and S7 recovery. Each scenario starts from the state the previous one left, and the
+chain is given up to 600\,s to return to \textsc{Anchored} after S2--S5 and up to 900\,s in S7, with the heuristic fallback enabled. We ran the sequence seven
+times, each on a freshly deployed chain (Fig.~\ref{fig:s1-s7} shows the first run).
 
 \begin{figure}[h]
 \centering
@@ -354,28 +351,35 @@ and S7 recovery. Each scenario starts from the state the previous one left;
 \caption{Continuous FSM-state timeline across seven sequential
 fault-injection scenarios (S1--S7), true block-height ranges, live
 7-validator testbed. Each scenario begins where the previous scenario's
-recovery ended. One trial, heuristic fallback enabled.}
+recovery ended. First of seven runs, heuristic fallback enabled.}
 \label{fig:s1-s7}
 \end{figure}
 
-Each scenario produced the expected response. S2 and S3 each escalated
-through \textsc{Suspicious} to \textsc{Sovereign} and recovered. S4 escalated
-to \textsc{Sovereign}, whereas S5 produced only a transient
-\textsc{Suspicious} excursion absorbed by hysteresis: isolating one of seven
-validators from its anchor peers leaves the certified active-anchor-peer
-count above zero, so the critical condition never holds. S4 and S5 are
-therefore distinct failure classes rather than two intensities of one
-signal. S6 escalated directly to \textsc{Sovereign}, and S7 returned to
-\textsc{Anchored} through a submitted and verified recovery proof.
-Two further observations stand out. First, S2 contains two brief
-\textsc{Suspicious} excursions (19--22\,s and 77--80\,s) that return to
-\textsc{Anchored} before the escalation at 141\,s, showing hysteresis
-absorbing live rather than synthetic noise. Second, block production
-stayed close to baseline: block-interval means ranged 1.30--1.93\,s
-across all seven scenarios (vs.\ 1.34\,s at the S1 healthy baseline; all
-intervals in this paragraph are Engram's), and the
-largest p95 intervals occurred in S4 (4.27\,s) and S7 (3.10\,s). Engram keeps committing blocks under overlapping faults and under each
-failure mode in isolation, and returns to \textsc{Anchored} in every case.
+The chain kept committing blocks in every scenario of every run. S2 and S3
+escalated through \textsc{Suspicious} to \textsc{Sovereign} in all seven runs: S2
+after 143.5\,s on average (95\% interval $\pm$6.3\,s, Student $t$, range 133.8--153.3\,s)
+and S3 after 30.5\,s ($\pm$1.6\,s, range 27.5--33.5\,s). S4 reached \textsc{Sovereign}
+in all seven runs, after 72.8--110.7\,s in the six runs that entered it from \textsc{Anchored}.
+S5 produced only a transient \textsc{Suspicious} excursion absorbed by hysteresis in all
+six runs that entered it from \textsc{Anchored}: isolating one of seven validators from its anchor
+peers leaves the certified active-anchor-peer count above zero, so the critical condition never
+holds. S4 and S5 are therefore distinct failure classes rather than two intensities of one
+signal. S6 entered \textsc{Sovereign} in every run.
+
+The return to \textsc{Anchored} after S7 is where the runs differ. The chain entered
+\textsc{Recovering} 16.6--19.6\,s after the faults were removed in six runs and then fell
+back from \textsc{Recovering} to \textsc{Sovereign} between one and six times before
+returning to \textsc{Anchored} at all seven validators. From entering \textsc{Recovering} to that return it took
+331, 332, 334, 334 and 347\,s in five runs and 645\,s in the sixth, the run with six
+fall-backs (median 334\,s; mean 387\,s with a 95\% interval of $\pm$133\,s, which the one long run dominates).
+The seventh run did not return: after S4 it stayed in \textsc{Sovereign} through
+S5, S6 and the 898\,s of S7, with all seven validators agreeing on it and the chain still
+committing blocks. The run kept no sensor log, so we do not know why the FSM did not
+leave \textsc{Sovereign}; the two later runs, which kept it, did not reproduce the behavior.
+The fall-backs also occurred in the relay-latency (P4) runs, and
+we have not isolated their cause. The statement that the chain returns to \textsc{Anchored}
+after the faults are removed therefore holds in six of the seven runs, and the recovery time
+is long and variable under the heuristic fallback.
 
 \subsection{RQ3: Recovery and Flapping}
 \label{subsec:rq3}
@@ -466,7 +470,7 @@ the 68--73 blocks of the outage interval. The bound must therefore exceed the pr
 latency measured in blocks, and the blocks of that tail are protected by
 consensus alone. No block of these intervals was committed in a round other than
 0. The RQ2 trials above and the repeated composite runs use proof-only recovery
-with the bound of 128; the first composite run, the seven-scenario run and the
+with the bound of 128; the first composite run, the seven-scenario runs and the
 data-availability runs used the fallback.
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} The exit

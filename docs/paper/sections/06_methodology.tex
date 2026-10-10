@@ -162,9 +162,8 @@ Table~\ref{tab:schedule} gives the onset, mechanism, and duration of each
 fault in the two scripted runs of Section~\ref{subsec:rq2}. Times are
 relative to the start of each run, durations are the length of the polling
 window the script holds the fault for, and each of S2--S5 is followed by a
-wait of up to 90\,s for the validators to return to \textsc{Anchored} before
-the next scenario starts. \pending{the queued seven-scenario repeats use a 600\,s
-wait and a 900\,s limit for S7; update this table and the text when they are in.}
+wait of up to 600\,s for the validators to return to \textsc{Anchored} before
+the next scenario starts.
 
 The table is in Appendix~\ref{app:setup}: the composite run holds a Bitcoin fault, adds a DA outage, cycles packet loss on two validators, heals, and waits for recovery; the seven-scenario sweep applies one fault at a time (S2--S6) between a healthy baseline and a recovery wait.
 

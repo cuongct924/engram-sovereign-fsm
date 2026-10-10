@@ -105,7 +105,7 @@ S3 & All seven Celestia bridges stopped & 60\,s \\
 S4 & 300\,$\pm$\,50\,ms delay on the six validator links of validator 1 & 120\,s \\
 S5 & 100\% packet loss on validator 1 & 180\,s \\
 S6 & One \texttt{bitcoind} and all seven bridges stopped & 90\,s \\
-S7 & Faults removed; wait for \textsc{Anchored} (limit 600\,s) & until recovery \\
+S7 & Faults removed; wait for \textsc{Anchored} (limit 900\,s) & until recovery \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -172,7 +172,7 @@ what one replicate is, and which recovery mode the runs used. ``Live'' means a m
 Docker deployment (Testbed~A) against real Bitcoin regtest and Celestia processes; ``in-process'' means the real FSM code
 driven by a simulated sensor input; ``model-based'' means a conversion or a prediction computed from a model and not
 observed. ``Proof-only'' and ``fallback'' are the recovery modes of Section~\ref{subsec:reanchoring}. Repeats of one
-case that share a chain are not independent deployments. The row marked $\dagger$ is being rerun.
+case that share a chain are not independent deployments.
 
 {\footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -199,7 +199,7 @@ P4 relay-latency attack & Live & Three runs, each on a fresh chain, 600\,s recov
 Baselines under peripheral faults (Table~\ref{tab:rq2}) & Live & Three trials per cell; baselines redeployed per trial & Proof-only, bound 128 (Engram, soft) \\
 Composite fault, first run & Live & One trial & Fallback \\
 Composite fault, repeats & Live & Five runs, each on a freshly deployed chain & Proof-only, bound 128 \\
-Seven-scenario sweep$^\dagger$ & Live & One trial in the text; repeats being rerun & Fallback \\
+Seven-scenario sweep & Live & Seven runs, each on a freshly deployed chain & Fallback \\
 Hysteresis sweep (Table~\ref{tab:hysteresis-down}) & In-process, synthetic & One run per threshold, fixed seed & Not applicable \\
 Hysteresis spot-checks and flapping runs & Live & Single runs per threshold; six three-phase runs; one stationary run & Not the subject \\
 What ends \textsc{Recovering} & Live & One run per setting; five runs with bound 128 & Fallback and proof-only \\

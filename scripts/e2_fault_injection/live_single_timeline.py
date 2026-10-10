@@ -39,8 +39,8 @@ from utils import (  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
-RESULTS_LIVE_DIR = os.path.join(os.path.dirname(__file__), "results_live")
-OUT_DIR = os.path.join(os.path.dirname(__file__), "results")
+RESULTS_LIVE_DIR = os.environ.get("RESULTS_LIVE_DIR", os.path.join(os.path.dirname(__file__), "results_live"))
+OUT_DIR = os.environ.get("OUT_DIR", os.path.join(os.path.dirname(__file__), "results"))
 
 STATES = ["ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"]
 STATE_Y = {s: i for i, s in enumerate(STATES)}
