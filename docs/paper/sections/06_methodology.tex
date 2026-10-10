@@ -84,7 +84,7 @@ the behavior of a chain that makes settlement and DA inclusion part of block
 validity, it is a construct of this paper and not a published system, and it
 isolates the effect of Engram's adaptive relaxation. It is a runtime mode of
 the same binary (\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs
-the RQ2 fault schedule against it.
+the RQ2 fault schedule against it. A chain in this mode cannot start from genesis, because the first block needs a DA receipt that does not exist yet; every trial therefore starts the cluster as Engram, waits until all validators report \textsc{Anchored} with healthy sensors, waits until the Bitcoin height gap is at most three, and restarts the validators in the receipt-gated mode with their state kept, with the Bitcoin miner paused during the restart.
 
 \textbf{Out-of-band receipt-gated baseline (RQ2).} The same predicate and the
 same pinned \textsc{Anchored} state, but the receipts are not read through the

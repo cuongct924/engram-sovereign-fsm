@@ -226,7 +226,7 @@ baseline, and we do not attribute it to the cap.
 
 \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in
-the checkpoint trials it stops resuming as well. In the one trial observed
+the checkpoint trials it stops resuming as well. In one earlier trial observed
 beyond the recovery window, the chain was still stuck after twelve minutes, with
 proposals rejected at round 57 and above. This does not follow from the
 predicate, which is satisfiable again once the layer returns. It follows from two
@@ -254,7 +254,7 @@ Engram commits 139--151 blocks (94--103\% of its healthy
 rate) under every fault, with a longest gap of 1.4\,s under DA faults and about 6\,s
 under checkpoint suspension (rounds 2--3), and resumes within two seconds of the fault ending.
 The 6\,s gap occurs once in each of the three checkpoint trials, at round 0 and
-about 37\,s before the FSM first reaches \textsc{Sovereign}; the soft baseline, which
+35--38\,s before the FSM first reaches \textsc{Sovereign}; the soft baseline, which
 runs the same FSM, shows it in its three trials as well. We did not isolate its cause.
 
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
