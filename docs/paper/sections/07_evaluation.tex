@@ -219,8 +219,10 @@ round 3), so it measures nothing about the fault, and it was repeated; the
 criterion is the pre-fault window alone, and the excluded trial is kept in the
 repository. As a sensitivity check, an earlier set of in-band trials, taken before the
 Bitcoin receipt tolerance was capped, committed 53--57\% of the healthy rate under checkpoint
-suspension and 12--17\% under the DA and combined faults, so the cap moves the
-checkpoint-pause rate by a few points and leaves the other faults in the same range.
+suspension and 14--19\% under the DA and combined faults (three trials per cell). The
+cap bears on the Bitcoin receipt only, so the DA and combined rates are not expected to depend on it; the
+difference to the 17--25\% above is of the size of the variation between trials of one
+baseline, and we do not attribute it to the cap.
 
 \emph{After the fault}, the in-band baseline commits nothing in the 120\,s
 after the layer returns in all three DA trials and the combined trials, and in
@@ -251,9 +253,9 @@ would be across independent nodes.
 Engram commits 139--151 blocks (94--103\% of its healthy
 rate) under every fault, with a longest gap of 1.4\,s under DA faults and about 6\,s
 under checkpoint suspension (rounds 2--3), and resumes within two seconds of the fault ending.
-The 6\,s gap occurs in each of the three checkpoint trials, while the FSM is in
-\textsc{Suspicious} and before it reaches \textsc{Sovereign}; the soft baseline, which
-runs the same FSM, shows the same gap, and we did not isolate its cause.
+The 6\,s gap occurs once in each of the three checkpoint trials, at round 0 and
+about 37\,s before the FSM first reaches \textsc{Sovereign}; the soft baseline, which
+runs the same FSM, shows it in its three trials as well. We did not isolate its cause.
 
 The withdrawal columns separate the systems on withdrawal exclusion. After the circuit
 breaker has locked, Engram committed none; this count is a consistency check of
