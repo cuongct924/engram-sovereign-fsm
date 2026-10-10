@@ -1,3 +1,0 @@
-# Copy to terraform.tfvars and edit.
-operator_cidrs = ["198.51.100.7/32"] # the machine that runs the experiment scripts
-project = "my-gcp-project"

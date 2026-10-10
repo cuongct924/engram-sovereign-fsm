@@ -1,7 +1,9 @@
 \section{Formal Verification Details}
 \label{app:formal}
 
-This appendix holds the configurations and the negative or incomplete results that Section~\ref{sec:formal} summarizes.
+This appendix holds the configurations and the negative or incomplete results that
+Section~\ref{sec:formal} summarizes. The raw logs and the counterexample traces are
+in \texttt{spec/results\_formal/} and \texttt{spec/traces/} of the repository.
 
 \subsection*{Refinement obligation C1}
 
@@ -10,21 +12,26 @@ fire and check each part with TLC under symmetry reduction over the three honest
 validators. With the consensus core frozen, the environment part (sensor updates,
 clock ticks, DA backfill) completed: 17{,}500 distinct states, depth 10,
 10\,m\,35\,s, no violation. With the environment frozen, the consensus-core part
-did not complete: it was stopped after 1\,h\,41\,m at 19{,}848{,}141 distinct
-states (depth 15, 13{,}542{,}792 states still queued) with no violation. Neither
+did not complete: the run ended after 1\,h\,41\,m at 19{,}848{,}141 distinct
+states (depth 15, 13{,}542{,}792 states queued) without a violation. Neither
 part covers the interleaving of environment and consensus steps, and no
 composition argument is established, so C1 is not claimed.
 
-\textbf{Existence check.} We also looked for a configuration in which each part
-completes. A configuration is usable only if a round change, a proposal by a
-Byzantine validator and a decided block are all reachable in it, since a completed
-run without them would be vacuous. At $N{=}4$, $f{=}1$ with smaller timestamp and
-height bounds, a round change and a Byzantine proposal were reached in seconds,
-but a decided block was not: not in the consensus-core part at three
-configurations (stopped after 25 to 67 minutes at 7 to 30 million states), and not
-at the smallest rung of a monolithic ladder over the whole server layer (one
-round, one height, three timestamps; stopped after 2\,h\,5\,min at about 13
-million distinct states). None of these configurations is reported as a result.
+\textbf{Existence check.} A completed run constrains a behaviour only if that
+behaviour is reachable, so a configuration is usable only if a round change, a
+Byzantine proposal and a decided block are all reachable in it. At $N{=}4$, $f{=}1$
+with smaller timestamp and height bounds, a round change and a Byzantine proposal
+are reached in seconds in every configuration, but a decided block is not reached
+within the time budget: in the consensus-core part at three configurations (runs
+ended after 25 to 67 minutes at 7 to 30 million states), and at the smallest rung L0
+of the monolithic ladder over the whole server layer (one round, one height, three
+timestamps), where the search ended after 6\,h\,47\,min at 15.3 billion states
+generated (249 million distinct, depth 12) with its queue still growing.
+Restricting the same bound to the healthy path, and removing symmetry reduction at
+two rounds, also reaches no decision. Two honest prevotes for one proposal co-occur
+at depth 5 within a second, so the model is live through the prevote phase; whether
+a decision is reachable at this bound is undetermined. None of these configurations
+is reported as a result.
 
 \textbf{Target and mapping.} The server layer carries two guards that
 stop it from certifying a timeout for a round an honest validator has already
@@ -40,9 +47,19 @@ refinement of the liveness properties is outside it. These choices bear on what 
 completed run of C1 would establish, so we state them here.
 
 \textbf{Tool limit.} An inductive check of every server action would avoid the
-composition gap. We tried it with Apalache, which could not represent the
-refinement mapping (it does not implement a set filter over a powerset), so the
-refinement rests on TLC alone.
+composition gap. It is set up as \texttt{MC\_ServerRefinementStep\_Apalache.tla}:
+the driver typechecks under Apalache 0.58.3, and the invariant-preservation base
+case holds for the initial states (no error, about four minutes). The check that
+the initial states map to abstract initial states stops in the SMT backend, which
+does not implement a set filter over a powerset, so the step obligation is not
+reached and the refinement rests on TLC alone.
+
+\textbf{Earlier ablation runs with Apalache.} An earlier version of the specification
+(3 August) was also checked with Apalache's bounded SMT search, which reached the
+violations of the circuit breaker (depth 2, 66.7\,s), hysteresis (depth 6, 117.0\,s),
+the P2P gate (depth 3, 24.2\,s) and DA consistency (depth 2, 34.5\,s). On the current
+specification the SMT solver returns ``unknown'' at depth 2 for the hysteresis and P2P
+rows, so the five rows of Table~\ref{tab:ablation} are TLC results.
 
 \subsection*{Liveness properties and the status of their checks}
 

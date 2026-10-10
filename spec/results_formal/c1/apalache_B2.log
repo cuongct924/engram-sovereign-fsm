@@ -1,0 +1,149 @@
+# Usage statistics is OFF. We care about your privacy.
+# If you want to help our project, consider enabling statistics with config --enable-stats=true.
+
+Output directory: /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/_apalache-out/MC_ServerRefinementStep_Apalache.tla/2026-10-09T15-32-09_6255191623336051111
+# APALACHE version: 0.58.3 | build: f4ac7ff                       I@15:32:09.872
+Tuning: search.outputTraces=false                                 I@15:32:09.884
+PASS #0: SanyParser                                               I@15:32:10.004
+PASS #1: TypeCheckerSnowcat                                       I@15:32:10.860
+ > Running Snowcat .::.                                           I@15:32:10.860
+ > Your types are purrfect!                                       I@15:32:23.213
+ > All expressions are typed                                      I@15:32:23.213
+PASS #2: ConfigurationPass                                        I@15:32:23.214
+  > Set the initialization predicate to MC_Init                   I@15:32:23.218
+  > Set the transition predicate to MC_Next                       I@15:32:23.219
+  > Set the constant initialization predicate to ApalacheCInit    I@15:32:23.219
+  > Set an invariant to AbsInitOK                                 I@15:32:23.219
+PASS #3: DesugarerPass                                            I@15:32:23.233
+  > Desugaring...                                                 I@15:32:23.233
+PASS #4: InlinePass                                               I@15:32:23.461
+Leaving only relevant operators: AbsInitOK, ApalacheCInit, ApalacheCInitPrimed, MC_Init, MC_InitPrimed, MC_Next I@15:32:23.461
+PASS #5: TemporalPass                                             I@15:32:23.979
+  > Rewriting temporal operators...                               I@15:32:23.979
+  > No temporal property specified, nothing to encode             I@15:32:23.979
+PASS #6: InlinePass                                               I@15:32:23.979
+Leaving only relevant operators: AbsInitOK, ApalacheCInit, ApalacheCInitPrimed, MC_Init, MC_InitPrimed, MC_Next I@15:32:23.979
+PASS #7: PrimingPass                                              I@15:32:24.027
+  > Introducing ApalacheCInitPrimed for ApalacheCInit'            I@15:32:24.028
+  > Introducing MC_InitPrimed for MC_Init'                        I@15:32:24.032
+PASS #8: VCGen                                                    I@15:32:24.033
+  > Producing verification conditions from the invariant AbsInitOK I@15:32:24.034
+  > VCGen produced 7 verification condition(s)                    I@15:32:24.038
+PASS #9: PreprocessingPass                                        I@15:32:24.041
+  > Before preprocessing: unique renaming                         I@15:32:24.041
+ > Applying standard transformations:                             I@15:32:24.046
+  > PrimePropagation                                              I@15:32:24.046
+  > Desugarer                                                     I@15:32:24.059
+  > UniqueRenamer                                                 I@15:32:24.076
+  > Normalizer                                                    I@15:32:24.108
+  > SetMembershipSimplifier                                       I@15:32:24.141
+  > Keramelizer                                                   I@15:32:24.165
+  > After preprocessing: UniqueRenamer                            I@15:32:24.245
+PASS #10: TransitionFinderPass                                    I@15:32:24.298
+  > Found 1 initializing transitions                              I@15:32:24.454
+  > Found 51 transitions                                          I@15:32:24.576
+  > Found constant initializer ApalacheCInit                      I@15:32:24.577
+  > Applying unique renaming                                      I@15:32:24.579
+PASS #11: OptimizationPass                                        I@15:32:24.632
+ > Applying optimizations:                                        I@15:32:24.635
+  > ConstSimplifier                                               I@15:32:24.636
+  > ExprOptimizer                                                 I@15:32:24.825
+  > SetMembershipSimplifier                                       I@15:32:24.921
+  > ConstSimplifier                                               I@15:32:24.959
+PASS #12: AnalysisPass                                            I@15:32:25.148
+ > Marking skolemizable existentials and sets to be expanded...   I@15:32:25.150
+  > Skolemization                                                 I@15:32:25.150
+  > Expansion                                                     I@15:32:25.162
+  > Remove unused let-in defs                                     I@15:32:25.234
+ > Running analyzers...                                           I@15:32:25.257
+  > Introduced expression grades                                  I@15:32:25.265
+PASS #13: BoundedChecker                                          I@15:32:25.265
+State 0: Checking 7 state invariants                              I@15:32:26.158
+Unhandled exception                                               E@15:32:26.181
+scala.NotImplementedError: A set filter over PowSet[Set(Str)] is not implemented
+	at at.forsyte.apalache.tla.bmcmt.rules.SetFilterRule.apply(SetFilterRule.scala:32)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.ChooseOrGuessRule.apply(ChooseOrGuessRule.scala:43)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.eachExpr$1(SymbStateRewriterImpl.scala:447)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.$anonfun$rewriteSeqUntilDone$1(SymbStateRewriterImpl.scala:453)
+	at scala.collection.immutable.List.map(List.scala:240)
+	at scala.collection.immutable.List.map(List.scala:79)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteSeqUntilDone(SymbStateRewriterImpl.scala:453)
+	at at.forsyte.apalache.tla.bmcmt.rules.RecCtorRule.apply(RecCtorRule.scala:40)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.aux.MapBase.mapCellsManyArgsOnce(MapBase.scala:139)
+	at at.forsyte.apalache.tla.bmcmt.rules.aux.MapBase.$anonfun$mapCellsManyArgs$1(MapBase.scala:101)
+	at scala.collection.IterableOnceOps.foreach(IterableOnce.scala:630)
+	at scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:628)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1313)
+	at at.forsyte.apalache.tla.bmcmt.rules.aux.MapBase.mapCellsManyArgs(MapBase.scala:99)
+	at at.forsyte.apalache.tla.bmcmt.rules.aux.MapBase.rewriteSetMapManyArgs(MapBase.scala:74)
+	at at.forsyte.apalache.tla.bmcmt.rules.SetMapRule.apply(SetMapRule.scala:29)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.LetInRule.apply(LetInRule.scala:27)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.SetCupRule.apply(SetCupRule.scala:32)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.SetCupRule.apply(SetCupRule.scala:30)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.EqRule.apply(EqRule.scala:47)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.rules.NegRule.apply(NegRule.scala:27)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteOnce(SymbStateRewriterImpl.scala:357)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.doRecursive$1(SymbStateRewriterImpl.scala:390)
+	at at.forsyte.apalache.tla.bmcmt.SymbStateRewriterImpl.rewriteUntilDone(SymbStateRewriterImpl.scala:424)
+	at at.forsyte.apalache.tla.bmcmt.trex.TransitionExecutorImpl.assertState(TransitionExecutorImpl.scala:216)
+	at at.forsyte.apalache.tla.bmcmt.trex.FilteredTransitionExecutor.assertState(FilteredTransitionExecutor.scala:137)
+	at at.forsyte.apalache.tla.bmcmt.trex.ConstrainedTransitionExecutor.assertState(ConstrainedTransitionExecutor.scala:111)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.$anonfun$checkInvariants$2(SeqModelChecker.scala:369)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.$anonfun$checkInvariants$2$adapted(SeqModelChecker.scala:355)
+	at scala.collection.IterableOnceOps.foreach(IterableOnce.scala:630)
+	at scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:628)
+	at scala.collection.AbstractIterable.foreach(Iterable.scala:936)
+	at scala.collection.IterableOps$WithFilter.foreach(Iterable.scala:906)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.checkInvariants(SeqModelChecker.scala:355)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.$anonfun$prepareTransitionsAndCheckInvariants$5(SeqModelChecker.scala:251)
+	at scala.runtime.java8.JFunction1$mcVI$sp.apply(JFunction1$mcVI$sp.scala:18)
+	at scala.collection.immutable.Range.foreach(Range.scala:256)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.prepareTransitionsAndCheckInvariants(SeqModelChecker.scala:213)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.makeStep(SeqModelChecker.scala:125)
+	at at.forsyte.apalache.tla.bmcmt.SeqModelChecker.run(SeqModelChecker.scala:63)
+	at at.forsyte.apalache.tla.bmcmt.passes.BoundedCheckerPassImpl.runIncrementalChecker(BoundedCheckerPassImpl.scala:175)
+	at at.forsyte.apalache.tla.bmcmt.passes.BoundedCheckerPassImpl.execute(BoundedCheckerPassImpl.scala:127)
+	at at.forsyte.apalache.infra.passes.PassChainExecutor.exec(PassChainExecutor.scala:71)
+	at at.forsyte.apalache.infra.passes.PassChainExecutor.$anonfun$runPassOnModule$3(PassChainExecutor.scala:60)
+	at scala.util.Either.flatMap(Either.scala:360)
+	at at.forsyte.apalache.infra.passes.PassChainExecutor.$anonfun$runPassOnModule$1(PassChainExecutor.scala:58)
+	at scala.collection.LinearSeqOps.foldLeft(LinearSeq.scala:183)
+	at scala.collection.LinearSeqOps.foldLeft$(LinearSeq.scala:179)
+	at scala.collection.immutable.List.foldLeft(List.scala:79)
+	at at.forsyte.apalache.infra.passes.PassChainExecutor.runOnPasses(PassChainExecutor.scala:51)
+	at at.forsyte.apalache.infra.passes.PassChainExecutor.run(PassChainExecutor.scala:42)
+	at at.forsyte.apalache.tla.tooling.opt.CheckCmd.run(CheckCmd.scala:146)
+	at at.forsyte.apalache.tla.Tool$.runCommand(Tool.scala:139)
+	at at.forsyte.apalache.tla.Tool$.run(Tool.scala:119)
+	at at.forsyte.apalache.tla.Tool$.main(Tool.scala:40)
+	at at.forsyte.apalache.tla.Tool.main(Tool.scala)
+Please report an issue at [https://github.com/apalache-mc/apalache/issues]: scala.NotImplementedError: A set filter over PowSet[Set(Str)] is not implemented
+A bug report template has been generated at [/Users/cuongct090_04/Code/engram-sovereign-fsm/spec/_apalache-out/MC_ServerRefinementStep_Apalache.tla/2026-10-09T15-32-09_6255191623336051111/BugReport.md].
+If you choose to use it, please complete the template with a description of the expected behavior and impact.
+It took me 0 days  0 hours  0 min 16 sec                          I@15:32:26.186
+Total time: 16.313 sec                                            I@15:32:26.187
+EXITCODE: ERROR (255)

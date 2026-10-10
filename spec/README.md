@@ -464,7 +464,7 @@ A validator accepts a proposal and casts a `PREVOTE` only if `IsValidProposal(pr
 
 - `fsm_state` matches `CalculateNextFSMState`.
 - `healthy` matches `IsHealthyCondition` -- an independent check, since `fsm_state` alone can't distinguish genuinely healthy from hysteresis-absorbed-warning.
-- A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`IsWellFormedHealthCertificate`) -- checked alongside the `healthy` condition above, not in place of it.
+- A well-formed health certificate exists for the proposal's round and agrees with its `healthy` claim (`IsWellFormedHealthCertificate`) -- checked alongside the `healthy` condition above, not in place of it. The proposer's injection check sees its just-built certificate (`ServerInsertProposal` calls `InsertProposalWith` with `health_certs ∪ {new_HQC}`); validators on receipt check the published set (`IsValidProposal`).
 - The certificate formalizes the real pre-consensus mechanism (`x/sovereignty/vote_extension.go`):
   - Each validator signs its own observation (`ServerExtendVote` writes `sensor_view`): three predicates (`is_healthy`, `is_warning`, `is_critical`) and two clipped gaps (`btc_gap_obs`, `da_gap_obs`).
   - The proposer picks a member set of at least `THRESHOLD2` and aggregates it (`AggregateHealthCertificate`): per-field majority for predicates, weighted median (`WeightedMedianOf`) for gaps.
@@ -930,7 +930,7 @@ Spec changes the run exposed (all in the `spec/c1-decompose` branch):
 - `ServerHonestTimeout` and `ServerUponTimeoutCert` now certify only a round no honest node has left: the abstract `Timeout(n)` stamps the current abstract round, so a T_QC for a skipped round maps to no abstract step. This removes behaviours from the concrete model.
 - `EngramConsensus.tla` gains `NilQuorumSkipNext`, a round advance that leaves the tree unchanged. A Tendermint round that ends on a quorum of nil precommits matches none of `TimeoutStartNext`, `EarlyStartNext` and `TimeoutSkipNext`. This weakens the target spec.
 
-An inductive alternative (per-action obligations over the whole `ServerNext`, checked with Apalache) avoids the composition gap but needs an inductive invariant and a non-recursive `SumStakeOp`; it has not been started.
+An inductive alternative (per-action obligations over the whole `ServerNext`, checked with Apalache) avoids the composition gap but needs an inductive invariant and a non-recursive `SumStakeOp`; it is set up as `MC_ServerRefinementStep_Apalache.tla` (typechecks; base case `Inv` holds) and stalls at the abstract-init check, where the SMT backend cannot filter over a powerset.
 
 ### 9.3. Ablation study & counterexample traces analysis
 

@@ -1,0 +1,40 @@
+TLC2 Version 2026.04.18.033656 (rev: c45c125)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 92 and seed -3596107773995671472 with 10 workers on 10 cores with 12288MB heap and 64MB offheap memory [pid: 88261] (Mac OS X 27.0 aarch64, Homebrew 11.0.31 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/MC_TendermintSafety.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramTendermint.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-7477826743897972083/TLC.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-7477826743897972083/Integers.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-7477826743897972083/FiniteSets.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramVars.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramFSM.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-7477826743897972083/Naturals.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-7477826743897972083/Sequences.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EngramVars
+Semantic processing of module EngramFSM
+Semantic processing of module EngramTendermint
+Semantic processing of module TLC
+Semantic processing of module MC_TendermintSafety
+Linting of module EngramVars
+Linting of module EngramFSM
+Linting of module EngramTendermint
+Linting of module MC_TendermintSafety
+Starting... (2026-10-09 06:09:12)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-09 06:09:12.
+Progress(13) at 2026-10-09 06:09:15: 138,057 states generated (138,057 s/min), 35,255 distinct states found (35,255 ds/min), 17,352 states left on queue.
+Progress(21) at 2026-10-09 06:10:15: 3,218,675 states generated (3,080,618 s/min), 487,409 distinct states found (452,154 ds/min), 35,967 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 8.9E-8
+  based on the actual fingerprints:  val = 5.2E-9
+3668099 states generated, 521958 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 25.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 14 and the 95th percentile is 5).
+Finished in 01min 13s at (2026-10-09 06:10:25)

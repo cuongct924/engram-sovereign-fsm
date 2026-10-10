@@ -306,9 +306,14 @@ VerifyAnchorReceipt(receipt) ==
 
 
 (********************* CORE PROPOSAL VALIDITY (SEMANTIC FIREWALL) ******************************)
-\* The core validity predicate for proposals
-\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
-IsValidProposal(prop) ==
+\* The core validity predicate for proposals, against an explicit certificate
+\* set. The default entry point below passes the published health_certs; the
+\* proposer calls the explicit form with its just-built certificate included,
+\* since a round's first proposal cannot reference a certificate that only its
+\* own step publishes (the implementation attaches the fresh aggregate to the
+\* proposal for ProcessProposal to re-verify, x/sovereignty/proposal.go).
+\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, Set({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int, quorum_weight: Int })) => Bool;
+IsValidProposalIn(prop, certs) ==
     LET
         da_tol  == DATolerance(prop.round)
         btc_tol == BTCTolerance(prop.round)
@@ -338,7 +343,7 @@ IsValidProposal(prop) ==
         \* previously-verified invariant is unaffected whenever sensor_view
         \* matches the true reading (always true for a correct,
         \* non-eclipsed validator -- see ServerExtendVote, EngramServer.tla).
-        /\ \E cert \in health_certs :
+        /\ \E cert \in certs :
                /\ cert.round = prop.round
                /\ IsWellFormedHealthCertificate(cert)
                /\ cert.is_healthy = prop.healthy
@@ -374,6 +379,11 @@ IsValidProposal(prop) ==
         /\  IF prop.fsm_state = "RECOVERING" /\ safe_blocks = RECOVERY_HYSTERESIS_WAIT 
             THEN VerifyZkProof(prop.zk_proof_ref, prop.da_receipt)
             ELSE prop.zk_proof_ref = FALSE
+
+\* Default entry point: validate against the published certificates. Used on
+\* receipt, where the proposer's certificate is already in health_certs.
+\* @type: ({ value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }) => Bool;
+IsValidProposal(prop) == IsValidProposalIn(prop, health_certs)
 
 
 \* Censorship sensor: TRUE iff process p should reject proposal for being censored
@@ -595,6 +605,23 @@ InsertProposal(p, prop) ==
     /\ \A m \in msgs_propose[r] : m.src /= p
     /\ BroadcastProposal(p, r, prop, valid_round[p])
     /\ IsValidProposal(prop)
+    /\ proposal_time' = [proposal_time EXCEPT ![r] = real_time]
+    /\ UNCHANGED <<tendermintCoreVars, temporalVars, propAuditVars, censorshipVars>>
+    /\ UNCHANGED <<msgs_prevote, msgs_precommit, msgs_timeout, evidence>>
+    /\ UNCHANGED <<begin_round, end_consensus, last_begin_round, proposal_received_time>>
+    /\ action' = "InsertProposal"
+
+\* -- InsertProposalWith: same as InsertProposal, but the validity check also
+\* sees `certs` -- used by ServerInsertProposal with the just-aggregated
+\* certificate included (see IsValidProposalIn's note).
+\* @type: (Str, { value: Str, timestamp: Int, round: Int, fsm_state: Str, da_receipt: { published_block_height: Int, attestation: Bool }, btc_receipt: { checkpoint_block_height: Int, checkpoint_block_hash: <<Str, Int>> }, zk_proof_ref: Bool, healthy: Bool }, Set({ type: Str, round: Int, is_healthy: Bool, is_warning: Bool, is_critical: Bool, btc_gap_obs: Int, da_gap_obs: Int, quorum_weight: Int })) => Bool;
+InsertProposalWith(p, prop, certs) ==
+    LET r == round[p] IN
+    /\ p = Proposer[r]
+    /\ step[p] = "PROPOSE"
+    /\ \A m \in msgs_propose[r] : m.src /= p
+    /\ BroadcastProposal(p, r, prop, valid_round[p])
+    /\ IsValidProposalIn(prop, certs)
     /\ proposal_time' = [proposal_time EXCEPT ![r] = real_time]
     /\ UNCHANGED <<tendermintCoreVars, temporalVars, propAuditVars, censorshipVars>>
     /\ UNCHANGED <<msgs_prevote, msgs_precommit, msgs_timeout, evidence>>

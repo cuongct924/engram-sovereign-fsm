@@ -115,8 +115,11 @@ ServerInsertProposal(p) ==
                                         da_receipt, btc_receipt, proof_found,
                                         cert.is_healthy)
                   IN
-                  \* Inject the concrete proposal into Tendermint
-                  /\ InsertProposal(p, prop)
+                  \* Inject the concrete proposal into Tendermint. The validity
+                  \* check sees the just-built certificate: a round's first
+                  \* proposal cannot reference a certificate that only its own
+                  \* step publishes (IsValidProposalIn's note).
+                  /\ InsertProposalWith(p, prop, health_certs \cup {new_HQC})
 
                   \* Emit E_QC for the LiDO abstract pacemaker
                   /\ LET new_EQC == [

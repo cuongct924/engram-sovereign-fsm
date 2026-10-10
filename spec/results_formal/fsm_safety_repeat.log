@@ -1,0 +1,70 @@
+TLC2 Version 2026.04.18.033656 (rev: c45c125)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 48 and seed -3535410317871322370 with 6 workers on 10 cores with 12288MB heap and 64MB offheap memory [pid: 13393] (Mac OS X 27.0 aarch64, Homebrew 11.0.31 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/MC_FSMSafety.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramFSM.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12876184055570693850/TLC.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12876184055570693850/Integers.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12876184055570693850/FiniteSets.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramVars.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12876184055570693850/Naturals.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12876184055570693850/Sequences.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EngramVars
+Semantic processing of module EngramFSM
+Semantic processing of module TLC
+Semantic processing of module MC_FSMSafety
+Linting of module EngramVars
+Linting of module EngramFSM
+Linting of module MC_FSMSafety
+line 31, col 5 to line 31, col 9 of module MC_FSMSafety
+
+The field name "round" in the record constructor is identical to the existing definition or declaration
+named round, located at line 45, col 5 to line 45, col 9 of module EngramVars.
+The field in the record will not take the value of the round definition or declaration.
+In TLA+, field names in records are strings, regardless of any similarly named declarations or definitions.
+Therefore, DOMAIN [round |-> ...] = {"round"} holds true.
+
+
+
+line 39, col 47 to line 39, col 51 of module MC_FSMSafety
+
+The field name "round" in the record constructor is identical to the existing definition or declaration
+named round, located at line 45, col 5 to line 45, col 9 of module EngramVars.
+The field in the record will not take the value of the round definition or declaration.
+In TLA+, field names in records are strings, regardless of any similarly named declarations or definitions.
+Therefore, DOMAIN [round |-> ...] = {"round"} holds true.
+
+
+
+Starting... (2026-10-09 06:39:56)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-09 06:39:56.
+Progress(6) at 2026-10-09 06:39:59: 1,587,577 states generated (1,587,577 s/min), 20,886 distinct states found (20,886 ds/min), 15,139 states left on queue.
+Progress(9) at 2026-10-09 06:40:59: 45,459,015 states generated (43,871,438 s/min), 317,272 distinct states found (296,386 ds/min), 161,487 states left on queue.
+Progress(10) at 2026-10-09 06:41:59: 89,558,718 states generated (44,099,703 s/min), 567,620 distinct states found (250,348 ds/min), 263,537 states left on queue.
+Progress(11) at 2026-10-09 06:42:59: 133,647,843 states generated (44,089,125 s/min), 798,281 distinct states found (230,661 ds/min), 347,492 states left on queue.
+Progress(11) at 2026-10-09 06:43:59: 177,505,019 states generated (43,857,176 s/min), 1,028,631 distinct states found (230,350 ds/min), 431,561 states left on queue.
+Progress(12) at 2026-10-09 06:44:59: 221,425,160 states generated (43,920,141 s/min), 1,233,318 distinct states found (204,687 ds/min), 491,996 states left on queue.
+Progress(12) at 2026-10-09 06:45:59: 265,882,030 states generated (44,456,870 s/min), 1,363,239 distinct states found (129,921 ds/min), 473,470 states left on queue.
+Progress(12) at 2026-10-09 06:46:59: 310,615,206 states generated (44,733,176 s/min), 1,487,634 distinct states found (124,395 ds/min), 450,298 states left on queue.
+Progress(13) at 2026-10-09 06:47:59: 354,634,824 states generated (44,019,618 s/min), 1,588,080 distinct states found (100,446 ds/min), 407,208 states left on queue.
+Progress(13) at 2026-10-09 06:48:59: 397,422,173 states generated (42,787,349 s/min), 1,706,758 distinct states found (118,678 ds/min), 383,855 states left on queue.
+Progress(13) at 2026-10-09 06:49:59: 441,001,029 states generated (43,578,856 s/min), 1,798,717 distinct states found (91,959 ds/min), 331,440 states left on queue.
+Progress(14) at 2026-10-09 06:50:59: 484,423,373 states generated (43,422,344 s/min), 1,869,265 distinct states found (70,548 ds/min), 260,612 states left on queue.
+Progress(14) at 2026-10-09 06:51:59: 526,949,629 states generated (42,526,256 s/min), 1,990,977 distinct states found (121,712 ds/min), 241,134 states left on queue.
+Progress(15) at 2026-10-09 06:52:59: 569,278,089 states generated (42,328,460 s/min), 2,087,605 distinct states found (96,628 ds/min), 199,711 states left on queue.
+Progress(15) at 2026-10-09 06:53:59: 611,289,325 states generated (42,011,236 s/min), 2,116,671 distinct states found (29,066 ds/min), 90,545 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 7.4E-5
+  based on the actual fingerprints:  val = 2.6E-8
+642091376 states generated, 2126591 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 15.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 31 and the 95th percentile is 4).
+Finished in 14min 48s at (2026-10-09 06:54:44)

@@ -90,8 +90,9 @@ Model-checking consensus, FSM, and sensors together is intractable at useful
 scale. We therefore specify the protocol in TLA+~\cite{lamport2002specifying}
 as four layers -- an abstract consensus object, a Tendermint-style consensus
 layer, the FSM layer, and a server layer composing them -- and check each
-layer with TLC. Apalache~\cite{konnov2019apalache} is used where a symbolic
-observation vector is needed (the certificate lemma) and for part of the ablation study.
+layer with TLC. Apalache~\cite{konnov2019apalache} is used for the certificate
+lemma, whose observation vector is symbolic; every row of the ablation study is
+checked with TLC.
 The target property is: under partial synchrony and an $f$-bounded
 adversary, no two honest validators commit conflicting blocks or conflicting
 FSM states, and any such conflict implies double-signing evidence.
@@ -145,9 +146,9 @@ composed system.
 \label{subsec:formal-invariants}
 
 Six safety properties are specified. The first five are checked in the FSM safety
-run (the first as an invariant, the rest as action or temporal properties); the
-sixth is defined in the server layer and is checked only in the refinement
-drivers, whose runs did not complete.
+run (the first as an invariant, the others as action or temporal properties). The
+sixth, Monotonicity Safety, is defined in the server layer and appears only in its
+refinement drivers, whose runs did not complete.
 \begin{itemize}
   \item \emph{Circuit Breaker Isolation:} withdrawals are locked if and only
   if the state is \textsc{Sovereign} or \textsc{Recovering}.
@@ -157,10 +158,10 @@ drivers, whose runs did not complete.
   on \textsc{Suspicious}$\to$\textsc{Anchored}.
   \item \emph{Strict FSM Transition Safety:} only transitions drawn in
   Fig.~\ref{fig:fsm} occur.
-  \item \emph{Monotonicity Safety:} heights and time never decrease.
   \item \emph{Sovereign-Data Publication:} every
   \textsc{Recovering}$\to$\textsc{Anchored} transition occurs with the DA
-  backfill condition true. The server-layer drivers have not been re-run with it.
+  backfill condition true.
+  \item \emph{Monotonicity Safety:} heights and time never decrease.
 \end{itemize}
 The Tendermint driver checks a separate invariant covering, among others, agreement on the decided value, external validity, accountability and the absence of double spending across modes.
 Five attack-specific properties are enforced by the validity predicate:
@@ -207,9 +208,9 @@ only by the open refinement obligation.
 \toprule
 \textbf{Layer / property} & \textbf{States gen.} & \textbf{Distinct} & \textbf{Depth} & \textbf{Time} & \textbf{Workers} & \textbf{Viol.} \\
 \midrule
-Tendermint (safety) & 3{,}772{,}809 & 537{,}536 & 25 & 1\,m\,01\,s & 10 & 0 \\
-FSM (safety) & 1{,}371{,}377{,}696 & \resFSMStatesExact{} & 23 & 10\,m\,19\,s & 10 & 0 \\
-FSM (liveness) & 17{,}986{,}105 & 31{,}105 & 23 & 3\,m\,45\,s & 10 & 0 \\
+Tendermint (safety) & 3{,}668{,}099 & 521{,}958 & 25 & 1\,m\,13\,s & 10 & 0 \\
+FSM (safety) & 642{,}091{,}376 & \resFSMStatesExact{} & 16 & 4\,m\,50\,s & 10 & 0 \\
+FSM (liveness) & 17{,}977{,}073 & 31{,}105 & 25 & 2\,m\,09\,s & 10 & 0 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
@@ -221,20 +222,16 @@ heights below 10 for Tendermint; the thresholds of Appendix~\ref{app:formal} for
 the FSM. Hardware: Apple M1 Pro, 10 cores, 32\,GB RAM.
 \end{table}
 
-\pending{rerun the rows of Table~\ref{tab:formal-verification} on the current
-specification: the Tendermint safety row after the Bitcoin threshold was added
-(3{,}698{,}323 states generated, 525{,}544 distinct, depth 25, no violation, time
-not recorded) and the FSM rows after the adaptive-threshold and GST changes. Also run the ablation that removes the DA-backfill gate (queued with TLC at the FSM layer, a violation of the sanity invariant expected) and, if it reproduces, add it as a fifth row of Table~\ref{tab:ablation} and update the count of mechanisms in the abstract, the contributions and Table~\ref{tab:claims}.}
-
-Table~\ref{tab:formal-verification} reports the per-layer results, each
-obtained by running that layer's own driver standalone at the configuration of
-Table~\ref{tab:formal-config}. All three runs found zero violations in their
-bounded state spaces. They cover the Tendermint-style and FSM layers. The
-abstract layer is exercised only through the open refinement obligation, and the
-server layer through that obligation, the certificate lemma and two ablations. The
-ablation study spans two layers: the hysteresis, P2P health gate and DA backfill
-gate belong to the FSM layer, the circuit breaker and DA consistency to the
-server layer, so each result holds within its own layer's configuration.
+Table~\ref{tab:formal-verification} reports the per-layer results. Each row is a
+run of the layer's own driver at the configuration of
+Table~\ref{tab:formal-config}, and none found a violation in its bounded state space.
+The FSM safety run, repeated with a different number of workers, gave identical
+counts. The runs cover the Tendermint-style and FSM layers. The abstract layer is
+exercised only through the open refinement obligation, and the server layer through
+that obligation, the certificate lemma and two ablations. The ablation study spans
+two layers: the hysteresis, P2P health gate and DA backfill gate belong to the FSM
+layer, and the circuit breaker and DA consistency to the server layer, so each
+result holds within its own layer's configuration.
 
 \begin{table}[h]
 \caption{Ablation study: removing one mechanism at a time}
@@ -247,41 +244,28 @@ server layer, so each result holds within its own layer's configuration.
 \toprule
 \textbf{Removed} & \textbf{Targeted threat} & \textbf{Tool, spec} & \textbf{Depth} & \textbf{Time} & \textbf{Violated property} \\
 \midrule
-Circuit breaker & Withdrawal while locked & Apalache, spec of 3 Aug & 2 & 66.7\,s & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalWhileLocked} \\
-Hysteresis & Premature re-anchoring & Apalache, spec of 3 Aug & 6 & 117.0\,s & \texttt{Sanity\_NoIllegal} \texttt{HysteresisExit} \\
-P2P health gate & False recovery under eclipse & Apalache, spec of 3 Aug & 3 & 24.2\,s & \texttt{Sanity\_NoIllegal} \texttt{P2PRecovery} \\
-DA consistency & Data withholding & Apalache, current spec & 2 & 34.5\,s & \texttt{Sanity\_Never} \texttt{ProposeWithheldData} \\
-DA backfill gate & Exit from \textsc{Recovering} before the interval's data is republished & \pending{TLC, current spec} & -- & -- & \texttt{Sanity\_NoIllegal} \texttt{BackfillExit} \\
+Circuit breaker & Withdrawal while locked & TLC, current spec & 5 & 2\,m\,03\,s & \texttt{Sanity\_NeverAttempt} \texttt{WithdrawalWhileLocked} \\
+Hysteresis & Premature re-anchoring & TLC, current spec & 9 & 21\,s & \texttt{Sanity\_NoIllegal} \texttt{HysteresisExit} \\
+P2P health gate & False recovery under eclipse & TLC, current spec & 5 & 1\,s & \texttt{Sanity\_NoIllegal} \texttt{P2PRecovery} \\
+DA consistency & Data withholding & TLC, current spec & 4 & 4\,s & \texttt{Sanity\_Never} \texttt{ProposeWithheldData} \\
+DA backfill gate & Exit from \textsc{Recovering} before the interval's data is republished & TLC, current spec & 10 & 49\,s & \texttt{Sanity\_NoIllegal} \texttt{BackfillExit} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:ablation} reports the ablation study. Each row removes one
-mechanism and checks the sanity property that mechanism protects. The first
-three rows were obtained with Apalache's bounded SMT search on the specification
-of 3 August (24--117\,s at depth 2--6). The specification has since gained the
-numeric certificate observations, the adaptive down threshold and the GST
-predicate, and on it Apalache stops at depth 2 with an ``unknown'' answer from the
-SMT solver for the hysteresis and P2P rows, and did not finish the circuit-breaker
-row in two hours; we therefore report the earlier results and do not claim to have
-reproduced them with Apalache. The DA consistency row was rerun on the current
-specification. \pending{rerun all five ablations with TLC on the current
-specification (queued; the three FSM-layer ablations exhaustively, the two
-server-layer ones with a time limit and then seeded simulation), keep the
-Apalache numbers in the caption, and set the tool column to TLC.}
-Each of the first four ablations reproduced the violation its mechanism is
-designed to prevent: without the circuit breaker a withdrawal can be proposed in
-a locked state; without hysteresis the chain re-anchors prematurely; without the
-P2P gate an eclipsed validator forces an illegal recovery; and without DA
-consistency a withholding proposal is accepted. Two further ablations do not
-belong to this safety table: removing the $f{+}1$ fast-forward is a liveness
-ablation and has not completed, and removing the Byzantine bound of
-Lemma~\ref{lem:honest-range} is reported with that lemma
-(Section~\ref{subsec:formal-invariants}). Single-factor ablation does not test
-joint removal, so it does not establish that the set of mechanisms is
-sufficient.
-
-
+Table~\ref{tab:ablation} reports the ablation study. Each row removes one mechanism
+from the specification of its layer and checks the sanity property that the
+mechanism protects. TLC finds a violation in every case, and the counterexample is
+the shortest trace to it, since the search is breadth-first. Without the circuit
+breaker a withdrawal can be proposed in a locked state; without hysteresis the chain
+re-anchors prematurely; without the P2P gate an eclipsed validator forces an illegal
+recovery; without DA consistency a withholding proposal is accepted; and without the
+backfill gate the chain leaves \textsc{Recovering} before the interval's data is
+republished. Two further ablations are not part of this safety table: removing the
+$f{+}1$ fast-forward is a liveness ablation and has not completed, and removing the
+Byzantine bound of Lemma~\ref{lem:honest-range} is reported with that lemma
+(Section~\ref{subsec:formal-invariants}). Single-factor ablation does not test joint
+removal, so it does not establish that the set of mechanisms is sufficient.
 
 \subsection{Cross-Layer Refinement and Verification Scope}
 \label{subsec:verification-scope}
@@ -299,18 +283,30 @@ $N{=}7, f{=}2$) but has not converged at any of them, so the composed system is
 \emph{not} formally verified end-to-end; its whole-system evidence in this paper is
 empirical (Section~\ref{sec:evaluation}).
 
-\textbf{Why the refinement is not claimed.} We split the obligation by which actions may fire and
-checked each part with TLC. The environment part completed without violation;
-the consensus-core part did not complete, and neither covers the interleaving of
-environment and consensus steps. We also searched for a smaller configuration in
-which the parts complete and in which a round change, a Byzantine proposal and a
-decided block are all reachable, so that a completed run is not vacuous; a decided
-block was not reachable within our budget in any configuration we tried, so none
-is reported as a result (Appendix~\ref{app:formal}). The refinement target is an
-extension of the object of LiDO~\cite{qiu2024lido} with one added action and two
-guards on timeout certification, and the added action weakens the target; the mapping simplifies four things (the
-appendix lists them); the obligation is a safety obligation only. An inductive
-check with Apalache could not represent the mapping, so the refinement rests on
+\textbf{Why the refinement is not claimed.} We split the obligation by the actions
+that may fire and checked each part with TLC. The environment part completed without
+violation; the consensus-core part did not complete; and neither covers the
+interleaving of environment and consensus steps. A completed run constrains a
+behaviour only if that behaviour is reachable, so we required of every
+configuration that a round change, a Byzantine proposal and a decided block all be
+reachable. In the monolithic bound L0 (one round, one height, three timestamps) a
+round change and a Byzantine proposal are reachable within seconds, and two honest
+prevotes for one proposal co-occur at depth 5. A lock, a decided block and the FSM
+transition that only a decision commits were not reached: the full L0 space was
+explored to 15.3 billion states generated (249 million distinct, depth 12) without
+a violation and without terminating, and probes restricted to the healthy path
+reached no decision either. None of these configurations is reported as a result
+(Appendix~\ref{app:formal}).
+
+The refinement target is an extension of the object of LiDO~\cite{qiu2024lido} with
+one added action and two guards on timeout certification, and the added action
+weakens the target. The mapping simplifies four things, which the appendix lists, and
+the obligation concerns safety only. An inductive check with Apalache over the whole
+\texttt{ServerNext} would avoid the composition gap. It is set up as
+\texttt{MC\_ServerRefinementStep\_Apalache.tla}: the driver typechecks and its base
+case, invariant preservation by the initial states, holds, but the check that the
+initial states map to abstract initial states stops in Apalache's SMT backend, which
+does not implement a set filter over a powerset. The refinement therefore rests on
 TLC alone.
 
 \textbf{What is and is not claimed.} We claim that the Tendermint-style and FSM

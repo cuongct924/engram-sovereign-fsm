@@ -1,0 +1,69 @@
+# Usage statistics is OFF. We care about your privacy.
+# If you want to help our project, consider enabling statistics with config --enable-stats=true.
+
+Output directory: /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/_apalache-out/MC_HealthCertificate_Apalache.tla/2026-10-10T11-02-39_15631441545506566740
+# APALACHE version: 0.58.3 | build: f4ac7ff                       I@11:02:39.807
+Tuning: search.outputTraces=false                                 I@11:02:39.820
+PASS #0: SanyParser                                               I@11:02:39.994
+PASS #1: TypeCheckerSnowcat                                       I@11:02:40.811
+ > Running Snowcat .::.                                           I@11:02:40.811
+ > Your types are purrfect!                                       I@11:02:51.554
+ > All expressions are typed                                      I@11:02:51.554
+PASS #2: ConfigurationPass                                        I@11:02:51.555
+  > Set the initialization predicate to HCInit                    I@11:02:51.559
+  > Set the transition predicate to HCNext                        I@11:02:51.559
+  > Set the constant initialization predicate to ApalacheCInit    I@11:02:51.559
+  > Set an invariant to AggWithinHonestRange                      I@11:02:51.559
+PASS #3: DesugarerPass                                            I@11:02:51.570
+  > Desugaring...                                                 I@11:02:51.570
+PASS #4: InlinePass                                               I@11:02:51.808
+Leaving only relevant operators: AggWithinHonestRange, ApalacheCInit, ApalacheCInitPrimed, HCInit, HCInitPrimed, HCNext I@11:02:51.809
+PASS #5: TemporalPass                                             I@11:02:52.105
+  > Rewriting temporal operators...                               I@11:02:52.105
+  > No temporal property specified, nothing to encode             I@11:02:52.105
+PASS #6: InlinePass                                               I@11:02:52.105
+Leaving only relevant operators: AggWithinHonestRange, ApalacheCInit, ApalacheCInitPrimed, HCInit, HCInitPrimed, HCNext I@11:02:52.106
+PASS #7: PrimingPass                                              I@11:02:52.109
+  > Introducing ApalacheCInitPrimed for ApalacheCInit'            I@11:02:52.111
+  > Introducing HCInitPrimed for HCInit'                          I@11:02:52.114
+PASS #8: VCGen                                                    I@11:02:52.114
+  > Producing verification conditions from the invariant AggWithinHonestRange I@11:02:52.115
+  > VCGen produced 1 verification condition(s)                    I@11:02:52.118
+PASS #9: PreprocessingPass                                        I@11:02:52.120
+  > Before preprocessing: unique renaming                         I@11:02:52.120
+ > Applying standard transformations:                             I@11:02:52.124
+  > PrimePropagation                                              I@11:02:52.124
+  > Desugarer                                                     I@11:02:52.126
+  > UniqueRenamer                                                 I@11:02:52.129
+  > Normalizer                                                    I@11:02:52.132
+  > SetMembershipSimplifier                                       I@11:02:52.138
+  > Keramelizer                                                   I@11:02:52.143
+  > After preprocessing: UniqueRenamer                            I@11:02:52.165
+PASS #10: TransitionFinderPass                                    I@11:02:52.176
+  > Found 1 initializing transitions                              I@11:02:52.285
+  > Found 1 transitions                                           I@11:02:52.286
+  > Found constant initializer ApalacheCInit                      I@11:02:52.286
+  > Applying unique renaming                                      I@11:02:52.287
+PASS #11: OptimizationPass                                        I@11:02:52.290
+ > Applying optimizations:                                        I@11:02:52.293
+  > ConstSimplifier                                               I@11:02:52.293
+  > ExprOptimizer                                                 I@11:02:52.302
+  > SetMembershipSimplifier                                       I@11:02:52.307
+  > ConstSimplifier                                               I@11:02:52.309
+PASS #12: AnalysisPass                                            I@11:02:52.317
+ > Marking skolemizable existentials and sets to be expanded...   I@11:02:52.319
+  > Skolemization                                                 I@11:02:52.319
+  > Expansion                                                     I@11:02:52.320
+  > Remove unused let-in defs                                     I@11:02:52.327
+ > Running analyzers...                                           I@11:02:52.331
+  > Introduced expression grades                                  I@11:02:52.339
+PASS #13: BoundedChecker                                          I@11:02:52.339
+State 0: Checking 1 state invariants                              I@11:02:53.650
+State 0: state invariant 0 holds.                                 I@11:02:54.642
+Step 0: picking a transition out of 1 transition(s)               I@11:02:54.653
+Step 1: picking a transition out of 1 transition(s)               I@11:02:54.665
+The outcome is: NoError                                           I@11:02:54.680
+Checker reports no error up to computation length 1               I@11:02:54.681
+It took me 0 days  0 hours  0 min 14 sec                          I@11:02:54.681
+Total time: 14.872 sec                                            I@11:02:54.681
+EXITCODE: OK

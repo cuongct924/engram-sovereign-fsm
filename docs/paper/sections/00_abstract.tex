@@ -14,8 +14,10 @@ blocks, relaxes the receipt requirement of the unhealthy layer, and excludes
 withdrawal-marked transactions; it returns to \textsc{Anchored} only after
 recovery hysteresis, DA backfill of the degraded interval, and a
 validator-verified zero-knowledge recovery proof. A layered TLA+ specification
-has zero violations under bounded model checking (\resFSMStatesM{} distinct
-states in the largest run); the cross-layer refinement remains open.
+passes bounded model checking at the Tendermint-style and FSM layers
+(\resFSMStatesM{} distinct states in the largest run), and each of five ablations
+reproduces the violation it predicts; the refinement of the composed layer to the
+abstract consensus object remains open.
 
 On a seven-validator testbed with live Bitcoin and Celestia networks, a composite
 fault repeated five times left the chain committing blocks through a full

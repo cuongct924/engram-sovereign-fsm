@@ -1,0 +1,53 @@
+TLC2 Version 2026.04.18.033656 (rev: c45c125)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 86 and seed 7457123908445200798 with 10 workers on 10 cores with 12288MB heap and 64MB offheap memory [pid: 4743] (Mac OS X 27.0 aarch64, Homebrew 11.0.31 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/MC_ServerRefinementVacuity.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/MC_ServerRefinementSafety.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramServer.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramServerRefinement.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-1418278504436381227/TLC.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-1418278504436381227/Sequences.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-1418278504436381227/Naturals.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-1418278504436381227/FiniteSets.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramFSM.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramTendermint.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-1418278504436381227/Integers.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramVars.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramConsensus.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Integers
+Semantic processing of module EngramVars
+Semantic processing of module EngramFSM
+Semantic processing of module EngramTendermint
+Semantic processing of module EngramServer
+Semantic processing of module EngramConsensus
+Semantic processing of module EngramServerRefinement
+Semantic processing of module TLC
+Semantic processing of module MC_ServerRefinementSafety
+Semantic processing of module MC_ServerRefinementVacuity
+Linting of module EngramVars
+Linting of module EngramFSM
+Linting of module EngramTendermint
+Linting of module EngramServer
+Linting of module EngramConsensus
+Linting of module EngramServerRefinement
+Linting of module MC_ServerRefinementSafety
+Linting of module MC_ServerRefinementVacuity
+Starting... (2026-10-09 06:29:16)
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Finished computing initial states: 8 states generated, with 4 of them distinct at 2026-10-09 06:29:17.
+Progress(6) at 2026-10-09 06:29:20: 196,618 states generated (196,618 s/min), 7,047 distinct states found (7,047 ds/min), 6,320 states left on queue.
+Progress(8) at 2026-10-09 06:30:20: 19,252,670 states generated (19,056,052 s/min), 419,433 distinct states found (412,386 ds/min), 351,556 states left on queue.
+Progress(8) at 2026-10-09 06:31:20: 39,891,288 states generated (20,638,618 s/min), 790,580 distinct states found (371,147 ds/min), 649,874 states left on queue.
+Progress(8) at 2026-10-09 06:32:20: 60,684,614 states generated (20,793,326 s/min), 1,192,636 distinct states found (402,056 ds/min), 979,942 states left on queue.
+Progress(9) at 2026-10-09 06:33:20: 82,124,535 states generated (21,439,921 s/min), 1,589,121 distinct states found (396,485 ds/min), 1,301,409 states left on queue.
+Progress(9) at 2026-10-09 06:34:20: 101,669,389 states generated (19,544,854 s/min), 1,983,789 distinct states found (394,668 ds/min), 1,627,834 states left on queue.
+Progress(9) at 2026-10-09 06:35:20: 122,217,921 states generated (20,548,532 s/min), 2,383,857 distinct states found (400,068 ds/min), 1,956,845 states left on queue.
+Progress(9) at 2026-10-09 06:36:20: 143,888,464 states generated (21,670,543 s/min), 2,748,761 distinct states found (364,904 ds/min), 2,245,014 states left on queue.
+Progress(9) at 2026-10-09 06:37:20: 166,974,603 states generated (23,086,139 s/min), 3,100,389 distinct states found (351,628 ds/min), 2,513,866 states left on queue.
+Progress(9) at 2026-10-09 06:38:20: 185,140,600 states generated (18,165,997 s/min), 3,340,401 distinct states found (240,012 ds/min), 2,690,341 states left on queue.

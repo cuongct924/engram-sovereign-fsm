@@ -1,0 +1,236 @@
+TLC2 Version 2026.04.18.033656 (rev: c45c125)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 35 and seed -1797553761543151678 with 10 workers on 10 cores with 12288MB heap and 64MB offheap memory [pid: 88148] (Mac OS X 27.0 aarch64, Homebrew 11.0.31 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/MC_Ablation_NoDAConsistencySafety_Apalache.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramServer_Ablation_NoDAConsistency.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/_JsonTrace.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/_JsonTrace.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/Naturals.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/FiniteSets.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramFSM.tla
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramTendermint_Ablation_NoDAConsistency.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/Integers.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/core/EngramVars.tla
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/Sequences.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/TLC.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/TLCExt.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/TLCExt.tla)
+Parsing file /private/var/folders/hl/3c887jmj569gw2m_r3zfdnf00000gn/T/tlc-12149775753383347809/Json.tla (jar:file:/Users/cuongct090_04/tools/tla2tools.jar!/tla2sany/StandardModules/Json.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Integers
+Semantic processing of module EngramVars
+Semantic processing of module EngramFSM
+Semantic processing of module EngramTendermint_Ablation_NoDAConsistency
+Semantic processing of module EngramServer_Ablation_NoDAConsistency
+Semantic processing of module TLC
+Semantic processing of module TLCExt
+Semantic processing of module Json
+Semantic processing of module _JsonTrace
+Semantic processing of module MC_Ablation_NoDAConsistencySafety_Apalache
+Linting of module EngramVars
+Linting of module EngramFSM
+Linting of module EngramTendermint_Ablation_NoDAConsistency
+Linting of module EngramServer_Ablation_NoDAConsistency
+Linting of module TLCExt
+Linting of module Json
+Linting of module _JsonTrace
+Linting of module MC_Ablation_NoDAConsistencySafety_Apalache
+Starting... (2026-10-09 06:09:04)
+Computing initial states...
+Computed 2 initial states...
+Computed 4 initial states...
+Finished computing initial states: 8 distinct states generated at 2026-10-09 06:09:04.
+Progress(4) at 2026-10-09 06:09:07: 451,418 states generated (451,418 s/min), 40,872 distinct states found (40,872 ds/min), 39,232 states left on queue.
+Error: Invariant Sanity_NeverProposeWithheldData is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ health_certs = {}
+/\ da_backfill_valid = FALSE
+/\ action = "Init"
+/\ proposal_received_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ unhealthy_streak = 0
+/\ msgs_prevote = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]})
+/\ proposal_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ h_btc_anchored = 0
+/\ stable_blocks = 0
+/\ peer_churn_rate = 0
+/\ inspected_proposal = ( <<0, "n2">> :> -1 @@
+  <<0, "n3">> :> -1 @@
+  <<0, "n4">> :> -1 @@
+  <<1, "n2">> :> -1 @@
+  <<1, "n3">> :> -1 @@
+  <<1, "n4">> :> -1 @@
+  <<2, "n2">> :> -1 @@
+  <<2, "n3">> :> -1 @@
+  <<2, "n4">> :> -1 )
+/\ h_btc_current = 0
+/\ real_time = 0
+/\ msgs_precommit = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]})
+/\ valid_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ anchor_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ quorum_certs = {}
+/\ avg_peer_tenure = 1
+/\ sensor_view = [n1 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n2 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n3 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n4 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0]]
+/\ step = [n2 |-> "PROPOSE", n3 |-> "PROPOSE", n4 |-> "PROPOSE"]
+/\ locked_value = [n2 |-> "NIL_TX", n3 |-> "NIL_TX", n4 |-> "NIL_TX"]
+/\ reanchoring_proof_valid = FALSE
+/\ is_attestation_failed = FALSE
+/\ round = [n2 |-> 0, n3 |-> 0, n4 |-> 0]
+/\ msgs_timeout = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]})
+/\ local_clock = [n2 |-> 1, n3 |-> 0, n4 |-> 1]
+/\ safe_blocks = 0
+/\ tx_ignored_rounds = [n2 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n3 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n4 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0]]
+/\ blacklisted_peers = {}
+/\ is_das_failed = FALSE
+/\ suspicious_safe_blocks = 0
+/\ h_engram_current = 0
+/\ timeout_certs = {}
+/\ evidence = {}
+/\ suspicious_duration = 0
+/\ begin_round = (0 :> 0 @@ 1 :> 2 @@ 2 :> 2)
+/\ local_rem_time = [n2 |-> 2, n3 |-> 2, n4 |-> 2]
+/\ decision = [n2 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n3 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n4 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]]
+/\ msgs_propose = (0 :> {} @@ 1 :> {} @@ 2 :> {})
+/\ flap_level = 0
+/\ valid_value = [n2 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n3 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n4 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]
+/\ end_consensus = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ locked_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ is_anchor_reverification_failed = FALSE
+/\ h_btc_submitted = 0
+/\ active_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ last_begin_round = (0 :> 1 @@ 1 :> -1 @@ 2 :> -1)
+/\ state = "ANCHORED"
+/\ peer_latency = 0
+/\ received_timely_proposal = [n2 |-> {}, n3 |-> {}, n4 |-> {}]
+/\ h_engram_verified = 0
+/\ forced_tx_queue = {"TX_NORMAL"}
+
+State 2: <ServerByzantinePull line 398, col 9 to line 416, col 82 of module EngramServer_Ablation_NoDAConsistency>
+/\ health_certs = {}
+/\ da_backfill_valid = FALSE
+/\ action = "Init"
+/\ proposal_received_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ unhealthy_streak = 0
+/\ msgs_prevote = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]})
+/\ proposal_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ h_btc_anchored = 0
+/\ stable_blocks = 0
+/\ peer_churn_rate = 0
+/\ inspected_proposal = ( <<0, "n2">> :> -1 @@
+  <<0, "n3">> :> -1 @@
+  <<0, "n4">> :> -1 @@
+  <<1, "n2">> :> -1 @@
+  <<1, "n3">> :> -1 @@
+  <<1, "n4">> :> -1 @@
+  <<2, "n2">> :> -1 @@
+  <<2, "n3">> :> -1 @@
+  <<2, "n4">> :> -1 )
+/\ h_btc_current = 0
+/\ real_time = 0
+/\ msgs_precommit = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]})
+/\ valid_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ anchor_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ quorum_certs = {[round |-> 1, type |-> "E_QC", caller |-> "n1", method |-> "None", btc_anchored |-> 0]}
+/\ avg_peer_tenure = 1
+/\ sensor_view = [n1 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n2 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n3 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n4 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0]]
+/\ step = [n2 |-> "PROPOSE", n3 |-> "PROPOSE", n4 |-> "PROPOSE"]
+/\ locked_value = [n2 |-> "NIL_TX", n3 |-> "NIL_TX", n4 |-> "NIL_TX"]
+/\ reanchoring_proof_valid = FALSE
+/\ is_attestation_failed = FALSE
+/\ round = [n2 |-> 0, n3 |-> 0, n4 |-> 0]
+/\ msgs_timeout = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]})
+/\ local_clock = [n2 |-> 1, n3 |-> 0, n4 |-> 1]
+/\ safe_blocks = 0
+/\ tx_ignored_rounds = [n2 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n3 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n4 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0]]
+/\ blacklisted_peers = {}
+/\ is_das_failed = FALSE
+/\ suspicious_safe_blocks = 0
+/\ h_engram_current = 0
+/\ timeout_certs = {}
+/\ evidence = {}
+/\ suspicious_duration = 0
+/\ begin_round = (0 :> 0 @@ 1 :> 2 @@ 2 :> 2)
+/\ local_rem_time = [n2 |-> 2, n3 |-> 2, n4 |-> 2]
+/\ decision = [n2 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n3 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n4 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]]
+/\ msgs_propose = (0 :> {} @@ 1 :> {} @@ 2 :> {})
+/\ flap_level = 0
+/\ valid_value = [n2 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n3 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n4 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]
+/\ end_consensus = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ locked_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ is_anchor_reverification_failed = FALSE
+/\ h_btc_submitted = 0
+/\ active_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ last_begin_round = (0 :> 1 @@ 1 :> -1 @@ 2 :> -1)
+/\ state = "ANCHORED"
+/\ peer_latency = 0
+/\ received_timely_proposal = [n2 |-> {}, n3 |-> {}, n4 |-> {}]
+/\ h_engram_verified = 0
+/\ forced_tx_queue = {"TX_NORMAL"}
+
+State 3: <ServerByzantineDataWithholding line 500, col 5 to line 524, col 62 of module EngramServer_Ablation_NoDAConsistency>
+/\ health_certs = {}
+/\ da_backfill_valid = FALSE
+/\ action = "ByzantineDataWithholding"
+/\ proposal_received_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ unhealthy_streak = 0
+/\ msgs_prevote = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PREVOTE", valid_round |-> -1]})
+/\ proposal_time = (0 :> -1 @@ 1 :> -1 @@ 2 :> -1)
+/\ h_btc_anchored = 0
+/\ stable_blocks = 0
+/\ peer_churn_rate = 0
+/\ inspected_proposal = ( <<0, "n2">> :> -1 @@
+  <<0, "n3">> :> -1 @@
+  <<0, "n4">> :> -1 @@
+  <<1, "n2">> :> -1 @@
+  <<1, "n3">> :> -1 @@
+  <<1, "n4">> :> -1 @@
+  <<2, "n2">> :> -1 @@
+  <<2, "n3">> :> -1 @@
+  <<2, "n4">> :> -1 )
+/\ h_btc_current = 0
+/\ real_time = 0
+/\ msgs_precommit = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "PRECOMMIT", valid_round |-> -1]})
+/\ valid_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ anchor_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ quorum_certs = {[round |-> 1, type |-> "E_QC", caller |-> "n1", method |-> "None", btc_anchored |-> 0], [round |-> 1, type |-> "M_QC", caller |-> "n1", method |-> "TX_NORMAL", btc_anchored |-> 0]}
+/\ avg_peer_tenure = 1
+/\ sensor_view = [n1 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n2 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n3 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0], n4 |-> [is_healthy |-> TRUE, is_warning |-> FALSE, is_critical |-> FALSE, btc_gap_obs |-> 0, da_gap_obs |-> 0]]
+/\ step = [n2 |-> "PROPOSE", n3 |-> "PROPOSE", n4 |-> "PROPOSE"]
+/\ locked_value = [n2 |-> "NIL_TX", n3 |-> "NIL_TX", n4 |-> "NIL_TX"]
+/\ reanchoring_proof_valid = FALSE
+/\ is_attestation_failed = FALSE
+/\ round = [n2 |-> 0, n3 |-> 0, n4 |-> 0]
+/\ msgs_timeout = (0 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 0, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]} @@ 2 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 2, src |-> "n1", type |-> "TIMEOUT", valid_round |-> -1]})
+/\ local_clock = [n2 |-> 1, n3 |-> 0, n4 |-> 1]
+/\ safe_blocks = 0
+/\ tx_ignored_rounds = [n2 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n3 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0], n4 |-> [TX_NORMAL |-> 0, TX_WITHDRAWAL |-> 0]]
+/\ blacklisted_peers = {}
+/\ is_das_failed = FALSE
+/\ suspicious_safe_blocks = 0
+/\ h_engram_current = 0
+/\ timeout_certs = {}
+/\ evidence = {}
+/\ suspicious_duration = 0
+/\ begin_round = (0 :> 0 @@ 1 :> 2 @@ 2 :> 2)
+/\ local_rem_time = [n2 |-> 2, n3 |-> 2, n4 |-> 2]
+/\ decision = [n2 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n3 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]], n4 |-> [round |-> -1, prop |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]]
+/\ msgs_propose = (0 :> {} @@ 1 :> {[proposal |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> 0], round |-> 1, btc_receipt |-> [checkpoint_block_height |-> 0, checkpoint_block_hash |-> <<"BTC_BLOCK", 0>>], value |-> "TX_NORMAL", fsm_state |-> "ANCHORED", zk_proof_ref |-> FALSE, healthy |-> TRUE, timestamp |-> 0], id |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], round |-> 1, src |-> "n1", type |-> "PROPOSAL", valid_round |-> -1]} @@ 2 :> {})
+/\ flap_level = 0
+/\ valid_value = [n2 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n3 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1], n4 |-> [da_receipt |-> [attestation |-> FALSE, published_block_height |-> -1], round |-> -1, btc_receipt |-> [checkpoint_block_height |-> -1, checkpoint_block_hash |-> <<"NIL", -1>>], value |-> "NIL_TX", fsm_state |-> "NONE", zk_proof_ref |-> FALSE, healthy |-> FALSE, timestamp |-> -1]]
+/\ end_consensus = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ locked_round = [n2 |-> -1, n3 |-> -1, n4 |-> -1]
+/\ is_anchor_reverification_failed = FALSE
+/\ h_btc_submitted = 0
+/\ active_peers = {"anchor_n1", "anchor_n2", "anchor_n3"}
+/\ last_begin_round = (0 :> 1 @@ 1 :> -1 @@ 2 :> -1)
+/\ state = "ANCHORED"
+/\ peer_latency = 0
+/\ received_timely_proposal = [n2 |-> {}, n3 |-> {}, n4 |-> {}]
+/\ h_engram_verified = 0
+/\ forced_tx_queue = {"TX_NORMAL"}
+
+"CounterExample written: /Users/cuongct090_04/Code/engram-sovereign-fsm/spec/results_formal/20261009T060434/da_consistency_bfs_trace.json"
+561037 states generated, 53881 distinct states found, 51839 states left on queue.
+The depth of the complete state graph search is 4.
+Finished in 04s at (2026-10-09 06:09:08)
