@@ -13,7 +13,9 @@ When Bitcoin, DA, or the peripheral P2P view degrades, the chain keeps producing
 blocks, relaxes the receipt requirement of the unhealthy layer, and excludes
 withdrawal-marked transactions; it returns to \textsc{Anchored} only after
 recovery hysteresis, DA backfill of the degraded interval, and a
-validator-verified zero-knowledge recovery proof. A layered TLA+ specification
+validator-verified zero-knowledge recovery proof over all but a bounded unproven tail
+of the interval (the prototype also has an optional heuristic that can stand in for
+the proof, which the proof-only runs disable). A layered TLA+ specification
 passes bounded model checking at the Tendermint-style and FSM layers
 (\resFSMStatesM{} distinct states in the largest run), and each of five ablations
 reproduces the violation it predicts; the refinement of the composed layer to the

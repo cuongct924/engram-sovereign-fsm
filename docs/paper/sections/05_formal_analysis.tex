@@ -30,8 +30,9 @@ contains a withdrawal while the state is \textsc{Sovereign} or
 \textsc{Recovering}; (M2) each Bitcoin checkpoint commits the chain through
 its height, and with it the replicated state; and (M3)
 \textsc{Recovering}$\to$\textsc{Anchored} requires a recovery proof that the
-chain has verified and a DA backfill certificate for the whole
-\textsc{Sovereign} interval. If a withdrawal commits in block $B_h$, then
+chain has verified, covering the \textsc{Sovereign} interval except at most
+$T$ trailing blocks (the unproven tail, \texttt{MaxUnprovenTailBlocks}; the heuristic that can stand in for the proof is disabled), and a DA backfill certificate for the whole
+interval. If a withdrawal commits in block $B_h$, then
 $P_{\text{agree}}$ holds, the state at $h$ is \textsc{Anchored} or
 \textsc{Suspicious}, and there are Engram heights $c_s$ and $c_a \geq h - \tau_{\text{DA}}$ such
 that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold, where the
@@ -47,7 +48,9 @@ function $\delta$, \textsc{Suspicious} is entered only from
 \textsc{Recovering}; so every \textsc{Sovereign} interval before $h$ ended
 with a \textsc{Recovering}$\to$\textsc{Anchored} transition, which by (M3)
 required a verified recovery proof and a DA backfill certificate. Hence the
-interval is valid, hash-linked, and available. In the \textsc{Anchored} and
+interval is hash-linked and available, and all but at most $T$ of its trailing
+blocks are covered by the proof; those last blocks are certified by the validator
+quorum alone (Section~\ref{subsec:limitations}). In the \textsc{Anchored} and
 \textsc{Suspicious} blocks since then, every block carries receipts within
 $\tau_{\text{BTC}}$ and $\tau_{\text{DA}}$. The Bitcoin receipt in $B_h$ attests a checkpoint at depth at least
 $K_{\text{DEEP\_FINALITY}}$ for some $c_s$; by (M2) it
