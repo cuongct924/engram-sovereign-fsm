@@ -39,7 +39,7 @@ LAYERS = {
     },
 }
 
-# Cumulative rungs of the bound ladder of docs/C1_GAP_PLAN.md (Track 2): each rung changes one more bound.
+# Cumulative rungs of the bound ladder of the C1 existence checks (spec/README.md, section 9.4): each rung changes one more bound.
 LADDER = [
     ("L0", ["MAX_ROUND=1", "MAX_BTC_HEIGHT=1", "MAX_ENGRAM_HEIGHT=1", "MAX_TIMESTAMP=3"]),
     ("L1", ["MAX_ROUND=1", "MAX_BTC_HEIGHT=1", "MAX_ENGRAM_HEIGHT=2", "MAX_TIMESTAMP=3"]),

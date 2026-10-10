@@ -51,6 +51,7 @@
       - [9.2.2. Health-Certificate Bound (Apalache)](#922-health-certificate-bound-apalache)
       - [9.2.3. Decomposed C1 Refinement](#923-decomposed-c1-refinement)
     - [9.3 Ablation study & counterexample traces analysis](#93-ablation-study--counterexample-traces-analysis)
+    - [9.4 Verification status](#94-verification-status)
   - [References](#references)
   - [Future Work](#future-work)
   - [How to Run the Verification](#how-to-run-the-verification)
@@ -853,24 +854,7 @@ This ensures that any two quorum decisions share at least one honest node. It is
 
 > Parameters $(N, f, \text{MaxRound}, \text{MaxBTCHeight}, \text{MaxEngramHeight}, \text{MaxTimestamp})$
 
-The parameters below are queued for re-run on the current spec (post symmetry-reduction and the `ExecuteFSMTransition` UNCHANGED-contradiction fix); the previous State/Depth/Time figures predate both fixes and are removed rather than shown against parameters that no longer match them.
-
-#### Safety Verification Results
-
-| Config | Parameters | Target Scenario | States Generated | Distinct States | Depth | Time | Violations |
-| :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| **C1** | 4, 1, 2, 2, 2, 6 | Base topology with adversarial injection | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
-| **C2** | 4, 1, 4, 3, 3, 10 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
-| **C3** | 7, 2, 2, 2, 2, 6 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
-
-
-#### Liveness Verification Results
-
-| Config | Parameters | Target Scenario | States Generated | Distinct States | Depth | Time | Violations |
-| :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| **C1** | 4, 1, 2, 2, 2, 4 | Base topology with adversarial injection | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
-| **C2** | 4, 1, 3, 2, 2, 6 | Deep consensus rounds | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
-| **C3** | 7, 2, 2, 2, 2, 4 | Expanded quorum overlap | pending re-run | pending re-run | pending re-run | pending re-run | pending re-run |
+The monolithic sweeps over the full server layer (configurations C1: $N{=}4$, $f{=}1$; C2: deeper rounds; C3: $N{=}7$, $f{=}2$) do not complete, for safety or for liveness, so no row of states, depth and time is reported for them. §9.2.3 gives what was run and §9.4 the status.
 
 **Note:** `MC_ServerRefinementSafety`/`MC_ServerRefinementLiveness` are the full-stack (all four layers + refinement mapping) checks and TLC-only -- Apalache doesn't cover refinement or fairness-liveness properties. In-process runs on this class of check (e.g. the f+1-ablation liveness driver) reached 100M+ states without converging on an 8-core machine; completing the C1/C2/C3 sweep needs dedicated compute -- many-core (32+ vCPU), high-RAM (64GB+), fast local NVMe, and a long-running (multi-hour to multi-day) allocation, not a spot/preemptible instance. Not yet run to completion.
 
@@ -880,9 +864,11 @@ Independent of the C1/C2/C3 full-system/refinement sweep above, each layer's own
 
 | Layer | Config | Key Parameters | States Generated | Distinct States | Depth | Time | Violations |
 | :--- | :--- | :--- | ---: | ---: | ---: | :--- | ---: |
-| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2; numeric certificate observations, 10 workers | 3,772,809 | 537,536 | 25 | 1m01s | 0 |
-| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, RecoveryHysteresisWait=2, DownHysteresisThreshold=2; re-run with the numeric certificate observations, 10 workers | 1,371,377,696 | 4,542,271 | 23 | 10m19s | 0 |
-| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row above; re-run with the numeric certificate observations, 10 workers | 17,986,105 | 31,105 | 23 | 3m45s | 0 |
+| Tendermint (Safety) | `MC_TendermintSafety.{tla,cfg}` | N=4, T=1, MaxRound=2, MaxBTCHeight=10, MaxEngramHeight=10, MaxTimestamp=2, BTCThreshold=4; numeric certificate observations, 10 workers | 3,668,099 | 521,958 | 25 | 1m13s | 0 |
+| FSM (Safety) | `MC_FSMSafety.{tla,cfg}` | SuspiciousThreshold=2, SovereignThreshold=4, RecoveryHysteresisWait=2, DownHysteresisThreshold=2, StableWindow=2; 10 workers (a repeat with 6 workers gave the same counts) | 642,091,376 | 2,126,591 | 16 | 4m50s | 0 |
+| FSM (Liveness) | `MC_FSMLiveness.{tla,cfg}` | Same FSM thresholds as the Safety row; 10 workers | 17,977,073 | 31,105 | 25 | 2m09s | 0 |
+
+Logs: `spec/results_formal/` (`tendermint_safety.log`, `fsm_safety.log`, `fsm_safety_repeat.log`, `fsm_liveness.log`). TLC 2026.04.18 (rev. c45c125) on OpenJDK 11.0.31, Apple M1 Pro (10 cores).
 
 Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no invariant to check (`EngramConsensus.tla`'s `Safety` is a temporal formula, not a predicate -- Layer 1 safety would be established only via `RefinementSafety` in `MC_ServerRefinementSafety`, which is open, per §3.2/§4). `MC_ConsensusLiveness` does have a real property (`PacemakerProgress`) but wasn't run this pass.
 
@@ -894,13 +880,13 @@ Consensus layer intentionally not run standalone: `MC_ConsensusSafety` has no in
 
 | Constants | Invariant | Result | Time |
 | :--- | :--- | :--- | ---: |
-| `ApalacheCInit`: N=4, one Byzantine, `ObsCap`=3 | `AggWithinHonestRange` | No error | 22.0s |
-| `ApalacheCInit_TwoByzantine`: N=4, two Byzantine | `Sanity_AggWithinHonestRange_NoByzantineBound` | Violated at state 0 | 24.6s |
+| `ApalacheCInit`: N=4, one Byzantine, `ObsCap`=3 | `AggWithinHonestRange` | No error | 15s |
+| `ApalacheCInit_TwoByzantine`: N=4, two Byzantine | `Sanity_AggWithinHonestRange_NoByzantineBound` | Violated at state 0 | 14s |
 
 The second row drops the `T` bound on Byzantine members and shows the invariant is not vacuous. Trace: `spec/traces/ablation_agg_no_byzantine_bound.{itf.json,trace.tla}`.
 
 ```bash
-export JAVA_HOME=<path to JDK 17+>
+export JAVA_HOME=<path to JDK 17+>   # run with OpenJDK 21.0.2, Apalache 0.58.3
 export PATH="$JAVA_HOME/bin:$PATH"
 cd spec
 
@@ -940,50 +926,17 @@ To justify each defensive mechanism, we ablate it: a checked-in modified copy of
 
 Each row removes exactly one defensive mechanism and reports the property that catches its absence.
 
-<table>
-  <thead>
-    <tr>
-      <th>Ablated Component</th>
-      <th>Targeted Threat</th>
-      <th>Error Depth</th>
-      <th>Violated Invariant / Property</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Remove Circuit Breaker</td>
-      <td>Withdrawal Leakage</td>
-      <td>2 (Apalache, 66.7s)</td>
-      <td><code>Sanity_NeverAttemptWithdrawalWhileLocked</code></td>
-    </tr>
-    <tr>
-      <td>Remove Hysteresis</td>
-      <td>Premature Re-anchoring</td>
-      <td>6 (Apalache, 117.0s)</td>
-      <td><code>Sanity_NoIllegalHysteresisExit</code></td>
-    </tr>
-    <tr>
-      <td>Remove P2P Health Gate</td>
-      <td>False Recovery Under Eclipse</td>
-      <td>3 (Apalache, 24.2s)</td>
-      <td><code>Sanity_NoIllegalP2PRecovery</code></td>
-    </tr>
-    <tr>
-      <td>Remove DA Consistency</td>
-      <td>Data Withholding</td>
-      <td>2 (Apalache, 63.3s)</td>
-      <td><code>Sanity_NeverProposeWithheldData</code></td>
-    </tr>
-    <tr>
-      <td>Remove f+1 fast-forward</td>
-      <td>Liveness Deadlock</td>
-      <td>4 (TLC, 66s)</td>
-      <td><code>EventualDecisionUnderGSTLiveness</code></td>
-    </tr>
-  </tbody>
-</table>  
+| Ablated component | Targeted threat | Depth | Time | Violated property |
+| :--- | :--- | ---: | ---: | :--- |
+| Circuit breaker | Withdrawal leakage | 5 | 2m03s | `Sanity_NeverAttemptWithdrawalWhileLocked` |
+| Hysteresis | Premature re-anchoring | 9 | 21s | `Sanity_NoIllegalHysteresisExit` |
+| P2P health gate | False recovery under eclipse | 5 | 1s | `Sanity_NoIllegalP2PRecovery` |
+| DA consistency | Data withholding | 3 | 4s | `Sanity_NeverProposeWithheldData` |
+| DA backfill gate | Exit from `RECOVERING` before the interval's data is republished | 10 | 49s | `Sanity_NoIllegalBackfillExit` |
 
-Four of five used Apalache's bounded SMT search; the f+1 fast-forward ablation is liveness-only and stays TLC-only.
+All five are TLC runs (breadth-first, so each counterexample is the shortest trace) on the current specification; the depth is the length of the trace. The counterexamples are in `spec/traces/ablation_no_*.tlc.json` and the logs in `spec/results_formal/ablation_*.log`. The circuit-breaker and DA-consistency rows run on the specification in which a proposer validates against the certificate it has just built (`IsValidProposalIn`, `InsertProposalWith`). An earlier version of the specification (3 August) was also checked with Apalache, which reached the same four violations at depth 2 (66.7s), 6 (117.0s), 3 (24.2s) and 2 (34.5s); on the current specification Apalache's SMT backend returns `unknown` at depth 2 for the hysteresis and P2P rows.
+
+The $f{+}1$ fast-forward ablation (`EventualDecisionUnderGSTLiveness`) is a liveness property. An earlier run reported a counterexample at depth 4, which §9.3.2 D flags as unreliable; on the current specification the run has not completed (best run: depth 12, 69,408,583 states generated, 828,673 distinct, no violation), so it is not part of the safety table.
 
 #### 9.3.2. Deep-Dive Trace Analysis
 
@@ -1140,6 +1093,22 @@ sequenceDiagram
 ```
 
 * **Why it matters:** eclipsing a proposer can't fabricate consensus-relevant state — every honest node recomputes `CalculateNextFSMState` from its own view, not the proposer's. The rejection is structural (`IsValidProposal`'s `fsm_state` condition, `EngramTendermint.tla:296`), not merely unobserved within Check 2's reached depth.
+
+### 9.4. Verification status
+
+| Item | Status | Detail |
+| :--- | :--- | :--- |
+| Tendermint, FSM safety and liveness (§9.2.1) | Complete, 0 violations | Largest run 2,126,591 distinct states |
+| Ablations: circuit breaker, hysteresis, P2P gate, DA consistency, DA backfill (§9.3.1) | Complete, violation reproduced in all five | TLC, traces in `spec/traces/` |
+| Lemma 1, numeric certificate (§9.2.2) | Holds at N=4, f=1 (15s); control with two Byzantine violates (14s) | Apalache |
+| C1 refinement, environment part | Complete, 0 violations | 17,500 distinct states, depth 10, 10m35s |
+| C1 refinement, consensus-core part | Not completed | 1h41m, 19,848,141 distinct states, depth 15, 0 violations; three smaller configurations reached no decision in 25 to 67 minutes (7 to 30 million states) |
+| C1 existence checks, bound L0 (one round, one height, three timestamps) | Round change and Byzantine proposal reached in seconds; two honest prevotes for one proposal at depth 5; lock, decision and the FSM transition that only a decision commits not reached | Full L0 space: 15.3 billion states generated, 249 million distinct, depth 12 after 6h47m, queue growing; logs in `spec/results_formal/c1/` |
+| C1 inductive step with Apalache | Base case holds (about 4 minutes); step obligation not reached | The check that initial states map to abstract initial states needs a set filter over a powerset, which Apalache does not implement |
+| Consensus liveness after GST (`MC_ServerRefinementLiveness`, AfterGST) | Not completed | 4h19m, depth 7, about ten million states |
+| $f{+}1$ fast-forward ablation | Not completed on the current specification | Best run: depth 12, 69,408,583 states generated, 828,673 distinct, no violation |
+
+Nothing in this table is a proof of the composed system: the refinement of the server layer to the abstract consensus object (C1) is open, and no consensus-liveness result is claimed.
 
 ## References
 
