@@ -1,0 +1,13 @@
+{
+ "label": "continuous_t2",
+ "arm": "continuous",
+ "hold_min": 25.0,
+ "t_start": 1791650009.787931,
+ "t_pause": 1791650010.253474,
+ "t_sovereign": 1791650126.600638,
+ "reached_sovereign": true,
+ "t_release": 1791651627.207094,
+ "recovered_to_anchored": true,
+ "t_end": 1791651773.907138,
+ "recovery_s": 146.70004415512085
+}

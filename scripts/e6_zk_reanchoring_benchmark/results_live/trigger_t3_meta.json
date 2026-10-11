@@ -1,0 +1,13 @@
+{
+ "label": "trigger_t3",
+ "arm": "trigger",
+ "hold_min": 25.0,
+ "t_start": 1791657426.085918,
+ "t_pause": 1791657426.591274,
+ "t_sovereign": 1791657537.406275,
+ "reached_sovereign": true,
+ "t_release": 1791659040.910634,
+ "recovered_to_anchored": true,
+ "t_end": 1791659242.7615418,
+ "recovery_s": 201.8509078025818
+}
