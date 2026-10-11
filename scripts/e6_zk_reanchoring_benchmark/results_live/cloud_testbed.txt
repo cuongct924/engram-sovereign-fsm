@@ -1,0 +1,70 @@
+# Testbed B, recorded 2026-10-11T08:00:50Z
+
+## Hosts
+infra01          us-west-2       infra           8 vCPU, 15 GB, Intel(R) Xeon(R) Platinum 8124M CPU @ 3.00GHz; clock 0.000000451 seconds fast of NTP time
+prover01         us-east-1       prover          4 vCPU, 7 GB, AMD EPYC 9R14; clock 0.000000331 seconds slow of NTP time
+prover-worker01  us-east-1       prover_workers  8 vCPU, 15 GB, AMD EPYC 9R14; clock 0.000005824 seconds fast of NTP time
+prover-worker02  us-east-1       prover_workers  8 vCPU, 15 GB, AMD EPYC 9R14; clock 0.000001190 seconds slow of NTP time
+engram-node01    us-east-2       validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz; clock 0.000002783 seconds slow of NTP time
+engram-node02    us-east-2       validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz; clock 0.000000002 seconds slow of NTP time
+engram-node03    eu-west-1       validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz; clock 0.000001373 seconds fast of NTP time
+engram-node04    eu-west-1       validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz; clock 0.000000308 seconds slow of NTP time
+engram-node05    ap-southeast-1  validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz; clock 0.000000007 seconds slow of NTP time
+engram-node06    ap-southeast-1  validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz; clock 0.000000963 seconds slow of NTP time
+engram-node07    ap-southeast-1  validators      2 vCPU, 7 GB, Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz; clock 0.000006660 seconds fast of NTP time
+
+## Round trips, ms (TCP connect, best of 5)
+from -> to (port, what): ms
+engram-node01 -> engram-node02 (26656, validator P2P): 0
+engram-node01 -> engram-node03 (26656, validator P2P): 77
+engram-node01 -> engram-node04 (26656, validator P2P): 77
+engram-node01 -> engram-node05 (26656, validator P2P): 206
+engram-node01 -> engram-node06 (26656, validator P2P): 202
+engram-node01 -> engram-node07 (26656, validator P2P): 202
+engram-node01 -> infra01 (18443, Bitcoin RPC): 46
+engram-node02 -> engram-node01 (26656, validator P2P): 0
+engram-node02 -> engram-node03 (26656, validator P2P): 77
+engram-node02 -> engram-node04 (26656, validator P2P): 77
+engram-node02 -> engram-node05 (26656, validator P2P): 200
+engram-node02 -> engram-node06 (26656, validator P2P): 201
+engram-node02 -> engram-node07 (26656, validator P2P): 206
+engram-node02 -> infra01 (18443, Bitcoin RPC): 47
+engram-node03 -> engram-node01 (26656, validator P2P): 77
+engram-node03 -> engram-node02 (26656, validator P2P): 77
+engram-node03 -> engram-node04 (26656, validator P2P): 0
+engram-node03 -> engram-node05 (26656, validator P2P): 167
+engram-node03 -> engram-node06 (26656, validator P2P): 165
+engram-node03 -> engram-node07 (26656, validator P2P): 165
+engram-node03 -> infra01 (18443, Bitcoin RPC): 116
+engram-node04 -> engram-node01 (26656, validator P2P): 77
+engram-node04 -> engram-node02 (26656, validator P2P): 77
+engram-node04 -> engram-node03 (26656, validator P2P): 0
+engram-node04 -> engram-node05 (26656, validator P2P): 172
+engram-node04 -> engram-node06 (26656, validator P2P): 165
+engram-node04 -> engram-node07 (26656, validator P2P): 166
+engram-node04 -> infra01 (18443, Bitcoin RPC): 115
+engram-node05 -> engram-node01 (26656, validator P2P): 206
+engram-node05 -> engram-node02 (26656, validator P2P): 206
+engram-node05 -> engram-node03 (26656, validator P2P): 165
+engram-node05 -> engram-node04 (26656, validator P2P): 166
+engram-node05 -> engram-node06 (26656, validator P2P): 0
+engram-node05 -> engram-node07 (26656, validator P2P): 0
+engram-node05 -> infra01 (18443, Bitcoin RPC): 173
+engram-node06 -> engram-node01 (26656, validator P2P): 200
+engram-node06 -> engram-node02 (26656, validator P2P): 206
+engram-node06 -> engram-node03 (26656, validator P2P): 164
+engram-node06 -> engram-node04 (26656, validator P2P): 163
+engram-node06 -> engram-node05 (26656, validator P2P): 0
+engram-node06 -> engram-node07 (26656, validator P2P): 0
+engram-node06 -> infra01 (18443, Bitcoin RPC): 172
+engram-node07 -> engram-node01 (26656, validator P2P): 207
+engram-node07 -> engram-node02 (26656, validator P2P): 200
+engram-node07 -> engram-node03 (26656, validator P2P): 173
+engram-node07 -> engram-node04 (26656, validator P2P): 165
+engram-node07 -> engram-node05 (26656, validator P2P): 0
+engram-node07 -> engram-node06 (26656, validator P2P): 0
+engram-node07 -> infra01 (18443, Bitcoin RPC): 172
+prover01 -> engram-node01 (26657, node01 RPC): 12
+prover01 -> infra01 (26657, celestia-app RPC): 57
+prover01 -> prover-worker01 (22, worker SSH): 0
+prover01 -> prover-worker02 (22, worker SSH): 0

@@ -1,0 +1,118 @@
+[08:06:44] check 9: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:06:47] check 10: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:06:50] check 11: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:06:53] check 12: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:06:56] check 13: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:00] check 14: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:03] check 15: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:06] check 16: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:09] check 17: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:12] check 18: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:15] check 19: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:18] check 20: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:21] check 21: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:24] check 22: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:27] check 23: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:30] check 24: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:33] check 25: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:36] check 26: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:40] check 27: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:43] check 28: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:46] check 29: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:49] check 30: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:52] check 31: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:55] check 32: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:07:58] check 33: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:01] check 34: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:04] check 35: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:07] check 36: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:10] check 37: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:13] check 38: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:16] check 39: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:19] check 40: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:22] check 41: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:25] check 42: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:28] check 43: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:32] check 44: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:35] check 45: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:38] check 46: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:41] check 47: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:44] check 48: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:47] check 49: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:50] check 50: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:53] check 51: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:56] check 52: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:08:59] check 53: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:03] check 54: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:06] check 55: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:09] check 56: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:12] check 57: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:15] check 58: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:18] check 59: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:21] check 60: 1 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:24] check 61: 2 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:27] check 62: 3 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:30] check 63: 5 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:33] check 64: 6 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:36] check 65: 7 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:39] check 66: 8 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:43] check 67: 10 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:46] check 68: 11 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:49] check 69: 12 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:52] check 70: 13 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:55] check 71: 15 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:58] check 72: 16 headers beyond -1, in flight 0, submitted 0, failed 0
+[08:09:58] segment 1 started (follows the chain's checkpoint)
+PROOFLOG,1791706198,16,326,341,16,341,374,0,0,71,6,2,79,1,0,ubuntu@172.31.2.243
+[08:11:19] check 99: 33 headers beyond -1, in flight 0, submitted 1, failed 0
+[08:11:19] segment 2 started (follows the chain's checkpoint)
+PROOFLOG,1791706279,33,342,374,33,374,405,0,0,71,0,3,74,2,0,ubuntu@172.31.2.243
+[08:12:34] check 124: 31 headers beyond -1, in flight 0, submitted 2, failed 0
+[08:12:34] segment 3 started (follows the chain's checkpoint)
+PROOFLOG,1791706354,31,375,405,31,405,439,0,0,71,6,4,81,3,0,ubuntu@172.31.2.243
+[08:13:55] check 151: 34 headers beyond -1, in flight 0, submitted 3, failed 0
+[08:13:55] segment 4 started (follows the chain's checkpoint)
+PROOFLOG,1791706435,34,406,439,34,439,470,0,1,70,0,4,75,4,0,ubuntu@172.31.2.243
+[08:15:10] check 176: 31 headers beyond -1, in flight 0, submitted 4, failed 0
+[08:15:10] segment 5 started (follows the chain's checkpoint)
+PROOFLOG,1791706510,31,440,470,31,470,502,1,0,70,3,3,77,5,0,ubuntu@172.31.2.243
+[08:16:28] check 202: 32 headers beyond -1, in flight 0, submitted 5, failed 0
+[08:16:28] segment 6 started (follows the chain's checkpoint)
+PROOFLOG,1791706588,32,471,502,32,502,533,1,0,69,0,4,74,6,0,ubuntu@172.31.2.243
+[08:17:44] check 227: 31 headers beyond -1, in flight 0, submitted 6, failed 0
+[08:17:44] segment 7 started (follows the chain's checkpoint)
+PROOFLOG,1791706664,31,503,533,31,533,567,0,0,71,6,4,81,7,0,ubuntu@172.31.2.243
+[08:19:08] check 255: 35 headers beyond -1, in flight 0, submitted 7, failed 0
+[08:19:08] segment 8 started (follows the chain's checkpoint)
+PROOFLOG,1791706748,35,534,568,35,568,598,0,0,70,0,3,73,8,0,ubuntu@172.31.2.243
+[08:20:23] check 280: 30 headers beyond -1, in flight 0, submitted 8, failed 0
+[08:20:23] segment 9 started (follows the chain's checkpoint)
+PROOFLOG,1791706823,30,569,598,30,598,633,0,0,72,9,2,83,9,0,ubuntu@172.31.2.243
+[08:21:47] check 308: 35 headers beyond -1, in flight 0, submitted 9, failed 0
+[08:21:47] segment 10 started (follows the chain's checkpoint)
+PROOFLOG,1791706907,35,599,633,35,633,664,0,0,72,0,2,74,10,0,ubuntu@172.31.2.243
+[08:23:02] check 333: 31 headers beyond -1, in flight 0, submitted 10, failed 0
+[08:23:02] segment 11 started (follows the chain's checkpoint)
+PROOFLOG,1791706982,31,634,664,31,664,698,0,1,70,6,4,81,11,0,ubuntu@172.31.2.243
+[08:24:26] check 361: 35 headers beyond -1, in flight 0, submitted 11, failed 0
+[08:24:26] segment 12 started (follows the chain's checkpoint)
+PROOFLOG,1791707066,35,665,699,35,699,727,0,0,71,0,2,73,12,0,ubuntu@172.31.2.243
+[08:25:41] check 386: 28 headers beyond -1, in flight 0, submitted 12, failed 0
+[08:25:41] segment 13 started (follows the chain's checkpoint)
+[08:26:59] segment 13 failed (submission rejected: engramd tx-submit-recovery-proof: exit status 1: Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof
+Usage:
+  engramd tx-submit-recovery-proof [flags]
+
+Flags:
+      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see publish-recovery-witness)
+  -h, --help                   help for tx-submit-recovery-proof
+      --node string            CometBFT RPC endpoint (default "http://127.0.0.1:26657")
+      --proof string           path to the bb-generated proof file (required)
+      --public-inputs string   path to the bb-generated public_inputs file (required)
+
+Global Flags:
+      --home string   node home directory (default "/root/.engramd")
+
+rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof): stopping the later ones and restarting from the chain's checkpoint
+[08:26:59] check 412: 0 headers beyond -1, in flight 0, submitted 12, failed 1
+[08:27:02] check 413: 0 headers beyond -1, in flight 0, submitted 12, failed 1
