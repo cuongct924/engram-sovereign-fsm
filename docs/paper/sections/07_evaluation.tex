@@ -334,6 +334,14 @@ after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
 $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
+We then ran the sequence five times on the cloud testbed (Testbed~B, Appendix~\ref{app:setup}): seven validators in three
+regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain started from
+\textsc{Anchored}. In all five runs the height advanced throughout (from 151--188 to 250--290), the validators agreed on the AppHash at every
+sampled height (zero divergent heights; 13--29 RPC errors per run, timeouts of the sampler over the wide-area links), and the chain ended in
+\textsc{Anchored}. It reached \textsc{Sovereign} 245--293\,s after the start (mean 274.5\,s, 95\% CI $\pm$24.1\,s, Student $t$), and
+\textsc{Recovering} began 336--356\,s in (mean 342.1\,s, $\pm$9.6\,s) and lasted 77--104\,s (mean 95.2\,s, $\pm$13.8\,s), against 233--257\,s on
+Testbed~A. Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
+the chain returned to \textsc{Anchored}. The two testbeds differ in block rate and in how the sensors see the faults, so their times are not pooled.
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
 through seven sequential scenarios (Table~\ref{tab:schedule}): S1 healthy
@@ -470,20 +478,16 @@ consensus alone. No block of these intervals was committed in a round other than
 with the bound of 128; the first composite run, the seven-scenario runs and the
 data-availability runs used the fallback.
 \textbf{The prover on Testbed~B.} The proving experiment was repeated on the cloud testbed
-(Appendix~\ref{app:setup}), with the prover host handing each proof to one worker
-machine, and in a second run to two, each building one proof at a time. These two runs used the defaults of
-the code (a tail bound of 8 and the heuristic fallback allowed), because the deployment did not yet carry the
-parameters of Table~\ref{tab:fsm-params}; they therefore measure the prover, the tail it leaves and the time of a proof, and say nothing
-about a proof-gated recovery, whose repetition with the paper's parameters is pending. A run held the chain in
-\textsc{Sovereign} for 15 minutes by suspending checkpoint submission and released it; it is one run per setting. The block rate was \resCloudRate\,blocks/s,
-and a proof took 77\,s with one worker and 76\,s with two from its start to its accepted
-submission (12 and 23 proofs accepted; with one worker, one more proof, still in flight when the chain returned to
-\textsc{Anchored}, was rejected because the interval had ended; no proof waited for the previous one to be accepted).
-The unproven tail had a 95th percentile of \resCloudTailOne{} blocks with one worker (maximum 64) and
-\resCloudTailTwo{} with two (maximum 50), below the bound of 128 of the other runs. The figures follow $rL(1+1/N)$ (Section~\ref{sec:discussion}), which gives 63 and 47 blocks
-for the measured rate and latency. They are not comparable in blocks with the Testbed~A runs above,
-whose block rate was about twice as high; in time the tail was about 150\,s and 117\,s.
-\pending{the same runs repeated with the paper's parameters (tail bound 128, proof-only recovery), with the share of time the recovery gate is open and the time in \textsc{Recovering}; the five composite runs on the multi-host cluster with two workers, and the load level, next to the Testbed~A figures (never pooled).}
+(Appendix~\ref{app:setup}) with the paper's parameters (Table~\ref{tab:fsm-params}): proof-only recovery and a tail bound of 128. The
+prover host handed each proof to one of $N$ worker machines, each building one proof at a time, for $N{=}1,2,3,4$.
+A run held the chain in \textsc{Sovereign} for 15 minutes by suspending checkpoint submission and released it; it is one run per
+setting. The block rate was \resCloudRate\,blocks/s, and a proof took 76--77\,s from its start to its accepted submission
+(12, 22, 23 and 23 proofs accepted). The unproven tail had a 95th percentile of \resCloudTailOne{}, \resCloudTailTwo{}, 47 and 46 blocks
+for one to four workers (maxima 63, 49, 52 and 51). The gate was open for 100\% of the samples at the bound of 128 and at 64 in every run;
+at 32 it was open for 4--12\% and at 8 for none. The chain returned to \textsc{Anchored} on a verified proof 89--100\,s after the release.
+With one and two workers the figures follow $rL(1+1/N)$ (Section~\ref{sec:discussion}), which gives 63 and 47 blocks
+for the measured rate and latency; with three and four they stay at the value for two, as Section~\ref{sec:discussion} explains.
+They are not comparable in blocks with the Testbed~A runs above, whose block rate was about twice as high.
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} The exit
 condition of Section~\ref{subsec:reanchoring} requires the interval's block
@@ -733,3 +737,12 @@ values do not transfer to separate machines, and one host does not support a
 claim about production throughput or scalability. The 5000\,ms bound was set
 through the environment of that deployment, whose genesis we did not keep; the
 first Engram arm did not record the FSM state.
+
+\textbf{Load on separate machines.} On Testbed~B, where each validator has its own machine, we offered 100\,tx/s for 60\,s to Engram and
+to vanilla CometBFT on three freshly deployed clusters each, with the load generator on the operator's machine, outside the cloud (its round trip to
+the validators adds to the latency of both arms alike). Both committed every offered transaction and neither saturated; the busiest validator
+used 28\% of its CPU for Engram and 23\% for vanilla. Engram's block interval was $2.78 \pm 0.15$\,s against $1.44 \pm 0.02$\,s, and the median, 95th and
+99th percentile latencies were $3.96 \pm 0.41$, $5.49 \pm 0.81$ and $6.08 \pm 0.79$\,s against $2.83 \pm 0.12$, $3.78 \pm 0.25$ and
+$4.06 \pm 0.39$\,s (mean $\pm$ 95\% Student-$t$ interval over the three deployments, one 60\,s measurement each). The intervals of the two systems do not overlap,
+so the cost of the extension is larger on the wide-area network than the single-host figures suggest. CPU does not explain it. The extra round of vote extensions
+in each block is a candidate, which these runs do not isolate. We did not record the FSM state during these measurements and do not report how long the chain stayed in \textsc{Anchored}.
