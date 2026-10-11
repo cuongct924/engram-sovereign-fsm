@@ -40,6 +40,13 @@
     creates: "{{ generated_dir }}/testnet-data/engram-node01/config/genesis.json"
   environment: "{{ engram_params | default({}) | combine({'ENGRAM_PARAM_NOOP': ''}) }}"
 
+# The prover host reaches its workers over SSH with a key made for this deployment only; the public half goes to the workers.
+- name: Create the key the prover host uses to reach its workers
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C engram-prover-workers -f {{ generated_dir }}/prover_ssh_key
+    creates: "{{ generated_dir }}/prover_ssh_key"
+  when: groups['prover_workers'] | default([]) | length > 0
+
 # The hosts build nothing; the infra host only runs three helper scripts from the repository.
 - name: Archive the helper scripts the infra host runs
   ansible.builtin.shell: |

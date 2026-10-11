@@ -9,7 +9,7 @@
   tags: [prepare]
 
 - name: Base setup (Docker, time sync, firewall, sources)
-  hosts: infra:validators:prover
+  hosts: infra:validators:prover:prover_workers
   become: true
   roles: [common]
   tags: [common]
@@ -50,6 +50,14 @@
         name: infra
         tasks_from: prover
       when: prover_enabled | bool and prover_on_infra | bool
+  tags: [prover]
+
+- name: Proving workers (each proves one segment at a time for the prover host)
+  hosts: prover_workers
+  become: true
+  roles:
+    - role: prover_worker
+      when: prover_enabled | bool
   tags: [prover]
 
 - name: Prover host (own Celestia bridge and the ZK prover; needs validator RPC to be up)

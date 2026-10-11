@@ -47,8 +47,19 @@ def render(inv: dict) -> str:
             "      hosts:",
             f"        {inv['prover']['name']}:",
             f"          ansible_host: {inv['prover']['ip']}",
+            f"          private_ip: {inv['prover']['private_ip']}",
             f"          region: {inv['prover']['region']}",
         ]
+    workers = inv.get("prover_workers") or []
+    if workers:
+        lines += ["    prover_workers:", "      hosts:"]
+        for w in workers:
+            lines += [
+                f"        {w['name']}:",
+                f"          ansible_host: {w['ip']}",
+                f"          private_ip: {w['private_ip']}",
+                f"          region: {w['region']}",
+            ]
     lines += [
         "    validators:",
         "      hosts:",

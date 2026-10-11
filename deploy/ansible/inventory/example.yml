@@ -19,6 +19,12 @@ all:
       hosts:
         prover01:
           ansible_host: 203.0.113.18
+    # Optional: proving workers (>= 16 GB RAM each). With them the prover host only prepares and submits proofs and each worker proves one at a time.
+    prover_workers:
+      hosts:
+        prover-worker01:
+          ansible_host: 203.0.113.19
+          private_ip: 10.0.0.19
     validators:
       hosts:
         engram-node01: {ansible_host: 203.0.113.11, node_index: 1}

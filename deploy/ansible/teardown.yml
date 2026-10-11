@@ -3,7 +3,7 @@
 # genesis. Run with -e wipe_generated=true to also delete the controller's generated genesis/keys
 # (required before a new deploy; keeping them with wiped hosts reuses stale validator state).
 - name: Wipe hosts
-  hosts: infra:validators:prover
+  hosts: infra:validators:prover:prover_workers
   become: true
   tasks:
     - name: Stop and remove containers and volumes

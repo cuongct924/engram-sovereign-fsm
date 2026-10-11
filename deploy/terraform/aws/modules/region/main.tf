@@ -67,6 +67,13 @@ resource "aws_security_group" "this" {
       cidr_blocks = ["0.0.0.0/0"]
     }
   }
+  # Hosts of the same security group reach each other over SSH on their private addresses (the prover host hands proofs to its workers).
+  ingress {
+    from_port = 22
+    to_port   = 22
+    protocol  = "tcp"
+    self      = true
+  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -91,4 +98,8 @@ resource "aws_instance" "vm" {
 
 output "ips" {
   value = { for k, v in aws_instance.vm : k => v.public_ip }
+}
+
+output "private_ips" {
+  value = { for k, v in aws_instance.vm : k => v.private_ip }
 }

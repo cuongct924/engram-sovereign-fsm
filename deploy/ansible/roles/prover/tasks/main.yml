@@ -13,6 +13,14 @@
     dest: "{{ remote_base }}/prover/docker-compose.yml"
     mode: "0600"
 
+- name: Install the key that reaches the workers
+  ansible.builtin.copy:
+    src: "{{ generated_dir }}/prover_ssh_key"
+    dest: "{{ remote_base }}/prover/worker_key"
+    mode: "0600"
+  when: prover_workers_hosts | length > 0
+  no_log: true
+
 - name: Start the prover's Celestia bridge
   ansible.builtin.command:
     cmd: docker compose up -d celestia-bridge

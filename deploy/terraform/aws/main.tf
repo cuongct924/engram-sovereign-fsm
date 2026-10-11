@@ -67,7 +67,18 @@ variable "prover_dedicated" {
 
 variable "prover_instance_type" {
   type    = string
-  default = "c5.2xlarge" # 8 vCPU / 16 GB: one proof peaks at about 7.5 GB, and nargo execute is single-threaded
+  default = "c7a.2xlarge" # 8 vCPU / 16 GB: one proof peaks at about 7.5 GB and nargo execute is single-threaded, so the fastest single core wins (a proof takes 65 s here, 111 s on a c5.2xlarge)
+}
+
+variable "prover_workers" {
+  type        = number
+  default     = 0
+  description = "Number of proving workers. With 0 the prover host proves by itself, one proof at a time. With N the prover host only prepares and submits proofs and hands each proof to a worker, so N proofs are in flight; every worker is in the infra slot."
+}
+
+variable "prover_worker_instance_type" {
+  type    = string
+  default = "c7a.2xlarge"
 }
 
 provider "aws" {
@@ -88,6 +99,9 @@ locals {
   vms = merge(
     { infra01 = { slot = var.infra_slot, instance_type = var.infra_instance_type, volume_gb = 100 } },
     var.prover_dedicated ? { prover01 = { slot = var.infra_slot, instance_type = var.prover_instance_type, volume_gb = 40 } } : {},
+    { for i in range(var.prover_workers) :
+      format("prover-worker%02d", i + 1) => { slot = var.infra_slot, instance_type = var.prover_worker_instance_type, volume_gb = 40 }
+    },
     { for i, s in var.validator_slots :
       format("engram-node%02d", i + 1) => { slot = s, instance_type = var.validator_instance_type, volume_gb = 40 }
     },
@@ -128,7 +142,8 @@ module "r3" {
 }
 
 locals {
-  ips = merge(module.r1.ips, module.r2.ips, module.r3.ips)
+  ips         = merge(module.r1.ips, module.r2.ips, module.r3.ips)
+  private_ips = merge(module.r1.private_ips, module.r2.private_ips, module.r3.private_ips)
 }
 
 output "inventory" {
@@ -136,7 +151,15 @@ output "inventory" {
   value = {
     ssh_user = "ubuntu"
     infra    = { name = "infra01", ip = local.ips["infra01"], region = var.regions[var.infra_slot] }
-    prover   = var.prover_dedicated ? { name = "prover01", ip = local.ips["prover01"], region = var.regions[var.infra_slot] } : null
+    prover   = var.prover_dedicated ? { name = "prover01", ip = local.ips["prover01"], private_ip = local.private_ips["prover01"], region = var.regions[var.infra_slot] } : null
+    prover_workers = [
+      for i in range(var.prover_workers) : {
+        name       = format("prover-worker%02d", i + 1)
+        ip         = local.ips[format("prover-worker%02d", i + 1)]
+        private_ip = local.private_ips[format("prover-worker%02d", i + 1)]
+        region     = var.regions[var.infra_slot]
+      }
+    ]
     validators = [
       for i, s in var.validator_slots : {
         name   = format("engram-node%02d", i + 1)

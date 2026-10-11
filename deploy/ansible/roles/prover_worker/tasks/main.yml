@@ -1,0 +1,19 @@
+---
+# A proving worker: Docker, the prover image, and the prover host's SSH key. It runs one proof at a time, started by the prover host
+# (scripts/reanchoring_prover/prove_segment.sh) with `docker run ... worker_prove.sh`.
+- name: Let the SSH user run Docker
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+- name: Authorise the prover host's key
+  ansible.builtin.lineinfile:
+    path: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+    line: "{{ lookup('file', generated_dir + '/prover_ssh_key.pub') }}"
+    create: false
+
+- name: Pull the prover image
+  ansible.builtin.command:
+    cmd: docker pull {{ prover_image }}
+  changed_when: false

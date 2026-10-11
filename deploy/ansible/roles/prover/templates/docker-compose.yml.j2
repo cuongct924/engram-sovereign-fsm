@@ -43,14 +43,23 @@ services:
     depends_on:
       celestia-bridge:
         condition: service_healthy
+{% if prover_workers_hosts | length > 0 %}
+    volumes:
+      - {{ remote_base }}/prover/worker_key:/run/worker_key:ro
+{% endif %}
     environment:
       - NODE_URL=http://{{ (groups['validators'] | map('extract', hostvars) | sort(attribute='node_index') | first).ansible_host }}:26657
       - POLL_INTERVAL_S=3
       - CONTINUOUS={{ 1 if prover_continuous | bool else 0 }}
       - MIN_BATCH={{ prover_min_batch }}
-      - PIPELINE={{ 1 if prover_pipeline | bool else 0 }}
-      - PROVERS={{ prover_provers }}
-      - STAGGER_S={{ (prover_stagger_s | default(30)) }}
+      - PIPELINE={{ 1 if (prover_pipeline | bool or prover_workers_hosts | length > 0) else 0 }}
+      - PROVERS={{ prover_workers_hosts | length if prover_workers_hosts | length > 0 else prover_provers }}
+      - L_EST_S={{ prover_expected_seconds }}
+{% if prover_workers_hosts | length > 0 %}
+      - WORKERS={{ prover_workers_hosts | map('regex_replace', '^', ansible_user ~ '@') | join(' ') }}
+      - WORKER_KEY=/run/worker_key
+      - WORKER_IMAGE={{ prover_image }}
+{% endif %}
       - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN:-}
 
