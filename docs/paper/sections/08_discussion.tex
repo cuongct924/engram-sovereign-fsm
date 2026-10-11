@@ -147,25 +147,7 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
 \end{tabular}
 \end{table}
 
-\textbf{Unexpected results.} Three results need a causal account.
-\begin{itemize}
-  \item \emph{Block rate.} Against a single local vanilla process, Engram's
-  block interval is longer. Seven vanilla validators on the same hosts give the same interval,
-  with vote extensions on or off, so the gap is the cost of the
-  seven-validator network and Engram's own addition is \resOverheadPct{} (95\% interval
-  \resOverheadCI{} over 20 paired deployments; Section~\ref{subsec:rq4}).
-  \item \emph{Hysteresis threshold.} A static threshold of 2 flapped under
-  wide-area jitter (9.0 flaps per validator), and thresholds of 4, 6 and 8 did
-  not (Section~\ref{subsec:rq3}; three runs for 2 and 6, one for 4 and 8). We
-  did not isolate which sensor crosses its threshold; a run with the jitter
-  profile removed, and per-predicate logging, would show it.
-  \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
-  without a reaction, while depth 15 escalated through the
-  suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the
-  anchor-reverification flag was ever set is not established, because the
-  per-validator sensor value was not captured; logging it and sweeping depths
-  6--14 would locate the boundary.
-\end{itemize}
+The three results that need a causal account are discussed in Appendix~\ref{app:extended}.
 
 \subsection{Limitations}
 \label{subsec:limitations}
@@ -237,12 +219,7 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
 \subsection{Threats to Validity}
 \label{subsec:sim-to-real}
 
-\textbf{Internal validity.} Host sharing can confound cost measurements.
-Repeated measurements with confidence intervals, and a vanilla comparison on
-the same host under the same load, mitigate this; the host still affects
-absolute values.
-
-The four properties by which the testbed limits the transfer of its results are in Appendix~\ref{app:extended}.
+Internal validity: host sharing can confound the cost measurements on Testbed~A; the controls are in Appendix~\ref{app:extended}.
 
 \textbf{External validity.} Results at seven validators on one host, and the fewer runs on seven machines in three regions, need not
 extrapolate to larger validator sets or other networks; they are

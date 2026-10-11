@@ -100,49 +100,7 @@ The target property is: under partial synchrony and an $f$-bounded
 adversary, no two honest validators commit conflicting blocks or conflicting
 FSM states, and any such conflict implies double-signing evidence.
 
-\textbf{Safety versus liveness.} We follow the separation of concerns of
-LiDO~\cite{qiu2024lido}, which verifies Jolteon in Coq; our tools and our
-liveness encoding differ. In LiDO, safety is a property of an abstract object
-that transfers to a protocol through a refinement mapping. The premise that makes
-the abstract object safe is \emph{QuorumOverlap}: any two valid quorums share at
-least one honest validator. We call it the linking invariant; with honest
-validators' refusal to sign conflicting votes it prevents two conflicting
-decisions, and with equal voting power it follows from $n \ge 3f{+}1$. It is a
-\emph{safety} premise and does not establish liveness. That the composed server
-layer refines the abstract object, i.e.\ that the mapping preserves the invariant
-at every step, is the open obligation C1 of Section~\ref{subsec:verification-scope}.
-
-Liveness is argued separately. LiDO obtains it by adding a pacemaker to the
-abstract object and stating the liveness requirements as properties of
-bounded time segments, under a single GST. Our specification expresses the
-same kinds of requirement as TLA+ fairness hypotheses that TLC takes as given.
-It models GST as in partial synchrony: a predicate \texttt{AfterGST} on the
-model's real time, which never decreases, so that once GST has passed it stays
-passed. The predicate concerns the network only; it does not mention the FSM
-state or the peripheral layers, so the specified liveness property covers every
-FSM state, \textsc{Sovereign} included. Four hypotheses carry the argument: the
-consensus layer relies on the first three, which correspond to LiDO's pacemaker
-and leader requirements, and the fourth, FSM progress, concerns the FSM layer and
-has no counterpart in LiDO. They are:
-\begin{itemize}
-  \item \emph{Partial synchrony:} behaviours reach GST
-  (\texttt{(<>AfterGST) \string~> decided}) and messages between honest
-  validators are delivered (weak fairness on \texttt{Push} and \texttt{Pull}).
-  \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
-  on the $f{+}1$ round-skip (fast-forward) action.
-  \item \emph{Proposer progress:} weak fairness on each honest node's
-  invocation step, so every honest proposer whose round is reached after
-  GST eventually proposes.
-  \item \emph{FSM progress:} weak fairness on the FSM transition and on
-  environment updates, so a persistently healthy (or unhealthy)
-  certificate eventually drives the corresponding transition.
-\end{itemize}
-Only the FSM-layer liveness properties (circuit-breaker liveness, recovery
-initiation, complete re-anchoring) are checked; that layer has no network, so
-they need FSM progress alone and no GST. Consensus liveness after GST is specified
-on the server layer, but its check did not complete (Appendix~\ref{app:formal}),
-so the GST model states our assumptions and is not a verified result for the
-composed system.
+The separation of safety from liveness in the formal model is explained in Appendix~\ref{app:extended}.
 
 
 \subsection{Model-Checked Properties and Attack Resilience}

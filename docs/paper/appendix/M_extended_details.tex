@@ -1246,3 +1246,137 @@ Section~\ref{subsec:threat-model}.
 
 How the server layer models the health certificates is described in Appendix~\ref{app:extended}.
 
+\subsection*{Formal analysis: safety versus liveness}
+
+\textbf{Safety versus liveness.} We follow the separation of concerns of
+LiDO~\cite{qiu2024lido}, which verifies Jolteon in Coq; our tools and our
+liveness encoding differ. In LiDO, safety is a property of an abstract object
+that transfers to a protocol through a refinement mapping. The premise that makes
+the abstract object safe is \emph{QuorumOverlap}: any two valid quorums share at
+least one honest validator. We call it the linking invariant; with honest
+validators' refusal to sign conflicting votes it prevents two conflicting
+decisions, and with equal voting power it follows from $n \ge 3f{+}1$. It is a
+\emph{safety} premise and does not establish liveness. That the composed server
+layer refines the abstract object, i.e.\ that the mapping preserves the invariant
+at every step, is the open obligation C1 of Section~\ref{subsec:verification-scope}.
+
+Liveness is argued separately. LiDO obtains it by adding a pacemaker to the
+abstract object and stating the liveness requirements as properties of
+bounded time segments, under a single GST. Our specification expresses the
+same kinds of requirement as TLA+ fairness hypotheses that TLC takes as given.
+It models GST as in partial synchrony: a predicate \texttt{AfterGST} on the
+model's real time, which never decreases, so that once GST has passed it stays
+passed. The predicate concerns the network only; it does not mention the FSM
+state or the peripheral layers, so the specified liveness property covers every
+FSM state, \textsc{Sovereign} included. Four hypotheses carry the argument: the
+consensus layer relies on the first three, which correspond to LiDO's pacemaker
+and leader requirements, and the fourth, FSM progress, concerns the FSM layer and
+has no counterpart in LiDO. They are:
+\begin{itemize}
+  \item \emph{Partial synchrony:} behaviours reach GST
+  (\texttt{(<>AfterGST) \string~> decided}) and messages between honest
+  validators are delivered (weak fairness on \texttt{Push} and \texttt{Pull}).
+  \item \emph{Timeout progress:} weak fairness on round-timeout expiry and
+  on the $f{+}1$ round-skip (fast-forward) action.
+  \item \emph{Proposer progress:} weak fairness on each honest node's
+  invocation step, so every honest proposer whose round is reached after
+  GST eventually proposes.
+  \item \emph{FSM progress:} weak fairness on the FSM transition and on
+  environment updates, so a persistently healthy (or unhealthy)
+  certificate eventually drives the corresponding transition.
+\end{itemize}
+Only the FSM-layer liveness properties (circuit-breaker liveness, recovery
+initiation, complete re-anchoring) are checked; that layer has no network, so
+they need FSM progress alone and no GST. Consensus liveness after GST is specified
+on the server layer, but its check did not complete (Appendix~\ref{app:formal}),
+so the GST model states our assumptions and is not a verified result for the
+composed system.
+
+
+\subsection*{Methodology: terms, metrics and statistics}
+
+\textbf{Terms.} $n$ is the number of validators ($n{=}7$ on the main testbed). A \emph{run} is one execution of a
+scenario; unless stated otherwise it starts from \textsc{Anchored} on a freshly
+deployed chain, so runs are independent deployments, and intervals over runs
+are intervals over deployments. A \emph{repeat} is a further measurement on the
+chain of an earlier one (the repeats of Table~\ref{tab:overhead} share a
+deployment, so their interval describes one chain). An \emph{arm} is one
+system configuration that a table compares with the others. The number of runs
+is written out wherever it matters. Every 95\% interval over runs uses the Student $t$
+critical value for the number of runs (for example 2.78 for five), not 1.96.
+
+Let a run record the FSM state $s_b$ of every block $b$ in a window $W$.
+\begin{itemize}
+  \item \emph{Anchored uptime} $=|\{b\in W : s_b=\textsc{Anchored}\}|/|W|$.
+  In-process, $W$ is the whole recorded timeline: for the noisy
+  environments, the 100 noisy blocks plus the setup blocks that precede them
+  (two for the \textsc{Recovering}$\to$\textsc{Anchored} sweep, one for the
+  others). The no-noise control of that sweep ends at the first
+  \textsc{Anchored} block, so its window is only the setup blocks plus the
+  wait, and its uptime falls as the wait grows. Live, $W$ is the sequence of
+  RPC samples of one validator over a 300\,s window.
+  \item \emph{Flapping count} is the number of transitions that immediately
+  reverse the preceding transition, for example
+  \textsc{Anchored}$\to$\textsc{Suspicious} followed by
+  \textsc{Suspicious}$\to$\textsc{Anchored}, over the same $W$. Live runs
+  detect reversals between consecutive samples, so a reversal faster than
+  the polling interval is not seen.
+  \item \emph{Absorption rate} is $a/(a+d)$, where $a$ is the number of
+  disturbed blocks that begin in \textsc{Anchored} and leave the state
+  unchanged, and $d$ is the number that move it to \textsc{Suspicious}.
+  It is defined only on the \textsc{Anchored}$\to$\textsc{Suspicious} and
+  \textsc{Suspicious}$\to$\textsc{Anchored} sweeps.
+  \item \emph{Blocks/s} $=(h_{\max}-h_{\min})/T$ over a measurement window of
+  length $T$ (60\,s after an 8\,s warm-up in Section~\ref{subsec:rq4}).
+  \emph{Steady blocks/s} $=1/\bar\imath$, where $\bar\imath$ is the mean
+  block interval. \emph{Gap fraction} $=1-n\bar\imath/T$, where $n$ is the
+  number of observed intervals: the share of the window not accounted for
+  by intervals at the steady pace, that is, time spent in heights that took
+  longer than one interval.
+\end{itemize}
+
+
+\subsection*{Discussion and evaluation: unexpected results, internal validity and function-level checks}
+
+\textbf{Function-level checks.} The testbed and the TLA+ model give every
+validator the same power, so a defect that confuses weight with count would not
+appear in any live run. We therefore tested the weighted aggregation alone on three
+unequal weight vectors and on equal weights: it agreed with a reference weighted
+median on 1{,}500 random quorum subsets each, kept the aggregate within the honest
+values whenever the coalition's power was below $W/3$, and escaped it at 34 to 35
+of 100 by omission of honest certificates, so the bound is tight. For $n$ from 4
+to 10, the smallest and largest aggregate over every subset the proposer may choose
+matched the order statistics of Section~\ref{subsec:health-certificate}. This checks
+the implementation of the median and the quorum, not the integration with a genesis
+power assignment, which a live run with unequal power would add
+(Appendix~\ref{app:attacks}).
+
+The peripheral P2P quorum gate and its cascade figure (Fig.~\ref{fig:a4-cascade}) are in Appendix~\ref{app:extended}.
+
+\textbf{Unexpected results.} Three results need a causal account.
+\begin{itemize}
+  \item \emph{Block rate.} Against a single local vanilla process, Engram's
+  block interval is longer. Seven vanilla validators on the same hosts give the same interval,
+  with vote extensions on or off, so the gap is the cost of the
+  seven-validator network and Engram's own addition is \resOverheadPct{} (95\% interval
+  \resOverheadCI{} over 20 paired deployments; Section~\ref{subsec:rq4}).
+  \item \emph{Hysteresis threshold.} A static threshold of 2 flapped under
+  wide-area jitter (9.0 flaps per validator), and thresholds of 4, 6 and 8 did
+  not (Section~\ref{subsec:rq3}; three runs for 2 and 6, one for 4 and 8). We
+  did not isolate which sensor crosses its threshold; a run with the jitter
+  profile removed, and per-predicate logging, would show it.
+  \item \emph{Reorg depth.} Reorgs of depth 3--5 orphaned confirmed blocks
+  without a reaction, while depth 15 escalated through the
+  suspicious-duration bound (Appendix~\ref{app:reorg}). Whether the
+  anchor-reverification flag was ever set is not established, because the
+  per-validator sensor value was not captured; logging it and sweeping depths
+  6--14 would locate the boundary.
+\end{itemize}
+
+\textbf{Internal validity.} Host sharing can confound cost measurements.
+Repeated measurements with confidence intervals, and a vanilla comparison on
+the same host under the same load, mitigate this; the host still affects
+absolute values.
+
+The four properties by which the testbed limits the transfer of its results are in Appendix~\ref{app:extended}.
+

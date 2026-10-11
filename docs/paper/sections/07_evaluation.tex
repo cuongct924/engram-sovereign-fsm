@@ -34,20 +34,7 @@ censorship, a combined attack, double-signing, and timeout flooding).
 
 The analysis of colluding Byzantine validators ($f{=}2$) is in Appendix~\ref{app:extended}; the honest validators agreed on the AppHash at every height in all cases.
 
-\textbf{Function-level checks.} The testbed and the TLA+ model give every
-validator the same power, so a defect that confuses weight with count would not
-appear in any live run. We therefore tested the weighted aggregation alone on three
-unequal weight vectors and on equal weights: it agreed with a reference weighted
-median on 1{,}500 random quorum subsets each, kept the aggregate within the honest
-values whenever the coalition's power was below $W/3$, and escaped it at 34 to 35
-of 100 by omission of honest certificates, so the bound is tight. For $n$ from 4
-to 10, the smallest and largest aggregate over every subset the proposer may choose
-matched the order statistics of Section~\ref{subsec:health-certificate}. This checks
-the implementation of the median and the quorum, not the integration with a genesis
-power assignment, which a live run with unequal power would add
-(Appendix~\ref{app:attacks}).
-
-The peripheral P2P quorum gate and its cascade figure (Fig.~\ref{fig:a4-cascade}) are in Appendix~\ref{app:extended}.
+The function-level checks of the aggregation are in Appendix~\ref{app:extended}.
 
 \subsection{RQ2: Liveness Under Peripheral Degradation}
 \label{subsec:rq2}
