@@ -17,22 +17,34 @@ Contents: [Architecture](#architecture) · [Prerequisites](#prerequisites) · [B
 ## Architecture
 
 ```
-infra01   Bitcoin regtest node + steady miner, celestia-app
-prover01  ZK re-anchoring prover + its own Celestia bridge (own CPU: proving must not compete with Bitcoin or consensus)
+infra01             Bitcoin regtest node + steady miner, celestia-app (the peripheral networks)
+prover01            ZK re-anchoring prover host: prepares the witnesses, submits the proofs in order, own Celestia bridge
+prover-worker01..N  proving workers: each builds one proof at a time (nargo execute and bb prove) for the prover host
 engram-node01..07   engramd + that validator's own Celestia bridge (independent DA observation)
+
+Four regions (slots r1..r4 in the Terraform stack):
+  us-east-1       the prover complex only: prover01 and the workers, no validator
+  us-west-2       infra01 (Bitcoin, celestia-app) and engram-node01, 02
+  eu-west-1       engram-node03, 04
+  ap-southeast-1  engram-node05, 06, 07
 ```
 
 ```mermaid
 flowchart LR
-  subgraph us["us-east-1"]
+  subgraph usE["us-east-1 (prover complex)"]
+    subgraph prover["prover01"]
+      pr["reanchoring-prover<br/>(engramprover)"]
+      pb["celestia bridge"]
+    end
+    subgraph workers["prover-worker01..N"]
+      wk["nargo execute + bb prove,<br/>one proof per worker"]
+    end
+  end
+  subgraph usW["us-west-2"]
     subgraph infra["infra01"]
       btc["bitcoind"]
       miner["steady miner"]
       capp["celestia-app"]
-    end
-    subgraph prover["prover01"]
-      pr["reanchoring-prover"]
-      pb["celestia bridge"]
     end
     subgraph n12["engram-node01, 02"]
       ed12["engramd"]
@@ -64,6 +76,7 @@ flowchart LR
   n567 <-->|"consensus P2P :26656"| n12
   pr -->|"reads node01 RPC :26657,<br/>submits recovery proof tx"| n12
   pr -->|"publishes header chain<br/>to DA"| pb
+  pr -->|"Prover.toml over SSH (private IP),<br/>proof and public inputs back"| wk
 ```
 
 - **Bitcoin.** One regtest `bitcoind` and a steady miner on `infra01` (mining must stay steady, `CLAUDE.md`); every
@@ -74,9 +87,11 @@ flowchart LR
 - **Validators.** One `engramd` per host. The controller generates the genesis and per-node keys (public addresses and
   `engram_params` baked in) and copies only a node's own home to it. P2P uses `ansible_host` addresses; RPC `:26657` is
   open only to `operator_cidrs`, `infra01` and `prover01`.
-- **Prover.** On `prover01`, in the region of `infra01` and `engram-node01` (whose RPC it polls). It builds recovery proofs
-  and submits them as transactions; it is not a validator. Without a `prover` host in the inventory it runs on `infra01`
-  (smaller deployments).
+- **Prover.** `prover01` prepares each segment's witness from `engram-node01`'s RPC, hands the proof to a free worker
+  (`prover-worker01..N`, one proof per worker at a time, over SSH on private addresses) and submits the proofs in order as
+  transactions; it is not a validator. Prover host and workers share the region `us-east-1` so that their hops stay
+  within a data centre. `engram-node01` is in `us-west-2`, the validator nearest to them. Without workers `prover01`
+  proves by itself; without a `prover` host in the inventory the prover runs on `infra01` (smaller deployments).
 - **Controller.** Your machine: builds `engramd` and the genesis, runs the playbooks and the experiment scripts.
 - **Time.** `chrony` on every host; block timestamps are medians of validator clocks.
 
@@ -150,7 +165,7 @@ Everything runs on the controller. Terraform and the AWS CLI share credentials; 
 calls AWS. Regions are the stack defaults (`regions` in `terraform/aws/main.tf`).
 
 ```bash
-export REGIONS="us-east-1 eu-west-1 ap-southeast-1"
+export REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1"
 ```
 
 **1. Account, regions and credentials.** A new "AWS (new)" account starts on the Free plan: one project, one region,
@@ -182,7 +197,7 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 Keys stay in `~/.aws/credentials`, never in the repository.
 
-**2. Regions and instance types.** Every region must offer `m5.large`; the `infra01`/`prover01` region also `c5.2xlarge`. A
+**2. Regions and instance types.** Every region must offer `m5.large`; `infra01` (us-west-2) also `c5.2xlarge`, and the prover complex (us-east-1) `c7a.xlarge` and `c7a.2xlarge`. A
 region disabled by default fails with `AuthFailure` (enable it under Account > AWS Regions); `explicit deny in a service
 control policy` means the region SCP of step 1 is still attached.
 
@@ -195,14 +210,16 @@ done
 ```
 
 **3. vCPU quota.** "Running On-Demand Standard instances" (`L-1216C47A`) is counted per region and must cover the region's
-VMs: 2 vCPU per validator, 8 for `infra01`, 8 for `prover01`. With the default layout: us-east-1 **20** (8 + 8 + 2
-validators), eu-west-1 4, ap-southeast-1 6.
+VMs: 2 vCPU per validator, 8 for `infra01`, 4 for `prover01` (8 when it proves by itself) and 8 per worker. With the default
+layout: us-east-1 `4 + 8N` (N workers: **20** for N=2, 28 for N=3, 36 for N=4), us-west-2 12 (`infra01` and two
+validators), eu-west-1 4, ap-southeast-1 6. A new account starts at 5 vCPU in most regions, so us-east-1 needs a request
+beyond N=2; the other three regions fit the defaults.
 
 ```bash
 for r in $REGIONS; do
   echo -n "$r  "; aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A --region $r --query 'Quota.Value' --output text
 done
-aws service-quotas request-service-quota-increase --service-code ec2 --quota-code L-1216C47A --desired-value 24 --region us-east-1
+aws service-quotas request-service-quota-increase --service-code ec2 --quota-code L-1216C47A --desired-value 36 --region us-east-1
 aws service-quotas list-requested-service-quota-change-history-by-quota --service-code ec2 --quota-code L-1216C47A \
   --region us-east-1 --query 'RequestedQuotas[].[Status,DesiredValue,Created]' --output table
 ```
@@ -243,7 +260,7 @@ terraform apply tfplan
 ../../bin/make-inventory.py .                       # writes ansible/inventory/hosts.yml
 ```
 
-Useful variables: `validator_slots` (placement over `regions`), `infra_slot` (region of `infra01` and `prover01`),
+Useful variables: `validator_slots` (placement over `regions`), `infra_slot` (region of `infra01`), `prover_slot` (region of the prover host and its workers), `prover_workers` (number of workers),
 `prover_dedicated` (`false` runs the prover on `infra01`), and `validator_instance_type`, `infra_instance_type`,
 `prover_instance_type`. Keep `terraform.tfstate`: `destroy` works from it, from this directory on this machine. If your
 public IP changes, edit `operator_cidrs` and apply again.
@@ -259,7 +276,8 @@ done
 ```
 
 **Cost.** At on-demand prices (verify them in the AWS price list; roughly $0.10/h for an `m5.large` and $0.34/h for a
-`c5.2xlarge` in `us-east-1`) the nine hosts cost about $1.4/h before storage and data transfer. A stopped instance still
+`c5.2xlarge` in `us-east-1`; about $0.19/h for a `c7a.xlarge` and $0.41/h for a `c7a.2xlarge`) the seven validators, `infra01`
+and the prover host cost about $1.2/h, and each worker adds about $0.41/h (about $2/h with two workers), before storage and data transfer. A stopped instance still
 bills its volume and public IPv4: destroy rather than stop between sessions.
 
 ```bash
@@ -415,7 +433,7 @@ one Bitcoin/Celestia instance, a dedicated prover host.
 
 | Item | Setting |
 |---|---|
-| Hosts | 7 validators in at least 3 regions, `infra01`, `prover01` |
+| Hosts | 7 validators in 3 regions (us-west-2, eu-west-1, ap-southeast-1), `infra01` in us-west-2, `prover01` and N workers in us-east-1 (four regions in all) |
 | Composite fault | 5 runs, each on a fresh genesis; proof-only recovery, unproven tail 128 blocks. If the prover cannot meet 128, report the bound used; never change it silently |
 | Load | 100 tx/s of small unsigned transactions, Engram against a 7-validator vanilla arm, 3 runs per arm. A load-sensitivity point, not a production workload; 200 tx/s is an optional second point |
 | Single fault | Reported from the composite runs (the lock moment after the DA outage or the checkpoint pause) |
@@ -481,7 +499,7 @@ It does not retry the same failing step more than twice.
 ## Verification status
 
 Checked offline: the three playbooks pass `ansible-playbook --syntax-check`; the compose templates render for `engram` and
-`vanilla`; the firewall rules of all nine hosts evaluate as intended (the prover reaches validator RPC 26657 and
+`vanilla`; the firewall rules of every host evaluate as intended (the prover reaches validator RPC 26657 and
 `celestia-app` 26657/9090 only); `terraform validate` passes and `terraform plan` succeeds; the SSH adapter's command construction and inventory parsing are tested against the example inventory with
 a stubbed `ssh`.
 
