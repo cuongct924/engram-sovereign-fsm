@@ -391,6 +391,9 @@ submit), and the total. The total is `L` on a sequential prover's last line.
 | 65–110 s | 105–175 | the bound of 128 is not safe: report the tail, or redeploy the prover with `-e prover_pipeline=true -e prover_provers=2` (3 or 4 if needed; about 7.5 GB per proof) |
 | > 110 s | > 175 | stop and report; the bound cannot hold |
 
+To change the number of workers in use without redeploying, restart the prover with `ansible-playbook site.yml --tags prover -e prover_worker_limit=N`
+(`0` uses every worker of the inventory); the unused workers stay up and idle, so destroy them when the sweep ends.
+
 The scheduling (one proof per worker, the order of submissions, cancelling and restarting after a failure) is tested without a cloud by
 `go test -race ./internal/prover` (with stand-ins for ssh and the chain), which also runs in CI.
 

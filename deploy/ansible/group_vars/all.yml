@@ -18,7 +18,8 @@ prover_enabled: true           # ZK re-anchoring prover; needs >= 16 GB RAM (one
 prover_on_infra: "{{ groups['prover'] | default([]) | length == 0 }}"
 prover_continuous: true        # true: prove the next segment as soon as the previous proof is submitted (watch_and_prove.sh CONTINUOUS=1)
 prover_min_batch: 16           # headers that must wait before a continuous proof fires
-prover_workers_hosts: "{{ groups['prover_workers'] | default([]) | map('extract', hostvars, 'private_ip') | list }}"
+prover_worker_limit: 0         # use only the first N workers of the inventory (0: all): N is switched without redeploying, see deploy/README.md
+prover_workers_hosts: "{{ (groups['prover_workers'] | default([]) | map('extract', hostvars, 'private_ip') | list)[:(prover_worker_limit | int) or None] }}"
 prover_expected_seconds: 75    # expected seconds from a proof's start to its submission (L); segments start L / workers seconds apart
 prover_pipeline: false         # true: several proofs in flight (cmd/engramprover); each peaks at about 7.5 GB
 prover_provers: 2              # proofs in flight when prover_pipeline is true
