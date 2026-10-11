@@ -24,6 +24,12 @@ EMBEDDED_VK="$REPO_ROOT/x/sovereignty/keeper/zk_assets/vk"
 N_MAX=256
 MIN_BATCH="${MIN_BATCH:-1}"
 BB_THREADS="${BB_THREADS:-0}"
+# WORKERS (space-separated user@host): hand the proof to a worker host instead of proving here. WORKER_KEY is the SSH key and
+# WORKER_IMAGE the prover image the workers run.
+WORKERS="${WORKERS:-}"
+WORKER_KEY="${WORKER_KEY:-/run/worker_key}"
+WORKER_IMAGE="${WORKER_IMAGE:-}"
+WORKER_NAME="local"
 BOUNDARY_RETRIES="${BOUNDARY_RETRIES:-16}"
 WITNESS_PUBLISH_MIN_INTERVAL_S="${WITNESS_PUBLISH_MIN_INTERVAL_S:-120}"
 
@@ -150,14 +156,35 @@ BOUNDARY_TABLES=$(awk 'BEGIN{p=0} /^\[/{p=1} p{print}' "$BOUNDARY_TOML")
   done
 } > "$MAIN/Prover.toml"
 
-(
-  cd "$MAIN" || exit 1
-  nargo execute witness || exit 1
-  mkdir -p target/proof
-  cp "$EMBEDDED_VK" target/proof/vk
-  if [ "$BB_THREADS" -gt 0 ]; then export HARDWARE_CONCURRENCY="$BB_THREADS"; fi
-  bb prove -b target/reanchoring.json -w target/witness.gz -o target/proof -k target/proof/vk
-) >"$WD/prove.log" 2>&1 || { tail -5 "$WD/prove.log" >&2; fail "nargo/bb failed"; }
+if [ -z "$WORKERS" ]; then
+  (
+    cd "$MAIN" || exit 1
+    nargo execute witness || exit 1
+    mkdir -p target/proof
+    cp "$EMBEDDED_VK" target/proof/vk
+    if [ "$BB_THREADS" -gt 0 ]; then export HARDWARE_CONCURRENCY="$BB_THREADS"; fi
+    bb prove -b target/reanchoring.json -w target/witness.gz -o target/proof -k target/proof/vk
+  ) >"$WD/prove.log" 2>&1 || { tail -5 "$WD/prove.log" >&2; fail "nargo/bb failed"; }
+else
+  # Take a free worker (one proof per worker at a time), send it Prover.toml, receive the proof and public inputs.
+  [ -n "$WORKER_IMAGE" ] || fail "WORKERS is set but WORKER_IMAGE is not"
+  mkdir -p "$MAIN/target/proof"
+  WORKER_LOCK=""
+  while [ -z "$WORKER_LOCK" ]; do
+    for w in $WORKERS; do
+      if mkdir "$STATE/lock.${w//[@.]/_}" 2>/dev/null; then WORKER_LOCK="$STATE/lock.${w//[@.]/_}"; WORKER_NAME="$w"; break; fi
+    done
+    [ -n "$WORKER_LOCK" ] || sleep 0.5
+  done
+  trap 'rmdir "$WORKER_LOCK" 2>/dev/null' EXIT
+  ssh -i "$WORKER_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$STATE/known_hosts" \
+      -o ServerAliveInterval=15 "$WORKER_NAME" \
+      "docker run --rm -i --entrypoint /app/scripts/reanchoring_prover/worker_prove.sh $WORKER_IMAGE" \
+      < "$MAIN/Prover.toml" 2>"$WD/prove.log" | tar -x -C "$MAIN/target/proof" \
+    && [ -s "$MAIN/target/proof/proof" ] && [ -s "$MAIN/target/proof/public_inputs" ] \
+    || { tail -5 "$WD/prove.log" >&2; rmdir "$WORKER_LOCK" 2>/dev/null; fail "worker $WORKER_NAME failed"; }
+  rmdir "$WORKER_LOCK" 2>/dev/null
+fi
 T_PROVE=$(date +%s)
 
 # ---- Stage C ----
@@ -204,5 +231,5 @@ T_SUBMIT=$(date +%s)
 
 # Same fields as prove_and_submit.sh (stage columns: boundary, linking, prove, DA publish, submit, total), then the segment id
 # and the seconds this segment waited for its predecessor's submission.
-echo "PROOFLOG,$T0,$COUNT,$(field 1 height),$LAST_REAL_HEIGHT,$TOTAL_N,$TIP_QUERY,$(tip_height),$((T_BOUNDARY-T0)),$((T_WITNESS-T_BOUNDARY)),$((T_PROVE-T_WITNESS)),$((T_DA-T_TURN)),$((T_SUBMIT-T_DA)),$((T_SUBMIT-T0)),$SEG,$((T_TURN-T_PROVE))"
+echo "PROOFLOG,$T0,$COUNT,$(field 1 height),$LAST_REAL_HEIGHT,$TOTAL_N,$TIP_QUERY,$(tip_height),$((T_BOUNDARY-T0)),$((T_WITNESS-T_BOUNDARY)),$((T_PROVE-T_WITNESS)),$((T_DA-T_TURN)),$((T_SUBMIT-T_DA)),$((T_SUBMIT-T0)),$SEG,$((T_TURN-T_PROVE)),$WORKER_NAME"
 rm -rf "$WD"

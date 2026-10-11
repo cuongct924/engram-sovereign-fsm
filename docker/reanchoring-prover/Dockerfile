@@ -28,7 +28,7 @@ FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates bash curl git xz-utils python3 && \
+    ca-certificates bash curl git xz-utils python3 openssh-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Pin the SAME bb version the root Dockerfile and this repo's off-chain

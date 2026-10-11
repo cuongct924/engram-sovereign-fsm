@@ -8,7 +8,7 @@
 # concurrently and submitted in order (prove_segment.sh). A failed segment invalidates the ones after it: the workers still
 # running are stopped and the next segment starts again from the chain's checkpoint.
 #
-# Environment: PROVERS (4), STAGGER_S (27, about L/PROVERS for L of 108 s), BB_THREADS (cores / PROVERS), MIN_BATCH (1),
+# Environment: PROVERS (4, or the number of WORKERS), L_EST_S (75), STAGGER_S (L_EST_S / PROVERS), BB_THREADS (cores / PROVERS, local proving only), MIN_BATCH (1),
 # NODE_URL, POLL_INTERVAL_S (2), MAX_CHECKS (600). Memory: a proof peaks at about 7 GB, so PROVERS proofs need that much each.
 set -uo pipefail
 
@@ -16,8 +16,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGRAMD="${ENGRAMD_BIN:-$REPO_ROOT/engramd}"
 export NODE_URL="${NODE_URL:-http://127.0.0.1:26657}"
+# With WORKERS (space-separated user@host, see prove_segment.sh) one proof is in flight per worker. L_EST_S is the expected seconds from
+# a proof's start to its submission; segments start L_EST_S / PROVERS seconds apart.
+WORKERS="${WORKERS:-}"
+if [ -n "$WORKERS" ] && [ -z "${PROVERS:-}" ]; then PROVERS=$(wc -w <<< "$WORKERS" | tr -d ' '); fi
 PROVERS="${PROVERS:-4}"
-STAGGER_S="${STAGGER_S:-27}"
+L_EST_S="${L_EST_S:-75}"
+STAGGER_S="${STAGGER_S:-$(( (L_EST_S + PROVERS - 1) / PROVERS ))}"
+export WORKERS
 POLL_INTERVAL_S="${POLL_INTERVAL_S:-2}"
 MAX_CHECKS="${MAX_CHECKS:-600}"
 export MIN_BATCH="${MIN_BATCH:-1}"
