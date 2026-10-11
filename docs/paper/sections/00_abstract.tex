@@ -4,33 +4,25 @@ settlement receipts and DA receipts inherits the liveness of those layers: when
 either stalls, no proposal is valid and the chain halts although its validators
 are connected and correct. Dropping the requirement restores progress but
 suspends the guarantees it provided. We present \emph{Engram}, a protocol layer
-on a lightly modified CometBFT core (an $f{+}1$ round skip, bounded acceptance of timeout messages and the proposal round exposed to the application) that makes this suspension an agreed,
-deterministic state transition. A \emph{health certificate} aggregates the
-signed peripheral observations of a quorum, carried as vote extensions, so that
-every metric stays within the range of the honest observations
-(Lemma~\ref{lem:honest-range}); a four-state finite state machine evaluates it.
-When Bitcoin, DA, or the peripheral P2P view degrades, the chain keeps producing
-blocks, relaxes the receipt requirement of the unhealthy layer, and excludes
-withdrawal-marked transactions; it returns to \textsc{Anchored} only after
-recovery hysteresis, DA backfill of the degraded interval, and a
-validator-verified zero-knowledge recovery proof over all but a bounded unproven tail
-of the interval (the prototype also has an optional heuristic that can stand in for
-the proof, which the proof-only runs disable). A layered TLA+ specification
-passes bounded model checking at the Tendermint-style and FSM layers
-(\resFSMStatesM{} distinct states in the largest run), and in each of five ablations the invariant that guards the removed mechanism fails; the refinement of the composed layer to the
-abstract consensus object remains open.
-
-On a seven-validator testbed with Bitcoin regtest and Celestia networks, a composite
-fault repeated five times left the chain committing blocks through a full
-\textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
-complete AppHash agreement. Under a checkpoint pause, a DA outage and both,
-Engram kept \resRQTwoEngram{} of its healthy block rate. A strict receipt-gated baseline that reads receipts at each
-validator kept \resRQTwoOob{} and resumed 21--74\,s after the layer returned; one that reads them through
-vote extensions stopped committing \resInBandHalt\,s after the fault began and did not resume
-(three runs per cell, one host). Against seven
-vanilla validators the block interval grows by \resOverheadPct{} (95\% interval
-\resOverheadCI{}, 20 paired deployments) on one host; on seven machines in three regions at 100\,tx/s it is 1.9 times as long (three deployments per arm), and the composite fault repeated five times there again ended in \textsc{Anchored}.
-The price is the detection delay: \resExposure{} withdrawal-marked transactions committed
-before the lock (40--125\,s after the fault began on the testbed, and 47--62\,min at mainnet Bitcoin cadence by model and conversion, during which any sender can submit withdrawals) and none after it, which
-checks the circuit breaker against Engram's own transition rather than
-measuring exclusion independently.
+on a lightly modified CometBFT core that makes this suspension an agreed,
+deterministic state transition. Validators sign height-bound observations of
+Bitcoin, DA and peer health as vote extensions; a \emph{health certificate}
+aggregates them so that every metric stays within the range of the honest
+observations (Lemma~\ref{lem:honest-range}), and a four-state finite state machine
+evaluates it. In the degraded modes the chain keeps producing blocks, relaxes the
+receipt requirement of the failed layer and excludes withdrawal-marked
+transactions. It returns to \textsc{Anchored} only after hysteresis, DA backfill of the
+degraded interval and a validator-verified recovery proof over all but a bounded
+unproven tail. A layered TLA+ specification passes bounded model checking at two
+layers (\resFSMStatesM{} distinct states in the largest run); the refinement of the
+composed layer remains open. On a seven-validator testbed with Bitcoin regtest and
+Celestia, Engram kept \resRQTwoEngram{} of its healthy block rate under a checkpoint
+pause, a DA outage and both, where a receipt-gated baseline that reads receipts at each
+validator kept \resRQTwoOob{} and one that reads them through vote extensions stopped
+committing \resInBandHalt\,s after the fault began and did not resume. A composite
+fault repeated five times, on one host and on seven machines in three regions, ended in
+\textsc{Anchored} with complete AppHash agreement. The block interval grows by
+\resOverheadPct{} on one host (95\% interval \resOverheadCI{}) and is 1.9 times
+vanilla's at 100\,tx/s across regions. The price is the detection delay: \resExposure{}
+withdrawal-marked transactions committed before the lock (40--125\,s on the testbed,
+47--62\,min at mainnet Bitcoin cadence by model), and none after it.
