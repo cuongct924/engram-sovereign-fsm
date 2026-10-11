@@ -36,11 +36,11 @@ Filled in when the results are final; each value is one the paper cites.
 
 | Item | Value |
 |---|---|
-| `engram-sovereign-fsm` commit / tag | _to fill_ |
-| `engram-consensus-core` commit / tag | `493a20121caa` (tag _to fill_) |
-| `engram-barretenberg-wasm` commit / tag | `43a63abbb17f` (tag _to fill_) |
-| Image `engram-node` digest | _to fill_ |
-| Image `engram-reanchoring-prover` digest | _to fill_ |
+| `engram-sovereign-fsm` commit (the multi-host runs) | `1c34d994e7ad` |
+| `engram-consensus-core` commit | `493a20121caa` |
+| `engram-barretenberg-wasm` commit | `43a63abbb17f` |
+| Image `cuongct/engram-node:1c34d994e7ad` digest | `sha256:b66ce90196b0e2a8df037786c45834fd2e1a9760c9eaf6d182d934747752d90c` |
+| Image `cuongct/engram-reanchoring-prover:1c34d994e7ad` digest | `sha256:c7915434e237efe74c1271ade5cd7df64542e1a6fc1d441fa29a7231e4c87812` |
 
 ## What the local build does not cover
 
