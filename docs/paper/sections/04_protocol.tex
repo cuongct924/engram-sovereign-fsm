@@ -250,26 +250,27 @@ every hysteresis counter.
 
 \begin{figure}[tbp]
 \centering
+\resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
     >=Stealth, auto,
-    state/.style={rectangle, rounded corners, draw, very thick, minimum width=2.7cm,
-                  minimum height=1.1cm, align=center, font=\small\bfseries},
-    lab/.style={font=\footnotesize, align=center, inner sep=1.5pt, text width=2.6cm}
+    state/.style={rectangle, rounded corners, draw, very thick, minimum width=1.9cm,
+                  minimum height=1.1cm, align=center, font=\footnotesize\bfseries},
+    lab/.style={font=\scriptsize, align=center, inner sep=1.5pt, text width=2.3cm}
 ]
 \node[state, fill=stBlue!30, draw=stBlue] (anchored) {ANCHORED};
-\node[state, fill=stOrange!35, draw=stOrange, right=3.3cm of anchored] (suspicious) {SUSPICIOUS};
-\node[state, fill=stGreen!30, draw=stGreen, below=3.1cm of anchored] (recovering) {RECOVERING};
-\node[state, fill=stRed!30, draw=stRed, right=3.3cm of recovering] (sovereign) {SOVEREIGN};
+\node[state, fill=stOrange!35, draw=stOrange, right=2.9cm of anchored] (suspicious) {SUSPICIOUS};
+\node[state, fill=stRed!30, draw=stRed, right=2.9cm of suspicious] (sovereign) {SOVEREIGN};
+\node[state, fill=stGreen!30, draw=stGreen, right=2.9cm of sovereign] (recovering) {RECOVERING};
 
-% Degradation on the top row and to the right, recovery on the bottom row and to the left.
+% Degradation above the boxes, recovery below.
 \draw[->] ([yshift=0.2cm]anchored.east) -- node[lab, above]{Sustained\\warning} ([yshift=0.2cm]suspicious.west);
 \draw[->] ([yshift=-0.2cm]suspicious.west) -- node[lab, below]{Sustained\\healthy} ([yshift=-0.2cm]anchored.east);
-\draw[->] (suspicious.south) -- node[lab, right, text width=2.2cm]{Critical\\or timeout} (sovereign.north);
-\draw[->] (anchored.south east) -- node[lab, sloped, above, pos=0.42, text width=3cm]{Critical (immediate)} (sovereign.north west);
-\draw[->] ([yshift=0.2cm]recovering.east) -- node[lab, above, text width=3cm]{Critical or\\sustained unhealthy} ([yshift=0.2cm]sovereign.west) ;
-\draw[<-] ([yshift=-0.2cm]recovering.east) -- node[lab, below]{Healthy} ([yshift=-0.2cm]sovereign.west);
-\draw[->] (recovering.north) -- node[lab, left, text width=2.4cm]{Stable healthy + proof verified} (anchored.south);
-\end{tikzpicture}
+\draw[->] (suspicious.east) -- node[lab, above]{Critical\\or timeout} (sovereign.west);
+\draw[->] ([yshift=0.2cm]recovering.west) -- node[lab, above, text width=2.8cm]{Critical or\\sustained unhealthy} ([yshift=0.2cm]sovereign.east);
+\draw[->] ([yshift=-0.2cm]sovereign.east) -- node[lab, below]{Healthy} ([yshift=-0.2cm]recovering.west);
+\draw[->] (anchored.north) to[bend left=32] node[lab, above, text width=4cm]{Critical (immediate)} (sovereign.north);
+\draw[->] (recovering.south) to[bend left=32] node[lab, below, yshift=-2pt, text width=4cm]{Stable healthy + proof verified} (anchored.south);
+\end{tikzpicture}}
 \caption{FSM transition function $\delta$. \emph{Sustained} means the condition
 accumulates over several blocks (hysteresis; up-counters tolerate isolated
 non-healthy blocks); critical conditions skip the wait and act immediately.
