@@ -16,3 +16,9 @@
 \newcommand{\resExposure}{17--58}              % same table: withdrawal-marked transactions committed before the lock, Engram, across faults
 \newcommand{\resPairedVanilla}{1.225}         % paired design, vanilla block interval, s (scripts/e7_consensus_overhead/paired_overhead.py)
 \newcommand{\resPairedEngram}{1.246}          % same, Engram (vanilla plus the paired difference of 0.0216 s)
+\newcommand{\resCloudRate}{0.41}            % Testbed B block rate during the SOVEREIGN hold, blocks/s (cloud_n1_t1, cloud_n2_t1)
+\newcommand{\resCloudLatency}{77}           % Testbed B proof latency, start to accepted submission, mean s (one worker; two workers: 76)
+\newcommand{\resCloudTailOne}{61}           % Testbed B unproven-tail p95, blocks, one worker (maximum 64)
+\newcommand{\resCloudTailTwo}{48}           % same, two workers (maximum 50)
+\newcommand{\resCloudStepFast}{65}          % proving step on a c7a.2xlarge, s (Table~\ref{tab:instances})
+\newcommand{\resCloudStepSlow}{111}         % proving step on a c5.2xlarge, s

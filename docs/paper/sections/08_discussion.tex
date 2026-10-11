@@ -152,7 +152,28 @@ validator quorum alone, the same residual exposure as above, now bounded by the
 tail. The experiments used 128 blocks (the code default is 8). Measured proving
 latencies, and why they depend on the load of the host, are in
 Appendix~\ref{app:envelope}.
-\pending{how the prover keeps up with the block rate: the prover host prepares and submits, N worker hosts build one proof each, so the tail stays within $r\,L\,(1+1/N)$ (r the block rate, L the proof latency); give N, the measured tail and the share of time the gate is open from the multi-host runs, and what fixes the bound of 128 (r, L and the margin); keep the claim to this testbed's block rate.}
+\textbf{How the prover keeps up.} Throughput is not what limits recovery: one proof covers
+up to 256 headers every 77\,s on Testbed~B, more than three blocks per second against a block rate of
+\resCloudRate. Latency is. When a proof lands, its tail already holds $rL$ blocks ($r$ the block rate,
+$L$ the time from the start of the proof to its accepted submission), and with one proof in flight the
+tail then grows for another $L$ seconds, to $2rL$. Starting a proof every $L/N$ seconds on $N$ machines,
+each building one proof, shortens the interval between two landings to $L/N$ and bounds the tail by
+$rL(1+1/N)$. This is allowed by the chain's check at submission: a proof binds its first header to the
+previous checkpoint, so segments can be proven at the same time and are accepted only in order. On Testbed~B
+($r{=}\resCloudRate$, $L{\approx}77$\,s) the formula gives 63 and 47 blocks for one and two workers and the
+measured 95th percentiles are \resCloudTailOne{} and \resCloudTailTwo{} (maxima 64 and 50), against a bound of 128;
+the bound must exceed $rL(1+1/N)$ with some margin, and holds only for the block rate it was measured at,
+as the number of blocks of a tail scales with $r$. The hardware sets $L$: the same proving step takes
+\resCloudStepFast\,s on a \texttt{c7a.2xlarge} and \resCloudStepSlow\,s on a \texttt{c5.2xlarge}
+(Table~\ref{tab:instances}), and about 110\,s inside a container on the shared Testbed~A host, where a single
+prover left the gate open for 36--42\% of the hold.
+What the proof shows is bounded by what the circuit checks: header-chain continuity from the last
+anchored root, the mode and lock labels of the recorded headers, and the quorum signatures of the two
+boundary blocks. It does not show that no withdrawal executed, and the unproven tail is outside it; the blocks of
+that tail are certified by the validator quorum alone, as is any block of the chain. We do not prove the tail
+afterwards: a variant that keeps the tail after the return to \textsc{Anchored} and lets later proofs close it exists
+in a development branch of the repository but is not evaluated, and a tail still open when the next interval begins cannot
+be chained to it, so it would have to be dropped and counted.
 
 \subsection{Interpretation of Results}
 
@@ -291,7 +312,8 @@ production deployment.
   at once; wide-area conditions are emulated with \texttt{tc netem} rather
   than real geographic distribution.
   \iftestbedB Testbed~B removes both limitations for the experiments repeated
-  on it.\fi
+  on it (so far the proving-latency runs; its composite and load runs are
+  pending).\fi
   \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
   faster than on mainnet. Height-based thresholds are unaffected, but
   wall-clock durations scale accordingly.

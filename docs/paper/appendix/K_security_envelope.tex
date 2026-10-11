@@ -181,7 +181,33 @@ Appendix~\ref{app:aggregation}). The chunk proofs are independent given the chun
 boundary roots, so they can be built concurrently and joined by the aggregator
 circuit.
 
-\pending{proving latency on dedicated hosts: the proving step (nargo execute and bb prove, the published prover image, host idle) on c5.2xlarge, c7a.2xlarge and c7i.2xlarge, about 111, 65 and 71\,s (scripts/e6\_zk\_reanchoring\_benchmark/results\_live/cloud\_instance\_types.csv, three or four runs per type, one host each), and the end-to-end latency L on the multi-host chain with the tail it gives; state n and that the instance type was chosen from this table.}
+\textbf{Proving latency on dedicated hosts.} Table~\ref{tab:instances} reports the proving step
+(\texttt{nargo execute} and \texttt{bb prove} of one segment, in the published prover image) on three
+\texttt{amd64} instance types, each alone on its host with no chain running. The witness generation is
+single-threaded and takes 43\,s on the two newer types and 74\,s on the older one; \texttt{bb} uses
+all eight cores. We chose the \texttt{c7a.2xlarge} for the proving workers of Testbed~B from this table, that is,
+for its speed, before running the recovery experiments; the first run on each host, 4--7\,s slower (cold cache), is
+left out of the means. On the multi-host chain the latency from the start of a proof to its accepted submission was
+77\,s with one worker and 76\,s with two (73--87\,s per proof): the proving step as seen by the prover host,
+69--75\,s including the transfer to the worker, and 2--17\,s of witness preparation, publication of the audit
+trail and submission.
+
+\begin{table}[h]
+\caption{The proving step of one segment on one host, mean of the runs after the first (two runs on the
+\texttt{c7a.2xlarge} and \texttt{c7i.2xlarge}, three on the \texttt{c5.2xlarge}; one host per type).}
+\label{tab:instances}
+\centering
+\footnotesize
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Instance} & \textbf{CPU} & \textbf{\texttt{nargo execute} (s)} & \textbf{\texttt{bb prove} (s)} & \textbf{Step (s)} \\
+\midrule
+c7a.2xlarge & AMD EPYC 9R14 & 43.2 & 21.4 & 64.7 \\
+c7i.2xlarge & Intel Xeon Platinum 8488C & 43.0 & 27.7 & 70.7 \\
+c5.2xlarge & Intel Xeon Platinum 8124M & 74.0 & 37.1 & 111.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 Table~\ref{tab:parallel} reports the cost on the ten-core host with the testbed
 stopped, at 0.8 blocks per second. Proving and aggregation alone fit inside the bound
