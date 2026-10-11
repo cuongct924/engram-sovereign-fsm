@@ -132,9 +132,10 @@ the RQ4 scan shows no extra rounds in the unfaulted case.
 ordering of blocks rests on the validator quorum alone. A coalition
 exceeding $f$ could produce a \textsc{Sovereign} history that differs from
 one it would have produced under Bitcoin timestamping; the recovery proof
-certifies the history's continuity, its recorded mode and lock labels, and the boundary quorum signatures, not its
-uniqueness beyond the $f$ bound. The withdrawal lock limits what such a
-history can extract.
+certifies the history's continuity, its recorded mode and lock labels, and the boundary quorum signatures. It does not
+certify its uniqueness beyond the $f$ bound, that every transition followed the transition function, or that no withdrawal
+executed (the lock is enforced when a block executes; the proof covers the flag recorded for it), and it does not cover the
+unproven tail. The withdrawal lock limits what such a history can extract.
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} During
 \textsc{Sovereign} the interval's block data is held only by the validators' own
@@ -149,7 +150,8 @@ the proving latency times the block rate. A small bound keeps almost all of the
 takes longer to build; a larger bound lets slower proofs through, at the price
 that the last blocks before the return to \textsc{Anchored} are certified by the
 validator quorum alone, the same residual exposure as above, now bounded by the
-tail. The experiments used 128 blocks (the code default is 8). Measured proving
+tail. The prototype discards the tracked headers when the chain returns to
+\textsc{Anchored}, so no later proof covers the tail. The experiments used 128 blocks (the code default is 8). Measured proving
 latencies, and why they depend on the load of the host, are in
 Appendix~\ref{app:envelope}.
 \textbf{How the prover keeps up.} Throughput is not what limits recovery: one proof covers
@@ -167,13 +169,9 @@ as the number of blocks of a tail scales with $r$. The hardware sets $L$: the sa
 \resCloudStepFast\,s on a \texttt{c7a.2xlarge} and \resCloudStepSlow\,s on a \texttt{c5.2xlarge}
 (Table~\ref{tab:instances}), and about 110\,s inside a container on the shared Testbed~A host, where a single
 prover left the gate open for 36--42\% of the hold.
-What the proof shows is bounded by what the circuit checks: header-chain continuity from the last
-anchored root, the mode and lock labels of the recorded headers, and the quorum signatures of the two
-boundary blocks. It does not show that no withdrawal executed, and the unproven tail is outside it; the blocks of
-that tail are certified by the validator quorum alone, as is any block of the chain. We do not prove the tail
-afterwards: a variant that keeps the tail after the return to \textsc{Anchored} and lets later proofs close it exists
-in a development branch of the repository but is not evaluated, and a tail still open when the next interval begins cannot
-be chained to it, so it would have to be dropped and counted.
+Beyond two workers the formula gives 42 and 39 blocks for three and four; we did not measure these (the
+account's vCPU quota allowed two workers in the region of the prover host), and the gain is small because the
+floor is $rL$, about 32 blocks here.
 
 \subsection{Interpretation of Results}
 
@@ -205,7 +203,7 @@ Certified metrics stay within the honest range & Lemma~\ref{lem:honest-range} (p
 Honest validators agree on state and aggregate under $f{=}2$ & Collusion suite: 33 repeats, offline replay of every committed height & Seven validators, one host; repeats share a chain \\
 Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof under M1--M3; lock invariant checked on committed blocks & Admission, not asset safety; no bridge in the prototype \\
 Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoOob{} for the receipt-gated baseline that reads at each validator, and a halt after \resInBandHalt\,s for the one that reads through vote extensions; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
-Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the exit gate is qualified in Section~\ref{subsec:limitations} \\
+Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the tail of at most the bound is certified by the quorum alone and never proven afterwards; the exit gate is qualified in Section~\ref{subsec:limitations} \\
 The cost is about 2\% of the block interval & Seven-validator vanilla arms, 20 paired deployments on the same host; the interval excludes zero & One host; Engram's latency grows with load above 100\,tx/s \\
 Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
 A static down threshold of 4 or more suppresses flapping & Live three-phase and stationary sweeps & Few runs per cell; the adaptive backoff did not beat it (Appendix~\ref{app:adaptive}) \\
@@ -249,6 +247,10 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   see the exposure paragraph above) and single-bridge DA trust, and the backfill
   gate rests on a quorum-reported contiguous height, not a proof of retrievability
   (Section~\ref{subsec:sim-to-real}).
+  \item \emph{Unproven tail.} The blocks after the last accepted proof, at most the bound of 128, are certified by
+  the validator quorum alone, and the prototype discards them when the chain returns to \textsc{Anchored}, so they are never proven
+  later. The prover's ability to keep the tail short is measured at one and two workers on one testbed
+  (Section~\ref{subsec:rq3}); the figures for three or more workers are extrapolated from the formula, not measured.
   \item \emph{Proof gate.} The recovery-validity flag holds if a verified
   proof was submitted within the permitted unproven tail of the tracked tip,
   or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
@@ -353,13 +355,17 @@ addresses this gap.
   of Section~\ref{subsec:verification-scope}. Deductive
   methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
   where it does not scale.
-  \item \emph{Prover.} The cost of the recovery proof is dominated by the witnesses,
-  which we prepare one chunk after another once the interval has ended, not by proving.
-  Preparing and proving each chunk while the chain is still in \textsc{Sovereign}, on a
-  prover with cores of its own, would leave only the last chunk and the aggregation after
-  the interval ends and is the measurement that would show whether the prover keeps up
-  with block production (Appendix~\ref{app:envelope}). Incremental recursion would
-  also make the recovery artifact constant-size for intervals of any length.
+  \item \emph{Prover.} Proofs of segments built at the same time on one to two workers keep the tail within the bound
+  on the cloud testbed (Section~\ref{subsec:rq3}); three and four workers, the aggregation of chunks proven in parallel, and
+  longer intervals are not measured. Incremental recursion would also make the recovery artifact constant-size for
+  intervals of any length.
+  \item \emph{Closing the tail.} Keeping the headers of the unproven tail after the return to \textsc{Anchored} and
+  accepting proofs for them while the chain is \textsc{Anchored} would make every \textsc{Sovereign} and \textsc{Recovering} block
+  eventually covered by a proof; it does not touch the transition function, so the specification of the FSM would not change.
+  A single pending tail is implemented and unit-tested in a development branch of the repository, not evaluated end to end: a
+  tail still open when the next interval begins cannot be chained to it (the \textsc{Anchored} blocks between them are not
+  tracked), so that variant drops it and counts the dropped blocks. A list of pending tails, or tracking headers while the chain
+  is \textsc{Anchored}, would remove the drop at a cost in state and in the analysis of the proof gate.
   \item \emph{Data availability.} Replacing single-bridge trust with sampling
   across independent peers would let the DA sensor detect partial withholding
   rather than only outages.
