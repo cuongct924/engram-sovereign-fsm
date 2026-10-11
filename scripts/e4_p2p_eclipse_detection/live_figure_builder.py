@@ -143,7 +143,7 @@ def plot_figure5_live(rows, attack_start, attack_end, csv_path):
     rep_rows = [r for r in all_rep_rows if r["height"] >= 0]
     t_max = max(r["t"] for r in rep_rows)
 
-    FIG_WIDTH = 9.5
+    FIG_WIDTH = 7.4
     GOLDEN_RATIO = 1.618
     total_height = FIG_WIDTH / GOLDEN_RATIO
     fig, axes = plt.subplots(

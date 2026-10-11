@@ -282,7 +282,7 @@ def main():
     # One continuous row; each phase takes equal visual width (phase units
     # 0..7). True block ranges are printed under the labels, so no information
     # is lost despite the non-linear x-scale.
-    fig, ax = plt.subplots(figsize=(15, 4.6))
+    fig, ax = plt.subplots(figsize=(8.4, 4.6))
 
     # Region boundaries: each scenario's band runs from the previous phase's
     # end to this phase's end (contiguous).
@@ -319,12 +319,12 @@ def main():
     for idx, name in enumerate(SCENARIO_ORDER):
         ax.text(
             idx + 0.5,
-            3.55,
-            textwrap.fill(SCENARIO_TITLES[name], 16),
+            3.75,
+            textwrap.fill(SCENARIO_TITLES[name], 11),
             ha="center",
             va="center",
             rotation=0,
-            fontsize=9,
+            fontsize=7.5,
             fontweight="bold",
             color="0.15",
             zorder=5,
@@ -340,7 +340,7 @@ def main():
     for label, state in zip(ytick_labels, STATES):
         label.set_color(STATE_COLOR[state])
         label.set_fontweight("bold")
-    ax.set_ylim(-0.5, 4.2)
+    ax.set_ylim(-0.5, 4.5)
     ax.set_xlim(-0.25, len(SCENARIO_ORDER) + 0.45)
     # Phase centers labelled S1..S7, single line so the two bottom x-axes
     # never overlap; the block-height ruler below carries the true heights.
@@ -360,20 +360,13 @@ def main():
     ax2.set_xticks(range(len(SCENARIO_ORDER) + 1))
     edge_heights = [region_bounds[0][0]] + boundaries
     ax2.set_xticklabels(edge_heights, fontsize=7)
-    ax2.set_xlabel("Engram block height at each phase boundary", fontsize=12)
+    ax2.set_xlabel("Engram block height at each phase boundary", fontsize=9)
 
     # State legend above the plot, laid out horizontally.
-    ax.legend(
-        handles=STATE_LEGEND,
-        loc="upper left",
-        bbox_to_anchor=(0.0, 1.14),
-        ncol=len(STATES),
-        frameon=False,
-        fontsize=9,
-    )
+    fig.legend(handles=STATE_LEGEND, loc="upper center", ncol=2, frameon=False, fontsize=8)
 
     # No figure title or subtitle: the paper's caption carries both.
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 1, 0.90])
     savefig_academic(fig, OUT_DIR, "seven_scenario_timeline")
 
     print(f"Plotted {len(SCENARIO_ORDER)} scenarios on one equal-width phase row over {boundaries[-1]:,} blocks")

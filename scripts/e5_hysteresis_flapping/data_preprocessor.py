@@ -151,7 +151,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     # above y=1.0 for its in-axes legend (see below), so the figure needs
     # more vertical room for the actual data to still read clearly rather
     # than being squeezed into a small fraction of a short panel.
-    fig, axes = plt.subplots(1, 3, figsize=(11, 4.3))
+    fig, axes = plt.subplots(3, 1, figsize=(7.2, 8.4))
 
     # (a) 5a Up-hysteresis: only 3 visually distinct curves exist among the 5
     # environments (noisy_da==noisy_p2p, noisy_btc==combined_adversarial per
@@ -291,7 +291,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     leg2.set_zorder(10)
 
     # No figure-level title or legend note: the paper's caption carries both, and the figure number is the LaTeX one.
-    fig.subplots_adjust(top=0.88, bottom=0.13, wspace=0.55)
+    fig.subplots_adjust(top=0.94, bottom=0.07, hspace=0.62, left=0.13, right=0.87)
     savefig_academic(fig, OUT_DIR, "hysteresis_tradeoffs")
 
 

@@ -279,11 +279,11 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     n_panels = 4 if rep_sensor_rows else 2
     # Uneven height_ratios: panel 1 is the densest (4 FSM levels + twin axis
     # + shading + legend) and earns the most room; panel 4 is a plain line.
-    FIG_WIDTH = 12
+    FIG_WIDTH = 7.4
     GOLDEN_RATIO = 1.618
     # Whole-figure width:height fixed to the golden ratio -- the header band
     # is carved out of this same canvas, not added on top of it.
-    total_height = FIG_WIDTH / GOLDEN_RATIO
+    total_height = FIG_WIDTH * (0.95 if n_panels == 4 else 0.62)
     height_ratios = [1.5, 1.0, 1.0, 0.7] if n_panels == 4 else [1.5, 0.9]
     # Wider than the strict double-column width: at that width panel 1's
     # legend spilled into the withdrawal-locked shaded region.
@@ -374,7 +374,7 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     labels.append(lock_patch.get_label())
     # "center left": the vertical middle is empty (FSM at bottom, SafeBlocks
     # near top); "lower left" used to sit directly on top of the ANCHORED line.
-    ax.legend(handles, labels, loc="center left", fontsize=8)
+    ax.legend(handles, labels, loc="upper center", ncol=3, fontsize=7.5, framealpha=0.9, borderaxespad=0.2)
 
     if agree_all:
         fact = f"AppHash agreement: 100% ({len(agree_ts)} ticks), zero divergence"
@@ -456,7 +456,7 @@ def plot_figure2_live(rows, markers, csv_path, sensor_rows=None):
     # "lower left" -- active_anchors is flat at 3 for the ENTIRE run (no x
     # position avoids it at "upper left"); peer_latency is 0 until t~110, so
     # the lower-left corner is the one clear pocket.
-    ax.legend(h1 + h2, l1 + l2, loc="lower left", fontsize=8)
+    ax.legend(h1 + h2, l1 + l2, loc="center left", fontsize=8)
     ax.set_title("3. P2P Network -- Active Anchors & Peer Latency (local sensor)", fontsize=8.5, loc="left")
 
     # --- Panel 4: Consensus Liveness (block height, alone) ------------
