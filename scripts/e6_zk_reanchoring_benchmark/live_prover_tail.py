@@ -5,7 +5,8 @@ Holds the chain in SOVEREIGN for --hold-min minutes by pausing checkpoint submis
 ANCHORED, and keeps what is needed to compute the tail: a sample of every validator every --interval-s seconds (height, FSM
 state, whether the recovery proof is valid) and the prover container's log, whose PROOFLOG lines give one row per submitted proof
 (see scripts/reanchoring_prover/prove_and_submit.sh). The prover mode (CONTINUOUS, MIN_BATCH) is the container's environment, set
-when the cluster is deployed. Needs the cluster up and ANCHORED in Engram mode with proof-only recovery.
+when the cluster is deployed. Needs the cluster up and ANCHORED in Engram mode with proof-only recovery. Runs on the local Docker testnet or, with ENGRAM_CLUSTER=ssh, on the
+hosts of deploy/ (see deploy/README.md).
 
     python3 -u scripts/e6_zk_reanchoring_benchmark/live_prover_tail.py --arm continuous --label cont_t1 --hold-min 25
 
@@ -15,21 +16,15 @@ import argparse
 import csv
 import json
 import os
-import subprocess
 import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "framework"))
-from logger import NODE_RPC_PORTS, sample_all_nodes  # noqa: E402
+from cluster import CLUSTER  # noqa: E402
+from logger import sample_all_nodes  # noqa: E402
 
 OUT = os.path.join(HERE, "results_live")
-PAUSE_FILE = "/tmp/anchor_submission_paused"
-NODES = list(NODE_RPC_PORTS.keys())
-
-
-def docker(*args):
-    return subprocess.run(["docker", *args], capture_output=True, text=True, timeout=120)
 
 
 def poll(duration_s, interval_s, rows, phase, until=None):
@@ -57,21 +52,17 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     rows = []
     t_start = time.time()
-    docker("logs", "--tail", "0", "reanchoring-prover")  # the log is read in full at the end, with --since
-    for n in NODES:
-        docker("exec", n, "touch", PAUSE_FILE)
+    CLUSTER.anchor_pause(True)
     t_pause = time.time()
     reached = poll(a.sovereign_timeout_s, a.interval_s, rows, "to_sovereign", until="SOVEREIGN")
     t_sov = time.time()
     poll(a.hold_min * 60, a.interval_s, rows, "hold")
-    for n in NODES:
-        docker("exec", n, "rm", "-f", PAUSE_FILE)
+    CLUSTER.anchor_pause(False)
     t_release = time.time()
     recovered = poll(a.recovery_s, a.interval_s, rows, "recovery", until="ANCHORED")
     t_end = time.time()
-    log = docker("logs", "--since", str(int(t_start) - 5), "reanchoring-prover")
     with open(os.path.join(OUT, f"{a.label}_prover.log"), "w") as f:
-        f.write(log.stdout + log.stderr)
+        f.write(CLUSTER.prover_logs(int(t_start) - 5))
     with open(os.path.join(OUT, f"{a.label}_samples.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["timestamp", "phase", "node", "height", "fsm_state", "safe_blocks", "proof_valid"])

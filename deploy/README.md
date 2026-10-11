@@ -345,8 +345,9 @@ address in `operator_cidrs` (RPC goes straight to each validator's public addres
 | P2P churn (`p2p_loss`) | `tc netem loss 5%` on node01/node02, only for CometBFT P2P (26656) traffic |
 | WAN-realism profile | skipped: the links are already a real WAN |
 
-Scripts not yet routed through `CLUSTER` (E2–E5, E7, E8, E10, the sensor-mismatch and throughput scripts, and
-`e6_zk_reanchoring_benchmark/live_prover_tail.py`) use `docker`/Pumba directly and work only on the local testnet.
+Scripts not yet routed through `CLUSTER` (E2–E5, E7, E8, E10, and the sensor-mismatch and throughput scripts) use `docker`/Pumba directly and work
+only on the local testnet. `e6_zk_reanchoring_benchmark/live_prover_tail.py` is routed: it holds the chain in SOVEREIGN, releases it and reads the
+prover's log from `prover01` (`ENGRAM_CLUSTER=ssh python3 -u scripts/e6_zk_reanchoring_benchmark/live_prover_tail.py --arm continuous --label cloud_n2 --hold-min 15`).
 
 ## Prover check
 

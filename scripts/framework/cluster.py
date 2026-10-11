@@ -67,6 +67,11 @@ class DockerBackend:
         proc = subprocess.run(["docker", "logs", node], capture_output=True, text=True, timeout=timeout)
         return proc.stdout + proc.stderr  # engramd logs to stderr
 
+    def prover_logs(self, since_epoch: int, timeout: float = 120.0) -> str:
+        proc = subprocess.run(["docker", "logs", "--since", str(int(since_epoch)), "reanchoring-prover"],
+                              capture_output=True, text=True, timeout=timeout)
+        return proc.stdout + proc.stderr
+
     def _bridge(self, node: str) -> str:
         return f"celestia-bridge-node{self.nodes.index(node) + 1:02d}"
 
@@ -141,9 +146,21 @@ class SshBackend:
         self.validators: List[Host]
         self.infra: Host
         self.validators, self.infra = self._load(inventory)
+        self.prover: Host = self._prover_host(inventory)
         self.nodes: List[str] = [h.name for h in self.validators]
         self._by_name = {h.name: h for h in self.validators}
         self._iface: dict = {}
+
+    @staticmethod
+    def _prover_host(inventory: str) -> "Host":
+        """The host of the `prover` group, or the infra host when the inventory has none (the prover then runs there)."""
+        out = subprocess.run(["ansible-inventory", "-i", inventory, "--list"], capture_output=True, text=True)
+        inv = json.loads(out.stdout)
+        hv = inv["_meta"]["hostvars"]
+        group = (inv.get("prover") or {}).get("hosts") or inv["infra"]["hosts"]
+        v = hv[group[0]]
+        key = v.get("ansible_ssh_private_key_file")
+        return Host(group[0], v["ansible_host"], v.get("ansible_user", "root"), os.path.expanduser(key) if key else None)
 
     @staticmethod
     def _load(inventory: str):
@@ -206,6 +223,11 @@ class SshBackend:
         h = self._by_name[node]
         proc = self.run(h, f"{self.sudo(h)}docker logs engramd 2>&1", timeout)
         return proc.stdout
+
+    def prover_logs(self, since_epoch: int, timeout: float = 180.0) -> str:
+        h = self.prover
+        proc = self.run(h, f"{self.sudo(h)}docker logs --since {int(since_epoch)} reanchoring-prover 2>&1", timeout=timeout)
+        return proc.stdout + proc.stderr
 
     def da_stop(self, node: str) -> None:
         h = self._by_name[node]
