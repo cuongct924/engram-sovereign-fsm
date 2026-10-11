@@ -146,58 +146,7 @@ composed system.
 
 
 \subsection{Model-Checked Properties and Attack Resilience}
-\label{subsec:formal-invariants}
-
-Six safety properties are specified. The first five are checked in the FSM safety
-run (the first as an invariant, the others as action or temporal properties). The
-sixth, Monotonicity Safety, is defined in the server layer and appears only in its
-refinement drivers, whose runs did not complete.
-\begin{itemize}
-  \item \emph{Circuit Breaker Isolation:} withdrawals are locked if and only
-  if the state is \textsc{Sovereign} or \textsc{Recovering}.
-  \item \emph{Hysteresis Integrity:} \textsc{Recovering}$\to$\textsc{Anchored}
-  requires the full hysteresis wait and a valid recovery proof.
-  \item \emph{Suspicious-Exit Hysteresis Integrity:} the corresponding guard
-  on \textsc{Suspicious}$\to$\textsc{Anchored}.
-  \item \emph{Strict FSM Transition Safety:} only transitions drawn in
-  Fig.~\ref{fig:fsm} occur.
-  \item \emph{Sovereign-Data Publication:} every
-  \textsc{Recovering}$\to$\textsc{Anchored} transition occurs with the DA
-  backfill condition true.
-  \item \emph{Monotonicity Safety:} heights and time never decrease.
-\end{itemize}
-The Tendermint driver checks a separate invariant covering, among others, agreement on the decided value, external validity, accountability and the absence of double spending across modes.
-Five attack-specific properties are enforced by the validity predicate:
-resistance to data withholding; resistance to forged or reorganized anchors
-through anchor re-verification; a deterministic bound on Byzantine
-timeout flooding; resistance to eclipse-driven recovery through the
-six-bound P2P gate; and accountability, i.e.\ any safety violation implies
-double-signing evidence. Accountability is inherited from CometBFT's
-equivocation evidence pool rather than proved anew. The ablation study below tests two of them,
-data withholding and eclipse-driven recovery, by removing the mechanism that
-enforces each; the others are design properties of the validity predicate that
-Section~\ref{sec:evaluation} exercises with fault and attack injection. All of
-these properties are conditional on the Bitcoin reorg-depth bound of
-Section~\ref{subsec:threat-model}.
-
-\textbf{Health certificates in the model.} The server layer models each
-validator's observation as three Booleans (healthy, warning, critical) and the
-Bitcoin and DA gaps clipped to $0..3$; the aggregate is a per-field majority for
-the Booleans and a weighted median for the gaps, and \texttt{IsValidProposal}
-rejects a certificate below a quorum. A Byzantine validator may sign any
-observation; an honest validator with an eclipsed P2P layer may report a degraded
-one, never a healthier one, which is a sensor-soundness assumption of the model.
-Every validator has the same voting power, and the proposer may choose any member
-set that forms a quorum.
-
-Lemma~\ref{lem:honest-range} is checked as \texttt{AggWithinHonestRange} with Apalache, with the
-observation vector left symbolic so that one check covers every vector. For
-$N{=}4$ and $f{=}1$ it reported no violation (22\,s). With two Byzantine
-validators in the same network it reports a violation (25\,s), so the bound
-on Byzantine members is necessary. Signatures, height and round binding,
-and the individual P2P counters are not modelled. The check covers the aggregate as a
-function; the certificate's role inside \texttt{IsValidProposal} is covered
-only by the open refinement obligation.
+The model-checked properties and attack resilience are described in Appendix~\ref{app:extended}.
 
 \subsection{Bounded Results and Mechanism Ablation}
 
@@ -286,31 +235,7 @@ $N{=}7, f{=}2$) but has not converged at any of them, so the composed system is
 \emph{not} formally verified end-to-end; its whole-system evidence in this paper is
 empirical (Section~\ref{sec:evaluation}).
 
-\textbf{Why the refinement is not claimed.} We split the obligation by the actions
-that may fire and checked each part with TLC. The environment part completed without
-violation; the consensus-core part did not complete; and neither covers the
-interleaving of environment and consensus steps. A completed run constrains a
-behaviour only if that behaviour is reachable, so we required of every
-configuration that a round change, a Byzantine proposal and a decided block all be
-reachable. In the monolithic bound L0 (one round, one height, three timestamps) a
-round change and a Byzantine proposal are reachable within seconds, and two honest
-prevotes for one proposal co-occur at depth 5. A lock, a decided block and the FSM
-transition that only a decision commits were not reached: the full L0 space was
-explored to 15.3 billion states generated (249 million distinct, depth 12) without
-a violation and without terminating, and probes restricted to the healthy path
-reached no decision either. None of these configurations is reported as a result
-(Appendix~\ref{app:formal}).
-
-The refinement target is an extension of the object of LiDO~\cite{qiu2024lido} with
-one added action and two guards on timeout certification, and the added action
-weakens the target. The mapping simplifies four things, which the appendix lists, and
-the obligation concerns safety only. An inductive check with Apalache over the whole
-\texttt{ServerNext} would avoid the composition gap. It is set up as
-\texttt{MC\_ServerRefinementStep\_Apalache.tla}: the driver typechecks and its base
-case, invariant preservation by the initial states, holds, but the check that the
-initial states map to abstract initial states stops in Apalache's SMT backend, which
-does not implement a set filter over a powerset. The refinement therefore rests on
-TLC alone.
+Why the refinement of the composed layer is not claimed is explained in Appendix~\ref{app:extended}.
 
 \textbf{What is and is not claimed.} We claim that the Tendermint-style and FSM
 layers satisfy the properties of Table~\ref{tab:formal-verification} within the

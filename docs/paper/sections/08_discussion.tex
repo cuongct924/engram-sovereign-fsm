@@ -36,32 +36,7 @@ the chain sees the layer return.
   is in \textsc{Sovereign} mode (Section~\ref{sec:protocol}).
 \end{itemize}
 
-\textbf{Cost of griefing.} An adversary that degrades the peripheral view of
-the honest validators -- for example by delaying their Bitcoin
-connectivity -- can drive the chain into \textsc{Sovereign} and freeze
-withdrawals for as long as the degradation lasts. In P4 (Section~\ref{subsec:rq1}) a sustained delay on the P2P interfaces of one validator, observed by all seven, was enough in all three runs; we did not establish whether the cause is the sensor design or a threshold crossing, so Lemma~\ref{lem:honest-range} does not prevent it. This is a new attack surface relative to a chain
-that ignores its periphery, but not relative to a strict receipt-gated chain: the same
-attacker stalls the strict receipt-gated chain, whereas Engram freezes only
-withdrawals. Lemma~\ref{lem:honest-range} prevents Byzantine validators from causing the freeze
-alone: honest validators whose peripheral view is degraded must supply the
-rest of the majority. Together with the Byzantine validators they must hold
-more than half of the certificate weight, and the proposer's choice of quorum
-subset sets that weight. At $n{=}7$ with two colluders, an honest proposer that
-includes all seven observations requires two degraded honest validators, and a
-Byzantine proposer that selects a minimal quorum of five requires one.
-In a design without a quorum-backed health input, one node's view
-suffices. The freeze is the intended response to an
-unverifiable periphery, not a safety violation. Its economic cost to users and
-the attacker's cost of sustaining it are not quantified.
-
-\textbf{Repeated triggering of \textsc{Suspicious}.} An adversary that repeatedly
-pushes the chain into \textsc{Suspicious} is limited only by the bounded
-forced-transaction queue and the down threshold. An optional backoff of the down
-threshold, which we did not evaluate on the \textsc{Recovering}$\to$\textsc{Sovereign}
-edge, was meant to raise the price of such repetition. On the
-\textsc{Anchored}$\to$\textsc{Suspicious} edge it did not beat a static threshold of 4
-in live runs, and its absorption of short pulses has no live evidence
-(Appendix~\ref{app:adaptive}).
+The analysis of the cost of griefing is in Appendix~\ref{app:extended}.
 
 \textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
 FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a
@@ -75,22 +50,7 @@ as in Table~\ref{tab:exposure}. The
 acceleration: the same one withdrawal every 2\,s over the mainnet window would
 be about 1{,}900, and nothing but block capacity limits a faster sender.
 
-\begin{table}[tbp]
-\caption{Time from the start of a fault to the lock of withdrawals, as measured
-on the testbed (Bitcoin block every 20\,s) and converted to mainnet cadence
-(every 600\,s). Engram blocks are 1.2\,s on both.}
-\label{tab:exposure}
-\centering
-\footnotesize
-\begin{tabular}{@{}lrrrr@{}}
-\toprule
-\textbf{Fault} & \textbf{Testbed} & \textbf{Bitcoin blocks} & \textbf{Engram blocks} & \textbf{Mainnet} \\
-\midrule
-Checkpoint pause & 125\,s & 6.3 & 104 & 62\,min, 3{,}100 blocks \\
-DA outage & 40\,s & --- & 33 & 40\,s, 33 blocks \\
-\bottomrule
-\end{tabular}
-\end{table}
+The exposure table (Table~\ref{tab:exposure}) is in Appendix~\ref{app:extended}.
 
 The testbed conversion is a scaling of the measured time. A model of the
 checkpoint cycle, validated against the testbed, puts the lock at 47--50 minutes at
@@ -101,23 +61,7 @@ lowered, and that \texttt{MaxSuspiciousTime} must follow the Bitcoin cadence of 
 deployment; a live check at a 600\,s mining interval (three runs) reached \textsc{Sovereign} after 50.6--60.7\,min, mean 54.1\,min, against the model's 47--50\,min (Appendix~\ref{app:envelope}). We do not implement any of the ways of
 bounding the exposure that the appendix lists.
 
-\textbf{Hysteresis: noise against concealment.} A higher down threshold $k$
-tolerates longer bursts of noise, and it also tolerates a longer run of reports
-that a Byzantine proposer interleaves with honest ones. Within the assumption the
-choice of $k$ does not matter for detection: for each of the 21 placements of two
-Byzantine proposers in the seven-slot rotation, a real DA outage was detected after
-exactly $k$ blocks ($k\in\{2,3,4\}$, simulation). With three Byzantine validators,
-outside the assumption, a larger $k$ makes concealment easier: in the simulation
-the outage was missed for 14 of 35 placements at $k{=}3$ and for 28 at $k{=}4$. The
-live runs at $k{=}2$ detected it in 5 of 5 runs; at $k{=}4$ the live runs did not
-reproduce the simulation's concealment for interleaved placements, so concealment
-at $k{=}4$ rests on the simulation alone. The experiments ran with
-$k_{\downarrow}{=}2$, which the live noise sweeps show to be too low for a
-wide-area network (flapping, 82\% of the noisy phase in \textsc{Anchored}); we
-recommend $k_{\downarrow} \geq 4$ as a deployment setting, set from the noise of
-the environment, at the price of easier concealment. Appendix~\ref{app:envelope}
-gives the detail, including a window rule that is not cut by interleaving and that
-we did not implement.
+The trade-off of the down threshold between noise and concealment is in Appendix~\ref{app:extended}.
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the certificate
@@ -126,19 +70,7 @@ proposers can therefore bias the timing of transitions, and, because the lemma i
 threshold (for example three against four validators) has not been tested live;
 the RQ4 scan shows no extra rounds in the unfaulted case.
 
-\textbf{History divergence at re-anchoring.} During \textsc{Sovereign}, the
-ordering of blocks rests on the validator quorum alone. A coalition
-exceeding $f$ could produce a \textsc{Sovereign} history that differs from
-one it would have produced under Bitcoin timestamping; the recovery proof
-certifies the history's continuity, its recorded mode and lock labels, and the boundary quorum signatures. It does not
-certify its uniqueness beyond the $f$ bound, that every transition followed the transition function, or that no withdrawal
-executed (the lock is enforced when a block executes; the proof covers the flag recorded for it), and it does not cover the
-unproven tail. The withdrawal lock limits what such a history can extract.
-
-\textbf{Data availability of the \textsc{Sovereign} interval.} During
-\textsc{Sovereign} the interval's block data is held only by the validators' own
-block stores. The backfill gate of Section~\ref{subsec:reanchoring} makes its
-publication a precondition for returning to \textsc{Anchored}.
+The divergence of history at re-anchoring and the data availability of the \textsc{Sovereign} interval are discussed in Appendix~\ref{app:extended}.
 
 \textbf{The unproven tail: liveness against trust.} A recovery proof is built
 while the chain keeps producing blocks, so the gate accepts it only if the
@@ -310,32 +242,7 @@ Repeated measurements with confidence intervals, and a vanilla comparison on
 the same host under the same load, mitigate this; the host still affects
 absolute values.
 
-\textbf{Testbed gap.} Four properties of the testbed limit how its results transfer to a
-production deployment.
-\begin{itemize}
-  \item \emph{Single physical host.} All Testbed~A containers share one
-  machine's CPU and memory, so resource contention can affect every validator
-  at once; wide-area conditions are emulated with \texttt{tc netem} rather
-  than real geographic distribution.
-  \iftestbedB Testbed~B removes both limitations for the experiments repeated
-  on it (so far the proving-latency runs; its composite and load runs are
-  pending).\fi
-  \item \emph{Accelerated Bitcoin.} Regtest blocks arrive about $30\times$
-  faster than on mainnet. Height-based thresholds are unaffected, but
-  wall-clock durations scale accordingly.
-  \item \emph{DA payload.} The DA publisher submits the transactions of
-  committed blocks in height-ordered batches of at most 1.5\,MB and tracks
-  the highest contiguous published height; the exit gate of
-  Section~\ref{subsec:reanchoring} requires that height to cover the
-  \textsc{Sovereign} interval. The gate rests on a quorum-reported
-  contiguous height, not on a cryptographic proof of retrievability.
-  Section~\ref{subsec:rq3} reports the republication of the interval after a
-  live DA outage.
-  \item \emph{Single-bridge trust.} Each validator trusts its own bridge
-  node, which downloads and verifies full Celestia blocks, rather than
-  sampling across independent peers; our DA-outage results measure bridge
-  failures, not sampling-detected partial withholding.
-\end{itemize}
+The four properties by which the testbed limits the transfer of its results are in Appendix~\ref{app:extended}.
 
 \textbf{External validity.} Results at seven validators on one host, and the fewer runs on seven machines in three regions, need not
 extrapolate to larger validator sets or other networks; they are
@@ -348,53 +255,4 @@ systems. AppHash agreement alone cannot detect an illegal transition agreed on
 by all validators; the semantic replay check of Section~\ref{subsec:rq1}
 addresses this gap.
 
-\subsection{Future Work}
-\label{subsec:future-work}
-
-\begin{itemize}
-  \item \emph{Formal scope.} Closing the cross-layer refinement and extending
-  the certificate model from Boolean to numeric observations would extend the
-  formal results to the composed system; a compositional argument for the
-  interleaving of environment and consensus steps would extend the partial results
-  of Section~\ref{subsec:verification-scope}. Deductive
-  methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
-  where it does not scale.
-  \item \emph{Prover.} Proofs of segments built at the same time on one to four workers keep the tail within the bound
-  on the cloud testbed (Section~\ref{subsec:rq3}); the aggregation of chunks proven in parallel, and
-  longer intervals, are not measured. Incremental recursion would also make the recovery artifact constant-size for
-  intervals of any length.
-  \item \emph{Closing the tail.} Keeping the headers of the unproven tail after the return to \textsc{Anchored} and
-  accepting proofs for them while the chain is \textsc{Anchored} would make every \textsc{Sovereign} and \textsc{Recovering} block
-  eventually covered by a proof; it does not touch the transition function, so the specification of the FSM would not change.
-  A single pending tail is implemented and unit-tested in a development branch of the repository, not evaluated end to end: a
-  tail still open when the next interval begins cannot be chained to it (the \textsc{Anchored} blocks between them are not
-  tracked), so that variant drops it and counts the dropped blocks. A list of pending tails, or tracking headers while the chain
-  is \textsc{Anchored}, would remove the drop at a cost in state and in the analysis of the proof gate.
-  \item \emph{Data availability.} Replacing single-bridge trust with sampling
-  across independent peers would let the DA sensor detect partial withholding
-  rather than only outages.
-  \item \emph{Baselines and verifiers.} A receipt-gated baseline whose proposals
-  carry verifiable evidence (a Bitcoin header chain with a Merkle proof, and a proof
-  that the blob was posted) would remove the disagreement between validators of the
-  out-of-band baseline, but it would still stall while a layer is down. An external
-  verifier (Section~\ref{sec:protocol}), a light client or bridge on another chain
-  that accepts a re-anchoring checkpoint only with a valid proof, is also unbuilt, so
-  its verification cost is unmeasured.
-  \item \emph{The proposer's influence on the certificate.} Requiring one observation
-  in the certificate for every commit vote of \texttt{LastCommit} is a single added
-  condition in \texttt{ProcessProposal}; it does not affect an honest proposer and
-  makes an omission visible and attributable. The proposer would still choose which
-  precommits \texttt{LastCommit} records, because CometBFT accepts any
-  \texttt{LastCommit} with more than two thirds of the voting power; removing that
-  choice changes the agreement protocol, needs a new safety and liveness analysis and
-  would require every experiment to be run again. The quantified influence of
-  Section~\ref{subsec:health-certificate} stays the guarantee of this paper.
-  \item \emph{Asset-level safety.} The lock is a necessary condition for protecting
-  bridged assets, not a sufficient one. It needs (i) a bridge on the counterparty
-  chain that releases funds only against a proof that the Engram height is committed
-  in an anchored state, with escrow accounting and replay protection; (ii) a treatment
-  of history rewriting by a coalition above the fault bound while the chain is in
-  \textsc{Sovereign} mode (Section~\ref{sec:protocol}); and (iii) a bound on the
-  exposure before the lock, for example by a withdrawal quota per Bitcoin block. We
-  evaluate none of these.
-\end{itemize}
+Future work is listed in Appendix~\ref{app:extended}.

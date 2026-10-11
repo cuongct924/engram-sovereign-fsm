@@ -43,18 +43,7 @@ Celestia network with seven bridge nodes, one per validator, so that each
 validator forms its own DA view. The single-actor attacks of Appendix~\ref{app:attacks} and the $f{=}2$ collusion
 suite of Section~\ref{subsec:rq1} ran on the seven-validator cluster.
 
-\textbf{Celestia.} The DA layer is Celestia software, not the Celestia network. A private
-\texttt{celestia-app} chain with one validator produces a block every 11.0\,s (median
-11.0\,s, standard deviation 0.04\,s over 80 consecutive blocks; no timing parameter is set,
-so this is the image default), about nine Engram blocks, and the seven bridges download
-and verify its full blocks. There is no public network, no light node or data availability
-sampling, and no independent operator, so a DA fault is the loss of the bridges and not the
-partial withholding of data. The DA gap counts Engram heights (Section~\ref{subsec:sensors}):
-its threshold of 30 blocks, about 36\,s, spans about three Celestia blocks, and a healthy chain
-sits below it: in the first 15\,s of seven composite runs the gap averaged 12.3 blocks (95th
-percentile 17, maximum 18; 781 samples). The lock time after a DA outage does not scale with the
-Celestia cadence. The DA results therefore show
-what Engram does when the DA layer is lost, not that it detects partial withholding.
+The Celestia setup is described in Appendix~\ref{app:extended}.
 
 \textbf{Environment and versions.}\label{subsec:environment}
 
@@ -91,86 +80,17 @@ isolates the effect of Engram's adaptive relaxation. It is a runtime mode of
 the same binary (\texttt{ENGRAM\_MODE=hard-gated}); Section~\ref{subsec:rq2} runs
 the RQ2 fault schedule against it. A chain in this mode cannot start from genesis, because the first block needs a DA receipt that does not exist yet; every trial therefore starts the cluster as Engram, waits until all validators report \textsc{Anchored} with healthy sensors, waits until the Bitcoin height gap is at most three, and restarts the validators in the receipt-gated mode with their state kept, with the Bitcoin miner paused during the restart.
 
-\textbf{Out-of-band receipt-gated baseline (RQ2).} The same predicate and the
-same pinned \textsc{Anchored} state, but the receipts are not read through the
-vote extensions: in \texttt{PrepareProposal} and \texttt{ProcessProposal} each
-validator reads Bitcoin and the DA layer itself and checks the proposal against
-its own reading (\texttt{ENGRAM\_MODE=hard-gated-oob}). A rejected height
-therefore cannot starve the next one of fresh receipts, which removes both
-dependencies on block commits of the in-band baseline (Section~\ref{subsec:rq2}). The price
-is that two honest validators may read different values and disagree on the
-validity of a proposal, which the certificate of
-Section~\ref{subsec:health-certificate} exists to prevent. It is a second
-construct of this paper, built to show whether the in-band baseline's failure to
-resume is a property of where the receipts are observed rather than of gating
-validity on them. In what follows the first baseline is called in-band and this
-one out-of-band observation; both are receipt-gated and neither locks
-withdrawals.
-
-\emph{What the predicate implies, and what RQ2 measures.} If, over an interval,
-some receipt predicate holds for no proposal at any height, then no value
-satisfying $V_h$ can be decided in that interval. This is the external-validity
-property of Byzantine agreement~\cite{cachin2001secure}, and in CometBFT an
-application rejection in \texttt{ProcessProposal} yields a nil prevote. It is a
-consequence of the predicate, not a result of this paper. RQ2 therefore asks
-different questions: how many blocks the implementation commits while the
-predicate is nearly unsatisfiable (the receipt tolerance widens with the round),
-whether it resumes after the fault, and what Engram commits instead. The
-first two depend on the implementation and are reported separately for the two
-variants.
+The definition of the out-of-band baseline is in Appendix~\ref{app:extended}.
 
 \textbf{Soft baseline (RQ2).} The real FSM runs, but withdrawals are never
 locked in \textsc{Sovereign} or \textsc{Recovering}
 (\texttt{ENGRAM\_MODE=soft}). It keeps liveness and drops the circuit
 breaker, which isolates what the withdrawal lock contributes.
 
-\textbf{Vanilla CometBFT (control, RQ4).} The same application with the
-health-aware ABCI++ hooks disabled. It does not depend on Bitcoin or
-Celestia and therefore never stalls when they fail; it serves as the
-cost reference for RQ4 and as a control showing that measured stalls or
-fallbacks are not artifacts of the harness.
-
-\textbf{Ablation baselines.} A peer-count-only P2P detector isolates the
-contribution of the six-bound profiler (RQ1), and each hysteresis edge with
-its threshold set to its floor isolates the contribution of hysteresis
-(RQ3).
+The vanilla control and the ablation baselines are defined in Appendix~\ref{app:extended}.
 
 \subsection{Fault Model, Schedules and Parameters}
-\label{subsec:schedules}
-
-Network-level faults use kernel traffic control (\texttt{tc netem} via
-Pumba): uniform delay and jitter, packet loss, single-node isolation, and a
-heterogeneous per-validator wide-area profile approximating seven regions.
-Appendix~\ref{app:netem} lists the parameters of every profile. The
-\emph{WAN latency baseline} is the per-validator delay and jitter profile of
-Table~\ref{tab:netem-wan}, held for the whole run unless a step in
-Table~\ref{tab:schedule} suspends it.
-
-Application-level faults reproduce mechanisms that delay alone cannot, and
-each simulates the consequence of a failure rather than its cause.
-\begin{itemize}
-  \item \emph{Bitcoin congestion} suspends the submission of new
-  checkpoints (a pending one still confirms), so the finality gap grows
-  directly. It does not congest the Bitcoin mempool.
-  \item \emph{DA outage} stops one or all seven Celestia bridge containers.
-  It does not emulate a data-availability-sampling failure.
-  \item \emph{Byzantine behavior} is injected through attacker processes or
-  through a validator configured to forge proposal fields, omit
-  transactions, double-sign, or flood timeout messages.
-\end{itemize}
-Every fault targets a peripheral layer or a minority of validators; none
-partitions the core consensus network below a quorum, consistent with the
-scope defined in Section~\ref{sec:intro}.
-
-
-Table~\ref{tab:schedule} gives the onset, mechanism, and duration of each
-fault in the two scripted runs of Section~\ref{subsec:rq2}. Times are
-relative to the start of each run, durations are the length of the polling
-window the script holds the fault for, and each of S2--S5 is followed by a
-wait of up to 600\,s for the validators to return to \textsc{Anchored} before
-the next scenario starts.
-
-The table is in Appendix~\ref{app:setup}: the composite run holds a Bitcoin fault, adds a DA outage, cycles packet loss on two validators, heals, and waits for recovery; the seven-scenario sweep applies one fault at a time (S2--S6) between a healthy baseline and a recovery wait.
+The fault schedules and the fault model are in Appendix~\ref{app:extended}.
 
 \textbf{FSM parameters.}\label{subsec:params}
 
@@ -190,17 +110,7 @@ arrive about once per second.
 \subsection{Workloads, Metrics and Statistics}
 \label{subsec:metrics}
 
-\textbf{Synthetic workloads.}\label{subsec:montecarlo} Two synthetic workloads feed the in-process studies; both use fixed seeds, and
-Appendix~\ref{app:setup} gives the generators and their limits. The hysteresis
-sweeps drive the real state machine with sensor readings in which each block is
-disturbed independently with probability 0.2, for 100 blocks, so every threshold
-value sees the same noise sequence. The Monte Carlo P2P study compares the
-six-bound profiler with a peer-count-only rule on 2{,}000 benign and 2{,}000
-full-intensity synthetic snapshots, and on ramps of rising intensity, at
-production-scale thresholds; it measures false-positive and false-negative rates,
-detection delay and an evasion threshold. The benign distribution, the attack
-directions and the intensity scale are our choices, so the results characterize
-the detectors' sensitivity within this generator.
+The synthetic workloads are described in Appendix~\ref{app:extended}.
 
 \textbf{Terms.} $n$ is the number of validators ($n{=}7$ on the main testbed). A \emph{run} is one execution of a
 scenario; unless stated otherwise it starts from \textsc{Anchored} on a freshly

@@ -91,43 +91,7 @@ $s^{h}$ is deterministic. The dashed path is the recovery proof
 Sensors are the only non-deterministic component; their outputs enter
 consensus only through the certificate (Section~\ref{subsec:health-certificate}).
 
-\textbf{Bitcoin finality gap.} $\Delta H_{\text{BTC}} = H_{\text{current}} -
-\min(H_{\text{submitted}}, H_{\text{anchored}})$ measures how far the latest
-checkpoint lags Bitcoin's tip; it grows under congestion or checkpoint
-censorship. Because a delay metric cannot detect a checkpoint that was
-reorganized away, each validator also re-verifies, against its own Bitcoin
-full node, that the checkpoint transaction is still included at depth
-$\geq K_{\text{DEEP\_FINALITY}}$. A failed re-verification is a critical
-condition.
-
-\textbf{DA gap.} $\Delta H_{\text{DA}} = H_{\text{local}} -
-H_{\text{verified}}$ measures the lag between the chain head and the highest
-height whose DA submission the validator has confirmed as retrievable from
-its own Celestia bridge node. This is bridge-level retrievability, not a
-data-availability-sampling proof; Section~\ref{subsec:sim-to-real} describes
-what the prototype publishes.
-
-\textbf{Units of the gaps.} The two gaps count different things because the two
-layers guarantee different things. The Bitcoin gap counts Bitcoin blocks, since a
-checkpoint's guarantee is its confirmation depth; it grows only with the Bitcoin
-blocks that arrive while no checkpoint is anchored, so a slow Bitcoin chain adds no
-gap. The DA gap counts Engram heights, since the guarantee of the DA layer is that
-every Engram height is retrievable. Each threshold is read in the unit of its own
-layer and converts to time at that layer's cadence: a Bitcoin block takes 600\,s on
-mainnet and 20\,s on the testbed, an Engram block about 1.2\,s on both. A time bound
-that must cover a Bitcoin fault, such as the \textsc{Suspicious} timeout
-$T_{\text{sus}}$ (Section~\ref{subsec:transitions}), therefore follows the Bitcoin
-cadence of the deployment (Section~\ref{sec:discussion}).
-
-\textbf{P2P health.} Peer count alone cannot distinguish a long-lived honest
-peer from a fresh Sybil, and eclipse attacks combine vectors no single
-metric captures~\cite{rehman2025eclipse,heilman2015eclipse}. The profiler
-combines six bounds -- subnet diversity, active anchor peers, clean peers,
-churn rate, mean peer tenure, and latency -- applied to the Engram P2P
-interface, the Bitcoin client, and the Celestia client. These bounds
-characterize peripheral and partial P2P degradation; a partition of the
-core consensus network below a quorum is outside what any FSM can handle
-(Section~\ref{sec:intro}).
+The definitions of the sensor gaps, their units and the P2P health sensor are in Appendix~\ref{app:extended}.
 
 \textbf{Agreement versus correctness of health.} Lemma~\ref{lem:honest-range}
 (Section~\ref{subsec:health-certificate}) bounds what
@@ -225,44 +189,7 @@ degradation that every honest validator in $S$ observes therefore moves the
 certified aggregate across the threshold, and a weight below $W/3$ cannot move
 it across when no honest validator in $S$ observes the degradation.
 
-\textbf{What the lemma does not give.} It bounds each metric separately. The
-aggregate vector need not equal the observation of any honest validator, so a
-condition on several metrics can hold of $\mathsf{Agg}(C^{h})$ when it holds of
-no honest observation. For example, with three equally weighted honest
-validators and three metrics, each validator seeing a different metric beyond
-its threshold, every aggregated metric is within its threshold although every
-honest validator sees a degradation. The lemma also does not say which honest
-value the aggregate takes when honest values differ (see the proposer
-discussion below).
-
-\textbf{Adversarial cases.} The lemma does not require honest observations to
-agree; it bounds what the adversary can do when they disagree, and each
-adversarial case reduces to it (Appendix~\ref{app:certificate}). A stale or
-replayed observation fails the height and round binding, two observations by one
-validator count once, and false observations below $W/3$ cannot leave the honest
-range. The proposer chooses the set $S$ and may omit honest observations; if $S$
-still meets (d) the lemma holds, and if not, the certificate is not well-formed
-and honest validators reject the proposal. The proposer's residual influence is
-choosing \emph{which} honest value in the honest range is selected when honest
-validators genuinely disagree: with $n{=}7$ equal-power validators and a quorum
-of $q{=}5$ it reaches the third to the fifth smallest observation, the median of
-all seven being the fourth. Only when honest observations straddle a threshold
-does this choice change a decision, and a transition needs the hysteresis count
-over consecutive blocks while proposers rotate, so a Byzantine proposer influences
-the blocks it proposes. In the live collusion suite (Section~\ref{sec:evaluation},
-case B3), honest validators accepted a proposer that kept exactly a quorum of
-certificates in 3 of 3 repeats and rejected one that kept fewer, 210 times in total
-across the 3 repeats.
-
-\textbf{Height and round binding.} The certificate committed at height $h$
-describes observations signed at height $h{-}1$, one block of lag. A
-signature binds $(\mathit{chainID}, h{-}1, r, m_i)$, and a well-formed
-certificate takes observations only from the commit round $r^{\star}$ and
-only from validators whose precommit is in that commit.
-This prevents replay of an observation from another height or round into
-$C^{h}$. The binding is a property of the consensus instance, not of the
-measurement: a validator can still sign a cached Bitcoin tip or stale peer
-metrics (Section~\ref{subsec:sensors}).
+The limits of the lemma, the adversarial cases and the binding of the certificate to height and round are in Appendix~\ref{app:extended}.
 
 \subsection{Finite State Machine}
 \label{subsec:fsm}
@@ -351,23 +278,7 @@ The waits are given in Table~\ref{tab:fsm-waits}.}
 \label{fig:fsm}
 \end{figure}
 
-\begin{table}[tbp]
-\caption{Hysteresis waits of the FSM (defaults of the prototype;
-Section~\ref{subsec:transitions}).}
-\label{tab:fsm-waits}
-\centering
-\footnotesize
-\newcommand{\rcc}[1]{\raggedright\arraybackslash #1}
-\begin{tabular}{@{}>{\rcc}p{0.2\linewidth}>{\rcc}p{0.34\linewidth}>{\rcc}p{0.26\linewidth}>{\rcc}p{0.1\linewidth}@{}}
-\toprule
-\textbf{Wait} & \textbf{Applies to} & \textbf{Default} & \textbf{Adaptive} \\
-\midrule
-Down wait $k_{\downarrow}$ & \textsc{Anchored}$\to$\textsc{Suspicious}, \textsc{Recovering}$\to$\textsc{Sovereign} & 2; with the optional backoff, doubles per flap level up to a cap (equal to the threshold on the testbed, so the threshold is static) & Optional \\
-Suspicious exit $k_{\uparrow}$ & \textsc{Suspicious}$\to$\textsc{Anchored} & 2 (8 on the testbed) & No \\
-Recovery $H$ & \textsc{Recovering}$\to$\textsc{Anchored} & 2 & No \\
-\bottomrule
-\end{tabular}
-\end{table}
+The wait parameters of the FSM (Table~\ref{tab:fsm-waits}) are in Appendix~\ref{app:extended}.
 
 \subsection{Transitions and Hysteresis}
 \label{subsec:transitions}
@@ -498,85 +409,9 @@ consistency (b, c), and boundary quorum certification (e). It does not check eac
 transition against $\delta$, and the lock flag is the one the chain recorded in the
 header.
 
-\textbf{Intended verifier.} A CometBFT quorum certificate shows that a quorum
-signed a block. The recovery proof adds a statement about the headers
-that the chain recorded between two signed blocks: each records \textsc{Sovereign}
-or \textsc{Recovering} with the lock flag set. The circuit does not tie the header
-chain to the two signed blocks; the public inputs do, and a verifier must compare
-them with its own record of the roots, the height of the first block and the hashes
-of the two boundary blocks. This matters to a verifier that
-does not replay the chain, such as a bridge or light client on another chain,
-a node syncing from genesis, or a Bitcoin observer
-(Section~\ref{subsec:security-semantics}). For validators, which already hold
-the headers, it is a consistency check. The target verifier is an external
-light client that accepts a re-anchoring checkpoint only with a valid proof;
-the prototype does not include such a client.
-As a check that the proof can be verified without the node, a separate
-process on the same host read a committed block over RPC, took the proof (14{,}656\,bytes) and
-the 224-byte public inputs from its recovery-proof transaction, and verified them
-with \texttt{bb} against the verification key shipped with the repository; this was
-one proof on one chain.
+The intended verifier of the recovery proof is described in Appendix~\ref{app:extended}.
 
-\textbf{Longer intervals.} An interval longer than 256 headers is covered by
-a sequence of proofs: each accepted proof advances the on-chain
-$\mathit{rt}_{\text{last}}$ to its $\mathit{rt}_{\text{new}}$, and the next
-proof must start from that root. This costs $\lceil L/256 \rceil$ proofs for
-$L$ blocks. An aggregator circuit can fold up to four chunk proofs into one
-proof of the same size, which makes verification cost independent of $L$ up to
-1024 headers at the price of one extra proof; proving time still grows with $L$
-(Table~\ref{tab:recovery-cost}, Appendix~\ref{app:aggregation}).
-
-\begin{table}[tbp]
-\caption{Cost of the recovery proof by interval length $L$ (offline workstation,
-synthetic chain; one by one against aggregate, from Appendix~\ref{app:aggregation})}
-\label{tab:recovery-cost}
-\centering
-\footnotesize
-\begin{tabular}{@{}rlrrr@{}}
-\toprule
-$L$ & Submission & Prove & Bytes & Verify \\
-\midrule
-256 & single proof & 31.5\,s & 14{,}656 & 19.8\,ms \\
-512 & aggregate of 2 & 89.9\,s & 14{,}656 & 20.2\,ms \\
-512 & one by one & 60.5\,s & 29{,}312 & 39.5\,ms \\
-1024 & aggregate of 4 & 146.7\,s & 14{,}656 & 20.2\,ms \\
-1024 & one by one & 120.1\,s & 58{,}624 & 79.1\,ms \\
-\bottomrule
-\end{tabular}
-\\[2pt]
-\footnotesize Verify is the validators' embedded WebAssembly verifier, per proof (30
-iterations, three runs); the one-by-one rows are $n$ times the leaf cost, and the
-aggregate's proving time includes its leaf proofs. Aggregate proving and verification
-are averaged over five trials per length, each leaf proof was timed once, and the chain
-is synthetic (Appendix~\ref{app:aggregation}).
-\end{table}
-
-The aggregate has a constant size and verification time, and costs more to prove than
-the chunks alone; the prover's chunks were built one after another, and proving them
-concurrently was not measured.
-
-\textbf{Who verifies what.} The recovery proof is submitted as a message and
-verified by \emph{every Engram validator} during block execution, using an
-embedded, deterministic WebAssembly build of the UltraHonk verifier. The
-message handler binds the proof's public inputs to chain state:
-\begin{itemize}
-  \item $\mathit{rt}_{\text{last}}$ to the committed last anchored root, and
-  $\mathit{rt}_{\text{new}}$ to the accumulator of a header the chain recorded;
-  \item the first height to the last anchored height plus one, and the header
-  count to the distance between the two checkpoints;
-  \item the first and last block hashes to the CometBFT hashes the chain
-  recorded at those heights, and the validator-set hash to that of the genesis
-  set.
-\end{itemize}
-A verified height is latched so a proof cannot be replayed. Interior headers
-are bound only through the accumulator, not through per-block signatures.
-Bitcoin only timestamps the checkpoint; it does not verify the proof. After
-recovery, validators resume writing \texttt{OP\_RETURN} checkpoints of 44 bytes
-(a 4-byte tag, the Engram height, and the CometBFT block hash at that height),
-and the Bitcoin gap sensor requires them to reach depth
-$K_{\text{DEEP\_FINALITY}}$. Anchor re-verification compares the hash with the
-local block hash. The proof's $\mathit{rt}_{\text{new}}$ is a Poseidon2
-accumulator, not a block hash, and is not written to Bitcoin.
+Which party verifies what in the proof message is described in Appendix~\ref{app:extended}.
 
 \textbf{Proof timing.} The proof message executes in block $h$ and latches the
 height of the new checkpoint. The \texttt{PreBlocker} of block $h{+}1$
