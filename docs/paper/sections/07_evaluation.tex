@@ -326,8 +326,8 @@ bound of 128 blocks, so that recovery needed a verified proof. In all five
 runs the height advanced throughout (from 373--387 to 747--760), the
 validators agreed on the AppHash at every sampled height (zero divergent
 heights; one RPC error in one run), and the chain ended in \textsc{Anchored}.
-Times are those at which the median (fourth) validator first reported the state, from the first sample. In two of the five runs some validators were briefly in \textsc{Suspicious}, ordinary sensor noise at a threshold of two, before the first fault. The chain reached \textsc{Sovereign} 38--53\,s after the start (mean 45.0\,s, 95\% CI
-$\pm$6.7\,s over five runs, Student $t$), four of the five passing through
+Times are those at which the median (fourth) validator first reported the state, from the first sample. In two of the five runs some validators were briefly in \textsc{Suspicious}, ordinary sensor noise at a threshold of two, before the first fault. The chain reached \textsc{Sovereign} 38--53\,s after the start (mean 44.9\,s, 95\% CI
+$\pm$7.2\,s over five runs, Student $t$), four of the five passing through
 \textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 311--324\,s in,
 after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
 $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
@@ -337,8 +337,8 @@ We then ran the sequence five times on the cloud testbed (Testbed~B, Appendix~\r
 regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain, with the times defined as above. In two of the five runs most validators were in \textsc{Suspicious}
 during the first seconds, before the first fault, so those runs did not start from a clean \textsc{Anchored}. In all five runs the height advanced throughout (from 151--188 to 250--290), the validators agreed on the AppHash at every
 sampled height (zero divergent heights; 13--29 RPC errors per run, timeouts of the sampler over the wide-area links), and the chain ended in
-\textsc{Anchored}. It reached \textsc{Sovereign} 241--291\,s after the start (mean 271.6\,s, 95\% CI $\pm$23.3\,s, Student $t$), and
-\textsc{Recovering} began 335--358\,s in (mean 343.8\,s, $\pm$10.8\,s) and lasted 82--104\,s (mean 96.0\,s, $\pm$11.1\,s; until every validator reported \textsc{Anchored}). Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
+\textsc{Anchored}. It reached \textsc{Sovereign} 241--291\,s after the start (mean 271.4\,s, 95\% CI $\pm$23.4\,s, Student $t$), and
+\textsc{Recovering} began 335--358\,s in (mean 343.6\,s, $\pm$11.0\,s) and lasted 83--104\,s (mean 96.4\,s, $\pm$10.8\,s; until every validator reported \textsc{Anchored}). Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
 the chain returned to \textsc{Anchored}. The two testbeds differ in block rate, hardware and in how the sensors see the faults, so their times are not comparable and are not pooled.
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
