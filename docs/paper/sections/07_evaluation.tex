@@ -742,6 +742,8 @@ used 28\% of its CPU for Engram and 23\% for vanilla. Engram's block interval wa
 $4.06 \pm 0.39$\,s (mean $\pm$ 95\% Student-$t$ interval over the three deployments, one 60\,s measurement each). The intervals of the two systems do not overlap,
 so the cost of the extension is larger on the wide-area network than the single-host figures suggest. CPU does not explain it, and the empty vote extensions of the single-host
 arm (Table~\ref{tab:overhead}) cost nothing measurable, so the extra round itself is not the likely source: at the round trips of Table~\ref{tab:testbedB} (46--207\,ms)
-it adds well under the 1.3\,s observed. A candidate that fits is the live sensor reads that each validator makes inside \texttt{ExtendVote}, which on Testbed~B go to the Bitcoin and
-Celestia nodes in another region and so lie on the path of every block, where on one host they are local. These runs do not isolate it; the test that would is
-the same load with empty vote extensions on Testbed~B, which we did not run. We did not record the FSM state during these measurements and do not report how long the chain stayed in \textsc{Anchored}.
+it adds well under the 1.3\,s observed. The validators' logs of the five composite runs on Testbed~B, which ran the same binary on the same machines, show where the time goes:
+each validator's \texttt{ExtendVote}, which reads the Bitcoin and Celestia nodes in another region, took a median of 0.36\,s in us-east-2, 0.82\,s in eu-west-1 and 1.22\,s in ap-southeast-1
+(500 logged calls over five runs; maxima 0.74, 1.57 and 2.29\,s). A precommit quorum of five of seven validators cannot be reached without a validator of ap-southeast-1, so the slowest quorum member waits about 1.2\,s per block,
+which fits the 1.3\,s by which Engram's block interval exceeds vanilla's. This is an observation from the composite runs, not from the load runs, and no run isolates it: vanilla with empty vote extensions on Testbed~B was not run.
+We did not record the FSM state during these measurements and do not report how long the chain stayed in \textsc{Anchored}.
