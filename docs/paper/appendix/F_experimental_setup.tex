@@ -41,30 +41,36 @@ Section~\ref{subsec:implementation}.
 \label{tab:testbedB}
 \centering
 \footnotesize
-\begin{tabular}{@{}p{0.27\linewidth}p{0.17\linewidth}p{0.48\linewidth}@{}}
+\begin{tabular}{@{}p{0.30\linewidth}p{0.18\linewidth}p{0.42\linewidth}@{}}
 \toprule
 \textbf{Hosts} & \textbf{Region} & \textbf{Type (vCPU, RAM)} \\
 \midrule
-Validators 1--2 & us-east-2 & m5.large (2, 8\,GB), Intel Xeon Platinum \\
-Validators 3--4 & eu-west-1 & m5.large (2, 8\,GB), Intel Xeon Platinum \\
-Validators 5--7 & ap-southeast-1 & m5.large (2, 8\,GB), Intel Xeon Platinum \\
-Bitcoin, celestia-app & us-west-2 & c5.2xlarge (8, 16\,GB), Intel Xeon Platinum 8124M \\
-Prover host & us-east-1 & c7a.xlarge (4, 8\,GB), AMD EPYC 9R14 \\
-Proving workers (1 or 2) & us-east-1 & c7a.2xlarge (8, 16\,GB), AMD EPYC 9R14 \\
+Validators 1--2 & us-east-2 & m5.large (2, 8\,GB), Xeon Platinum \\
+Validators 3--4 & eu-west-1 & m5.large (2, 8\,GB), Xeon Platinum \\
+Validators 5--7 & ap-southeast-1 & m5.large (2, 8\,GB), Xeon Platinum \\
+Bitcoin, celestia-app & us-west-2 & c5.2xlarge (8, 16\,GB), Xeon Platinum 8124M \\
+Prover host & us-east-1 & c7a.xlarge (4, 8\,GB), EPYC 9R14 \\
+Proving workers (1 or 2) & us-east-1 & c7a.2xlarge (8, 16\,GB), EPYC 9R14 \\
+\bottomrule
+\end{tabular}
+
+\vspace{4pt}
+\begin{tabular}{@{}p{0.66\linewidth}p{0.24\linewidth}@{}}
+\toprule
+\textbf{Round trip (TCP connect time, best of five; ICMP is not open)} & \textbf{ms} \\
 \midrule
-\multicolumn{3}{@{}l}{\textbf{Round trips in milliseconds (TCP connect time, best of five; ICMP is not open on the hosts)}} \\
-\multicolumn{2}{@{}l}{us-east-2 to eu-west-1} & 77 \\
-\multicolumn{2}{@{}l}{us-east-2 to ap-southeast-1} & 200--207 \\
-\multicolumn{2}{@{}l}{eu-west-1 to ap-southeast-1} & 163--173 \\
-\multicolumn{2}{@{}l}{validators to the Bitcoin host: us-east-2, eu-west-1, ap-southeast-1} & 46--47, 115--116, 172--173 \\
-\multicolumn{2}{@{}l}{prover host to validator 1, to the Bitcoin host, to a worker} & 12, 57, under 1 \\
-\multicolumn{2}{@{}l}{within a region} & under 1 \\
+us-east-2 to eu-west-1 & 77 \\
+us-east-2 to ap-southeast-1 & 200--207 \\
+eu-west-1 to ap-southeast-1 & 163--173 \\
+Validators to the Bitcoin host: from us-east-2, eu-west-1, ap-southeast-1 & 46--47, 115--116, 172--173 \\
+Prover host to validator 1, to the Bitcoin host, to a worker & 12, 57, under 1 \\
+Within a region & under 1 \\
 \bottomrule
 \end{tabular}
 \\[2pt]
 \footnotesize Clock offsets against NTP (\texttt{chrony}) were under 7\,\textmu s on every host. Software versions are those of
-Testbed~A (images built from the commit recorded in Section~\ref{sec:conclusion}); the images run on \texttt{linux/amd64}.
-The raw record is \texttt{scripts/e6\_zk\_reanchoring\_benchmark/results\_live/cloud\_testbed.txt}.
+Testbed~A, in images for \texttt{linux/amd64}. The raw record is
+\texttt{scripts/e6\_zk\_reanchoring\_benchmark/results\_live/cloud\_testbed.txt}.
 \end{table}
 
 \subsection*{FSM parameters}
