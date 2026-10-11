@@ -71,22 +71,24 @@ the way it is, and the two most common sources of consensus bugs when violated:
 | Requirement | Needed for | Notes |
 |---|---|---|
 | Go toolchain + `make` | build / test / lint | |
-| **CometBFT fork sibling** — `../engram-consensus-core` | any build / test / lint here | see warning below |
 | Docker Compose v2 | the 4/7-node Docker testnet | |
 | `buf` + `protoc-gen-go` + `protoc-gen-go-grpc` on PATH | `make proto-gen` | |
 | `nargo` 1.0.0-beta.22 (+ `bb`, Barretenberg) | `make zk-compile`; debugging the ZK pipeline outside its container | not needed for normal runs -- the prover runs as a container that builds its own copy (§6) |
 | Python 3.11 or 3.12 | `scripts/` (experiments, plotting) | see §3 |
 | [`engram-barretenberg-wasm`](https://github.com/cuongct924/engram-barretenberg-wasm) sibling | nothing -- not a build dependency | provenance only: the repo that built the already-committed `x/sovereignty/keeper/zk_assets/barretenberg.wasm.gz`; only needed to rebuild that asset against a new `bb` release |
 
-### This repo needs a sibling checkout of its CometBFT fork
+### The CometBFT fork is a pinned module
 
-`go.mod` has `replace github.com/cometbft/cometbft => ../engram-consensus-core` — a local sibling
-repo, not a module dependency. Any build/test/lint here needs `../engram-consensus-core` to exist,
-checked out as an actual sibling directory (not nested inside this repo's checkout).
+`go.mod` replaces `github.com/cometbft/cometbft` with the public
+[`engram-consensus-core`](https://github.com/cuongct924/engram-consensus-core) fork at one commit (a
+pseudo-version in the `replace` line), so `go build` fetches it like any dependency and nothing needs
+checking out beside this repo. `go.sum` records its hash.
 
-If you're changing the fork itself, build/test it directly in `engram-consensus-core` first (its
-own module) — this repo's `go build` only consumes the fork's code via `replace`, it doesn't build
-the fork.
+To change the fork, work in its own repository and test it there first, then run
+`go work init . ../engram-consensus-core` here to build this repo against your local checkout (do
+not commit `go.work`). Once the change is pushed, move the pin:
+`go get github.com/cuongct924/engram-consensus-core@<commit>` and copy the pseudo-version into the
+`replace` line.
 
 ---
 

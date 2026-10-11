@@ -21,8 +21,6 @@ x-attacker-common: &attacker-common
   build:
     context: ..
     dockerfile: Dockerfile
-    additional_contexts:
-      - cometbft-fork=../../engram-consensus-core
   restart: "no"
   # Run `engramd init` first (idempotent; genesis already bind-mounted),
   # then dial the target and start.

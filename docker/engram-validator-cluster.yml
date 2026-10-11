@@ -7,8 +7,6 @@ x-engram-node-base: &engram-node-base
   build:
     context: ..
     dockerfile: Dockerfile
-    additional_contexts:
-      - cometbft-fork=../../engram-consensus-core
   command: ["start"]
   restart: unless-stopped
   # No depends_on celestia-lightNN: x/da talks to each validator's own

@@ -13,8 +13,6 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      additional_contexts:
-        - cometbft-fork=../../engram-consensus-core
     hostname: engram-node04-double-sign
     container_name: engram-node04-double-sign
     profiles: [double-sign-harness]
@@ -50,8 +48,6 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      additional_contexts:
-        - cometbft-fork=../../engram-consensus-core
     hostname: engram-node05-double-sign
     container_name: engram-node05-double-sign
     profiles: [double-sign-harness]

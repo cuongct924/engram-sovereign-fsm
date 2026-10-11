@@ -8,6 +8,7 @@ require (
 	cosmossdk.io/log/v2 v2.1.0
 	filippo.io/edwards25519 v1.2.0
 	github.com/cometbft/cometbft v0.39.3
+	github.com/consensys/gnark-crypto v0.21.0
 	github.com/cosmos/cosmos-db v1.1.3
 	github.com/cosmos/cosmos-sdk v0.54.3
 	github.com/cosmos/cosmos-sdk/store/v2 v2.0.0
@@ -52,7 +53,6 @@ require (
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20250429170803-42689b6311bb // indirect
 	github.com/cometbft/cometbft-db v0.14.3 // indirect
-	github.com/consensys/gnark-crypto v0.21.0 // indirect
 	github.com/cosmos/btcutil v1.0.5 // indirect
 	github.com/cosmos/btree v1.0.0 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
@@ -275,13 +275,9 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Point at the local engram-consensus-core fork of CometBFT (not pushed to a
-// remote, so a filesystem path rather than a version). The fork keeps the
-// same module path (github.com/cometbft/cometbft), so no import paths change.
-// Relative (not absolute) so it resolves both for local `go build` (relative
-// to this go.mod: ../engram-consensus-core, a sibling of this repo) and
-// inside the Docker build, which copies that sibling in via BuildKit's
-// additional build context (see Dockerfile + docker/*.yml's
-// `additional_contexts`) -- an absolute host path can never resolve in a
-// container, which broke `docker compose build` before.
-replace github.com/cometbft/cometbft => ../engram-consensus-core
+// The agreement core is the engram-consensus-core fork of CometBFT, pinned to the commit that
+// produced the paper's results (a pseudo-version of github.com/cuongct924/engram-consensus-core at
+// 493a20121caa). The fork keeps the module path github.com/cometbft/cometbft, so no import path
+// changes. To develop against a local checkout, leave this line alone and use a go.work file:
+//   go work init . ../engram-consensus-core
+replace github.com/cometbft/cometbft => github.com/cuongct924/engram-consensus-core v0.39.0-rc1.0.20260831143036-493a20121caa

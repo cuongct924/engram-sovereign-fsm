@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for the Engram Sovereign FSM node
-FROM golang:1.26-alpine AS builder
+FROM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS builder
 
 WORKDIR /app
 
@@ -13,14 +13,8 @@ RUN --mount=type=cache,target=/var/cache/apk \
 # of source changes.
 COPY go.mod go.sum ./
 
-# go.mod's `replace github.com/cometbft/cometbft => ../engram-consensus-core`
-# is a relative path to a sibling repo (the forked CometBFT core, see
-# CLAUDE.md) that `COPY . .` can never see. Pulled in via a second BuildKit
-# context (`cometbft-fork`, wired in each docker/engram-validator-node0N.yml's
-# build.additional_contexts) to /engram-consensus-core, exactly where
-# `../engram-consensus-core` resolves from /app -- so the same replace works
-# for both local `go build` and this Docker build.
-COPY --from=cometbft-fork . /engram-consensus-core
+# go.mod replaces github.com/cometbft/cometbft with the public engram-consensus-core fork,
+# pinned to a commit, so `go mod download` below fetches it like any other module.
 
 # GOMODCACHE mounted as a persistent BuildKit cache: modules are fetched
 # once and reused across rebuilds (and across all 4 node images) instead of
@@ -47,7 +41,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # glibc-linked; Alpine's musl + gcompat shim is missing symbols it actually
 # needs (e.g. mallinfo2, __res_init), so `bb --version` fails under
 # alpine+gcompat.
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 WORKDIR /root
 
@@ -61,17 +55,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # bb version aren't guaranteed wire-compatible with another's verifier.
 # uname -m reports aarch64/x86_64, not Barretenberg's arm64/amd64 naming,
 # hence the translation.
+# The tarball is checked against a pinned SHA-256, so a changed or re-published release fails the build.
+# `bb --version` is not run here: the amd64 binary needs CPU instructions that emulation lacks (SIGILL), and
+# the image is meant to be built on a native machine of its target architecture anyway.
 ARG BB_VERSION=5.0.0-nightly.20260522
+ARG BB_SHA256_AMD64=d207ec90fbfa2fba24d7a47b7a75892ee052b7984252b866a4a0c1b5296e1571
+ARG BB_SHA256_ARM64=b6842ea75c171fd84b5e8fa0af75f61121d0c3dee1c52e17b7f8d7619a4189fe
 RUN ARCH=$(uname -m) && \
     case "$ARCH" in \
-      aarch64) BB_ARCH=arm64 ;; \
-      x86_64) BB_ARCH=amd64 ;; \
+      aarch64) BB_ARCH=arm64; BB_SHA256="$BB_SHA256_ARM64" ;; \
+      x86_64) BB_ARCH=amd64; BB_SHA256="$BB_SHA256_AMD64" ;; \
       *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
     esac && \
     curl -sL --fail "https://github.com/AztecProtocol/barretenberg/releases/download/v${BB_VERSION}/barretenberg-${BB_ARCH}-linux.tar.gz" -o /tmp/bb.tar.gz && \
+    echo "${BB_SHA256}  /tmp/bb.tar.gz" | sha256sum -c - && \
     tar xzf /tmp/bb.tar.gz -C /usr/local/bin && \
     rm /tmp/bb.tar.gz && \
-    /usr/local/bin/bb --version
+    test -x /usr/local/bin/bb
 
 # Copy binary from builder
 COPY --from=builder /app/engramd /usr/local/bin/engramd

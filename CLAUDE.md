@@ -36,7 +36,7 @@ docs/DEVELOPMENT.md  -- full build/test/deploy workflow, including the Docker mu
 
 `x/sovereignty/keeper/zk_assets/barretenberg.wasm.gz` (the embedded ZK verifier) is built by the
 sibling [engram-barretenberg-wasm](https://github.com/cuongct924/engram-barretenberg-wasm) repo —
-provenance only, unlike the required `engram-consensus-core` checkout below.
+provenance only: `zk_assets/ASSETS.lock` records each asset's SHA-256 and source, `scripts/verify_zk_assets.sh` checks them.
 
 ## Build, test, lint
 
@@ -82,8 +82,11 @@ only, 2-3 lines per comment unless a genuine divergence from the spec needs just
 - **`*PeripheralMetrics` is always a pointer**, never a value, in signatures, struct fields, or
   `collections.Item[...]` — it's a proto3 type embedding `sync.Mutex`; passing by value trips
   `go vet`'s lock-copy check.
-- **`go.mod`'s local `replace github.com/cometbft/cometbft => ../engram-consensus-core`** requires
-  that fork checked out as a sibling directory; it won't resolve otherwise.
+- **`go.mod` replaces `github.com/cometbft/cometbft` with the public `engram-consensus-core` fork,
+  pinned to a commit (pseudo-version).** Nothing needs checking out beside this repo. To develop
+  the fork locally, use a `go.work` file (`go work init . ../engram-consensus-core`), never edit
+  the `replace` line for it; when the fork changes, move the pin (`go get
+  github.com/cuongct924/engram-consensus-core@<commit>`, then update the `replace` line).
 - **Docker multi-node testnet**: always wipe `testnet-data/` and regenerate fresh genesis
   (`engramd testnet init-files --v N`) before redeploying. A persisted `priv_validator_state.json`
   without a matching fresh WAL replay trips FilePV's anti-double-sign guard.

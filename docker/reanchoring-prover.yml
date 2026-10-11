@@ -10,8 +10,6 @@ services:
     build:
       context: ..
       dockerfile: docker/reanchoring-prover/Dockerfile
-      additional_contexts:
-        - cometbft-fork=../../engram-consensus-core
     container_name: reanchoring-prover
     hostname: reanchoring-prover
     networks:
