@@ -1,6 +1,6 @@
 ---
 # A proving worker: Docker, the prover image, and the prover host's SSH key. It runs one proof at a time, started by the prover host
-# (scripts/reanchoring_prover/prove_segment.sh) with `docker run ... worker_prove.sh`.
+# (cmd/engramprover, internal/prover) with `docker run ... worker_prove.sh`.
 - name: Let the SSH user run Docker
   ansible.builtin.user:
     name: "{{ ansible_user }}"

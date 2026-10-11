@@ -19,7 +19,8 @@ COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -o engramd ./cmd/engramd
+    CGO_ENABLED=0 GOOS=linux go build -o engramd ./cmd/engramd && \
+    CGO_ENABLED=0 GOOS=linux go build -o engramprover ./cmd/engramprover
 
 # Runtime stage -- glibc (debian), same reasoning as the root Dockerfile:
 # bb is a real glibc binary, Alpine's musl+gcompat is missing symbols it needs.
@@ -71,6 +72,7 @@ RUN ARCH=$(uname -m) && \
     test -x /usr/local/bin/nargo
 
 COPY --from=builder /app/engramd /usr/local/bin/engramd
+COPY --from=builder /app/engramprover /usr/local/bin/engramprover
 COPY circuit ./circuit
 
 # Compile at BUILD time (not per-proof-cycle at runtime -- confirmed live

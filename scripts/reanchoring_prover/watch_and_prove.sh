@@ -46,9 +46,9 @@ STABLE_POLLS_REQUIRED="${STABLE_POLLS_REQUIRED:-3}"
 CONTINUOUS="${CONTINUOUS:-0}"
 MIN_BATCH="${MIN_BATCH:-1}"
 
-# PIPELINE=1: several proofs in flight (watch_and_prove_pipeline.sh) instead of one at a time.
+# PIPELINE=1: several proofs in flight, built here or on worker hosts, instead of one at a time (cmd/engramprover, internal/prover).
 if [ "${PIPELINE:-0}" = "1" ]; then
-  exec "$SCRIPT_DIR/watch_and_prove_pipeline.sh"
+  exec engramprover
 fi
 
 if [ ! -x "$ENGRAMD" ]; then

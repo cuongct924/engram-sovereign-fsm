@@ -20,7 +20,7 @@ prover_continuous: true        # true: prove the next segment as soon as the pre
 prover_min_batch: 16           # headers that must wait before a continuous proof fires
 prover_workers_hosts: "{{ groups['prover_workers'] | default([]) | map('extract', hostvars, 'private_ip') | list }}"
 prover_expected_seconds: 75    # expected seconds from a proof's start to its submission (L); segments start L / workers seconds apart
-prover_pipeline: false         # true: several proofs in flight (watch_and_prove_pipeline.sh); each peaks at about 7.5 GB
+prover_pipeline: false         # true: several proofs in flight (cmd/engramprover); each peaks at about 7.5 GB
 prover_provers: 2              # proofs in flight when prover_pipeline is true
 miner_interval_s: 20           # one regtest block every N seconds (CLAUDE.md: keep it steady)
 

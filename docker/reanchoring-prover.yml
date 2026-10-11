@@ -24,7 +24,7 @@ services:
       # Continuous mode (see watch_and_prove.sh): off unless the caller exports CONTINUOUS=1.
       - CONTINUOUS=${CONTINUOUS:-0}
       - MIN_BATCH=${MIN_BATCH:-1}
-      # Pipelined prover (see watch_and_prove_pipeline.sh): off unless the caller exports PIPELINE=1.
+      # Pipelined prover (cmd/engramprover): off unless the caller exports PIPELINE=1.
       - PIPELINE=${PIPELINE:-0}
       - PROVERS=${PROVERS:-4}
       - STAGGER_S=${STAGGER_S:-27}
