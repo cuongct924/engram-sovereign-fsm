@@ -46,8 +46,10 @@ RESULTS_DIR = os.path.join(HERE, "results_live")
 POLL_S = 0.25
 
 
-def get(port: int, path: str, timeout: float = 5.0):
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=timeout) as r:
+def get(port, path: str, timeout: float = 5.0):
+    """port is a local port (the Docker testnet) or a "host:port" string (the multi-host cluster)."""
+    base = f"http://127.0.0.1:{port}" if isinstance(port, int) else f"http://{port}"
+    with urllib.request.urlopen(f"{base}{path}", timeout=timeout) as r:
         return json.load(r)["result"]
 
 

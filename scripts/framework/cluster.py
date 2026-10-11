@@ -67,6 +67,17 @@ class DockerBackend:
         proc = subprocess.run(["docker", "logs", node], capture_output=True, text=True, timeout=timeout)
         return proc.stdout + proc.stderr  # engramd logs to stderr
 
+    def cpu_percent(self) -> dict:
+        """CPU use of every validator container, in percent of one core, one sample."""
+        proc = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{.Name}} {{.CPUPerc}}", *self.nodes],
+                              capture_output=True, text=True, timeout=60)
+        out = {}
+        for line in proc.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                out[parts[0]] = float(parts[1].rstrip("%"))
+        return out
+
     def prover_logs(self, since_epoch: int, timeout: float = 120.0) -> str:
         proc = subprocess.run(["docker", "logs", "--since", str(int(since_epoch)), "reanchoring-prover"],
                               capture_output=True, text=True, timeout=timeout)
@@ -223,6 +234,21 @@ class SshBackend:
         h = self._by_name[node]
         proc = self.run(h, f"{self.sudo(h)}docker logs engramd 2>&1", timeout)
         return proc.stdout
+
+    def cpu_percent(self) -> dict:
+        """CPU use of every validator's engramd container, in percent of one core, one sample (all hosts at once)."""
+        out: dict = {}
+
+        def one(n: str) -> None:
+            h = self._by_name[n]
+            p = self.run(h, f"{self.sudo(h)}docker stats --no-stream --format '{{{{.CPUPerc}}}}' engramd", timeout=60)
+            try:
+                out[n] = float(p.stdout.strip().rstrip("%"))
+            except ValueError:
+                pass
+
+        self._parallel(one, self.nodes)
+        return out
 
     def prover_logs(self, since_epoch: int, timeout: float = 180.0) -> str:
         h = self.prover

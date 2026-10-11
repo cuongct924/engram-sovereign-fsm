@@ -49,19 +49,35 @@ def generate_txs(count: int, prefix: str, payload_bytes: int) -> list:
     return out.stdout.split()
 
 
-def cpu_sample(containers: list) -> dict:
-    p = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{.Name}} {{.CPUPerc}} {{.MemUsage}}", *containers],
-                       capture_output=True, text=True, timeout=60)
-    res = {}
-    for line in p.stdout.splitlines():
-        parts = line.split()
-        if len(parts) >= 2:
-            res[parts[0]] = float(parts[1].rstrip("%"))
-    return res
+def endpoint(node: str) -> str:
+    """host:port of a validator's RPC on this deployment (the Docker testnet or the multi-host cluster)."""
+    return f"{CLUSTER.rpc_host(node)}:{CLUSTER.rpc_port(node)}"
+
+
+def agree(wait_s: float = 60.0) -> str:
+    """Empty string when every validator holds the same block hash and app hash at a recent common height, else a message."""
+    deadline = time.time() + wait_s
+    why = "no height compared"
+    while time.time() < deadline:
+        try:
+            tips = {n: int(rq4.get(endpoint(n), "/status")["sync_info"]["latest_block_height"]) for n in CLUSTER.nodes}
+            h = min(tips.values()) - 2
+            seen = {}
+            for n in CLUSTER.nodes:
+                b = rq4.get(endpoint(n), f"/block?height={h}")["block"]["header"]
+                seen[n] = (b["app_hash"], b["last_block_id"]["hash"])
+            if len(set(seen.values())) == 1 and h > 0:
+                return ""
+            why = f"height {h}: {seen}"
+        except Exception as exc:  # noqa: BLE001 -- retried until the deadline
+            why = str(exc)
+        time.sleep(3)
+    return why
 
 
 def run_one(arm: str, rate: float, repeat: int, args) -> dict:
-    ports = [list(NODE_RPC_PORTS.values())[i % len(NODE_RPC_PORTS)] for i in range(args.senders)]
+    ingress = [n for n in CLUSTER.nodes if not args.ingress or n in args.ingress]
+    ports = [endpoint(ingress[i % len(ingress)]) for i in range(args.senders)]
     count = int(rate * args.duration_s * 1.15) + 50
     txs = generate_txs(count, f"sw-{arm}-{int(rate)}-{repeat}-{int(time.time())}", args.payload_bytes)
     per = [txs[i::args.senders] for i in range(args.senders)]
@@ -79,7 +95,8 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
     cpu = {}
 
     def sender(port: int, mine: list, offset: float):
-        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        host, _, hport = port.partition(":")
+        conn = http.client.HTTPConnection(host, int(hport), timeout=10)
         nxt = start + offset
         i = 0
         while nxt < deadline and i < len(mine):
@@ -103,13 +120,13 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
                 with lock:
                     counters["sent"] += 1
                     counters["errors"] += 1
-                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                conn = http.client.HTTPConnection(host, int(hport), timeout=10)
             i += 1
             nxt += interval
 
     def cpu_probe():
         time.sleep(args.duration_s / 2)
-        cpu.update(cpu_sample(list(NODE_RPC_PORTS)))
+        cpu.update(CLUSTER.cpu_percent())
 
     # FSM state seen on node01 every 2 s: under load the P2P-latency predicate can demote Engram without any
     # peripheral fault (peer RTT above MaxPeerLatency), and a throughput point measured in SOVEREIGN is not an
@@ -172,7 +189,7 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
     }
 
 
-def wait_mempool_empty(port: int, timeout_s: float = 180.0) -> None:
+def wait_mempool_empty(port, timeout_s: float = 180.0) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
@@ -191,6 +208,7 @@ def main():
     ap.add_argument("--duration-s", type=float, default=60.0)
     ap.add_argument("--drain-s", type=float, default=15.0)
     ap.add_argument("--senders", type=int, default=8)
+    ap.add_argument("--ingress", nargs="*", default=[], help="validators that take the transactions (default: all); on a wide-area cluster use the ones nearest to the generator")
     ap.add_argument("--payload-bytes", type=int, default=32)
     ap.add_argument("--tag", default="", help="label for the output files, e.g. a changed protocol parameter")
     args = ap.parse_args()
@@ -202,9 +220,14 @@ def main():
             sys.exit(f"{node} runs ENGRAM_MODE={got}, but --arm {args.arm} needs {want}")
     # Same block hash and app_hash on every validator, every validator precommitting (a stuck validator would make
     # an "N-node" arm an (N-1)-node one).
-    verify = subprocess.run([sys.executable, os.path.join(REPO_ROOT, "scripts", "testnet_verify_consensus.py"), "--wait-s", "60"], capture_output=True, text=True)
-    if verify.returncode != 0:
-        sys.exit(f"cluster failed the consensus verification:\n{verify.stdout}")
+    if CLUSTER.name == "docker":
+        verify = subprocess.run([sys.executable, os.path.join(REPO_ROOT, "scripts", "testnet_verify_consensus.py"), "--wait-s", "60"], capture_output=True, text=True)
+        if verify.returncode != 0:
+            sys.exit(f"cluster failed the consensus verification:\n{verify.stdout}")
+    else:
+        problem = agree()
+        if problem:
+            sys.exit(f"cluster failed the consensus verification: {problem}")
     if not os.path.exists(BIN):
         sys.exit(f"build {BIN} first (make build)")
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -213,7 +236,7 @@ def main():
     for rate in args.rates:
         for r in range(1, args.repeats + 1):
             print(f"[{time.strftime('%H:%M:%S')}] {args.arm} rate={rate} repeat {r}/{args.repeats}", flush=True)
-            wait_mempool_empty(list(NODE_RPC_PORTS.values())[0])
+            wait_mempool_empty(endpoint(CLUSTER.nodes[0]))
             rows.append(run_one(args.arm, rate, r, args))
             print({k: rows[-1][k] for k in ("achieved_offered_tx_s", "committed_tx_s", "committed_over_offered", "latency_p95_s", "validator_cpu_pct_max", "saturated")}, flush=True)
     stamp = time.strftime("%Y%m%dT%H%M%S")

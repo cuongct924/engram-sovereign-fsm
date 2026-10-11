@@ -39,8 +39,13 @@ REJECT_RE = re.compile(r"ProcessProposal REJECT height=(\d+) round=(\d+) reason=
 BLOCK_ID_FLAG_ABSENT, BLOCK_ID_FLAG_COMMIT, BLOCK_ID_FLAG_NIL = 1, 2, 3
 
 
-def rpc(port: int, path: str, timeout: float = 5.0) -> dict:
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=timeout) as r:
+def base_url(endpoint) -> str:
+    """A local port (the Docker testnet) or a "host:port" string (the multi-host cluster)."""
+    return f"http://127.0.0.1:{endpoint}" if isinstance(endpoint, int) else f"http://{endpoint}"
+
+
+def rpc(port, path: str, timeout: float = 5.0) -> dict:
+    with urllib.request.urlopen(f"{base_url(port)}{path}", timeout=timeout) as r:
         return json.load(r)["result"]
 
 
