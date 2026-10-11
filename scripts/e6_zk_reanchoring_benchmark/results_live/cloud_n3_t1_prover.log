@@ -1,0 +1,240 @@
+[12:08:53] check 89: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:08:56] check 90: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:08:59] check 91: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:02] check 92: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:05] check 93: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:08] check 94: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:11] check 95: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:14] check 96: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:17] check 97: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:20] check 98: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:23] check 99: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:26] check 100: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:29] check 101: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:32] check 102: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:36] check 103: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:39] check 104: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:42] check 105: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:45] check 106: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:48] check 107: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:51] check 108: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:54] check 109: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:09:57] check 110: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:00] check 111: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:03] check 112: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:06] check 113: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:09] check 114: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:13] check 115: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:16] check 116: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:19] check 117: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:22] check 118: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:25] check 119: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:28] check 120: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:31] check 121: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:34] check 122: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:37] check 123: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:40] check 124: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:43] check 125: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:46] check 126: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:49] check 127: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:53] check 128: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:56] check 129: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:10:59] check 130: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:02] check 131: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:05] check 132: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:08] check 133: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:11] check 134: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:14] check 135: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:17] check 136: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:20] check 137: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:23] check 138: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:27] check 139: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:30] check 140: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:33] check 141: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:36] check 142: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:39] check 143: 0 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:42] check 144: 1 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:45] check 145: 2 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:48] check 146: 3 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:52] check 147: 4 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:55] check 148: 6 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:11:58] check 149: 7 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:01] check 150: 8 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:04] check 151: 10 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:07] check 152: 11 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:10] check 153: 12 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:13] check 154: 13 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:16] check 155: 14 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:19] check 156: 16 headers beyond -1, in flight 0, submitted 0, failed 0
+[12:12:19] segment 1 started (follows the chain's checkpoint)
+[12:12:47] check 165: 11 headers beyond 1751, in flight 1, submitted 0, failed 0
+[12:12:50] check 166: 12 headers beyond 1751, in flight 1, submitted 0, failed 0
+[12:12:53] check 167: 14 headers beyond 1751, in flight 1, submitted 0, failed 0
+[12:12:56] check 168: 15 headers beyond 1751, in flight 1, submitted 0, failed 0
+[12:12:59] check 169: 16 headers beyond 1751, in flight 1, submitted 0, failed 0
+[12:12:59] segment 2 started (follows segment 1)
+[12:13:26] check 178: 11 headers beyond 1767, in flight 2, submitted 0, failed 0
+[12:13:29] check 179: 13 headers beyond 1767, in flight 2, submitted 0, failed 0
+[12:13:32] check 180: 14 headers beyond 1767, in flight 2, submitted 0, failed 0
+[12:13:35] check 181: 15 headers beyond 1767, in flight 2, submitted 0, failed 0
+[12:13:38] check 182: 17 headers beyond 1767, in flight 2, submitted 0, failed 0
+[12:13:38] segment 3 started (follows segment 2)
+PROOFLOG,1791720739,16,1736,1751,16,1751,1786,0,1,70,9,4,84,1,0,ubuntu@172.31.7.126
+[12:14:06] check 191: 11 headers beyond 1784, in flight 2, submitted 1, failed 0
+[12:14:09] check 192: 12 headers beyond 1784, in flight 2, submitted 1, failed 0
+[12:14:12] check 193: 13 headers beyond 1784, in flight 2, submitted 1, failed 0
+PROOFLOG,1791720779,16,1752,1767,16,1767,1798,0,0,70,0,4,74,2,0,ubuntu@172.31.0.63
+[12:14:15] check 194: 14 headers beyond 1784, in flight 1, submitted 2, failed 0
+[12:14:18] check 195: 16 headers beyond 1784, in flight 1, submitted 2, failed 0
+[12:14:18] segment 4 started (follows segment 3)
+[12:14:45] check 204: 11 headers beyond 1800, in flight 2, submitted 2, failed 0
+[12:14:48] check 205: 12 headers beyond 1800, in flight 2, submitted 2, failed 0
+[12:14:51] check 206: 13 headers beyond 1800, in flight 2, submitted 2, failed 0
+PROOFLOG,1791720818,17,1768,1784,17,1784,1814,1,0,71,0,2,74,3,0,ubuntu@172.31.1.34
+[12:14:54] check 207: 15 headers beyond 1800, in flight 1, submitted 3, failed 0
+[12:14:57] check 208: 16 headers beyond 1800, in flight 1, submitted 3, failed 0
+[12:14:57] segment 5 started (follows segment 4)
+[12:15:24] check 217: 11 headers beyond 1816, in flight 2, submitted 3, failed 0
+[12:15:27] check 218: 12 headers beyond 1816, in flight 2, submitted 3, failed 0
+[12:15:31] check 219: 14 headers beyond 1816, in flight 2, submitted 3, failed 0
+PROOFLOG,1791720858,16,1785,1800,16,1800,1831,0,0,71,0,4,75,4,0,ubuntu@172.31.7.126
+[12:15:34] check 220: 15 headers beyond 1816, in flight 1, submitted 4, failed 0
+[12:15:37] check 221: 16 headers beyond 1816, in flight 1, submitted 4, failed 0
+[12:15:37] segment 6 started (follows segment 5)
+[12:16:04] check 230: 11 headers beyond 1832, in flight 2, submitted 4, failed 0
+[12:16:07] check 231: 13 headers beyond 1832, in flight 2, submitted 4, failed 0
+[12:16:10] check 232: 14 headers beyond 1832, in flight 2, submitted 4, failed 0
+[12:16:13] check 233: 15 headers beyond 1832, in flight 2, submitted 4, failed 0
+[12:16:16] check 234: 16 headers beyond 1832, in flight 2, submitted 4, failed 0
+[12:16:16] segment 7 started (follows segment 6)
+PROOFLOG,1791720897,16,1801,1816,16,1816,1849,0,1,70,7,2,80,5,0,ubuntu@172.31.0.63
+[12:16:43] check 243: 11 headers beyond 1848, in flight 2, submitted 5, failed 0
+[12:16:46] check 244: 13 headers beyond 1848, in flight 2, submitted 5, failed 0
+[12:16:49] check 245: 14 headers beyond 1848, in flight 2, submitted 5, failed 0
+PROOFLOG,1791720937,16,1817,1832,16,1832,1863,0,0,70,0,4,74,6,0,ubuntu@172.31.1.34
+[12:16:53] check 246: 15 headers beyond 1848, in flight 1, submitted 6, failed 0
+[12:16:56] check 247: 16 headers beyond 1848, in flight 1, submitted 6, failed 0
+[12:16:56] segment 8 started (follows segment 7)
+[12:17:23] check 256: 12 headers beyond 1864, in flight 2, submitted 6, failed 0
+[12:17:26] check 257: 13 headers beyond 1864, in flight 2, submitted 6, failed 0
+[12:17:29] check 258: 14 headers beyond 1864, in flight 2, submitted 6, failed 0
+PROOFLOG,1791720976,16,1833,1848,16,1848,1879,0,1,69,0,5,75,7,0,ubuntu@172.31.7.126
+[12:17:32] check 259: 15 headers beyond 1864, in flight 1, submitted 7, failed 0
+[12:17:35] check 260: 17 headers beyond 1864, in flight 1, submitted 7, failed 0
+[12:17:35] segment 9 started (follows segment 8)
+[12:18:02] check 269: 10 headers beyond 1881, in flight 2, submitted 7, failed 0
+[12:18:05] check 270: 12 headers beyond 1881, in flight 2, submitted 7, failed 0
+[12:18:08] check 271: 13 headers beyond 1881, in flight 2, submitted 7, failed 0
+PROOFLOG,1791721016,16,1849,1864,16,1864,1895,0,0,71,0,3,74,8,0,ubuntu@172.31.0.63
+[12:18:11] check 272: 14 headers beyond 1881, in flight 1, submitted 8, failed 0
+[12:18:14] check 273: 15 headers beyond 1881, in flight 1, submitted 8, failed 0
+[12:18:17] check 274: 17 headers beyond 1881, in flight 1, submitted 8, failed 0
+[12:18:17] segment 10 started (follows segment 9)
+[12:18:45] check 283: 11 headers beyond 1898, in flight 2, submitted 8, failed 0
+[12:18:48] check 284: 12 headers beyond 1898, in flight 2, submitted 8, failed 0
+[12:18:51] check 285: 13 headers beyond 1898, in flight 2, submitted 8, failed 0
+PROOFLOG,1791721055,17,1865,1881,17,1881,1912,0,0,71,3,2,76,9,0,ubuntu@172.31.1.34
+[12:18:54] check 286: 15 headers beyond 1898, in flight 1, submitted 9, failed 0
+[12:18:57] check 287: 16 headers beyond 1898, in flight 1, submitted 9, failed 0
+[12:18:57] segment 11 started (follows segment 10)
+[12:19:24] check 296: 11 headers beyond 1914, in flight 2, submitted 9, failed 0
+[12:19:27] check 297: 13 headers beyond 1914, in flight 2, submitted 9, failed 0
+[12:19:30] check 298: 14 headers beyond 1914, in flight 2, submitted 9, failed 0
+PROOFLOG,1791721097,17,1882,1898,17,1898,1929,1,0,70,0,4,75,10,0,ubuntu@172.31.7.126
+[12:19:33] check 299: 15 headers beyond 1914, in flight 1, submitted 10, failed 0
+[12:19:37] check 300: 16 headers beyond 1914, in flight 1, submitted 10, failed 0
+[12:19:37] segment 12 started (follows segment 11)
+[12:20:04] check 309: 11 headers beyond 1930, in flight 2, submitted 10, failed 0
+[12:20:07] check 310: 13 headers beyond 1930, in flight 2, submitted 10, failed 0
+[12:20:10] check 311: 14 headers beyond 1930, in flight 2, submitted 10, failed 0
+PROOFLOG,1791721137,16,1899,1914,16,1914,1945,0,0,72,0,2,74,11,0,ubuntu@172.31.0.63
+[12:20:13] check 312: 15 headers beyond 1930, in flight 1, submitted 11, failed 0
+[12:20:16] check 313: 17 headers beyond 1930, in flight 1, submitted 11, failed 0
+[12:20:16] segment 13 started (follows segment 12)
+[12:20:43] check 322: 10 headers beyond 1947, in flight 2, submitted 11, failed 0
+[12:20:46] check 323: 12 headers beyond 1947, in flight 2, submitted 11, failed 0
+[12:20:49] check 324: 13 headers beyond 1947, in flight 2, submitted 11, failed 0
+PROOFLOG,1791721177,16,1915,1930,16,1930,1961,0,0,71,0,3,74,12,0,ubuntu@172.31.1.34
+[12:20:52] check 325: 14 headers beyond 1947, in flight 1, submitted 12, failed 0
+[12:20:55] check 326: 15 headers beyond 1947, in flight 1, submitted 12, failed 0
+[12:20:58] check 327: 17 headers beyond 1947, in flight 1, submitted 12, failed 0
+[12:20:58] segment 14 started (follows segment 13)
+[12:21:25] check 336: 11 headers beyond 1964, in flight 2, submitted 12, failed 0
+[12:21:28] check 337: 12 headers beyond 1964, in flight 2, submitted 12, failed 0
+[12:21:31] check 338: 13 headers beyond 1964, in flight 2, submitted 12, failed 0
+[12:21:34] check 339: 15 headers beyond 1964, in flight 2, submitted 12, failed 0
+[12:21:37] check 340: 16 headers beyond 1964, in flight 2, submitted 12, failed 0
+[12:21:37] segment 15 started (follows segment 14)
+PROOFLOG,1791721216,17,1931,1947,17,1947,1981,0,0,70,9,4,83,13,0,ubuntu@172.31.7.126
+[12:22:05] check 349: 11 headers beyond 1980, in flight 2, submitted 13, failed 0
+[12:22:08] check 350: 12 headers beyond 1980, in flight 2, submitted 13, failed 0
+[12:22:11] check 351: 14 headers beyond 1980, in flight 2, submitted 13, failed 0
+PROOFLOG,1791721258,17,1948,1964,17,1964,1995,0,1,72,0,2,75,14,0,ubuntu@172.31.0.63
+[12:22:14] check 352: 15 headers beyond 1980, in flight 1, submitted 14, failed 0
+[12:22:17] check 353: 16 headers beyond 1980, in flight 1, submitted 14, failed 0
+[12:22:17] segment 16 started (follows segment 15)
+[12:22:44] check 362: 11 headers beyond 1996, in flight 2, submitted 14, failed 0
+[12:22:47] check 363: 12 headers beyond 1996, in flight 2, submitted 14, failed 0
+[12:22:50] check 364: 14 headers beyond 1996, in flight 2, submitted 14, failed 0
+PROOFLOG,1791721297,16,1965,1980,16,1980,2011,1,0,71,0,4,76,15,0,ubuntu@172.31.1.34
+[12:22:53] check 365: 15 headers beyond 1996, in flight 1, submitted 15, failed 0
+[12:22:56] check 366: 16 headers beyond 1996, in flight 1, submitted 15, failed 0
+[12:22:56] segment 17 started (follows segment 16)
+[12:23:23] check 375: 11 headers beyond 2012, in flight 2, submitted 15, failed 0
+[12:23:26] check 376: 13 headers beyond 2012, in flight 2, submitted 15, failed 0
+[12:23:29] check 377: 14 headers beyond 2012, in flight 2, submitted 15, failed 0
+PROOFLOG,1791721337,16,1981,1996,16,1996,2027,0,0,71,0,4,75,16,0,ubuntu@172.31.7.126
+[12:23:33] check 378: 15 headers beyond 2012, in flight 1, submitted 16, failed 0
+[12:23:36] check 379: 16 headers beyond 2012, in flight 1, submitted 16, failed 0
+[12:23:36] segment 18 started (follows segment 17)
+[12:24:03] check 388: 12 headers beyond 2028, in flight 2, submitted 16, failed 0
+[12:24:06] check 389: 13 headers beyond 2028, in flight 2, submitted 16, failed 0
+[12:24:09] check 390: 14 headers beyond 2028, in flight 2, submitted 16, failed 0
+[12:24:12] check 391: 15 headers beyond 2028, in flight 2, submitted 16, failed 0
+[12:24:15] check 392: 17 headers beyond 2028, in flight 2, submitted 16, failed 0
+[12:24:15] segment 19 started (follows segment 18)
+PROOFLOG,1791721376,16,1997,2012,16,2012,2049,0,1,71,13,3,88,17,0,ubuntu@172.31.0.63
+[12:24:42] check 401: 11 headers beyond 2045, in flight 2, submitted 17, failed 0
+[12:24:45] check 402: 12 headers beyond 2045, in flight 2, submitted 17, failed 0
+[12:24:48] check 403: 13 headers beyond 2045, in flight 2, submitted 17, failed 0
+PROOFLOG,1791721416,16,2013,2028,16,2028,2059,0,0,71,0,2,73,18,0,ubuntu@172.31.1.34
+[12:24:51] check 404: 15 headers beyond 2045, in flight 1, submitted 18, failed 0
+[12:24:54] check 405: 16 headers beyond 2045, in flight 1, submitted 18, failed 0
+[12:24:54] segment 20 started (follows segment 19)
+[12:25:21] check 414: 11 headers beyond 2061, in flight 2, submitted 18, failed 0
+[12:25:24] check 415: 12 headers beyond 2061, in flight 2, submitted 18, failed 0
+[12:25:27] check 416: 14 headers beyond 2061, in flight 2, submitted 18, failed 0
+[12:25:30] check 417: 15 headers beyond 2061, in flight 2, submitted 18, failed 0
+PROOFLOG,1791721455,17,2029,2045,17,2045,2077,0,0,73,0,4,77,19,0,ubuntu@172.31.7.126
+[12:25:33] check 418: 16 headers beyond 2061, in flight 1, submitted 19, failed 0
+[12:25:33] segment 21 started (follows segment 20)
+[12:26:01] check 427: 11 headers beyond 2077, in flight 2, submitted 19, failed 0
+[12:26:04] check 428: 13 headers beyond 2077, in flight 2, submitted 19, failed 0
+[12:26:07] check 429: 14 headers beyond 2077, in flight 2, submitted 19, failed 0
+PROOFLOG,1791721494,16,2046,2061,16,2061,2092,1,0,70,0,4,75,20,0,ubuntu@172.31.0.63
+[12:26:10] check 430: 15 headers beyond 2077, in flight 1, submitted 20, failed 0
+[12:26:13] check 431: 16 headers beyond 2077, in flight 1, submitted 20, failed 0
+[12:26:13] segment 22 started (follows segment 21)
+[12:26:40] check 440: 12 headers beyond 2093, in flight 2, submitted 20, failed 0
+[12:26:43] check 441: 13 headers beyond 2093, in flight 2, submitted 20, failed 0
+[12:26:46] check 442: 14 headers beyond 2093, in flight 2, submitted 20, failed 0
+[12:26:49] check 443: 15 headers beyond 2093, in flight 2, submitted 20, failed 0
+[12:26:52] check 444: 17 headers beyond 2093, in flight 2, submitted 20, failed 0
+[12:26:52] segment 23 started (follows segment 22)
+PROOFLOG,1791721533,16,2062,2077,16,2077,2113,1,0,70,12,3,86,21,0,ubuntu@172.31.1.34
+[12:27:19] check 453: 10 headers beyond 2110, in flight 2, submitted 21, failed 0
+[12:27:22] check 454: 11 headers beyond 2110, in flight 2, submitted 21, failed 0
+[12:27:25] check 455: 12 headers beyond 2110, in flight 2, submitted 21, failed 0
+PROOFLOG,1791721573,16,2078,2093,16,2093,2123,0,0,70,0,3,73,22,0,ubuntu@172.31.7.126
+[12:27:28] check 456: 13 headers beyond 2110, in flight 1, submitted 22, failed 0
+[12:27:31] check 457: 15 headers beyond 2110, in flight 1, submitted 22, failed 0
+[12:27:35] check 458: 16 headers beyond 2110, in flight 1, submitted 22, failed 0
+[12:27:35] segment 24 started (follows segment 23)
+[12:28:02] check 467: 10 headers beyond 2126, in flight 2, submitted 22, failed 0
+[12:28:05] check 468: 11 headers beyond 2126, in flight 2, submitted 22, failed 0
+PROOFLOG,1791721612,17,2094,2110,17,2110,2138,0,1,71,0,2,74,23,0,ubuntu@172.31.0.63
+[12:28:08] check 469: 12 headers beyond 2126, in flight 1, submitted 23, failed 0
+[12:28:11] check 470: 14 headers beyond 2126, in flight 1, submitted 23, failed 0
+[12:28:14] check 471: 15 headers beyond 2126, in flight 1, submitted 23, failed 0
+[12:28:17] check 472: 16 headers beyond 2126, in flight 1, submitted 23, failed 0
+[12:28:17] segment 25 started (follows segment 24)

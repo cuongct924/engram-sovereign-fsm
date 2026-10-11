@@ -1,0 +1,13 @@
+{
+ "label": "cloud_n3_t1",
+ "arm": "continuous",
+ "hold_min": 15.0,
+ "t_start": 1791720536.787628,
+ "t_pause": 1791720540.251263,
+ "t_sovereign": 1791720714.2972212,
+ "reached_sovereign": true,
+ "t_release": 1791721622.921294,
+ "recovered_to_anchored": true,
+ "t_end": 1791721712.301451,
+ "recovery_s": 89.38015699386597
+}
