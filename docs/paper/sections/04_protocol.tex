@@ -257,10 +257,10 @@ every hysteresis counter.
                   minimum height=1.1cm, align=center, font=\footnotesize\bfseries},
     lab/.style={font=\scriptsize, align=center, inner sep=1.5pt, text width=2.3cm}
 ]
-\node[state, fill=yellow!35, draw=yellow!50!black] (anchored) {ANCHORED};
-\node[state, fill=orange!45, draw=orange!60!black, right=2.9cm of anchored] (suspicious) {SUSPICIOUS};
-\node[state, fill=red!40, draw=red!60!black, right=2.9cm of suspicious] (sovereign) {SOVEREIGN};
-\node[state, fill=green!35, draw=green!50!black, right=2.9cm of sovereign] (recovering) {RECOVERING};
+\node[state, fill=stBlue!30, draw=stBlue] (anchored) {ANCHORED};
+\node[state, fill=stOrange!35, draw=stOrange, right=2.9cm of anchored] (suspicious) {SUSPICIOUS};
+\node[state, fill=stRed!30, draw=stRed, right=2.9cm of suspicious] (sovereign) {SOVEREIGN};
+\node[state, fill=stGreen!30, draw=stGreen, right=2.9cm of sovereign] (recovering) {RECOVERING};
 
 % Degradation above the boxes, recovery below.
 \draw[->] ([yshift=0.2cm]anchored.east) -- node[lab, above]{Sustained\\warning} ([yshift=0.2cm]suspicious.west);

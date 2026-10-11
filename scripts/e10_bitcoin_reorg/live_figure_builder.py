@@ -127,7 +127,7 @@ def main():
         print("no E10 results_live CSVs found")
         return
 
-    fig, axes = plt.subplots(len(available), 1, figsize=(10, 1.9 * len(available)), sharex=False)
+    fig, axes = plt.subplots(len(available), 1, figsize=(7.4, 1.8 * len(available)), sharex=False)
     if len(available) == 1:
         axes = [axes]
 
