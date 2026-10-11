@@ -37,6 +37,14 @@ CHAIN_ID="${ENGRAM_CHAIN_ID:-engram-dev-1}"
 # hand across both files, see their headers).
 N_MAX=256
 
+# Latest committed height of NODE_URL, empty if unreadable; used only for the per-proof PROOFLOG line.
+tip_height() {
+  { curl -s --max-time 3 "$NODE_URL/status" 2>/dev/null || wget -q -T 3 -O - "$NODE_URL/status" 2>/dev/null; } \
+    | grep -o '"latest_block_height":"[0-9]*"' | grep -o '[0-9][0-9]*' | head -1 || true
+}
+T0=$(date +%s)
+TIP_QUERY=$(tip_height)
+
 if [ ! -x "$ENGRAMD" ]; then
   echo "[reanchoring_prover] building engramd from $REPO_ROOT..." >&2
   (cd "$REPO_ROOT" && go build -o "$ENGRAMD" ./cmd/engramd)
@@ -83,6 +91,33 @@ field() {
   echo "$HEADER_LINES" | sed -n "${1}p" | grep -o "${2}=[^ ]*" | cut -d= -f2
 }
 
+# Boundary-block signature witness (circuit/README.md's Scope section). It is fetched BEFORE the header chain is linked so that
+# a boundary block whose commit is not at round 0 (the circuit checks round-0 precommits) can be handled by ending the proof at
+# an earlier header instead of failing: COUNT is reduced, one header at a time, up to BOUNDARY_RETRIES times.
+# --last-height MUST be headers[COUNT-1]'s own real height, not the default (live tip): when COUNT is capped below TOTAL_N the
+# tip keeps climbing past headers[COUNT-1] while this proof is built, and a later block's signature data fails
+# non-deterministically (a "Failed constraint: signed_power*3 >= total_power*2" nargo error), distinct from the
+# SubmitRecoveryProof-side staleness race documented below.
+BOUNDARY_WITNESS_TOML=$(mktemp)
+trap 'rm -f "$BOUNDARY_WITNESS_TOML"' EXIT
+BOUNDARY_RETRIES="${BOUNDARY_RETRIES:-16}"
+boundary_attempt=0
+while :; do
+  LAST_REAL_HEIGHT=$(field "$COUNT" height)
+  if "$ENGRAMD" build-boundary-witness --node "$NODE_URL" --chain-id "$CHAIN_ID" --last-height "$LAST_REAL_HEIGHT" --out "$BOUNDARY_WITNESS_TOML"; then
+    break
+  fi
+  boundary_attempt=$((boundary_attempt + 1))
+  if [ "$boundary_attempt" -gt "$BOUNDARY_RETRIES" ] || [ "$COUNT" -le 1 ]; then
+    echo "[reanchoring_prover] ERROR: no boundary block with a usable round-0 commit within $BOUNDARY_RETRIES headers of the end" >&2
+    exit 1
+  fi
+  echo "[reanchoring_prover] boundary at height $LAST_REAL_HEIGHT unusable, ending the proof one header earlier" >&2
+  COUNT=$((COUNT - 1))
+  HEADER_LINES=$(head -n "$COUNT" <<< "$HEADER_LINES")
+done
+T_BOUNDARY=$(date +%s)
+
 echo "[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=$COUNT, N_MAX=$N_MAX)..."
 {
   echo "rt_last = \"$RT_LAST\""
@@ -112,23 +147,13 @@ echo "[reanchoring_prover] 3/4: building real Prover.toml (count=$COUNT real + $
 # rt_new is hash_header(headers[count-1]), NOT that header's raw state_root
 # field (circuit/reanchoring/src/main.nr's rt_new-binding doc) --
 # reanchoring_witness prints this as a distinct rt_new_hash= line.
+T_WITNESS=$(date +%s)
 RT_NEW=$(echo "$WITNESS_OUT" | grep '^rt_new_hash=' | cut -d= -f2)
 if [ -z "$RT_NEW" ]; then
   echo "[reanchoring_prover] ERROR: reanchoring_witness did not print rt_new_hash= -- check nargo execute output above" >&2
   exit 1
 fi
-echo "[reanchoring_prover] 3b/5: fetching real boundary-block signature witness (circuit/README.md's Scope section)..."
-BOUNDARY_WITNESS_TOML=$(mktemp)
-trap 'rm -f "$BOUNDARY_WITNESS_TOML"' EXIT
-# --last-height MUST be headers[COUNT-1]'s own real height, not the default
-# (live tip) -- when COUNT is capped below TOTAL_N, the tip keeps climbing
-# past headers[COUNT-1] while this proof is built, so the default would fetch
-# boundary-signature data for a LATER block than this proof actually claims,
-# which can fail non-deterministically (a "Failed constraint:
-# signed_power*3 >= total_power*2" nargo error) -- distinct from the
-# SubmitRecoveryProof-side staleness race documented below.
-LAST_REAL_HEIGHT=$(field "$COUNT" height)
-"$ENGRAMD" build-boundary-witness --node "$NODE_URL" --chain-id "$CHAIN_ID" --last-height "$LAST_REAL_HEIGHT" --out "$BOUNDARY_WITNESS_TOML"
+
 
 # TOML requires every loose (non-table) key to precede any [table] section,
 # or nargo silently misattributes later keys to the wrong scope -- split the
@@ -172,6 +197,8 @@ BOUNDARY_TABLES=$(awk 'BEGIN{p=0} /^\[/{p=1} p{print}' "$BOUNDARY_WITNESS_TOML")
   cp "$EMBEDDED_VK" target/proof/vk
   bb prove -b target/reanchoring.json -w target/witness.gz -o target/proof -k target/proof/vk
 )
+
+T_PROVE=$(date +%s)
 
 # Publish the real header chain to Celestia DA before submitting the proof --
 # pure audit trail, never verified on-chain (HeaderHistory is pruned once
@@ -218,6 +245,7 @@ else
   echo "[reanchoring_prover] 4/5: skipping witness publish (throttled, last one ${WITNESS_PUBLISH_MIN_INTERVAL_S}s ago not yet elapsed)"
 fi
 
+T_DA=$(date +%s)
 echo "[reanchoring_prover] 5/5: submitting real proof to $NODE_URL..."
 "$ENGRAMD" tx-submit-recovery-proof \
   "${DA_HEIGHT_FLAG[@]}" \
@@ -225,4 +253,9 @@ echo "[reanchoring_prover] 5/5: submitting real proof to $NODE_URL..."
   --proof "$MAIN_CIRCUIT_DIR/target/proof/proof" \
   --public-inputs "$MAIN_CIRCUIT_DIR/target/proof/public_inputs"
 
+T_SUBMIT=$(date +%s)
+# One line per proof, for the latency and unproven-tail measurement: start epoch, headers covered, first and last covered
+# height, tracked headers at the query, tip at the query and when the submission returned, then seconds per stage
+# (boundary witness, header linking, nargo execute + bb prove, DA publish, submit) and in total.
+echo "PROOFLOG,$T0,$COUNT,$(field 1 height),$LAST_REAL_HEIGHT,$TOTAL_N,$TIP_QUERY,$(tip_height),$((T_BOUNDARY-T0)),$((T_WITNESS-T_BOUNDARY)),$((T_PROVE-T_WITNESS)),$((T_DA-T_PROVE)),$((T_SUBMIT-T_DA)),$((T_SUBMIT-T0))"
 echo "[reanchoring_prover] done."

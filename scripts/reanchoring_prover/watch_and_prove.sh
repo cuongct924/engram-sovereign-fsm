@@ -40,6 +40,16 @@ POLL_INTERVAL_S="${POLL_INTERVAL_S:-2}"
 MAX_CHECKS="${MAX_CHECKS:-600}"  # ~20 min at 2s/check
 BATCH_THRESHOLD="${BATCH_THRESHOLD:-256}"  # = N_MAX: prove_and_submit.sh's own COUNT=min(TOTAL_N, N_MAX) caps it here anyway
 STABLE_POLLS_REQUIRED="${STABLE_POLLS_REQUIRED:-3}"
+# CONTINUOUS=1: fire the next proof as soon as the previous one has been submitted, as soon as MIN_BATCH headers wait, with
+# one proof in flight at a time. A proof costs the same whatever its batch (the circuit is padded to N_MAX), so the unproven
+# tail at each landing is then the proof latency times the block rate, instead of the sawtooth of waiting for N_MAX headers.
+CONTINUOUS="${CONTINUOUS:-0}"
+MIN_BATCH="${MIN_BATCH:-1}"
+
+# PIPELINE=1: several proofs in flight (watch_and_prove_pipeline.sh) instead of one at a time.
+if [ "${PIPELINE:-0}" = "1" ]; then
+  exec "$SCRIPT_DIR/watch_and_prove_pipeline.sh"
+fi
 
 if [ ! -x "$ENGRAMD" ]; then
   echo "[watch_and_prove] building engramd..." >&2
@@ -69,7 +79,13 @@ while [ "$i" -lt "$MAX_CHECKS" ]; do
   # STABLE_POLLS_REQUIRED consecutive polls (genuinely caught up -- see
   # header doc). N>=1 alone fired on every new header, submitting proofs
   # carrying only 5-7 of 256 real headers each.
-  if [ "$N" -ge 1 ] && { [ "$N" -ge "$BATCH_THRESHOLD" ] || [ "$stable_count" -ge "$STABLE_POLLS_REQUIRED" ]; }; then
+  READY=0
+  if [ "$CONTINUOUS" = "1" ]; then
+    [ "$N" -ge "$MIN_BATCH" ] && READY=1
+  elif [ "$N" -ge 1 ] && { [ "$N" -ge "$BATCH_THRESHOLD" ] || [ "$stable_count" -ge "$STABLE_POLLS_REQUIRED" ]; }; then
+    READY=1
+  fi
+  if [ "$READY" -eq 1 ]; then
     echo "[watch_and_prove] N=$N -- firing prove_and_submit.sh NOW"
     if "$SCRIPT_DIR/prove_and_submit.sh"; then
       proofs_submitted=$((proofs_submitted + 1))
@@ -80,6 +96,7 @@ while [ "$i" -lt "$MAX_CHECKS" ]; do
     fi
     prev_n=0
     stable_count=0
+    [ "$CONTINUOUS" = "1" ] && continue
   fi
   sleep "$POLL_INTERVAL_S"
 done

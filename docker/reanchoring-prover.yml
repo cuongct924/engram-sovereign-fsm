@@ -23,12 +23,20 @@ services:
       # Chunk-aggregation mode (prove_aggregate_and_submit.sh): off unless the caller exports ENGRAM_AGGREGATE=1.
       - ENGRAM_AGGREGATE=${ENGRAM_AGGREGATE:-0}
       - BATCH_THRESHOLD=${BATCH_THRESHOLD:-256}
+      # Continuous mode (see watch_and_prove.sh): off unless the caller exports CONTINUOUS=1.
+      - CONTINUOUS=${CONTINUOUS:-0}
+      - MIN_BATCH=${MIN_BATCH:-1}
+      # Pipelined prover (see watch_and_prove_pipeline.sh): off unless the caller exports PIPELINE=1.
+      - PIPELINE=${PIPELINE:-0}
+      - PROVERS=${PROVERS:-4}
+      - STAGGER_S=${STAGGER_S:-27}
+      - BB_THREADS=${BB_THREADS:-}
       - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN}
     restart: unless-stopped
     init: true
-    # CPU weight under contention: validators > celestia-app/bitcoind > bridges > prover.
-    cpu_shares: 256
+    # CPU weight under contention: validators > celestia-app/bitcoind > bridges > prover (256); PROVER_CPU_SHARES overrides it.
+    cpu_shares: ${PROVER_CPU_SHARES:-256}
     oom_score_adj: 500
     logging:
       driver: json-file
