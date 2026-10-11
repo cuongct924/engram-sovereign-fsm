@@ -1,0 +1,13 @@
+{
+ "label": "prio_t2",
+ "arm": "continuous",
+ "hold_min": 15.0,
+ "t_start": 1791688775.285305,
+ "t_pause": 1791688775.732723,
+ "t_sovereign": 1791688886.8393118,
+ "reached_sovereign": true,
+ "t_release": 1791689791.524535,
+ "recovered_to_anchored": true,
+ "t_end": 1791690048.969217,
+ "recovery_s": 257.44468212127686
+}

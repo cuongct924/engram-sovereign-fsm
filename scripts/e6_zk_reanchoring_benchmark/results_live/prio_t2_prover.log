@@ -1,0 +1,231 @@
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 64
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+[03:21:02] check 11: N=0 stable=1 (proofs so far: 3 submitted, 1 rejected)
+[03:21:05] check 12: N=0 stable=2 (proofs so far: 3 submitted, 1 rejected)
+[03:21:08] check 13: N=0 stable=3 (proofs so far: 3 submitted, 1 rejected)
+[03:21:11] check 14: N=0 stable=4 (proofs so far: 3 submitted, 1 rejected)
+[03:21:14] check 15: N=0 stable=5 (proofs so far: 3 submitted, 1 rejected)
+[03:21:17] check 16: N=0 stable=6 (proofs so far: 3 submitted, 1 rejected)
+[03:21:20] check 17: N=0 stable=7 (proofs so far: 3 submitted, 1 rejected)
+[03:21:23] check 18: N=0 stable=8 (proofs so far: 3 submitted, 1 rejected)
+[03:21:26] check 19: N=1 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:29] check 20: N=3 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:32] check 21: N=6 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:35] check 22: N=8 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:38] check 23: N=11 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:41] check 24: N=13 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[03:21:44] check 25: N=16 stable=0 (proofs so far: 3 submitted, 1 rejected)
+[watch_and_prove] N=16 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.BSXODH50SE (first_height=407 last_height=422)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=16, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=16 real + 240 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 78
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 514, hash 7D414766E70F4F08923D5CA031F40C7F82C11657551769F7D88EF77EF7293319
+PROOFLOG,1791688904,16,407,422,16,422,514,0,1,105,6,1,113
+[reanchoring_prover] done.
+[watch_and_prove] proof #4 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:23:37] check 26: N=92 stable=0 (proofs so far: 4 submitted, 1 rejected)
+[watch_and_prove] N=92 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.ubunszQB8Q (first_height=423 last_height=514)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=92, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=92 real + 164 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: skipping witness publish (throttled, last one 120s ago not yet elapsed)
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 602, hash C364AC19EA7116241F19EF6E504C4D058A8411904E2DA40742BAD15403E6C016
+PROOFLOG,1791689017,92,423,514,92,514,602,1,0,109,0,1,111
+[reanchoring_prover] done.
+[watch_and_prove] proof #5 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:25:28] check 27: N=88 stable=0 (proofs so far: 5 submitted, 1 rejected)
+[watch_and_prove] N=88 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.V5qkFcbFA6 (first_height=515 last_height=602)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=88, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=88 real + 168 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 98
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 693, hash FE0CD25EB020103ACFCFD8C71DC6BC2D3243F1DABF9B04E865016CA1728F1FDF
+PROOFLOG,1791689128,88,515,602,88,602,693,0,1,106,3,1,111
+[reanchoring_prover] done.
+[watch_and_prove] proof #6 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:27:20] check 28: N=91 stable=0 (proofs so far: 6 submitted, 1 rejected)
+[watch_and_prove] N=91 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.G2ULPpeYYo (first_height=603 last_height=693)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=91, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=91 real + 165 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: skipping witness publish (throttled, last one 120s ago not yet elapsed)
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 782, hash 0B17F14895F3E7249FA71BC2DE276DAB7229DC2186010E45D56760120E820BDA
+PROOFLOG,1791689240,91,603,693,91,693,782,0,0,108,0,2,110
+[reanchoring_prover] done.
+[watch_and_prove] proof #7 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:29:10] check 29: N=89 stable=0 (proofs so far: 7 submitted, 1 rejected)
+[watch_and_prove] N=89 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.cq815NSC37 (first_height=694 last_height=782)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=89, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=89 real + 167 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 119
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 879, hash 3BC9A289F6F020B5BB9A699A0BDF7B242AA7D7E59B0251B79418AD325C2CB76B
+PROOFLOG,1791689350,89,694,782,89,782,879,0,1,108,9,1,119
+[reanchoring_prover] done.
+[watch_and_prove] proof #8 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:31:09] check 30: N=97 stable=0 (proofs so far: 8 submitted, 1 rejected)
+[watch_and_prove] N=97 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.rxnnK3PH1o (first_height=783 last_height=879)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=97, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=97 real + 159 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: skipping witness publish (throttled, last one 120s ago not yet elapsed)
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 967, hash D4201E5A12984FA8888DEC7B6D10F2B815331A455D12695CFE4B39CF413FD285
+PROOFLOG,1791689469,97,783,879,97,879,967,0,1,108,0,1,110
+[reanchoring_prover] done.
+[watch_and_prove] proof #9 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:32:59] check 31: N=88 stable=0 (proofs so far: 9 submitted, 1 rejected)
+[watch_and_prove] N=88 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.sRnTTLqpxs (first_height=880 last_height=967)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=88, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=88 real + 168 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 139
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 1060, hash 4DE07C424F9E3A1BEC1E5B7A3EF4FDB853C3201747E1195BA825AC71266268F8
+PROOFLOG,1791689579,88,880,967,88,967,1060,0,0,105,6,2,113
+[reanchoring_prover] done.
+[watch_and_prove] proof #10 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:34:52] check 32: N=93 stable=0 (proofs so far: 10 submitted, 1 rejected)
+[watch_and_prove] N=93 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.tmGvtqFZrY (first_height=968 last_height=1060)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=93, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=93 real + 163 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: skipping witness publish (throttled, last one 120s ago not yet elapsed)
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 1148, hash C131BD58C4AC52EFF3D1C31B650C1D958E469DC039D698941DFC543280A9DB12
+PROOFLOG,1791689692,93,968,1060,93,1060,1148,0,0,105,0,1,106
+[reanchoring_prover] done.
+[watch_and_prove] proof #11 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:36:38] check 33: N=88 stable=0 (proofs so far: 11 submitted, 1 rejected)
+[watch_and_prove] N=88 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.hvAicn6XyW (first_height=1061 last_height=1148)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=88, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=88 real + 168 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 159
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 1241, hash F3D12E9E719F969453B0FF9E575DB33D940DA8AE118509E189C77897F08483F9
+PROOFLOG,1791689798,88,1061,1148,88,1148,1241,0,0,105,7,1,113
+[reanchoring_prover] done.
+[watch_and_prove] proof #12 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:38:31] check 34: N=93 stable=0 (proofs so far: 12 submitted, 1 rejected)
+[watch_and_prove] N=93 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.kAaJ2yGJLe (first_height=1149 last_height=1241)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=93, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=93 real + 163 padding) + running nargo execute + bb prove...
+[reanchoring] Circuit witness successfully solved
+[reanchoring] Witness saved to target/witness.gz
+[reanchoring_prover] 4/5: publishing real header chain to Celestia DA...
+[reanchoring_prover] witness published at Celestia height 171
+[reanchoring_prover] 5/5: submitting real proof to http://engram-node01:26657...
+submitted at height 1350, hash F44268A2AE604BF85D226ADD3A33DDECBD2CF95CFDCAAF46BB558B0A0A307717
+PROOFLOG,1791689911,93,1149,1241,93,1241,1350,0,1,122,9,1,133
+[reanchoring_prover] done.
+[watch_and_prove] proof #13 accepted -- checkpoint advanced, continuing to watch for the next segment.
+[03:40:44] check 35: N=109 stable=0 (proofs so far: 13 submitted, 1 rejected)
+[watch_and_prove] N=109 -- firing prove_and_submit.sh NOW
+[reanchoring_prover] 1/4: querying real header history from http://engram-node01:26657...
+boundary witness written to /tmp/tmp.z4kdggazqp (first_height=1242 last_height=1350)
+[reanchoring_prover] 2/4: linking real prev_hash chain via circuit/reanchoring_witness (count=109, N_MAX=256)...
+[reanchoring_prover] 3/4: building real Prover.toml (count=109 real + 147 padding) + running nargo execute + bb prove...
+Scheme is: ultra_honk, num threads: 10 (mem: 4.73 MiB)
+CircuitProve: Proving key computed in 5475 ms (mem: 4507.25 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5005.25 MiB)
+Proof saved to "target/proof/proof" (mem: 5005.25 MiB)
+Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof
+Usage:
+  engramd tx-submit-recovery-proof [flags]
+
+Flags:
+      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see publish-recovery-witness)
+  -h, --help                   help for tx-submit-recovery-proof
+      --node string            CometBFT RPC endpoint (default "http://127.0.0.1:26657")
+      --proof string           path to the bb-generated proof file (required)
+      --public-inputs string   path to the bb-generated public_inputs file (required)
+
+Global Flags:
+      --home string   node home directory (default "/root/.engramd")
+
+rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof
+[watch_and_prove] proof rejected (likely the documented staleness race -- interval grew before submission landed, see prove_and_submit.sh's doc) -- continuing to watch.
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5227 ms (mem: 4505.33 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5013.61 MiB)
+Proof saved to "target/proof/proof" (mem: 5013.61 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5428 ms (mem: 4498.32 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5018.62 MiB)
+Proof saved to "target/proof/proof" (mem: 5018.62 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5610 ms (mem: 4500.34 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5013.71 MiB)
+Proof saved to "target/proof/proof" (mem: 5013.71 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.73 MiB)
+CircuitProve: Proving key computed in 5565 ms (mem: 4503.45 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5019.00 MiB)
+Proof saved to "target/proof/proof" (mem: 5019.00 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.68 MiB)
+CircuitProve: Proving key computed in 6191 ms (mem: 4501.66 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5021.54 MiB)
+Proof saved to "target/proof/proof" (mem: 5021.54 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.68 MiB)
+CircuitProve: Proving key computed in 6116 ms (mem: 4504.33 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5012.85 MiB)
+Proof saved to "target/proof/proof" (mem: 5012.85 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5370 ms (mem: 4499.33 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5006.19 MiB)
+Proof saved to "target/proof/proof" (mem: 5006.19 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5494 ms (mem: 4505.51 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5010.61 MiB)
+Proof saved to "target/proof/proof" (mem: 5010.61 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.74 MiB)
+CircuitProve: Proving key computed in 5451 ms (mem: 4500.29 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5013.97 MiB)
+Proof saved to "target/proof/proof" (mem: 5013.97 MiB)
+Scheme is: ultra_honk, num threads: 10 (mem: 4.73 MiB)
+CircuitProve: Proving key computed in 6070 ms (mem: 4500.50 MiB)
+Public inputs saved to "target/proof/public_inputs" (mem: 5014.49 MiB)
+Proof saved to "target/proof/proof" (mem: 5014.49 MiB)
