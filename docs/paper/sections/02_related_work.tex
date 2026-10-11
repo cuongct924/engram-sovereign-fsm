@@ -125,12 +125,12 @@ players are honest.
 Ebb-and-flow protocols~\cite{neu2021ebbflow} expose both a dynamically
 available ledger and a finalized prefix, so the chain keeps growing when
 finality stalls and the finalized ledger catches up on recovery. Casper
-FFG~\cite{buterin2017casper}, and Gasper~\cite{buterin2020gasper}, which
-combines it with the LMD GHOST fork-choice rule, prove accountable safety and
-plausible liveness. For the case in which more than a third of the validators
+FFG~\cite{buterin2017casper} proves accountable safety and plausible liveness, and
+Gasper~\cite{buterin2020gasper}, which combines it with the LMD GHOST fork-choice rule, proves safety, plausible
+liveness and probabilistic liveness. For the case in which more than a third of the validators
 crash, Casper FFG proposes an inactivity leak that drains the deposits of
 non-voting validators until the voting validators again form a supermajority,
-and leaves the exact formula open. These designs share the
+and leaves the exact formula outside its scope, noting that the leak can let conflicting checkpoints finalize without slashing. These designs share the
 ``degrade, do not halt'' goal and the tension described by the CAP
 theorem~\cite{gilbert2002cap}. They differ from Engram in two respects: the
 trigger is \emph{internal} participation, and the response changes how finality
@@ -153,8 +153,8 @@ controls up to $f$ of the reporters.
 Approximate agreement~\cite{dolev1986approximate} requires non-faulty
 processes to decide on values that are close together rather than identical.
 Median validity~\cite{stolz2015median} requires the decision to be close to the
-median of the non-Byzantine inputs and, at maximal fault tolerance with
-$n \geq 3t+1$, within the range of those inputs. The Engram health
+median of the non-Byzantine inputs and, at maximal fault tolerance,
+within the range of those inputs; the authors give a deterministic algorithm for $n \geq 3t+1$. The Engram health
 certificate satisfies an analogous range-validity property for each
 weighted-median metric. It does not run a second approximate-agreement
 protocol: validators sign individual height-bound sensor snapshots carried as
@@ -169,8 +169,8 @@ hardware~\cite{zhang2016towncrier}. A systematization of oracle designs
 classifies their trust assumptions and manipulation
 risks~\cite{eskandari2021oraclesok}. DecenTruth combines multi-source truth
 discovery with decentralized consensus to tolerate dishonest
-reports~\cite{xiao2023decentruth}, and PSCBO analyzes attacks on consensus-based
-oracle designs~\cite{yao2025pscbo}. In all of these, the oracle supplies a value
+reports~\cite{xiao2023decentruth}, and PSCBO proposes a provably secure consensus-based
+oracle~\cite{yao2025pscbo}. In all of these, the oracle supplies a value
 to the application layer.
 
 \textbf{Vote extensions.}
@@ -344,7 +344,7 @@ derivation or nothing, or leave the chain running and gate an operation.
 
 \begin{table}[!tbp]
 \caption{What the failure of an external dependency stops, by design (entries
-from the sources of Table~\ref{tab:comparison}, except the baseline and Engram).}
+from the sources of Table~\ref{tab:comparison}, except the two receipt-gated baselines and Engram).}
 \label{tab:gates}
 \centering
 \footnotesize
@@ -353,7 +353,7 @@ from the sources of Table~\ref{tab:comparison}, except the baseline and Engram).
 \toprule
 \textbf{Gate} & \textbf{What stops} & \textbf{Design} \\
 \midrule
-Block validity & Every proposal, while the validity predicate cannot be satisfied & Strict receipt-gated baselines, in-band and out-of-band (this work) \\
+Block validity & Every proposal, while the validity predicate cannot be satisfied & In-band and out-of-band gates (this work) \\
 Finality & The finalized prefix lags; the ledger keeps growing & Ebb-and-flow \\
 Client acceptance & A client stops adding blocks whose data behind a signed checkpoint is unavailable & Babylon emergency break \\
 L2 derivation & Derivation stalls until a challenge resolves the data or the blocks are reorged & OP Alt-DA \\

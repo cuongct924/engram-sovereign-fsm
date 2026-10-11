@@ -55,7 +55,7 @@ receipt-gated baselines have no recovery mode, since their FSM stays \textsc{Anc
 
 \begin{table}[tbp]
 \caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
-three runs per cell, mean and range). Rate is the fault-window block rate as a
+three runs per cell, mean and range). $n$ is the number of trials; Blocks is the count committed in the fault window, Max round the highest round at which a proposal was decided and Longest gap the longest interval between consecutive blocks in the window. Rate is the fault-window block rate as a
 share of the same trial's healthy rate; ``No resume'' counts trials in which the
 chain committed no block in the 120\,s after the fault ended. A gap entered as
 $>$$x$ is a chain that never resumed: $x$ is the time from its last block to the end
@@ -257,8 +257,7 @@ The data-availability backfill runs and controls (Tables~\ref{tab:backfill} and~
 \label{subsec:rq4}
 
 \begin{table}[tbp]
-\caption{Overhead of the extended consensus object against vanilla CometBFT
-(20 tx/s, 60\,s per repeat, mean $\pm$ 95\% CI)}
+\caption{Overhead of the extended consensus object against vanilla CometBFT on Testbed~A (seven validators on one host except the one-process column; 20\,tx/s, 60\,s per repeat; mean $\pm$ 95\% CI over the repeats). ``ext.\ on'' is vanilla CometBFT with vote extensions enabled.}
 \label{tab:overhead}
 \centering
 \footnotesize

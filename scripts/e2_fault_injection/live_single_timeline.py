@@ -87,12 +87,12 @@ SCENARIO_ORDER = [
     "s7_recovery",
 ]
 SCENARIO_TITLES = {
-    "s1_normal": "S1 Normal",
-    "s2_btc_congestion": "S2 BTC Congestion",
-    "s3_da_unavailable": "S3 DA Unavailable",
-    "s4_p2p_eclipse_partial": "S4 P2P Eclipse (partial)",
-    "s5_anchor_isolation": "S5 Anchor Isolation",
-    "s6_combined_btc_da_failure": "S6 Combined BTC+DA Failure",
+    "s1_normal": "S1 Healthy baseline",
+    "s2_btc_congestion": "S2 Checkpoint suspension",
+    "s3_da_unavailable": "S3 DA outage",
+    "s4_p2p_eclipse_partial": "S4 P2P relay delay",
+    "s5_anchor_isolation": "S5 Anchor-peer isolation",
+    "s6_combined_btc_da_failure": "S6 Checkpoint + DA",
     "s7_recovery": "S7 Recovery",
 }
 
@@ -359,7 +359,7 @@ def main():
     ax2 = ax.secondary_xaxis("bottom")
     ax2.set_xticks(range(len(SCENARIO_ORDER) + 1))
     edge_heights = [region_bounds[0][0]] + boundaries
-    ax2.set_xticklabels(edge_heights, fontsize=7)
+    ax2.set_xticklabels(edge_heights, fontsize=8)
     ax2.set_xlabel("Engram block height at each phase boundary", fontsize=9)
 
     # State legend above the plot, laid out horizontally.

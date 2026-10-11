@@ -64,7 +64,7 @@ returned within seconds (Fig.~\ref{fig:a4-cascade}). Each run also showed a brie
 \caption{FSM cascade under a real, quorum-visible P2P relay-latency attack
 (P4): all 7 validators independently sense the degradation, the transition
 commits once quorum is met, and block production (bottom panel) never
-stalls through the cascade or the recovery. An earlier single trial, with the heuristic fallback enabled; the three runs of the text used proof-only recovery.}
+stalls through the cascade or the recovery. The shaded band is the delay window and the star marks the verification of the recovery proof. Single earlier trial with the heuristic fallback enabled; the three runs reported in the text used proof-only recovery.}
 \label{fig:a4-cascade}
 \end{figure}
 
@@ -95,7 +95,7 @@ times, each on a freshly deployed chain (Fig.~\ref{fig:s1-s7} shows the first ru
 fault-injection scenarios (S1--S7), true block-height ranges, live
 7-validator testbed. Each scenario begins where the previous scenario's
 recovery ended. Dots mark state changes; the lower axis gives the block height at each
-phase boundary, and every phase has the same width. First of seven runs, heuristic fallback enabled.}
+phase boundary, and every phase has the same width. One run of the sequence, heuristic fallback enabled; in this run the chain had not returned to \textsc{Anchored} by the end of S7.}
 \label{fig:s1-s7}
 \end{figure}
 
@@ -683,11 +683,7 @@ Tables~\ref{tab:f2} and~\ref{tab:b9} are in Appendix~\ref{app:extended}.
 \begin{figure}[tbp]
 \centering
 \includegraphics[width=0.9\linewidth]{figures/hysteresis_tradeoffs.pdf}
-\caption{Hysteresis parameter sweep across all three absorb edges. Lines:
-in-process sweep under different noise profiles; diamonds: live spot-checks
-on the real 7-validator cluster (divergence from the in-process line is
-real network behavior, not measurement noise); dashed line: the protocol's
-live production default.}
+\caption{Hysteresis sweeps on the three gated edges: (a)~\textsc{Recovering}$\to$\textsc{Anchored} (wait $H$), (b)~\textsc{Anchored}$\to$\textsc{Suspicious} (down threshold $k$), (c)~\textsc{Suspicious}$\to$\textsc{Anchored} (wait; right axis: absorption rate). ANCHORED uptime is the fraction of blocks spent in \textsc{Anchored}. Lines: in-process runs under fixed-seed noise profiles; diamonds: live spot-checks on the seven-validator cluster (Testbed~A), where divergence from the in-process line reflects network behavior; dashed line: the prototype default.}
 \label{fig:hysteresis}
 \end{figure}
 
@@ -801,10 +797,7 @@ Recovery $H$ & \textsc{Recovering}$\to$\textsc{Anchored} & 2 & No \\
 \begin{figure}[tbp]
 \centering
 \includegraphics[width=\linewidth]{figures/composite_fault_timeline.pdf}
-\caption{FSM state timeline, sensor readings, P2P network state, and block
-height under a layered composite fault sequence (Bitcoin congestion + DA
-outage + P2P churn, overlapping at their peak). First composite run: one trial,
-heuristic fallback enabled.}
+\caption{Composite-fault timeline of one run: (1)~FSM state of one validator with the lock (hatched) and the safe-block counter; (2)~Bitcoin and DA gaps; (3)~active anchors and peer latency; (4)~block height. Panels 2 and 3 are the validator's local, uncommitted sensor readings. Shaded bands are the fault windows (Bitcoin congestion, DA outage, P2P packet loss; schedule in Table~\ref{tab:schedule}). First composite run: one trial, heuristic fallback enabled.}
 \label{fig:fsm-timeline}
 \end{figure}
 

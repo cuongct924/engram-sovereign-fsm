@@ -26,7 +26,7 @@ assurance column does not rank the designs.}
 \bottomrule
 \endfoot
 \multicolumn{6}{@{}l}{\textbf{Reference point}}\\[1pt]
-Receipt-gated baseline, in-band (this work)\textsuperscript{a} & Missing receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipts return; the chain does not resume in our implementation & External layers live & Measured here (RQ2, three runs per cell) \\
+In-band gate (this work)\textsuperscript{a} & Missing receipt, read through vote extensions & Validity predicate & No proposal is valid until the receipts return; the chain does not resume in our implementation & External layers live & Measured here (RQ2, three runs per cell) \\
 Receipt-gated baseline, out-of-band (this work)\textsuperscript{a} & Missing receipt, read at each validator & Validity predicate & No proposal is valid until the receipts return; the chain resumes, validators may disagree & External layers live & Measured here (RQ2, three runs per cell) \\
 \grp{Degradation inside consensus}
 Ebb-and-flow~\mbox{\cite{neu2021ebbflow}} & Dynamic participation or network partition & Validator protocol & Ledger keeps growing and the finalized prefix lags; the prefix catches up & Partial synchrony (finalized ledger); synchrony (available ledger)\textsuperscript{b} & Security proof; simulations \\
@@ -34,11 +34,11 @@ Casper FFG leak~\mbox{\cite{buterin2017casper}} & More than one third of validat
 \grp{External data in consensus}
 Vote-extension oracle~\mbox{\cite{cosmos_adr064,slinky_oracle}} & External data update; signed vote extensions & Validator consensus pipeline & Stake-weighted median goes to the application; an unreachable oracle yields an empty vote extension that counts as valid, so the chain keeps running; the ADR prescribes no fallback & Signatures from at least two thirds of voting power & Design record; open-source code \\
 \grp{Bitcoin anchoring}
-Babylon~\mbox{\cite{tas2023bitcoinpos}} & Transaction censorship; a signed checkpoint whose block is unavailable & Clients and Bitcoin\textsuperscript{c} & Bitcoin orders PoS block hashes (rollup mode); the chain later exits rollup mode; clients stop adding blocks that lack available data (emergency break) & Bitcoin safe and live & Security proofs; measured Bitcoin checkpoint latency \\
+Babylon~\mbox{\cite{tas2023bitcoinpos}} & Transaction censorship; a signed checkpoint whose block is unavailable & Clients and Bitcoin\textsuperscript{c} & Bitcoin orders PoS block hashes (rollup mode); the chain later exits rollup mode; clients stop adding blocks that lack available data (emergency break) & Bitcoin safe and live & Security proofs; measured withdrawal delay and checkpoint cost \\
 \grp{Rollup fallback}
 Escape hatch~\mbox{\cite{figueira2025escapehatch}} & No new state root within a time limit & Users & Users bypass the bridge and withdraw with a Merkle proof; a nullifier blocks a second escape & L1 live; users submit proofs & Design and use cases \\
 AnyTrust~\mbox{\cite{arbitrum_anytrust,arbitrum_orbit_anytrust}} & Too few committee signatures & Sequencer & Full batch posted to the L1 with standard rollup delay; the committee path resumes & L1 live & Public documentation \\
-OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 challenge & L1 contract & Derivation stalls on missing data; the data is resolved on the L1, or the affected L2 blocks are reorged & L1 live; some party challenges & Experimental specification \\
+OP Alt-DA~\mbox{\cite{optimism_altda}} & External DA input unavailable; L1 challenge & L1 contract & Derivation stalls on missing data; the data is resolved on the L1, or the affected L2 blocks are reorged & L1 live; some party challenges & Specification of a beta feature, published in the experimental section \\
 Secure arranger~\mbox{\cite{capretto2025secure}} & Safety violation by the arranger & Honest agent and L1 contract & Fraud proof settles on the L1; liveness violations cannot be proved there & L1 safe and live; one honest agent & Fraud-proof games mechanized in Lean~4 \\
 \midrule
 \textbf{Engram} & Bitcoin, DA, or peripheral-P2P health; signed validator observations & Validator BFT pipeline & Receipt rules relaxed for the failed layer and withdrawals locked; proof, DA backfill, and hysteresis restore\textsuperscript{d} & CometBFT quorum connected; Byzantine power under $1/3$ & Per-layer bounded model checking; live fault injection (one host) \\
