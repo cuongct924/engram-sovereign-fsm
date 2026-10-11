@@ -279,7 +279,7 @@ circuit breaker locks all cross-chain withdrawals. \textsc{Recovering} is
 entered once the certificate reports healthy peripherals; withdrawals stay
 locked until the exit gate of Section~\ref{subsec:reanchoring} is satisfied.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{FSM states and their validity requirements. The exit gate is defined
 in Section~\ref{subsec:reanchoring}.}
 \label{tab:fsm-states}
@@ -321,7 +321,7 @@ conditions in a fixed priority: a critical condition first, then a warning
 The first condition that applies decides, so a critical condition overrides
 every hysteresis counter.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
@@ -351,7 +351,7 @@ The waits are given in Table~\ref{tab:fsm-waits}.}
 \label{fig:fsm}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Hysteresis waits of the FSM (defaults of the prototype;
 Section~\ref{subsec:transitions}).}
 \label{tab:fsm-waits}
@@ -526,7 +526,7 @@ proof of the same size, which makes verification cost independent of $L$ up to
 1024 headers at the price of one extra proof; proving time still grows with $L$
 (Table~\ref{tab:recovery-cost}, Appendix~\ref{app:aggregation}).
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Cost of the recovery proof by interval length $L$ (offline workstation,
 synthetic chain; one by one against aggregate, from Appendix~\ref{app:aggregation})}
 \label{tab:recovery-cost}

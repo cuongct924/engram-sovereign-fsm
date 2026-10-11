@@ -50,7 +50,7 @@ to reach \textsc{Sovereign} in a real fault (Table~\ref{tab:mst}). We keep 24 as
 default, which the testbed experiments use, and treat the timeout as a deployment
 parameter. A live check at a 600\,s mining interval (steady blocks, three runs on fresh chains) reached \textsc{Sovereign} after 50.6, 50.9 and 60.7\,min (5, 6 and 6 Bitcoin blocks; 2{,}451, 2{,}477 and 2{,}921 Engram blocks), 54.1\,min on average. Two runs lie inside the range of the model (41 to 58\,min) and the third above it, close to the plain conversion of Table~\ref{tab:exposure}.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{\texttt{MaxSuspiciousTime} at mainnet cadence (simulation; exponential
 Bitcoin block intervals of mean 600\,s, $k{=}4$): false escalations of a healthy
 chain per day (30 runs of up to 72\,h; the counts behind the small rates are 10,
@@ -75,7 +75,7 @@ Table~\ref{tab:exposure-design} lists ways to bound the exposure and what each
 costs. We implement none of them; the first two bound the number of withdrawals
 without a lower threshold, and the last one shortens the window.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Ways to bound the exposure before the lock.}
 \label{tab:exposure-design}
 \centering
@@ -192,7 +192,7 @@ left out of the means. On the multi-host chain the latency from the start of a p
 69--75\,s including the transfer to the worker, and 2--17\,s of witness preparation, publication of the audit
 trail and submission.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{The proving step of one segment on one host, mean of the runs after the first (two runs on the
 \texttt{c7a.2xlarge} and \texttt{c7i.2xlarge}, three on the \texttt{c5.2xlarge}; one host per type).}
 \label{tab:instances}
@@ -220,7 +220,7 @@ and 13\% because they share the cores; four concurrent provers did not start, si
 host lacks the memory. A single leaf proof takes 28\,s with all ten cores, 36\,s with
 five and 60\,s with two.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Latency of building the recovery proof on one ten-core host (testbed
 stopped). Proving is the chunk proofs plus the aggregation; the tail is the proving
 time at 0.8 blocks per second. Sequential and parallel are means of two runs, except

@@ -84,7 +84,7 @@ moved from \textsc{Anchored} to \textsc{Suspicious} in 3 of 3 repeats,
 because of ordinary sensor noise on the testbed. We therefore judge the cases by replay,
 AppHash agreement, and the honest-range check, not by whether a transition occurred.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Collusion suite at $n{=}7$ (A3 and A4 are the single-actor cases it
 reruns; B8 is three runs of an honest split view with no adversary; c0 is the control)}
 \label{tab:f2}
@@ -106,7 +106,7 @@ still reported it (5--12 blocks outside the range). An outage can be hidden only
 when every run of consecutive honest proposers is shorter than the hysteresis threshold, and these
 placements did not produce that.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Threshold sweep: Byzantine validators $b$ at $n{=}7$ ($f{=}2$)}
 \label{tab:b9}
 \centering
@@ -149,7 +149,7 @@ of 128 blocks requires (Section~\ref{subsec:rq3}), not by the hysteresis waits; 
 returned within seconds (Fig.~\ref{fig:a4-cascade}). Each run also showed a brief fall-back from \textsc{Recovering} to \textsc{Sovereign}
 (Section~\ref{subsec:limitations}).
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=\linewidth]{figures/p4_relay_cascade_timeline.pdf}
 \caption{FSM cascade under a real, quorum-visible P2P relay-latency attack
@@ -182,16 +182,16 @@ Engram and the soft baseline recover through proof-only recovery with an
 unproven-tail bound of 128 blocks (Section~\ref{subsec:reanchoring}); the
 receipt-gated baselines have no recovery mode, since their FSM stays \textsc{Anchored}.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Liveness and withdrawals under peripheral degradation (180\,s fault,
 three runs per cell, mean and range). Rate is the fault-window block rate as a
 share of the same trial's healthy rate; ``No resume'' counts trials in which the
 chain committed no block in the 120\,s after the fault ended. A gap entered as
 $>$$x$ is a chain that never resumed: $x$ is the time from its last block to the end
-of the trial, a lower bound of a gap that never closed. The in-band baseline is the receipt-gated one whose receipts come
-through the vote extensions (``vote-extension receipts''), the out-of-band one the
-receipt-gated one in which each validator reads the layers itself
-(``direct-read receipts''). The last two columns count withdrawals committed
+of the trial, a lower bound of a gap that never closed. The in-band gate is the receipt-gated baseline whose receipts come
+through the vote extensions, the out-of-band gate the
+receipt-gated one in which each validator reads the layers itself;
+Soft is Engram without the withdrawal lock. The last two columns count withdrawals committed
 after and before the moment Engram's circuit breaker locks, 125\,s (checkpoint
 pause), 40\,s (DA outage) and 40\,s (both) after the fault begins; the same
 window is applied to every system. Engram and the soft baseline recover through
@@ -301,7 +301,7 @@ network, healed in turn. The
 packet loss degrades peer quality without removing quorum connectivity.
 Fig.~\ref{fig:fsm-timeline} shows the resulting timeline.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.95\linewidth]{figures/composite_fault_timeline.pdf}
 \caption{FSM state timeline, sensor readings, P2P network state, and block
@@ -350,7 +350,7 @@ and S7 recovery. Each scenario starts from the state the previous one left, and 
 chain is given up to 600\,s to return to \textsc{Anchored} after S2--S5 and up to 900\,s in S7, with the heuristic fallback enabled. We ran the sequence seven
 times, each on a freshly deployed chain (Fig.~\ref{fig:s1-s7} shows the first run).
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.95\linewidth]{figures/seven_scenario_timeline.pdf}
 \caption{Continuous FSM-state timeline across seven sequential
@@ -395,7 +395,7 @@ three gated edges -- \textsc{Recovering}$\to$\textsc{Anchored},
 synthetic noise and live on the seven-validator cluster under real network
 noise (Fig.~\ref{fig:hysteresis}).
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.95\linewidth]{figures/hysteresis_tradeoffs.pdf}
 \caption{Hysteresis parameter sweep across all three absorb edges. Lines:
@@ -406,7 +406,7 @@ live production default.}
 \label{fig:hysteresis}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Down-hysteresis sweep (\textsc{Anchored}$\to$\textsc{Suspicious}),
 in-process (101 blocks, noise probability 0.2, seed 11, one run per threshold)}
 \label{tab:hysteresis-down}
@@ -518,7 +518,7 @@ misreporting validators. These controls use two to three runs per setting, each
 on a freshly deployed cluster, and the withholding validators are a test
 configuration, not a modelled adversary. The reported third control ran with all five withholding validators.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Republication of the \textsc{Sovereign} interval after a total DA
 outage (three runs per outage length; range over runs; heuristic fallback enabled)}
 \label{tab:backfill}
@@ -535,7 +535,7 @@ outage (three runs per outage length; range over runs; heuristic fallback enable
 \end{tabular}
 \end{table}
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Backfill-gate controls after a 120\,s DA outage (validators withholding
 block data; the gate must hold for 300\,s or open; heuristic fallback enabled)}
 \label{tab:backfill-controls}
@@ -567,7 +567,7 @@ real Bitcoin reorganization must be before the FSM reacts.
 \subsection{RQ4: Cost}
 \label{subsec:rq4}
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Overhead of the extended consensus object against vanilla CometBFT
 (20 tx/s, 60\,s per repeat, mean $\pm$ 95\% CI)}
 \label{tab:overhead}
@@ -633,7 +633,7 @@ the number of validators, since each validator reads only its own sensors. None
 of these is large enough to explain a lower block rate at a $\sim$1\,s block
 interval at seven validators.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Certificate size and \texttt{ProcessProposal} time against the number of
 validators (microbenchmark of the shipped code with real ed25519 signatures, one
 core, ten runs; sizes are from the benchmark fixture, whose extensions are about
@@ -693,7 +693,7 @@ CPU, with the busiest validator at 64--83\% at 500\,tx/s on a host that runs all
 seven. What separates the systems is latency: the p95 stays at 1.5--1.9\,s for
 vanilla, while Engram's rises from 2.2\,s at 100\,tx/s to 6.5\,s at 500\,tx/s.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Load sensitivity under open-loop offered load, seven validators on one host (60\,s per repeat,
 five repeats; mean $\pm$ 95\% Student-$t$ interval). The \textsc{Anchored}
 share is the fraction of two-second samples of one validator's FSM state spent

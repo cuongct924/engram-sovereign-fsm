@@ -28,7 +28,7 @@ five validators. The adversary cannot forge signatures, find hash collisions,
 or subvert the UltraHonk backend's KZG setup. After GST, the \emph{core
 consensus network} connects a quorum, as CometBFT itself requires.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Notation used in Sections~\ref{sec:model}--\ref{sec:formal}.}
 \label{tab:notation}
 \centering
@@ -116,7 +116,7 @@ chain up to height $c \leq h$.
 
 Table~\ref{tab:mode-security} lists which properties hold in each state.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Properties by FSM state. $P_{\text{agree}}$ holds in every state
 under $\operatorname{wt}(B) < W/3$. $^\dagger$ holds only if the checkpoint
 commits the chain through its height and the recovery exit gate includes DA

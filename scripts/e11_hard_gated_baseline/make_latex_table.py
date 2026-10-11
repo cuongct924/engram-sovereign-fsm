@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import summarize_e11 as s  # noqa: E402 (importing it does not run main; matplotlib must be installed)
 
 OUT = os.path.join(HERE, "..", "..", "docs", "paper", "results", "rq2_table.tex")
-SYSTEM = {"hard-gated": "Receipt-gated, vote-extension receipts", "hard-gated-oob": "Receipt-gated, direct-read receipts", "engram": "Engram", "soft": "Soft"}
+SYSTEM = {"hard-gated": "In-band gate", "hard-gated-oob": "Out-of-band gate", "engram": "Engram", "soft": "Soft"}
 FAULT = {"btc": "Checkpoint pause", "da": "DA outage", "both": "Both"}
 
 

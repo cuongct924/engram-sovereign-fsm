@@ -9,7 +9,7 @@ reorganizations, each confirmed from the resulting block hashes, at five
 depths in one seven-validator run: \{1, 2, 3, 5, 15\}, with $K_{\text{DEEP\_FINALITY}}{=}2$ and
 a suspicious-state threshold of 5.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=\linewidth]{figures/reorg_depth_reaction.pdf}
 \caption{FSM reaction to Bitcoin reorgs at five depths, one trial per
@@ -34,7 +34,7 @@ sample before the \textsc{Sovereign} transition. The depth-15 reaction is
 attributable to this duration-based escalation, not to anchor re-verification
 failing.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{FSM reaction to real Bitcoin reorganizations by depth}
 \label{tab:reorg}
 \centering

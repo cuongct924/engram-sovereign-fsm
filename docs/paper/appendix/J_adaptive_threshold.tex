@@ -29,7 +29,7 @@ its trials and environments; the adaptive configuration was redeployed for every
 run because its flap level lives on the chain. Static $k{=}2$, $k{=}6$ and the
 adaptive threshold have three trials each; $k{=}4$ and $k{=}8$ have one.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Live down-edge sweep on seven validators (300\,s runs, mean $\pm$
 95\% Student-$t$ interval over the runs, none for a single run; flaps and uptime
 averaged over the seven validators of a trial). ``Uptime'' is the share of the
@@ -83,7 +83,7 @@ $k_0$ blocks with one healthy block in between, a patient one waits for the flap
 level to return to zero first. The last column of Table~\ref{tab:adaptive-sim} is the concealment
 simulation of Section~\ref{sec:discussion}.
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Static and adaptive down thresholds in the in-process simulation
 (blocks; mean $\pm$ 95\% interval over 200 paired noise schedules). ``Detect
 after noise'' starts the outage as soon as the chain is \textsc{Anchored}
@@ -118,7 +118,7 @@ configuration and offset (Table~\ref{tab:nonstationary-live} and
 Fig.~\ref{fig:live-tradeoff}; the noisy-phase columns pool the six runs of a
 configuration).
 
-\begin{table}[h]
+\begin{table}[tbp]
 \caption{Live three-phase runs: mean (range) over three runs per offset (the noisy
 phase pools six). Detection is the time from the bridge stop to the first
 non-\textsc{Anchored} state.}
@@ -128,7 +128,7 @@ non-\textsc{Anchored} state.}
 \resizebox{\linewidth}{!}{\input{results/nonstationary_live_table}}
 \end{table}
 
-\begin{figure}[h]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/adaptive_live_tradeoff.pdf}
 \caption{Flaps against detection delay in the live three-phase runs. Squares are
