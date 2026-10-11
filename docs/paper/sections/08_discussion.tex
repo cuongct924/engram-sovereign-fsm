@@ -65,7 +65,7 @@ The trade-off of the down threshold between noise and concealment is in Appendix
 
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the certificate
-selects (Section~\ref{subsec:health-certificate}). A sequence of Byzantine
+selects (Section~\ref{subsec:health-certificate}). The proposer, not the validators, holds the vote extensions: the application receives the extensions of the previous height only in the proposer's \texttt{PrepareProposal}, and every other validator sees in \texttt{ProcessProposal} the commit information and the certificate that the proposer built, not the extensions that were left out. A validator can therefore check that each extension in the certificate is validly signed and bound to the commit, but cannot check that the proposer used all of them, and CometBFT cannot be made to require the whole extended commit without a change to the agreement protocol. The certificate thus guarantees honest-range validity, not an unbiased estimate of the external health. A sequence of Byzantine
 proposers can therefore bias the timing of transitions, and, because the lemma is per metric, can produce an aggregate vector that no single honest validator reported, although each of its metrics lies within the honest range of that metric. A Byzantine proposer can also emit a healthy aggregate and reset the unhealthy streak whenever one honest validator in the chosen subset reports healthy, so only faults that every honest validator observes are guaranteed to be detected. A persistent split straddling an FSM
 threshold (for example three against four validators) has not been tested live;
 the RQ4 scan shows no extra rounds in the unfaulted case.
