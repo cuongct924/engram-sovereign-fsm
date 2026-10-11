@@ -7,7 +7,9 @@ bitcoin_rpc_password: "{{ lookup('env', 'BITCOIN_RPC_PASSWORD') }}"
 operator_cidrs: []
 
 # --- Experiment configuration ---
-engram_chain_id: engram-wan-1
+# The recovery circuit has the chain id compiled in (CHAIN_ID in circuit/reanchoring/src/main.nr, 12 bytes): signatures over another id do
+# not verify in the circuit, so the proof of every segment fails. Keep "engram-dev-1" unless the circuit and the verification keys are rebuilt.
+engram_chain_id: engram-dev-1
 engram_mode: engram            # engram | hard-gated | soft (docs/EXPERIMENT.md E11) | vanilla
 # vanilla: plain CometBFT, no sovereignty ABCI++ hooks (`engramd start --vanilla`, selected by ENGRAM_MODE). It is the
 # comparison arm of the load run: the same 8 hosts, genesis and containers as the engram arm, so Bitcoin, celestia-app and

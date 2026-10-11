@@ -11,9 +11,10 @@
       - groups['validators'] | length >= 4
       - groups['validators'] | map('extract', hostvars, 'node_index') | map('int') | sort == range(1, (groups['validators'] | length) + 1) | list
       - engram_mode in ['engram', 'hard-gated', 'soft', 'vanilla']
+      - (not (prover_enabled | bool)) or engram_chain_id == 'engram-dev-1'
     fail_msg: >-
       Set BITCOIN_RPC_PASSWORD, DOCKERHUB_USER and ENGRAM_IMAGE_TAG (the commit tag the build script prints, never latest), set operator_cidrs, give the inventory exactly one infra host and
-      >= 4 validators whose node_index values are 1..N with no gaps (see inventory/example.yml).
+      >= 4 validators whose node_index values are 1..N with no gaps (see inventory/example.yml), and keep engram_chain_id engram-dev-1 while the prover is on (the circuit compiles that chain id in).
     quiet: true
 
 - name: Create the generated directory

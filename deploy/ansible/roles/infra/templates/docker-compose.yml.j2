@@ -1,7 +1,8 @@
 name: engram-infra
 
 # Bitcoin regtest + the single-validator Celestia chain the validators' bridges attach to.
-# Named volumes (not bind mounts) so each image's own user owns its data directory.
+# Named volumes (not bind mounts), mounted where each image keeps its data directory: Docker copies that directory's ownership into a new
+# volume, so the image's own user can write it (lncm/bitcoind runs as uid 1000 and keeps /data/.bitcoin; a mount at another path is root-owned).
 services:
   bitcoin-node01:
     image: lncm/bitcoind:{{ bitcoin_version }}
@@ -11,11 +12,11 @@ services:
       - "18443:18443"
       - "18444:18444"
     volumes:
-      - bitcoin-data:/home/bitcoin/.bitcoin
+      - bitcoin-data:/data/.bitcoin
     # See docker/bitcoin-regtest-cluster.yml: -datadir forces the real mount, -wallet auto-loads
     # engramwallet, -rpcworkqueue=128 survives 7 validators' per-block polling.
     command:
-      - -datadir=/home/bitcoin/.bitcoin
+      - -datadir=/data/.bitcoin
       - -wallet=engramwallet
       - -printtoconsole
       - -regtest=1
