@@ -209,6 +209,7 @@ The three results that need a causal account are discussed in Appendix~\ref{app:
   height from zero, so the certified DA health stays failed until it catches up (more
   than half an hour at a chain of about 7{,}400 heights); persisting the height would
   remove this, and the prototype does not (Appendix~\ref{app:envelope}).
+  \item \emph{Vote-extension liveness and equivocation.} The sensor reads inside \texttt{ExtendVote} are not bounded in time, so a slow read delays that validator's precommit; the certificate and the quorum tolerate this only while two thirds of the voting power supply their extensions in time. A validator can also sign two different extensions for the same height and round. CometBFT does not treat this as evidence, and it gives the adversary nothing beyond signing an arbitrary observation, whose effect Lemma~\ref{lem:honest-range} already bounds; accountability in this paper covers equivocation of votes only.
   \item \emph{Source of the wide-area overhead.} At 100\,tx/s on Testbed~B Engram's block interval is 1.9 times vanilla's, while on one host empty vote extensions add nothing measurable. The sensor reads inside \texttt{ExtendVote}, which cross regions on Testbed~B, fit this: their median duration was 0.36, 0.82 and 1.22\,s in the three validator regions in the composite runs, and a quorum of five of seven needs a validator of the slowest region. It was not isolated: vanilla with empty vote extensions on Testbed~B was not run, and the sensor refresh in the prototype sets no time budget of its own, so a slow Bitcoin or Celestia read delays the precommit of that validator.
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host, and at 100\,tx/s alone on seven machines in three regions
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
@@ -232,4 +233,55 @@ systems. AppHash agreement alone cannot detect an illegal transition agreed on
 by all validators; the semantic replay check of Section~\ref{subsec:rq1}
 addresses this gap.
 
-Future work is listed in Appendix~\ref{app:extended}.
+\subsection{Future Work}
+\label{subsec:future-work}
+
+\begin{itemize}
+  \item \emph{Formal scope.} Closing the cross-layer refinement and extending
+  the certificate model from Boolean to numeric observations would extend the
+  formal results to the composed system; a compositional argument for the
+  interleaving of environment and consensus steps would extend the partial results
+  of Section~\ref{subsec:verification-scope}. Deductive
+  methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
+  where it does not scale.
+  \item \emph{Prover.} Proofs of segments built at the same time on one to four workers keep the tail within the bound
+  on the cloud testbed (Section~\ref{subsec:rq3}); the aggregation of chunks proven in parallel, and
+  longer intervals, are not measured. Incremental recursion would also make the recovery artifact constant-size for
+  intervals of any length.
+  \item \emph{Closing the tail.} Keeping the headers of the unproven tail after the return to \textsc{Anchored} and
+  accepting proofs for them while the chain is \textsc{Anchored} would make every \textsc{Sovereign} and \textsc{Recovering} block
+  eventually covered by a proof; it does not touch the transition function, so the specification of the FSM would not change.
+  A single pending tail is implemented and unit-tested in a development branch of the repository, not evaluated end to end: a
+  tail still open when the next interval begins cannot be chained to it (the \textsc{Anchored} blocks between them are not
+  tracked), so that variant drops it and counts the dropped blocks. A list of pending tails, or tracking headers while the chain
+  is \textsc{Anchored}, would remove the drop at a cost in state and in the analysis of the proof gate.
+  \item \emph{Data availability.} Replacing single-bridge trust with sampling
+  across independent peers would let the DA sensor detect partial withholding
+  rather than only outages.
+  \item \emph{Baselines and verifiers.} A receipt-gated baseline whose proposals
+  carry verifiable evidence (a Bitcoin header chain with a Merkle proof, and a proof
+  that the blob was posted) would remove the disagreement between validators of the
+  out-of-band baseline, but it would still stall while a layer is down. An external
+  verifier (Section~\ref{sec:protocol}), a light client or bridge on another chain
+  that accepts a re-anchoring checkpoint only with a valid proof, is also unbuilt, so
+  its verification cost is unmeasured.
+  \item \emph{The proposer's influence on the certificate.} Requiring one observation
+  in the certificate for every commit vote of \texttt{LastCommit} is a single added
+  condition in \texttt{ProcessProposal}; it does not affect an honest proposer and
+  makes an omission visible and attributable. The proposer would still choose which
+  precommits \texttt{LastCommit} records, because CometBFT accepts any
+  \texttt{LastCommit} with more than two thirds of the voting power; removing that
+  choice changes the agreement protocol, needs a new safety and liveness analysis and
+  would require every experiment to be run again. The quantified influence of
+  Section~\ref{subsec:health-certificate} stays the guarantee of this paper.
+  \item \emph{Asset-level safety.} The lock is a necessary condition for protecting
+  bridged assets, not a sufficient one. It needs (i) a bridge on the counterparty
+  chain that releases funds only against a proof that the Engram height is committed
+  in an anchored state, with escrow accounting and replay protection; (ii) a treatment
+  of history rewriting by a coalition above the fault bound while the chain is in
+  \textsc{Sovereign} mode (Section~\ref{sec:protocol}); and (iii) a bound on the
+  exposure before the lock, for example by a withdrawal quota per Bitcoin block. We
+  evaluate none of these.
+  \item \emph{A time budget for \texttt{ExtendVote}.} The sensor reads of \texttt{ExtendVote} have no deadline of their own, so a slow Bitcoin or Celestia read delays the precommit of that validator (Section~\ref{subsec:rq4}). A fixed budget, with the last good reading carried with its age and a maximally degraded vector signed when the budget is exceeded, would bound that delay; we have not implemented or measured it.
+  \item \emph{Unequal voting power.} Every live and model-checked result uses equal power. A deployment with unequal power, which the weighted aggregation and the lemma cover, would test the weighted median and the quorum thresholds on a live network.
+\end{itemize}
