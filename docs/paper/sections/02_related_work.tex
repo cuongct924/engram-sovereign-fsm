@@ -224,7 +224,7 @@ these publications specifies how the chain operates while the anchor itself is
 unreachable. Engram treats unreachability as an input backed by a quorum of
 signed observations, keeps ordering blocks, and locks withdrawals while it
 persists. Accountability comes from CometBFT's equivocation evidence; Engram
-implements no Bitcoin-enforced slashing.
+implements no Bitcoin-enforced slashing. A rollup that settles its state root on Bitcoin gives users an exit independent of the operators; Engram instead keeps its own validator set sovereign and trades exit for liveness, and we do not claim that the trade is preferable for asset custody.
 
 \textbf{Rollup fallback and its decision locus.}
 When a rollup operator stops building blocks or proposing state roots, escape

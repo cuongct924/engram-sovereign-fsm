@@ -458,7 +458,7 @@ capped, so $\tau_{\text{BTC}} \le K_{\text{DEEP\_FINALITY}} + 3$ Bitcoin blocks 
 $\tau_{\text{DA}} \le \Theta_{\text{DA}} + 4$ Engram blocks at every round: a height
 that skips many rounds does not admit a staler receipt than one that skips three.
 Theorem~\ref{thm:withdrawal} takes both tolerances at the round in which
-$B_h$ committed.
+$B_h$ committed. The widenings never decrease with the round, so a block that satisfies the receipt conditions at round $r$ satisfies them at every later round. The round dependence therefore departs from Tendermint's round-independent validity predicate only in liveness and cannot make two honest validators commit different values; we do not re-prove Tendermint's liveness for it.
 
 $\mathsf{ReceiptsOK}$ is exactly what the strict receipt-gated baseline
 (Section~\ref{subsec:baselines}) enforces unconditionally. Engram's only liveness-relevant change is to make

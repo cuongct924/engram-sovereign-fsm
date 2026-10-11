@@ -32,6 +32,6 @@ vote extensions stopped committing \resInBandHalt\,s after the fault began and d
 vanilla validators the block interval grows by \resOverheadPct{} (95\% interval
 \resOverheadCI{}, 20 paired deployments) on one host; on seven machines in three regions at 100\,tx/s it is 1.9 times as long (three deployments per arm), and the composite fault repeated five times there again ended in \textsc{Anchored}.
 The price is the detection delay: \resExposure{} withdrawal-marked transactions committed
-before the lock (40--125\,s after the fault began) and none after it, which
+before the lock (40--125\,s after the fault began on the testbed, and 47--62\,min at mainnet Bitcoin cadence by model and conversion, during which any sender can submit withdrawals) and none after it, which
 checks the circuit breaker against Engram's own transition rather than
 measuring exclusion independently.

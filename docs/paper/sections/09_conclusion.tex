@@ -13,9 +13,8 @@ to \textsc{Anchored} requires recovery hysteresis, DA backfill of the
 
 The evidence supports the mechanism within the stated assumptions. It does not show that cross-chain assets are protected: that needs a bridge that honors the lock, which the prototype does not implement. Bounded
 model checking of the Tendermint-style and FSM layers found no violation (the largest
-run explored \resFSMStatesM{} distinct states), and each of five ablations reproduces
-its predicted violation; the cross-layer refinement remains open. A
-seven-validator testbed with live Bitcoin and Celestia networks kept
+run explored \resFSMStatesM{} distinct states), and each of five ablations makes the invariant that guards the removed mechanism fail; the cross-layer refinement remains open. A
+seven-validator testbed with Bitcoin regtest and Celestia networks kept
 committing blocks under a composite fault and completed a full recovery cycle
 with complete AppHash agreement in each of five runs. Against strict
 receipt-gated baselines under the same faults, Engram kept \resRQTwoEngram{} of its
