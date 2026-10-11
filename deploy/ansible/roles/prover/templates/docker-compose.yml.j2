@@ -1,0 +1,58 @@
+name: engram-prover
+
+services:
+  # The prover's own DA observer and blob-submission account, attached to the infra celestia-app and separate from
+  # the validators' bridges.
+  celestia-bridge:
+    image: ghcr.io/celestiaorg/celestia-node:{{ celestia_node_version }}
+    container_name: celestia-bridge
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:26658:26658"
+    volumes:
+      - bridge-data:/home/celestia
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json",
+             "-d", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"header.NetworkHead\",\"params\":[]}",
+             "http://127.0.0.1:26658/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    environment:
+      - NODE_TYPE=bridge
+      - P2P_NETWORK=private
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOME_DIR=/home/celestia/.celestia-bridge-private
+        if [ ! -d "$$HOME_DIR" ]; then
+          celestia bridge init --p2p.network private --core.ip {{ infra_host }} &&
+          celestia bridge auth admin --p2p.network private > /home/celestia/bridge_auth.txt 2>&1 &&
+          TRUSTED_HASH=$$(wget -q -O - http://{{ infra_host }}:26657/block?height=1 | jq -r '.result.block_id.hash') &&
+          sed -i "s/TrustedHash = \"\"/TrustedHash = \"$$TRUSTED_HASH\"/" "$$HOME_DIR/config.toml"
+        fi
+        celestia bridge start --core.ip {{ infra_host }} --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
+
+  reanchoring-prover:
+    image: {{ prover_image }}
+    pull_policy: always
+    container_name: reanchoring-prover
+    restart: unless-stopped
+    init: true
+    depends_on:
+      celestia-bridge:
+        condition: service_healthy
+    environment:
+      - NODE_URL=http://{{ (groups['validators'] | map('extract', hostvars) | sort(attribute='node_index') | first).ansible_host }}:26657
+      - POLL_INTERVAL_S=3
+      - CONTINUOUS={{ 1 if prover_continuous | bool else 0 }}
+      - MIN_BATCH={{ prover_min_batch }}
+      - PIPELINE={{ 1 if prover_pipeline | bool else 0 }}
+      - PROVERS={{ prover_provers }}
+      - STAGGER_S={{ (prover_stagger_s | default(30)) }}
+      - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
+      - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN:-}
+
+volumes:
+  bridge-data:

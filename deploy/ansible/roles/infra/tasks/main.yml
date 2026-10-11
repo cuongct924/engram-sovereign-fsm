@@ -45,4 +45,4 @@
     cmd: docker compose --profile prover up -d celestia-bridge-prover
     chdir: "{{ remote_base }}/infra"
   changed_when: true
-  when: prover_enabled | bool
+  when: prover_enabled | bool and prover_on_infra | bool

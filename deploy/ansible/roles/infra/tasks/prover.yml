@@ -1,5 +1,5 @@
 ---
-# Runs after the validators are up: the prover polls validator RPC. The bridge-prover token
+# Prover on the infra host (no dedicated prover host). Runs after the validators are up: the prover polls validator RPC. The bridge-prover token
 # is fetched from its container and the account funded before the prover starts.
 - name: Skip unless the prover is enabled
   ansible.builtin.meta: end_host
@@ -26,8 +26,14 @@
     mode: "0600"
   no_log: true
 
-- name: Build and start the prover
+- name: Pull the prover image
   ansible.builtin.command:
-    cmd: docker compose --profile prover up -d --build reanchoring-prover
+    cmd: docker compose --profile prover pull reanchoring-prover
+    chdir: "{{ remote_base }}/infra"
+  changed_when: false
+
+- name: Start the prover
+  ansible.builtin.command:
+    cmd: docker compose --profile prover up -d reanchoring-prover
     chdir: "{{ remote_base }}/infra"
   changed_when: true

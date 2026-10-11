@@ -2,8 +2,8 @@
 """Turns a Terraform stack's `inventory` output into deploy/ansible/inventory/hosts.yml.
 
 Usage:
-    deploy/bin/make-inventory.py deploy/terraform/hetzner
-    terraform -chdir=deploy/terraform/gcp output -json inventory | deploy/bin/make-inventory.py -
+    deploy/bin/make-inventory.py deploy/terraform/aws
+    terraform -chdir=deploy/terraform/aws output -json inventory | deploy/bin/make-inventory.py -
 
 Hand-written inventories (any provider, bare metal) skip this script: see
 deploy/ansible/inventory/example.yml. Stdlib only.
@@ -40,6 +40,16 @@ def render(inv: dict) -> str:
         f"        {inv['infra']['name']}:",
         f"          ansible_host: {inv['infra']['ip']}",
         f"          region: {inv['infra']['region']}",
+    ]
+    if inv.get("prover"):
+        lines += [
+            "    prover:",
+            "      hosts:",
+            f"        {inv['prover']['name']}:",
+            f"          ansible_host: {inv['prover']['ip']}",
+            f"          region: {inv['prover']['region']}",
+        ]
+    lines += [
         "    validators:",
         "      hosts:",
     ]

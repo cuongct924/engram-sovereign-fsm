@@ -79,7 +79,7 @@ services:
         fi
         celestia-appd start --rpc.laddr tcp://0.0.0.0:26657 --minimum-gas-prices 0.001utia --grpc.enable --grpc.address 0.0.0.0:9090
 
-{% if prover_enabled | bool %}
+{% if prover_enabled | bool and prover_on_infra | bool %}
   # The prover's own bridge/account, separate from the validators' bridges (see
   # docker/celestia-local-cluster.yml's celestia-bridge-prover).
   celestia-bridge-prover:
@@ -108,17 +108,16 @@ services:
     profiles: [prover]
 
   reanchoring-prover:
-    build:
-      context: {{ remote_base }}/engram-sovereign-fsm
-      dockerfile: docker/reanchoring-prover/Dockerfile
-      additional_contexts:
-        cometbft-fork: {{ remote_base }}/engram-consensus-core
+    image: {{ prover_image }}
+    pull_policy: always
     container_name: reanchoring-prover
     restart: unless-stopped
     init: true
     environment:
       - NODE_URL=http://{{ (groups['validators'] | map('extract', hostvars) | sort(attribute='node_index') | first).ansible_host }}:26657
       - POLL_INTERVAL_S=3
+      - CONTINUOUS={{ 1 if prover_continuous | bool else 0 }}
+      - MIN_BATCH={{ prover_min_batch }}
       - CELESTIA_BRIDGE_URL=http://celestia-bridge-prover:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_PROVER_AUTH_TOKEN:-}
     profiles: [prover]
@@ -127,6 +126,6 @@ services:
 volumes:
   bitcoin-data:
   celestia-app-data:
-{% if prover_enabled | bool %}
+{% if prover_enabled | bool and prover_on_infra | bool %}
   bridge-prover-data:
 {% endif %}

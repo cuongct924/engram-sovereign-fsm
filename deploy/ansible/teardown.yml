@@ -3,12 +3,12 @@
 # genesis. Run with -e wipe_generated=true to also delete the controller's generated genesis/keys
 # (required before a new deploy; keeping them with wiped hosts reuses stale validator state).
 - name: Wipe hosts
-  hosts: infra:validators
+  hosts: infra:validators:prover
   become: true
   tasks:
     - name: Stop and remove containers and volumes
       ansible.builtin.shell: |
-        for d in {{ remote_base }}/infra {{ remote_base }}/node; do
+        for d in {{ remote_base }}/infra {{ remote_base }}/node {{ remote_base }}/prover; do
           [ -f "$d/docker-compose.yml" ] && docker compose -f "$d/docker-compose.yml" down -v --remove-orphans
         done
         true
@@ -17,7 +17,7 @@
       ansible.builtin.file:
         path: "{{ remote_base }}/{{ item }}"
         state: absent
-      loop: [node, infra]
+      loop: [node, infra, prover]
 
 - name: Wipe controller artifacts
   hosts: localhost

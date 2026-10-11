@@ -29,3 +29,17 @@
       no_log: true
     - ansible.builtin.debug:
         msg: "bitcoin regtest height: {{ out.stdout }}"
+
+- name: Prover status
+  hosts: prover
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Prover container state and the last proof
+      ansible.builtin.shell: |
+        docker inspect -f '{{ '{{' }}.State.Status{{ '}}' }}' reanchoring-prover
+        docker logs --tail 400 reanchoring-prover 2>&1 | grep PROOFLOG | tail -1 || true
+      register: out
+      changed_when: false
+    - ansible.builtin.debug:
+        msg: "{{ out.stdout_lines }}"

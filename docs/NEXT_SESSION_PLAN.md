@@ -162,7 +162,7 @@ Cập nhật bảng claim–evidence trong `docs/paper/STATUS.md`.
 
 | # | Câu hỏi | Trạng thái |
 |---|---|---|
-| 1b | Hạ tầng đa máy | ✅ Cloud nhiều vùng: `deploy/` (Ansible + Terraform AWS/GCP/DigitalOcean) |
+| 1b | Hạ tầng đa máy | ✅ Cloud nhiều vùng: `deploy/` (Ansible + Terraform AWS) |
 | 1c | Baseline soft/optimistic | ✅ Có (chế độ `soft`) |
 | 1d | Hard-gated khi BTC tạm dừng: giới hạn `round` | ✅ `min(round, 3)` (`x/sovereignty/types/baseline.go`) |
 | 1e | Mức tham vọng formal | ✅ Thử hai bước; kết quả ở mục 19, framing "layered + bounded" |
@@ -303,8 +303,8 @@ Ba nhận xét mà một reviewer hệ thống nhiều khả năng đưa ra; t�
 Toàn bộ validator, Bitcoin, Celestia nằm trên một máy; validator không có giới hạn CPU/RAM riêng, nên nhiễu lập lịch có thể bị
 cảm biến hiểu thành suy giảm mạng (Engram lấy độ trễ, chất lượng peer, churn làm đầu vào FSM). Đây cũng là nút thắt chưa tách
 được ở RQ4 (FSM rời ANCHORED khi tải tăng).
-- Việc: Testbed B trên DigitalOcean, 7 validator ở 7 trung tâm dữ liệu (nyc3, tor1, ams3, fra1, sfo3, sgp1, blr1) và `infra01`
-  ở nyc3. Thiết kế hệ thống, checklist và kế hoạch chạy nằm trong `deploy/README.md`. Phạm vi: composite ×3 đến ×5, baseline
+- Việc: Testbed B trên AWS, 7 validator ở nhiều region (xem `deploy/README.md`) và `infra01`
+  ở region trung tâm. Thiết kế hệ thống, checklist và kế hoạch chạy nằm trong `deploy/README.md`. Phạm vi: composite ×3 đến ×5, baseline
   RQ2 (E11) tuỳ chọn, quét tải tuỳ chọn (cần nối E7 vào `scripts/framework/cluster.py`, hiện chỉ E9 và E11 chạy qua backend SSH).
 - Quét n = 4, 7, 13, 25, 50, 100 bằng micro-benchmark offline trên mã thật: kích thước chứng chỉ, thời gian gộp, thời gian xác
   thực proposal; chạy khi máy chính rảnh hoặc trên Air. Chưa viết.
@@ -358,7 +358,7 @@ nhiễm sản xuất. Kịch bản "congestion" chỉ là dừng nộp checkpoin
 
 
 ### 21. Chạy đa máy có WAN impairment (🟡) [T][M]
-Kế hoạch chi tiết, thiết kế hệ thống và checklist: `deploy/README.md` (mục 33). Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS, GCP, DigitalOcean) và backend SSH của
+Kế hoạch chi tiết, thiết kế hệ thống và checklist: `deploy/README.md` (mục 33). Hạ tầng đã có: `deploy/` (Ansible + Terraform cho AWS) và backend SSH của
 `scripts/framework`. Chưa có dữ liệu. Nếu làm: 7 VM validator ở ≥ 3 vùng + 1 VM hạ tầng, composite
 fault × 3 trial, đặt cạnh số liệu single-host; ma trận WAN đầy đủ chỉ cho composite, lỗi đơn ở một mức
 WAN. Khi có số liệu, bật `\testbedBtrue` và thêm cột Testbed B.

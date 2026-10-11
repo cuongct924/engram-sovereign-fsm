@@ -35,11 +35,8 @@ services:
         celestia bridge start --core.ip {{ infra_host }} --p2p.network private --rpc.addr 0.0.0.0 --rpc.port 26658 --rpc.skip-auth
 
   engramd:
-    build:
-      context: {{ remote_base }}/engram-sovereign-fsm
-      additional_contexts:
-        cometbft-fork: {{ remote_base }}/engram-consensus-core
-    image: engram/engramd:local
+    image: {{ engram_image }}
+    pull_policy: always
     container_name: engramd
     hostname: {{ inventory_hostname }}
     restart: unless-stopped

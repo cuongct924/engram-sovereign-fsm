@@ -8,8 +8,18 @@ operator_cidrs: []
 
 # --- Experiment configuration ---
 engram_chain_id: engram-wan-1
-engram_mode: engram            # engram | hard-gated | soft (see docs/EXPERIMENT.md E11)
-prover_enabled: true           # ZK re-anchoring prover on the infra host; needs >= 8 GB RAM
+engram_mode: engram            # engram | hard-gated | soft (docs/EXPERIMENT.md E11) | vanilla
+# vanilla: plain CometBFT, no sovereignty ABCI++ hooks (`engramd start --vanilla`, selected by ENGRAM_MODE). It is the
+# comparison arm of the load run: the same 8 hosts, genesis and containers as the engram arm, so Bitcoin, celestia-app and
+# the bridges still run (idle for the chain) and the only difference is the consensus application. Needs a fresh genesis.
+prover_enabled: true           # ZK re-anchoring prover; needs >= 16 GB RAM (one proof peaks at about 7.5 GB)
+# The prover runs on a host of the `prover` inventory group when there is one (Terraform's prover01), otherwise on the infra
+# host. A dedicated host keeps proving from competing with Bitcoin and celestia-app for CPU.
+prover_on_infra: "{{ groups['prover'] | default([]) | length == 0 }}"
+prover_continuous: true        # true: prove the next segment as soon as the previous proof is submitted (watch_and_prove.sh CONTINUOUS=1)
+prover_min_batch: 16           # headers that must wait before a continuous proof fires
+prover_pipeline: false         # true: several proofs in flight (watch_and_prove_pipeline.sh); each peaks at about 7.5 GB
+prover_provers: 2              # proofs in flight when prover_pipeline is true
 miner_interval_s: 20           # one regtest block every N seconds (CLAUDE.md: keep it steady)
 
 # ENGRAM_PARAM_* baked into genesis (consensus-critical, see .env.example). The 200 ms default
@@ -17,6 +27,15 @@ miner_interval_s: 20           # one regtest block every N seconds (CLAUDE.md: k
 # unhealthy P2P and the FSM would never stay ANCHORED. Report this value next to any WAN result.
 engram_params:
   ENGRAM_PARAM_MAX_PEER_LATENCY: 500
+
+# --- Images built once on the controller (deploy/bin/build-push-images.sh) and pulled by every host ---
+# No image is built on a VM. DOCKERHUB_USER and ENGRAM_IMAGE_TAG are required (the tag is the commit the images were built from;
+# the script prints it). DOCKERHUB_TOKEN is only for a private repository: a read-only access token, never the account password.
+docker_hub_user: "{{ lookup('env', 'DOCKERHUB_USER') }}"
+image_tag: "{{ lookup('env', 'ENGRAM_IMAGE_TAG') }}"
+docker_hub_token: "{{ lookup('env', 'DOCKERHUB_TOKEN') }}"
+engram_image: "{{ docker_hub_user }}/engram-node:{{ image_tag }}"
+prover_image: "{{ docker_hub_user }}/engram-reanchoring-prover:{{ image_tag }}"
 
 # --- Image versions (match .env.example) ---
 bitcoin_version: v25.0

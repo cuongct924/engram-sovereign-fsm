@@ -9,12 +9,12 @@
   tags: [prepare]
 
 - name: Base setup (Docker, time sync, firewall, sources)
-  hosts: infra:validators
+  hosts: infra:validators:prover
   become: true
   roles: [common]
   tags: [common]
 
-- name: Infra host (Bitcoin regtest, miner, celestia-app, prover)
+- name: Infra host (Bitcoin regtest, miner, celestia-app; also the prover when there is no prover host)
   hosts: infra
   become: true
   roles: [infra]
@@ -42,11 +42,20 @@
   roles: [engramd]
   tags: [engramd]
 
-- name: Start the ZK prover (needs validator RPC to be up)
+- name: Start the ZK prover on the infra host (only when the inventory has no prover host)
   hosts: infra
   become: true
   tasks:
     - ansible.builtin.import_role:
         name: infra
         tasks_from: prover
+      when: prover_enabled | bool and prover_on_infra | bool
+  tags: [prover]
+
+- name: Prover host (own Celestia bridge and the ZK prover; needs validator RPC to be up)
+  hosts: prover
+  become: true
+  roles:
+    - role: prover
+      when: prover_enabled | bool
   tags: [prover]

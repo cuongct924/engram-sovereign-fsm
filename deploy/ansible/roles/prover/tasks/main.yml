@@ -1,0 +1,74 @@
+---
+# Prover host: its own Celestia bridge (attached to celestia-app on the infra host) and the ZK re-anchoring prover.
+# Runs after the validators are up, because the prover polls validator RPC.
+- name: Create the prover directory
+  ansible.builtin.file:
+    path: "{{ remote_base }}/prover"
+    state: directory
+    mode: "0700"
+
+- name: Render the prover compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ remote_base }}/prover/docker-compose.yml"
+    mode: "0600"
+
+- name: Start the prover's Celestia bridge
+  ansible.builtin.command:
+    cmd: docker compose up -d celestia-bridge
+    chdir: "{{ remote_base }}/prover"
+  changed_when: true
+
+- name: Wait for the bridge to serve requests
+  ansible.builtin.command: docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' celestia-bridge
+  register: bridge_health
+  until: bridge_health.stdout == 'healthy'
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Read the bridge's admin token
+  ansible.builtin.command: docker exec celestia-bridge celestia bridge auth admin --node.store /home/celestia
+  register: bridge_token
+  until: bridge_token.stdout | length > 0
+  retries: 30
+  delay: 3
+  changed_when: false
+  no_log: true
+
+# An unfunded bridge account makes every witness publish fail; the prover then submits without a DA height.
+- name: Resolve the bridge's blob-submission account address
+  ansible.builtin.shell: |
+    docker exec celestia-bridge curl -s -X POST \
+      -H "Content-Type: application/json" -H "Authorization: Bearer {{ bridge_token.stdout }}" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"state.AccountAddress","params":[]}' \
+      http://localhost:26658 | jq -r '.result'
+  register: bridge_addr
+  changed_when: false
+  no_log: true
+  failed_when: bridge_addr.stdout | length == 0 or bridge_addr.stdout == 'null'
+
+- name: Fund the account from the celestia-app genesis account (runs on the infra host)
+  ansible.builtin.script:
+    cmd: "{{ playbook_dir }}/roles/bridge/files/fund_address.sh {{ bridge_addr.stdout }}"
+  delegate_to: "{{ groups['infra'][0] }}"
+  changed_when: true
+
+- name: Write the token where compose reads it
+  ansible.builtin.copy:
+    content: "CELESTIA_BRIDGE_AUTH_TOKEN={{ bridge_token.stdout }}\n"
+    dest: "{{ remote_base }}/prover/.env"
+    mode: "0600"
+  no_log: true
+
+- name: Pull the prover image
+  ansible.builtin.command:
+    cmd: docker compose pull reanchoring-prover
+    chdir: "{{ remote_base }}/prover"
+  changed_when: false
+
+- name: Start the prover
+  ansible.builtin.command:
+    cmd: docker compose up -d reanchoring-prover
+    chdir: "{{ remote_base }}/prover"
+  changed_when: true

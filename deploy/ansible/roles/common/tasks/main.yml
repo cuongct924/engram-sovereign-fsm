@@ -30,12 +30,21 @@
     state: directory
     mode: "0755"
 
-- name: Upload sources (validators build engramd; infra builds the prover)
+- name: Upload the helper scripts (only the infra host runs them)
   ansible.builtin.unarchive:
     src: "{{ generated_dir }}/src.tgz"
     dest: "{{ remote_base }}"
-  when: inventory_hostname in groups['validators'] or (prover_enabled | bool)
+  when: inventory_hostname in groups['infra']
   tags: [sources]
+
+# Only needed for a private repository; a public one pulls without logging in.
+- name: Log in to Docker Hub with a read-only token
+  ansible.builtin.command:
+    cmd: docker login -u {{ docker_hub_user }} --password-stdin
+    stdin: "{{ docker_hub_token }}"
+  when: docker_hub_token | length > 0
+  changed_when: false
+  no_log: true
 
 - name: Allow SSH before enabling the firewall
   ansible.builtin.command: ufw allow 22/tcp
@@ -47,12 +56,14 @@
       {{
         (
           ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) | difference([ansible_host]) | product([26656]) | list)
-          + (([infra_host] + operator_cidrs) | product([26657]) | list)
+          + (([infra_host] + prover_hosts + operator_cidrs) | product([26657]) | list)
         ) if inventory_hostname in groups['validators'] else (
           ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) + operator_cidrs) | product([18443]) | list
-          + ((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) | product([26657, 9090]) | list)
-        )
+          + (((groups['validators'] | map('extract', hostvars, 'ansible_host') | list) + prover_hosts) | product([26657, 9090]) | list)
+        ) if inventory_hostname in groups['infra'] else []
       }}
+  vars:
+    prover_hosts: "{{ groups['prover'] | default([]) | map('extract', hostvars, 'ansible_host') | list }}"
 
 - name: Open the ports this host needs
   ansible.builtin.command: "ufw allow from {{ item[0] }} to any port {{ item[1] }} proto tcp"
