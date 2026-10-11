@@ -63,21 +63,32 @@ def savefig_academic(fig, out_dir, basename):
     fig.savefig(os.path.join(out_dir, f"{basename}.png"), dpi=PRINT_DPI, bbox_inches="tight", pad_inches=0.03)
 
 
+# One colour per FSM state for every figure of the paper (Okabe-Ito palette, distinguishable under the
+# common forms of colour-vision deficiency); docs/paper/macros.tex defines the same four colours for the TikZ figures.
+STATE_COLORS = {
+    "ANCHORED": "#0072B2",    # blue
+    "SUSPICIOUS": "#E69F00",  # orange
+    "SOVEREIGN": "#D55E00",   # vermillion
+    "RECOVERING": "#009E73",  # bluish green
+}
+
+
 def setup_academic_plot_style():
-    """Set up matplotlib formatting for academic papers (Vector PDF)."""
+    """Set up matplotlib formatting for the figures of the paper: sizes chosen for a figure of about
+    7.4 in drawn at the text width (6.5 in), so labels print at 7 to 8 pt (Vector PDF)."""
     sns.set_theme(style="whitegrid")
     plt.rcParams.update(
         {
             "font.family": "serif",
-            "font.size": 12,
-            "axes.labelsize": 14,
-            "axes.titlesize": 16,
-            "legend.fontsize": 12,
-            "xtick.labelsize": 12,
-            "ytick.labelsize": 12,
+            "font.size": 8,
+            "axes.labelsize": 8.5,
+            "axes.titlesize": 9,
+            "legend.fontsize": 7.5,
+            "xtick.labelsize": 7.5,
+            "ytick.labelsize": 7.5,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
-            "lines.linewidth": 2.5,
+            "lines.linewidth": 2.0,
         }
     )
 

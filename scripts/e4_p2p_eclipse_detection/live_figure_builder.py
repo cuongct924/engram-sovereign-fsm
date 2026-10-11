@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils import (  # noqa: E402
     setup_academic_plot_style,
+    STATE_COLORS,
     savefig_academic,
 )
 
@@ -38,12 +39,7 @@ STATE_Y = {s: i for i, s in enumerate(STATES)}
 # scripts/e9_composite_fault/live_figure_builder.py, and
 # scripts/e10_bitcoin_reorg/live_figure_builder.py, so a reader who has seen
 # any of those figures recognizes this one's color coding immediately.
-STATE_COLOR = {
-    "ANCHORED": "#1f77b4",
-    "SUSPICIOUS": "#ff7f0e",
-    "SOVEREIGN": "#d62728",
-    "RECOVERING": "#2ca02c",
-}
+STATE_COLOR = STATE_COLORS
 ATTACK_COLOR = "#D55E00"  # same hue family as E9's "P2P churn" fault window
 
 

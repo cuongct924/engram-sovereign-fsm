@@ -35,6 +35,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils import (  # noqa: E402
     setup_academic_plot_style,
+    STATE_COLORS,
     savefig_academic,
 )
 
@@ -47,12 +48,7 @@ STATES = ["ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"]
 STATE_Y = {s: i for i, s in enumerate(STATES)}
 # Distinct color per state so a region flat in one state is instantly readable
 # and a transition reads as a clear color jump even where it is short.
-STATE_COLOR = {
-    "ANCHORED": "#1f77b4",     # blue -- healthy baseline
-    "SUSPICIOUS": "#ff7f0e",   # orange -- warning
-    "SOVEREIGN": "#d62728",    # red -- degraded
-    "RECOVERING": "#2ca02c",   # green -- recovering
-}
+STATE_COLOR = STATE_COLORS
 
 # Legend labels in FSM order with a one-word meaning, so the reader does not
 # need to recall the color mapping from memory.

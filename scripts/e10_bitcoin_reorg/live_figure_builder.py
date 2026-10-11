@@ -34,7 +34,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils import setup_academic_plot_style, savefig_academic  # noqa: E402
+from utils import setup_academic_plot_style, savefig_academic, STATE_COLORS  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -46,12 +46,7 @@ STATES = ["ANCHORED", "SUSPICIOUS", "SOVEREIGN", "RECOVERING"]
 STATE_Y = {s: i for i, s in enumerate(STATES)}
 # Same mapping as scripts/e2_fault_injection/live_single_timeline.py, so a
 # reader who has seen that figure recognizes the color coding immediately.
-STATE_COLOR = {
-    "ANCHORED": "#1f77b4",
-    "SUSPICIOUS": "#ff7f0e",
-    "SOVEREIGN": "#d62728",
-    "RECOVERING": "#2ca02c",
-}
+STATE_COLOR = STATE_COLORS
 STATE_LEGEND = [
     plt.Line2D([0], [0], color=STATE_COLOR[s], lw=3, label=f"{s} ({m})")
     for s, m in [
