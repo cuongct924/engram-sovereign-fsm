@@ -151,7 +151,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     # above y=1.0 for its in-axes legend (see below), so the figure needs
     # more vertical room for the actual data to still read clearly rather
     # than being squeezed into a small fraction of a short panel.
-    fig, axes = plt.subplots(3, 1, figsize=(7.2, 8.4))
+    fig, axes = plt.subplots(1, 3, figsize=(7.6, 3.5))
 
     # (a) 5a Up-hysteresis: only 3 visually distinct curves exist among the 5
     # environments (noisy_da==noisy_p2p, noisy_btc==combined_adversarial per
@@ -173,9 +173,9 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
             axes[0].scatter(xs, [LIVE_5A[x][env] for x in xs], marker="D", s=26,
                              color=color, edgecolor="black", linewidth=1.0, zorder=5)
     axes[0].axvline(LIVE_HYSTERESIS_WAIT, color="0.35", linestyle="--", linewidth=1.1, zorder=1)
-    axes[0].set_xlabel("RecoveryHysteresisWait", fontsize=9)
-    axes[0].set_ylabel("ANCHORED uptime", fontsize=9)
-    axes[0].set_title("(a) Up-Hysteresis:\nMitigating Flapping", fontsize=9.5, fontweight="bold")
+    axes[0].set_xlabel("RecoveryHysteresisWait", fontsize=7)
+    axes[0].set_ylabel("ANCHORED uptime", fontsize=7)
+    axes[0].set_title("(a) Up-Hysteresis:\nMitigating Flapping", fontsize=7.5, fontweight="bold")
     # ylim extends well past the real data ceiling (1.0) to carve out
     # reserved headroom for the legend -- real data never enters y>1.05, so
     # anything placed at y>1.1 can never touch a line/marker, in-panel,
@@ -197,7 +197,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
                                    label=f"Live default (HW={LIVE_HYSTERESIS_WAIT})")
     handles0, labels0 = axes[0].get_legend_handles_labels()
     leg0 = axes[0].legend(handles=handles0 + [live_stable0, live_noisy0, live_default0],
-                           fontsize=6.5, loc="upper center", framealpha=1.0,
+                           fontsize=5.5, loc="upper center", framealpha=1.0,
                            handlelength=1.3, labelspacing=0.3, borderpad=0.3)
     leg0.set_zorder(10)
     axes[0].tick_params(labelsize=7.5)
@@ -225,9 +225,9 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
         axes[1].scatter(xs, [LIVE_5B[x][env] for x in xs], marker="D", s=26,
                          color=color, edgecolor="black", linewidth=1.0, zorder=5)
     axes[1].axvline(LIVE_DOWN_HYSTERESIS_THRESHOLD, color="0.35", linestyle="--", linewidth=1.1, zorder=1)
-    axes[1].set_xlabel("DownHysteresisThreshold", fontsize=9)
-    axes[1].set_ylabel("ANCHORED uptime", fontsize=9)
-    axes[1].set_title("(b) Down-Hysteresis:\nNoise Absorption", fontsize=9.5, fontweight="bold")
+    axes[1].set_xlabel("DownHysteresisThreshold", fontsize=7)
+    axes[1].set_ylabel("ANCHORED uptime", fontsize=7)
+    axes[1].set_title("(b) Down-Hysteresis:\nNoise Absorption", fontsize=7.5, fontweight="bold")
     # Reserved headroom above the real data ceiling (1.0), same technique as
     # panel (a) -- see its comment for why.
     axes[1].set_ylim(-0.05, 2.05)
@@ -240,7 +240,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
                                    label=f"Live default (DHT={LIVE_DOWN_HYSTERESIS_THRESHOLD})")
     handles1, labels1 = axes[1].get_legend_handles_labels()
     leg1 = axes[1].legend(handles=handles1 + [live_stable1, live_noisy1, live_default1],
-                           fontsize=6.5, loc="upper center", framealpha=1.0,
+                           fontsize=5.5, loc="upper center", framealpha=1.0,
                            handlelength=1.3, labelspacing=0.3, borderpad=0.3)
     leg1.set_zorder(10)
     axes[1].tick_params(labelsize=7.5)
@@ -259,8 +259,8 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     l1d = axes[2].scatter(live_xs, [LIVE_5C[x] for x in live_xs], marker="D", s=26,
                            color=COLOR_UPTIME, edgecolor="black", linewidth=1.0, zorder=5,
                            label="ANCHORED uptime (live)")
-    axes[2].set_xlabel("SuspiciousHysteresisWait", fontsize=9)
-    axes[2].set_ylabel("ANCHORED uptime", color=COLOR_UPTIME, fontsize=9)
+    axes[2].set_xlabel("SuspiciousHysteresisWait", fontsize=7)
+    axes[2].set_ylabel("ANCHORED uptime", color=COLOR_UPTIME, fontsize=7)
     axes[2].tick_params(axis="y", labelcolor=COLOR_UPTIME, labelsize=7.5)
     axes[2].tick_params(axis="x", labelsize=7.5)
     # Reserved headroom above the real data ceiling (1.0), same technique as
@@ -271,7 +271,7 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     ax2 = axes[2].twinx()
     l2, = ax2.plot(shw, [r["absorption_rate"] for r in rs], marker="s", markersize=4,
                     linewidth=1.6, color=COLOR_ABSORPTION, label="AbsorptionRate")
-    ax2.set_ylabel("AbsorptionRate", color=COLOR_ABSORPTION, fontsize=9)
+    ax2.set_ylabel("AbsorptionRate", color=COLOR_ABSORPTION, fontsize=7)
     ax2.tick_params(axis="y", labelcolor=COLOR_ABSORPTION, labelsize=7.5)
     ax2.set_ylim(-0.05, 2.05)
     ax2.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -283,15 +283,15 @@ def build_figure4(rows_5a, rows_5b, rows_5c):
     # in-panel annotation.
     axes[2].axvline(LIVE_SUSPICIOUS_HYSTERESIS_WAIT, color="0.35", linestyle="--", linewidth=1.1, zorder=1)
 
-    axes[2].set_title("(c) Suspicious-Exit:\nThe Tuning Trade-off", fontsize=9.5, fontweight="bold")
+    axes[2].set_title("(c) Suspicious-Exit:\nThe Tuning Trade-off", fontsize=7.5, fontweight="bold")
     live_anchor_handle = mlines.Line2D([], [], color="0.35", linestyle="--", linewidth=1.1, label="Live default (SHW=2)")
-    leg2 = axes[2].legend(handles=[l1, l2, l1d, live_anchor_handle], fontsize=6.5,
+    leg2 = axes[2].legend(handles=[l1, l2, l1d, live_anchor_handle], fontsize=5.5,
                            loc="upper center", framealpha=1.0,
                            handlelength=1.3, labelspacing=0.3, borderpad=0.3)
     leg2.set_zorder(10)
 
     # No figure-level title or legend note: the paper's caption carries both, and the figure number is the LaTeX one.
-    fig.subplots_adjust(top=0.94, bottom=0.07, hspace=0.62, left=0.13, right=0.87)
+    fig.subplots_adjust(top=0.84, bottom=0.17, wspace=0.62, left=0.08, right=0.93)
     savefig_academic(fig, OUT_DIR, "hysteresis_tradeoffs")
 
 

@@ -95,7 +95,7 @@ times, each on a freshly deployed chain (Fig.~\ref{fig:s1-s7} shows the first ru
 fault-injection scenarios (S1--S7), true block-height ranges, live
 7-validator testbed. Each scenario begins where the previous scenario's
 recovery ended. Dots mark state changes; the lower axis gives the block height at each
-phase boundary, and every phase has the same width. One run of the sequence, heuristic fallback enabled; in this run the chain had not returned to \textsc{Anchored} by the end of S7.}
+phase boundary, and every phase has the same width. First of seven runs, heuristic fallback enabled; the chain returned to \textsc{Anchored} at the end of S7.}
 \label{fig:s1-s7}
 \end{figure}
 
@@ -682,7 +682,7 @@ Tables~\ref{tab:f2} and~\ref{tab:b9} are in Appendix~\ref{app:extended}.
 
 \begin{figure}[tbp]
 \centering
-\includegraphics[width=0.9\linewidth]{figures/hysteresis_tradeoffs.pdf}
+\includegraphics[width=\linewidth]{figures/hysteresis_tradeoffs.pdf}
 \caption{Hysteresis sweeps on the three gated edges: (a)~\textsc{Recovering}$\to$\textsc{Anchored} (wait $H$), (b)~\textsc{Anchored}$\to$\textsc{Suspicious} (down threshold $k$), (c)~\textsc{Suspicious}$\to$\textsc{Anchored} (wait; right axis: absorption rate). ANCHORED uptime is the fraction of blocks spent in \textsc{Anchored}. Lines: in-process runs under fixed-seed noise profiles; diamonds: live spot-checks on the seven-validator cluster (Testbed~A), where divergence from the in-process line reflects network behavior; dashed line: the prototype default.}
 \label{fig:hysteresis}
 \end{figure}
