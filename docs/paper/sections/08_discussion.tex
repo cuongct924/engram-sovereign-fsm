@@ -208,9 +208,9 @@ and its scope, so that no claim is read as stronger than its evidence.
 Certified metrics stay within the honest range & Lemma~\ref{lem:honest-range} (proof); Apalache check at $N{=}4$; weighted-median tests on random subsets; live threshold sweep & Equal power live; unequal power tested as a function only \\
 Honest validators agree on state and aggregate under $f{=}2$ & Collusion suite: 33 repeats, offline replay of every committed height & Seven validators, one host; repeats share a chain \\
 Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof under M1--M3; lock invariant checked on committed blocks & Admission, not asset safety; no bridge in the prototype \\
-Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoOob{} for the receipt-gated baseline that reads at each validator, and a halt after \resInBandHalt\,s for the one that reads through vote extensions; composite fault repeated five times & Three runs per cell; the baselines are constructs of this paper \\
+Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoOob{} for the receipt-gated baseline that reads at each validator, and a halt after \resInBandHalt\,s for the one that reads through vote extensions; composite fault repeated five times on one host and five times on seven machines in three regions & Three runs per cell; the baselines are constructs of this paper \\
 Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the tail of at most the bound is certified by the quorum alone and never proven afterwards; the exit gate is qualified in Section~\ref{subsec:limitations} \\
-The cost is about 2\% of the block interval & Seven-validator vanilla arms, 20 paired deployments on the same host; the interval excludes zero & One host; Engram's latency grows with load above 100\,tx/s \\
+The cost is about 2\% of the block interval & Seven-validator vanilla arms, 20 paired deployments on the same host, the interval excludes zero; at 100\,tx/s on seven machines in three regions, three deployments per arm, Engram's interval is 1.9 times vanilla's & One host for the 2\%; on separate machines the cost is larger; Engram's latency grows with load above 100\,tx/s \\
 Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
 A static down threshold of 4 or more suppresses flapping & Live three-phase and stationary sweeps & Few runs per cell; the adaptive backoff did not beat it (Appendix~\ref{app:adaptive}) \\
 \bottomrule
@@ -255,8 +255,8 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   (Section~\ref{subsec:sim-to-real}).
   \item \emph{Unproven tail.} The blocks after the last accepted proof, at most the bound of 128, are certified by
   the validator quorum alone, and the prototype discards them when the chain returns to \textsc{Anchored}, so they are never proven
-  later. The prover's ability to keep the tail short is measured at one and two workers on one testbed
-  (Section~\ref{subsec:rq3}); the figures for three or more workers are extrapolated from the formula, not measured.
+  later. The prover's ability to keep the tail short is measured at one to four workers on one testbed, one run each
+  (Section~\ref{subsec:rq3}); it depends on the block rate, which differs between the testbeds.
   \item \emph{Proof gate.} The recovery-validity flag holds if a verified
   proof was submitted within the permitted unproven tail of the tracked tip,
   or if a heuristic holds: the last submitted Bitcoin checkpoint has reached
@@ -298,7 +298,7 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   height from zero, so the certified DA health stays failed until it catches up (more
   than half an hour at a chain of about 7{,}400 heights); persisting the height would
   remove this, and the prototype does not (Appendix~\ref{app:envelope}).
-  \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host
+  \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host, and at 100\,tx/s alone on seven machines in three regions
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
   ceiling or production scalability is claimed.
@@ -339,8 +339,8 @@ production deployment.
   failures, not sampling-detected partial withholding.
 \end{itemize}
 
-\textbf{External validity.} Results at seven validators on one host need not
-extrapolate to larger or geographically distributed validator sets; they are
+\textbf{External validity.} Results at seven validators on one host, and the fewer runs on seven machines in three regions, need not
+extrapolate to larger validator sets or other networks; they are
 evidence of correct behavior and of the source of the overhead, not production
 performance figures.
 
@@ -361,9 +361,9 @@ addresses this gap.
   of Section~\ref{subsec:verification-scope}. Deductive
   methods~\cite{padon2016ivy,lotan2025implicit} complement bounded model checking
   where it does not scale.
-  \item \emph{Prover.} Proofs of segments built at the same time on one to two workers keep the tail within the bound
-  on the cloud testbed (Section~\ref{subsec:rq3}); three and four workers, the aggregation of chunks proven in parallel, and
-  longer intervals are not measured. Incremental recursion would also make the recovery artifact constant-size for
+  \item \emph{Prover.} Proofs of segments built at the same time on one to four workers keep the tail within the bound
+  on the cloud testbed (Section~\ref{subsec:rq3}); the aggregation of chunks proven in parallel, and
+  longer intervals, are not measured. Incremental recursion would also make the recovery artifact constant-size for
   intervals of any length.
   \item \emph{Closing the tail.} Keeping the headers of the unproven tail after the return to \textsc{Anchored} and
   accepting proofs for them while the chain is \textsc{Anchored} would make every \textsc{Sovereign} and \textsc{Recovering} block

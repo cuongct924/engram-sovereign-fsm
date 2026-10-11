@@ -1,7 +1,7 @@
 % Build switches and shared macros.
 % Build switches. \drafttrue renders \pending{...} in red; with \draftfalse an
 % unresolved \pending stops the build, so none can reach a submission PDF.
-% \testbedBtrue adds the Testbed B text (the prover-scaling runs exist; the composite and load runs are still \pending).
+% \testbedBtrue adds the Testbed B text (the prover-scaling, composite and load runs exist).
 \newif\ifdraft \drafttrue
 \newif\iftestbedB \testbedBtrue
 \newcommand{\pending}[1]{\ifdraft\textcolor{red}{[PENDING: #1]}\else

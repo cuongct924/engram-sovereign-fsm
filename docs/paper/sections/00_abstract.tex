@@ -30,7 +30,7 @@ validator kept \resRQTwoOob{} and resumed 21--74\,s after the layer returned; on
 vote extensions stopped committing \resInBandHalt\,s after the fault began and did not resume
 (three runs per cell, one host). Against seven
 vanilla validators the block interval grows by \resOverheadPct{} (95\% interval
-\resOverheadCI{}, 20 paired deployments).
+\resOverheadCI{}, 20 paired deployments) on one host; on seven machines in three regions at 100\,tx/s it is 1.9 times as long (three deployments per arm), and the composite fault repeated five times there again ended in \textsc{Anchored}.
 The price is the detection delay: \resExposure{} withdrawal-marked transactions committed
 before the lock (40--125\,s after the fault began) and none after it, which
 checks the circuit breaker against Engram's own transition rather than
