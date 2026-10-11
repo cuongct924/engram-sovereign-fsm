@@ -1,0 +1,11 @@
+date,instance_type,cpu,vcpu,ram_gb,rep,nargo_execute_s,bb_prove_s,prove_step_s,image
+2026-10-11,c5.2xlarge,Intel Xeon Platinum 8124M 3.0 GHz,8,15,1,74.2869,44.0966,118.384,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c5.2xlarge,Intel Xeon Platinum 8124M 3.0 GHz,8,15,2,74.0514,37.1032,111.155,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c5.2xlarge,Intel Xeon Platinum 8124M 3.0 GHz,8,15,3,74.096,36.9752,111.071,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c5.2xlarge,Intel Xeon Platinum 8124M 3.0 GHz,8,15,4,73.7886,37.0957,110.884,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7a.2xlarge,AMD EPYC 9R14,8,15,1,43.1733,25.7783,68.9516,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7a.2xlarge,AMD EPYC 9R14,8,15,2,43.113,21.4173,64.5304,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7a.2xlarge,AMD EPYC 9R14,8,15,3,43.3357,21.4519,64.7875,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7i.2xlarge,Intel Xeon Platinum 8488C,8,15,1,43.0135,32.9566,75.9702,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7i.2xlarge,Intel Xeon Platinum 8488C,8,15,2,42.8952,27.6171,70.5123,cuongct/engram-reanchoring-prover:ddfc9b443ed9
+2026-10-11,c7i.2xlarge,Intel Xeon Platinum 8488C,8,15,3,43.1556,27.6853,70.8409,cuongct/engram-reanchoring-prover:ddfc9b443ed9
