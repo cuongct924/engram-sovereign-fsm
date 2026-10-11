@@ -236,7 +236,8 @@ P4 relay-latency attack & Live & Three runs, each on a fresh chain, 600\,s recov
 Baselines under peripheral faults (Table~\ref{tab:rq2}) & Live & Three trials per cell; baselines redeployed per trial & Proof-only, bound 128 (Engram, soft) \\
 Composite fault, first run & Live & One trial & Fallback \\
 Composite fault, repeats & Live & Five runs, each on a freshly deployed chain & Proof-only, bound 128 \\
-Composite fault, Testbed~B & Live, seven machines in three regions & Five runs, each on a freshly deployed chain started from \textsc{Anchored} & Proof-only, bound 128, two workers \\
+Prover runs with the code's default parameters, Testbed~B & Live & One run each for one and two workers; superseded by the runs with the paper's parameters and not reported & Tail bound 8, heuristic allowed \\
+Composite fault, Testbed~B & Live, seven machines in three regions & Five runs, each on a freshly deployed chain; two did not start from a clean \textsc{Anchored} & Proof-only, bound 128, two workers \\
 Prover and unproven tail, Testbed~B & Live & One run for each of one to four workers, 15\,min in \textsc{Sovereign} & Proof-only, bound 128 \\
 Load at 100\,tx/s, Testbed~B & Live & Three fresh deployments per arm (Engram, vanilla), one 60\,s measurement each; a deployment whose chain did not reach \textsc{Anchored} is redeployed before measuring & Proof-only, bound 128 (Engram) \\
 Seven-scenario sweep & Live & Seven runs, each on a freshly deployed chain (five on 8 October, two on 10 October with the sensor log kept, same binary) & Fallback \\

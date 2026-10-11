@@ -321,27 +321,25 @@ $t{=}319$\,s, the chain entered \textsc{Recovering} at $t{=}321$\,s and
 \textsc{Sovereign} and \textsc{Recovering}, as the circuit-breaker invariant
 requires. These timings come from a single trial.
 
-We then repeated the sequence five times, each on a freshly deployed chain
-started from \textsc{Anchored}, with proof-only recovery and an unproven-tail
+We then repeated the sequence five times, each on a freshly deployed chain, with proof-only recovery and an unproven-tail
 bound of 128 blocks, so that recovery needed a verified proof. In all five
 runs the height advanced throughout (from 373--387 to 747--760), the
 validators agreed on the AppHash at every sampled height (zero divergent
 heights; one RPC error in one run), and the chain ended in \textsc{Anchored}.
-It reached \textsc{Sovereign} 39--52\,s after the start (mean 44.2\,s, 95\% CI
-$\pm$6.5\,s over five runs, Student $t$), four of the five passing through
-\textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 312--325\,s in,
+Times are those at which the median (fourth) validator first reported the state, from the first sample. In two of the five runs some validators were briefly in \textsc{Suspicious}, ordinary sensor noise at a threshold of two, before the first fault. The chain reached \textsc{Sovereign} 38--53\,s after the start (mean 45.0\,s, 95\% CI
+$\pm$6.7\,s over five runs, Student $t$), four of the five passing through
+\textsc{Suspicious} first (16--22\,s). \textsc{Recovering} began 311--324\,s in,
 after the faults were healed, and lasted 233--257\,s (mean 240.6\,s, 95\% CI
 $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
 We then ran the sequence five times on the cloud testbed (Testbed~B, Appendix~\ref{app:setup}): seven validators in three
-regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain started from
-\textsc{Anchored}. In all five runs the height advanced throughout (from 151--188 to 250--290), the validators agreed on the AppHash at every
+regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain, with the times defined as above. In two of the five runs most validators were in \textsc{Suspicious}
+during the first seconds, before the first fault, so those runs did not start from a clean \textsc{Anchored}. In all five runs the height advanced throughout (from 151--188 to 250--290), the validators agreed on the AppHash at every
 sampled height (zero divergent heights; 13--29 RPC errors per run, timeouts of the sampler over the wide-area links), and the chain ended in
-\textsc{Anchored}. It reached \textsc{Sovereign} 245--293\,s after the start (mean 274.5\,s, 95\% CI $\pm$24.1\,s, Student $t$), and
-\textsc{Recovering} began 336--356\,s in (mean 342.1\,s, $\pm$9.6\,s) and lasted 77--104\,s (mean 95.2\,s, $\pm$13.8\,s), against 233--257\,s on
-Testbed~A. Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
-the chain returned to \textsc{Anchored}. The two testbeds differ in block rate and in how the sensors see the faults, so their times are not pooled.
+\textsc{Anchored}. It reached \textsc{Sovereign} 241--291\,s after the start (mean 271.6\,s, 95\% CI $\pm$23.3\,s, Student $t$), and
+\textsc{Recovering} began 335--358\,s in (mean 343.8\,s, $\pm$10.8\,s) and lasted 82--104\,s (mean 96.0\,s, $\pm$11.1\,s; until every validator reported \textsc{Anchored}). Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
+the chain returned to \textsc{Anchored}. The two testbeds differ in block rate, hardware and in how the sensors see the faults, so their times are not comparable and are not pooled.
 \textbf{Seven-scenario sweep.} The composite trace does not isolate which
 failure mode drives which behavior. A second run therefore walks the chain
 through seven sequential scenarios (Table~\ref{tab:schedule}): S1 healthy
@@ -484,7 +482,7 @@ A run held the chain in \textsc{Sovereign} for 15 minutes by suspending checkpoi
 setting. The block rate was \resCloudRate\,blocks/s, and a proof took 76--77\,s from its start to its accepted submission
 (12, 22, 23 and 23 proofs accepted). The unproven tail had a 95th percentile of \resCloudTailOne{}, \resCloudTailTwo{}, 47 and 46 blocks
 for one to four workers (maxima 63, 49, 52 and 51). The gate was open for 100\% of the samples at the bound of 128 and at 64 in every run;
-at 32 it was open for 4--12\% and at 8 for none. The chain returned to \textsc{Anchored} on a verified proof 89--100\,s after the release.
+at 32 it was open for 4--12\% and at 8 for none; the bound of 64 passed with a margin of one block (maximum 63) and is not a safe setting. The percentiles come from 76--77 autocorrelated samples of one hold per setting. The chain returned to \textsc{Anchored} on a verified proof 89--100\,s after the release.
 With one and two workers the figures follow $rL(1+1/N)$ (Section~\ref{sec:discussion}), which gives 63 and 47 blocks
 for the measured rate and latency; with three and four they stay at the value for two, as Section~\ref{sec:discussion} explains.
 They are not comparable in blocks with the Testbed~A runs above, whose block rate was about twice as high.
@@ -736,11 +734,11 @@ first Engram arm did not record the FSM state.
 
 \textbf{Load on separate machines.} On Testbed~B, where each validator has its own machine, we offered 100\,tx/s for 60\,s to Engram and
 to vanilla CometBFT on three freshly deployed clusters each, with the load generator on the operator's machine, outside the cloud (its round trip to
-the validators adds to the latency of both arms alike). Both committed every offered transaction and neither saturated; the busiest validator
+the validators and a queueing term that grows with the block interval enter the latency, so only the block interval is independent of the client). Both committed every offered transaction and neither saturated; the busiest validator
 used 28\% of its CPU for Engram and 23\% for vanilla. Engram's block interval was $2.78 \pm 0.15$\,s against $1.44 \pm 0.02$\,s, and the median, 95th and
 99th percentile latencies were $3.96 \pm 0.41$, $5.49 \pm 0.81$ and $6.08 \pm 0.79$\,s against $2.83 \pm 0.12$, $3.78 \pm 0.25$ and
 $4.06 \pm 0.39$\,s (mean $\pm$ 95\% Student-$t$ interval over the three deployments, one 60\,s measurement each). The intervals of the two systems do not overlap,
-so the cost of the extension is larger on the wide-area network than the single-host figures suggest. CPU does not explain it, and the empty vote extensions of the single-host
+so the cost of the extension is larger on the wide-area network than the single-host figures suggest. With three deployments per arm the comparison is descriptive: every Engram deployment has a longer block interval than every vanilla one, but an exact test of three against three cannot give $p$ below 0.1, and the busiest-validator CPU was $27.9 \pm 13.3$\% against $23.2 \pm 2.6$\%. CPU does not explain it, and the empty vote extensions of the single-host
 arm (Table~\ref{tab:overhead}) cost nothing measurable, so the extra round itself is not the likely source: at the round trips of Table~\ref{tab:testbedB} (46--207\,ms)
 it adds well under the 1.3\,s observed. The validators' logs of the five composite runs on Testbed~B, which ran the same binary on the same machines, show where the time goes:
 each validator's \texttt{ExtendVote}, which reads the Bitcoin and Celestia nodes in another region, took a median of 0.36\,s in us-east-2, 0.82\,s in eu-west-1 and 1.22\,s in ap-southeast-1

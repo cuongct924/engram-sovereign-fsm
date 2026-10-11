@@ -165,7 +165,7 @@ each building one proof, shortens the interval between two landings to $L/N$ and
 $rL(1+1/N)$. This is allowed by the chain's check at submission: a proof binds its first header to the
 previous checkpoint, so segments can be proven at the same time and are accepted only in order. On Testbed~B
 ($r{=}\resCloudRate$, $L{\approx}77$\,s) the formula gives 63 and 47 blocks for one and two workers and the
-measured 95th percentiles are \resCloudTailOne{} and \resCloudTailTwo{} (maxima 64 and 50), against a bound of 128;
+measured 95th percentiles are \resCloudTailOne{} and \resCloudTailTwo{} (maxima 63 and 49), against a bound of 128;
 the bound must exceed $rL(1+1/N)$ with some margin, and holds only for the block rate it was measured at,
 as the number of blocks of a tail scales with $r$. The hardware sets $L$: the same proving step takes
 \resCloudStepFast\,s on a \texttt{c7a.2xlarge} and \resCloudStepSlow\,s on a \texttt{c5.2xlarge}
