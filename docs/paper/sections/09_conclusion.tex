@@ -5,8 +5,8 @@ A chain whose block validity requires settlement and DA receipts halts when
 those layers fail, although its validators are connected and correct: an
 external dependency can cause a liveness failure without a BFT failure.
 Engram makes suspending such a dependency an agreed validity and safety mode.
-A quorum-backed health certificate drives a four-state FSM above an unchanged
-CometBFT agreement core. In the degraded modes the corresponding receipt
+A quorum-backed health certificate drives a four-state FSM above a lightly modified
+CometBFT core. In the degraded modes the corresponding receipt
 requirement is relaxed and withdrawal-marked transactions are excluded, and the return
 to \textsc{Anchored} requires recovery hysteresis, DA backfill of the
 \textsc{Sovereign} interval, and a validator-verified recovery proof.

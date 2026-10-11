@@ -178,7 +178,7 @@ of fault and 120\,s of recovery, with a withdrawal-marked transaction sent every
 2\,s; each cell of Table~\ref{tab:rq2} has three trials. Both
 receipt-gated baselines are redeployed for every trial, because the in-band one
 does not recover on its own in our implementation (below).
-Engram and the soft baseline recover through proof-only re-anchoring with an
+Engram and the soft baseline recover through proof-only recovery with an
 unproven-tail bound of 128 blocks (Section~\ref{subsec:reanchoring}); the
 receipt-gated baselines have no recovery mode, since their FSM stays \textsc{Anchored}.
 
@@ -195,7 +195,7 @@ receipt-gated one in which each validator reads the layers itself
 after and before the moment Engram's circuit breaker locks, 125\,s (checkpoint
 pause), 40\,s (DA outage) and 40\,s (both) after the fault begins; the same
 window is applied to every system. Engram and the soft baseline recover through
-proof-only re-anchoring with an unproven-tail bound of 128 blocks.}
+proof-only recovery with an unproven-tail bound of 128 blocks.}
 \label{tab:rq2}
 \centering
 \footnotesize
@@ -502,9 +502,7 @@ not grow with the interval: 37--61\,s for 75--77 blocks and 49--61\,s for
 465--475 blocks. The check is external to the chain: the gate itself rests on the
 quorum-reported contiguous height, and these runs show that height was truthful
 when all validators were honest. They cover a total DA outage on one host
-with three runs per length. Runs under the earlier 512\,MiB bridge limit are
-excluded; at that limit the bridges crash-looped and the 600\,s outage never
-returned to \textsc{Recovering}.
+with three runs per length. All runs use one bridge blob limit; the 600\,s outage is reported only at that limit, since the bridges did not survive it at 512\,MiB.
 These runs kept the heuristic fallback of Section~\ref{subsec:reanchoring}
 enabled (proof-only recovery off), so the time in \textsc{Recovering} does not
 isolate the cost of the recovery proof; the data-availability results are
@@ -520,9 +518,7 @@ a contiguous height of $10^{12}$ while the five honest ones withheld data; the
 median stayed at zero and the gate held, as it should against $f{=}2$
 misreporting validators. These controls use two to three runs per setting, each
 on a freshly deployed cluster, and the withholding validators are a test
-configuration, not a modelled adversary. A first attempt at the third control
-ran with only two of its five withholding validators because the override
-file omitted three nodes; it is excluded.
+configuration, not a modelled adversary. The reported third control ran with all five withholding validators.
 
 \begin{table}[h]
 \caption{Republication of the \textsc{Sovereign} interval after a total DA

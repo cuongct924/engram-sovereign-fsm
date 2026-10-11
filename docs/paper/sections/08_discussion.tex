@@ -37,10 +37,9 @@ the chain sees the layer return.
 \end{itemize}
 
 \textbf{Cost of griefing.} An adversary that degrades the peripheral view of
-\emph{all} honest validators -- for example by delaying their Bitcoin
+the honest validators -- for example by delaying their Bitcoin
 connectivity -- can drive the chain into \textsc{Sovereign} and freeze
-withdrawals for as long as the degradation lasts (P4,
-Section~\ref{subsec:rq1}). This is a new attack surface relative to a chain
+withdrawals for as long as the degradation lasts. In P4 (Section~\ref{subsec:rq1}) a sustained delay on the P2P interfaces of one validator, observed by all seven, was enough in all three runs; we did not establish whether the cause is the sensor design or a threshold crossing, so Lemma~\ref{lem:honest-range} does not prevent it. This is a new attack surface relative to a chain
 that ignores its periphery, but not relative to a strict receipt-gated chain: the same
 attacker stalls the strict receipt-gated chain, whereas Engram freezes only
 withdrawals. Lemma~\ref{lem:honest-range} prevents Byzantine validators from causing the freeze
@@ -99,7 +98,7 @@ mainnet cadence, below the 62 minutes of the plain conversion, so the two bracke
 it. The same model shows that the healthy gap already touches the
 \textsc{Suspicious} threshold every checkpoint cycle, so the threshold cannot be
 lowered, and that \texttt{MaxSuspiciousTime} must follow the Bitcoin cadence of the
-deployment; a live check at a 600\,s mining interval is still pending (Appendix~\ref{app:envelope}). We do not implement any of the ways of
+deployment; a live check at a 600\,s mining interval (three runs) reached \textsc{Sovereign} after 50.6--60.7\,min, mean 54.1\,min, against the model's 47--50\,min (Appendix~\ref{app:envelope}). We do not implement any of the ways of
 bounding the exposure that the appendix lists.
 
 \textbf{Hysteresis: noise against concealment.} A higher down threshold $k$
@@ -123,8 +122,7 @@ we did not implement.
 \textbf{Proposer bias within the honest range.} When honest observations
 straddle a threshold, a proposer can choose which honest value the certificate
 selects (Section~\ref{subsec:health-certificate}). A sequence of Byzantine
-proposers can therefore bias the timing of transitions, but cannot produce a
-transition that no honest view supports. A persistent split straddling an FSM
+proposers can therefore bias the timing of transitions, and, because the lemma is per metric, can produce an aggregate vector that no single honest validator reported, although each of its metrics lies within the honest range of that metric. A Byzantine proposer can also emit a healthy aggregate and reset the unhealthy streak whenever one honest validator in the chosen subset reports healthy, so only faults that every honest validator observes are guaranteed to be detected. A persistent split straddling an FSM
 threshold (for example three against four validators) has not been tested live;
 the RQ4 scan shows no extra rounds in the unfaulted case.
 
@@ -211,7 +209,7 @@ Withdrawal Admission Safety (Theorem~\ref{thm:withdrawal}) & Pen-and-paper proof
 Blocks keep committing under peripheral faults & \resRQTwoEngram{} of the healthy rate, against \resRQTwoOob{} for the receipt-gated baseline that reads at each validator, and a halt after \resInBandHalt\,s for the one that reads through vote extensions; composite fault repeated five times on one host and five times on seven machines in three regions & Three runs per cell; the baselines are constructs of this paper \\
 Return to \textsc{Anchored} needs proof and DA backfill & Proof-only recovery with an unproven tail of 128 blocks in five runs; backfill checked against Celestia and withholding controls & Depends on the tail bound and on proving speed; the tail of at most the bound is certified by the quorum alone and never proven afterwards; the exit gate is qualified in Section~\ref{subsec:limitations} \\
 The cost is about 2\% of the block interval & Seven-validator vanilla arms, 20 paired deployments on the same host, the interval excludes zero; at 100\,tx/s on seven machines in three regions, three deployments per arm, Engram's interval is 1.9 times vanilla's & One host for the 2\%; on separate machines the cost is larger; Engram's latency grows with load above 100\,tx/s \\
-Layered specification has no violations & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & C1 and consensus liveness after GST open; no end-to-end proof \\
+Tendermint-style and FSM layers have no violation within bounds & Bounded model checking per layer; safety ablation of the mechanisms (Table~\ref{tab:ablation}) & two of the four layers have no completed standalone check, the composition (C1) and liveness after GST are open, and no check covers $N{=}7$, $f{=}2$; no end-to-end proof \\
 A static down threshold of 4 or more suppresses flapping & Live three-phase and stationary sweeps & Few runs per cell; the adaptive backoff did not beat it (Appendix~\ref{app:adaptive}) \\
 \bottomrule
 \end{tabular}
@@ -220,8 +218,7 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
 \textbf{Unexpected results.} Three results need a causal account.
 \begin{itemize}
   \item \emph{Block rate.} Against a single local vanilla process, Engram's
-  block interval is longer, which at first suggested a cost of the extended
-  object. Seven vanilla validators on the same hosts give the same interval,
+  block interval is longer. Seven vanilla validators on the same hosts give the same interval,
   with vote extensions on or off, so the gap is the cost of the
   seven-validator network and Engram's own addition is \resOverheadPct{} (95\% interval
   \resOverheadCI{} over 20 paired deployments; Section~\ref{subsec:rq4}).

@@ -219,7 +219,7 @@ attacks. Tas et al.~\cite{tas2023bitcoinpos} show that slashable safety is
 impossible without an external source of trust and state their guarantees under
 the assumption that Bitcoin is safe and live. Their design also defines a
 fallback in which Bitcoin orders the PoS blocks after censorship, which
-strengthens the PoS chain's dependence on Bitcoin. To our knowledge, none of
+strengthens the PoS chain's dependence on Bitcoin. Babylon specifies a fallback for censored checkpoints and an emergency break but, to our knowledge, none of
 these publications specifies how the chain operates while the anchor itself is
 unreachable. Engram treats unreachability as an input backed by a quorum of
 signed observations, keeps ordering blocks, and locks withdrawals while it

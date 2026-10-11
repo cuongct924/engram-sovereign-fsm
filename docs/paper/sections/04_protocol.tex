@@ -586,7 +586,7 @@ edge, so \textsc{Recovering}$\to$\textsc{Anchored} cannot occur before block
 $h{+}2$.
 \texttt{ProcessProposal} does not verify the proof itself.
 
-\textbf{Resulting guarantee.} The recovery proof guarantees, to a verifier that
+\textbf{What the recovery proof establishes.} The recovery proof shows, to a verifier that
 also checks its public inputs against its own record, as the validators' message
 handler does, that (i) the recorded headers of the \textsc{Sovereign} interval
 form a single hash chain whose end points are two boundary blocks signed by at
@@ -597,6 +597,8 @@ executed. The proof does not make the interval's \emph{ordering} secure
 against a Byzantine supermajority: during \textsc{Sovereign}, safety rests on
 the validator quorum alone, which is precisely why withdrawals are locked.
 Re-anchoring restores Bitcoin timestamping from the recovery point forward.
+
+Four limits of the proof bear on how much it contributes. (1) Nothing in the circuit is secret: the headers are public and the proof is used as a succinct argument, not for zero knowledge. (2) Condition (e) can be satisfied only if both boundary blocks were committed in round 0. The first boundary height is fixed by the last anchored height, so a round skip at that block would make the interval unprovable, and proof-only recovery could not leave \textsc{Recovering}; the prototype has no fallback for this case. (3) The boundary check shows that validators holding more than two thirds of the genesis power signed the block, so it is as sound as the assumption of at most $f{=}2$ faulty validators; the circuit is fixed to the seven-validator genesis set, to voting power below 128 per validator and to one compiled chain identifier, and any change of set or identifier needs a new circuit and verification key. (4) The circuit does not relate the headers to the signed boundary blocks beyond the boundary hashes; the comparison of the public inputs with the chain's own record, made by every validator, supplies that link. For the validators the proof is therefore a consistency check on a record they already hold; its security contribution would materialize for a verifier that does not replay the chain, such as a light client or a bridge, which we neither build nor evaluate. Soundness also assumes that nobody knows the trapdoor of the Aztec KZG setup over BN254 and the random-oracle model for Fiat--Shamir; a forged proof could satisfy the proof gate but not the native comparison of public inputs with chain state. The message handler verifies the proof (about 20\,ms) before it compares the public inputs, and the prototype has no sender authentication or fee on proof messages, so invalid proofs cost each validator that time apiece; we did not measure this channel, and a deployment should reverse the order of the checks.
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} A recovery
 proof shows the interval is recorded consistently, not that its data is

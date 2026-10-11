@@ -56,7 +56,7 @@ input that every validator evaluates identically.
 
 \textbf{Design approach.} Engram keeps CometBFT's proposer selection,
 prevote/precommit protocol, quorum intersection, and deterministic finality
-unchanged, and modifies the object and the validity policy that this pipeline
+as upstream's apart from the changes of the fork (Section~\ref{subsec:implementation}), and modifies the object and the validity policy that this pipeline
 carries. At height $h{-}1$, each validator signs its sensor snapshot as a vote
 extension; the sensors are read only there. The proposer of height $h$ includes
 the signed snapshots of a quorum (more than two thirds of the voting power) in a \emph{health
@@ -115,7 +115,7 @@ Engram targets this combination.
     breaker~\cite{mendonca2020resiliency} excludes withdrawal-marked transactions while
     the chain runs without external corroboration
     (Sections~\ref{subsec:fsm}--\ref{subsec:transitions}; Withdrawal Admission
-    Safety theorem in Section~\ref{subsec:analytical}).
+    Safety, a hand proof under assumptions M1--M3 that constrains which blocks may contain a withdrawal and does not imply asset safety, in Section~\ref{subsec:analytical}).
     \item \textbf{Proof- and backfill-gated recovery.} A Noir/UltraHonk circuit
     that proves, for up to 256 \textsc{Sovereign}-interval headers at constant
     proving and verification cost, header-chain continuity, that every recorded
@@ -130,10 +130,9 @@ Engram targets this combination.
     inside block execution (Section~\ref{subsec:reanchoring}).
     \item \textbf{Layered formal specification.} A four-layer TLA+
     specification. Bounded model checking of the Tendermint-style layer (safety) and
-    the FSM layer (safety and liveness) found no violation at $N{\le}4$; the largest
+    the FSM layer (safety and liveness) found no violation within their bounds (the Tendermint-style layer at $N{\le}4$ and $f{=}1$; the FSM layer at the thresholds of Table~\ref{tab:formal-config}, not the deployed ones); the largest
     run explored \resFSMStatesM{} distinct states. In an ablation study of the
-    protocol's safety mechanisms, removing each mechanism reproduces a distinct
-    predicted counterexample. The refinement of the composed layer to the abstract
+    protocol's safety mechanisms, removing each mechanism makes the invariant that guards it fail, which shows that the invariants detect the removal and not that the mechanisms are sufficient. The refinement of the composed layer to the abstract
     consensus object is specified but open (Section~\ref{sec:formal}).
     \item \textbf{Live evaluation.} A 7-validator Cosmos SDK testnet against
     live Bitcoin regtest and Celestia networks with network- and

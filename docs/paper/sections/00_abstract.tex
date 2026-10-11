@@ -4,7 +4,7 @@ settlement receipts and DA receipts inherits the liveness of those layers: when
 either stalls, no proposal is valid and the chain halts although its validators
 are connected and correct. Dropping the requirement restores progress but
 suspends the guarantees it provided. We present \emph{Engram}, a protocol layer
-on an unchanged CometBFT agreement core that makes this suspension an agreed,
+on a lightly modified CometBFT core (an $f{+}1$ round skip, bounded acceptance of timeout messages and the proposal round exposed to the application) that makes this suspension an agreed,
 deterministic state transition. A \emph{health certificate} aggregates the
 signed peripheral observations of a quorum, carried as vote extensions, so that
 every metric stays within the range of the honest observations
