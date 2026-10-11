@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E9 -- Composite-Fault Stress Test, LIVE-docker Figure 2, built from live_combined_trace.py's
+"""E9 -- Composite-Fault Stress Test, LIVE-docker Figure 2, built from live_composite_fault.py's
 real output against the real 7-node testnet.
 
 BTC finality gap, DA availability, and P2P health score aren't committed state (see
@@ -102,7 +102,7 @@ def load_sensor_rows(csv_path):
 def load_markers(summary_path):
     """Parses the real '| t (s) | Event |' table from the run's own
     _summary.md -- these are the actual wall-clock offsets
-    live_combined_trace.py recorded when it started/stopped each fault,
+    live_composite_fault.py recorded when it started/stopped each fault,
     not estimated after the fact.
     """
     markers = []
@@ -127,7 +127,7 @@ def load_markers(summary_path):
 
 def fault_windows(markers):
     """Derives [start, end] windows for each of the 3 overlapping fault
-    classes from the real marker text -- matching live_combined_trace.py's
+    classes from the real marker text -- matching live_composite_fault.py's
     own fixed phrasing for each start/stop event.
     """
     windows = {
@@ -483,7 +483,7 @@ def main():
     if not csv_path or not os.path.exists(csv_path):
         print(
             f"No e9_combined_trace_*.csv found in {RESULTS_LIVE_DIR} -- "
-            "run scripts/e9_composite_fault/live_combined_trace.py first.",
+            "run scripts/e9_composite_fault/live_composite_fault.py first.",
             file=sys.stderr,
         )
         sys.exit(1)

@@ -1220,7 +1220,7 @@ structurally can't see BTC/DA gap or P2P health.
 
 **Method:**
 
-* Live — `scripts/e9_composite_fault/live_combined_trace.py`: one continuous scripted fault sequence
+* Live — `scripts/e9_composite_fault/live_composite_fault.py`: one continuous scripted fault sequence
   on the real 7-node cluster — `chaos-btc-delay` → layer `stop_all_da_bridges()` (all 7 independent
   celestia bridges, not just node01's) → layer 3 cycles of `chaos-loss` → heal in reverse — under a
   `chaos-wan-latency` baseline and the pairwise-link topology. (Logic validated in-process first via

@@ -22,8 +22,8 @@ Layering, one continuous timeline (not sequential):
      live_scenario_matrix.py's final phase).
 
 Usage:
-    python3 -u scripts/e9_composite_fault/live_combined_trace.py
-    python3 -u scripts/e9_composite_fault/live_combined_trace.py --wan-profile none  # old uniform-LAN behavior
+    python3 -u scripts/e9_composite_fault/live_composite_fault.py
+    python3 -u scripts/e9_composite_fault/live_composite_fault.py --wan-profile none  # old uniform-LAN behavior
 """
 
 import argparse

@@ -412,7 +412,7 @@ e8-withdrawal:
 	python3 -u scripts/e8_attack_resilience/live_withdrawal_test.py
 
 e9-trace:
-	python3 -u scripts/e9_composite_fault/live_combined_trace.py
+	python3 -u scripts/e9_composite_fault/live_composite_fault.py
 
 e9-figures:
 	python3 scripts/e9_composite_fault/live_figure_builder.py
