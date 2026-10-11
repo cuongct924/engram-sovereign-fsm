@@ -181,6 +181,8 @@ Appendix~\ref{app:aggregation}). The chunk proofs are independent given the chun
 boundary roots, so they can be built concurrently and joined by the aggregator
 circuit.
 
+\pending{proving latency on dedicated hosts: the proving step (nargo execute and bb prove, the published prover image, host idle) on c5.2xlarge, c7a.2xlarge and c7i.2xlarge, about 111, 65 and 71\,s (scripts/e6\_zk\_reanchoring\_benchmark/results\_live/cloud\_instance\_types.csv, three or four runs per type, one host each), and the end-to-end latency L on the multi-host chain with the tail it gives; state n and that the instance type was chosen from this table.}
+
 Table~\ref{tab:parallel} reports the cost on the ten-core host with the testbed
 stopped, at 0.8 blocks per second. Proving and aggregation alone fit inside the bound
 of 128 blocks, with 65 blocks for 512 headers and 109 for 1024. The witnesses, which
