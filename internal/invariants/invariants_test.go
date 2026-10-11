@@ -104,3 +104,28 @@ func TestToolVersionsAgreeWithTheAssetLock(t *testing.T) {
 		t.Errorf("the prover image installs nargo %s, the asset lock says %s", got, nargo)
 	}
 }
+
+// The live experiments run with parameters that differ from the defaults of the code (a tail bound of 128, proof-only recovery, a static
+// down threshold, a suspicious hysteresis wait of 8). A deployment that omits them runs on the defaults and measures another system: the
+// first cloud deployment did, and its results were discarded. The experiment parameters of the Docker testbed are read from .env, which is
+// not in the repository, so the test pins the values the deployment must carry.
+func TestDeploymentCarriesTheExperimentParameters(t *testing.T) {
+	vars := read(t, "deploy/ansible/group_vars/all.yml")
+	want := map[string]string{
+		"ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS":      "128",
+		"ENGRAM_PARAM_PROOF_ONLY_RECOVERY":           "true",
+		"ENGRAM_PARAM_MAX_DOWN_HYSTERESIS_THRESHOLD": "2",
+		"ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT":    "8",
+		"ENGRAM_PARAM_MAX_PEER_LATENCY":              "500", // wide area: the 200 ms of the Docker runs is below real round trips
+	}
+	for key, value := range want {
+		if got := find(t, vars, `(?m)^\s+`+key+`: "?([^"\s]+)"?`); got != value {
+			t.Errorf("deployment sets %s to %q, the experiments use %q", key, got, value)
+		}
+	}
+	// the paper's table of FSM parameters must name the same bound and mode
+	table := read(t, "docs/paper/appendix/F_experimental_setup.tex")
+	if !strings.Contains(table, `\texttt{MaxUnprovenTailBlocks} & 128`) || !strings.Contains(table, `\texttt{ProofOnlyRecovery} & true`) {
+		t.Error("Appendix F's table no longer states a tail bound of 128 and proof-only recovery")
+	}
+}

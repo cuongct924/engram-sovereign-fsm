@@ -27,11 +27,18 @@ prover_pipeline: false         # true: several proofs in flight (cmd/engramprove
 prover_provers: 2              # proofs in flight when prover_pipeline is true
 miner_interval_s: 20           # one regtest block every N seconds (CLAUDE.md: keep it steady)
 
-# ENGRAM_PARAM_* baked into genesis (consensus-critical, see .env.example). The 200 ms default
-# for MAX_PEER_LATENCY is below real inter-continent RTT, so every validator would report
-# unhealthy P2P and the FSM would never stay ANCHORED. Report this value next to any WAN result.
+# ENGRAM_PARAM_* baked into genesis (consensus-critical). The mode that has no entry here runs on the
+# defaults of the code, which differ from the parameters of the paper's experiments: the first cloud
+# deployment ran without these entries (tail bound 8, heuristic recovery allowed) and was discarded.
+# These are the parameters of Appendix F's table of FSM parameters (the Docker runs set them in .env),
+# except MAX_PEER_LATENCY: the 200 ms of the Docker runs is below real inter-continent RTT, so every
+# validator would report unhealthy P2P and the FSM would never stay ANCHORED. Report that value next to any WAN result.
 engram_params:
-  ENGRAM_PARAM_MAX_PEER_LATENCY: 500
+  ENGRAM_PARAM_MAX_PEER_LATENCY: "500"
+  ENGRAM_PARAM_MAX_UNPROVEN_TAIL_BLOCKS: "128"
+  ENGRAM_PARAM_PROOF_ONLY_RECOVERY: "true"
+  ENGRAM_PARAM_MAX_DOWN_HYSTERESIS_THRESHOLD: "2"
+  ENGRAM_PARAM_SUSPICIOUS_HYSTERESIS_WAIT: "8"
 
 # --- Images built once on the controller (deploy/bin/build-push-images.sh) and pulled by every host ---
 # No image is built on a VM. DOCKERHUB_USER and ENGRAM_IMAGE_TAG are required (the tag is the commit the images were built from;

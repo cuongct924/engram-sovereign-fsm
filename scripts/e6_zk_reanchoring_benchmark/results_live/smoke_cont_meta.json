@@ -1,0 +1,13 @@
+{
+ "label": "smoke_cont",
+ "arm": "continuous",
+ "hold_min": 6.0,
+ "t_start": 1791616935.607234,
+ "t_pause": 1791616936.04379,
+ "t_sovereign": 1791617036.877383,
+ "reached_sovereign": true,
+ "t_release": 1791617399.8352551,
+ "recovered_to_anchored": true,
+ "t_end": 1791617500.61588,
+ "recovery_s": 100.7806248664856
+}

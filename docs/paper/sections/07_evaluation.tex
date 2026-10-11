@@ -469,21 +469,21 @@ consensus alone. No block of these intervals was committed in a round other than
 0. The RQ2 trials above and the repeated composite runs use proof-only recovery
 with the bound of 128; the first composite run, the seven-scenario runs and the
 data-availability runs used the fallback.
-\textbf{Recovery on Testbed~B.} The proving experiment was repeated on the cloud testbed
+\textbf{The prover on Testbed~B.} The proving experiment was repeated on the cloud testbed
 (Appendix~\ref{app:setup}), with the prover host handing each proof to one worker
-machine, and in a second run to two, each building one proof at a time. A run held the chain in
-\textsc{Sovereign} for 15 minutes by suspending checkpoint submission, released it and waited for
-\textsc{Anchored}; it is one run per setting. The block rate was \resCloudRate\,blocks/s,
+machine, and in a second run to two, each building one proof at a time. These two runs used the defaults of
+the code (a tail bound of 8 and the heuristic fallback allowed), because the deployment did not yet carry the
+parameters of Table~\ref{tab:fsm-params}; they therefore measure the prover, the tail it leaves and the time of a proof, and say nothing
+about a proof-gated recovery, whose repetition with the paper's parameters is pending. A run held the chain in
+\textsc{Sovereign} for 15 minutes by suspending checkpoint submission and released it; it is one run per setting. The block rate was \resCloudRate\,blocks/s,
 and a proof took 77\,s with one worker and 76\,s with two from its start to its accepted
 submission (12 and 23 proofs accepted; with one worker, one more proof, still in flight when the chain returned to
 \textsc{Anchored}, was rejected because the interval had ended; no proof waited for the previous one to be accepted).
 The unproven tail had a 95th percentile of \resCloudTailOne{} blocks with one worker (maximum 64) and
-\resCloudTailTwo{} with two (maximum 50), so the tail stayed within the bound of 128 blocks and the
-recovery gate was open throughout; the chain was back in \textsc{Anchored} 144\,s and 141\,s after the
-release. The figures follow $rL(1+1/N)$ (Section~\ref{sec:discussion}), which gives 63 and 47 blocks
+\resCloudTailTwo{} with two (maximum 50), below the bound of 128 of the other runs. The figures follow $rL(1+1/N)$ (Section~\ref{sec:discussion}), which gives 63 and 47 blocks
 for the measured rate and latency. They are not comparable in blocks with the Testbed~A runs above,
 whose block rate was about twice as high; in time the tail was about 150\,s and 117\,s.
-\pending{the five composite runs on the multi-host cluster with two workers, and the load level, with the recovery times next to the Testbed~A figures (never pooled).}
+\pending{the same runs repeated with the paper's parameters (tail bound 128, proof-only recovery), with the share of time the recovery gate is open and the time in \textsc{Recovering}; the five composite runs on the multi-host cluster with two workers, and the load level, next to the Testbed~A figures (never pooled).}
 
 \textbf{Data availability of the \textsc{Sovereign} interval.} The exit
 condition of Section~\ref{subsec:reanchoring} requires the interval's block
