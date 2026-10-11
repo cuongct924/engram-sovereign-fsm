@@ -1229,7 +1229,7 @@ structurally can't see BTC/DA gap or P2P health.
 
 **Results:**
 
-**Live** ([`e9_combined_trace_20260904T081116.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260904T081116.csv), real 7-node cluster, 341s, 742 samples, 100% AppHash
+**Live** ([`e9_composite_fault_20260904T081116.csv`](../scripts/e9_composite_fault/results_live/e9_composite_fault_20260904T081116.csv), real 7-node cluster, 341s, 742 samples, 100% AppHash
 agreement across 126 ticks, 0 divergent heights, 0 RPC errors):
 
 * All 7 phases pass: height progressed continuously the entire 341s run (905→1093+), no stalled
@@ -1241,7 +1241,7 @@ agreement across 126 ticks, 0 divergent heights, 0 RPC errors):
   landed ahead of recovery.
 
 **Sensor breakdown** (each validator's own local read, never committed state — this run's own
-[`e9_combined_trace_20260904T081116_sensors.csv`](../scripts/e9_composite_fault/results_live/e9_combined_trace_20260904T081116_sensors.csv),
+[`e9_composite_fault_20260904T081116_sensors.csv`](../scripts/e9_composite_fault/results_live/e9_composite_fault_20260904T081116_sensors.csv),
 1390 rows scraped from live `sensor_snapshot` log lines, node01 shown):
 
 * BTC gap: oscillates 2-9 across the BTC-congestion window, consistent with BTC congestion alone

@@ -198,10 +198,10 @@ def main():
         CLUSTER.wan_stop(args.wan_profile)
 
     ts_label = time.strftime("%Y%m%dT%H%M%S")
-    csv_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}.csv")
+    csv_path = os.path.join(RESULTS_DIR, f"e9_composite_fault_{ts_label}.csv")
     write_csv(tr.samples, csv_path)
 
-    summary_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}_summary.md")
+    summary_path = os.path.join(RESULTS_DIR, f"e9_composite_fault_{ts_label}_summary.md")
     with open(summary_path, "w") as f:
         f.write(
             "# LIVE E9 combined-failure trace (BTC + DA + P2P churn, overlapping)\n\n"
@@ -239,7 +239,7 @@ def main():
             row["approx_timestamp"] = nearest_timestamp(row["height"], node_samples)
             sensor_rows.append(row)
 
-    sensors_csv_path = os.path.join(RESULTS_DIR, f"e9_combined_trace_{ts_label}_sensors.csv")
+    sensors_csv_path = os.path.join(RESULTS_DIR, f"e9_composite_fault_{ts_label}_sensors.csv")
     if sensor_rows:
         import csv as csv_mod
 

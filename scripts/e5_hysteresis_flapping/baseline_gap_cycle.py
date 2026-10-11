@@ -26,7 +26,7 @@ def main():
     lines = ["# Healthy btc_gap and the quiet phase", "",
              "## btc_gap in the first 18 s of the composite runs (no fault yet), all validators", "",
              "| run | samples | share of samples at each gap | share at gap >= 5 |", "|---|---|---|---|"]
-    for f in sorted(glob.glob(os.path.join(E9, "e9_combined_trace_2026100[56]T*_sensors.csv"))):
+    for f in sorted(glob.glob(os.path.join(E9, "e9_composite_fault_2026100[56]T*_sensors.csv"))):
         stamp = os.path.basename(f).split("trace_")[1][:15]
         if stamp < FIRST_NEW_RUN:
             continue

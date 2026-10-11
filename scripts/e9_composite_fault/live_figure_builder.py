@@ -15,7 +15,7 @@ together if no sibling `<csv>_sensors.csv` scrape exists.
 
 Usage:
     python3 scripts/e9_composite_fault/live_figure_builder.py [csv_path]
-    (defaults to the newest e9_combined_trace_*.csv in results_live/)
+    (defaults to the newest e9_composite_fault_*.csv in results_live/)
 """
 
 import csv
@@ -53,7 +53,7 @@ STATE_COLOR = {
 
 def find_latest_csv():
     paths = sorted(
-        glob.glob(os.path.join(RESULTS_LIVE_DIR, "e9_combined_trace_*.csv"))
+        glob.glob(os.path.join(RESULTS_LIVE_DIR, "e9_composite_fault_*.csv"))
     )
     # Exclude the *_sensors.csv diagnostic scrape -- it has no timestamp column
     # and would fail load_rows if picked as the main source.
@@ -482,7 +482,7 @@ def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else find_latest_csv()
     if not csv_path or not os.path.exists(csv_path):
         print(
-            f"No e9_combined_trace_*.csv found in {RESULTS_LIVE_DIR} -- "
+            f"No e9_composite_fault_*.csv found in {RESULTS_LIVE_DIR} -- "
             "run scripts/e9_composite_fault/live_composite_fault.py first.",
             file=sys.stderr,
         )
