@@ -9,29 +9,31 @@ terraform {
 }
 
 # Authenticate with the usual AWS_* environment variables or a profile. A provider's region
-# cannot be chosen per resource, so the regions are four fixed slots:
-#   r1  the prover complex only (the prover host and its workers; no validator), us-east-1
+# cannot be chosen per resource, so the regions are five fixed slots:
+#   r1  the prover complex only (the prover host and its workers), us-east-1
 #   r2  validators, eu-west-1
 #   r3  validators, ap-southeast-1
-#   r4  the peripheral networks (Bitcoin regtest, celestia-app) and two validators, us-west-2
+#   r4  the peripheral networks only (Bitcoin regtest, celestia-app), us-west-2
+#   r5  validators, us-east-2 (near the prover complex: the prover polls node01's RPC)
 # validator_slots places the validators, infra_slot the peripheral networks, prover_slot the prover complex.
 variable "regions" {
-  type = object({ r1 = string, r2 = string, r3 = string, r4 = string })
+  type = object({ r1 = string, r2 = string, r3 = string, r4 = string, r5 = string })
   default = {
     r1 = "us-east-1"
     r2 = "eu-west-1"
     r3 = "ap-southeast-1"
     r4 = "us-west-2"
+    r5 = "us-east-2"
   }
 }
 
 variable "validator_slots" {
   type = list(string)
-  # node01 and node02 are in r4, the closest validators to the prover complex: the prover polls node01's RPC.
-  default = ["r4", "r4", "r2", "r2", "r3", "r3", "r3"]
+  # node01 and node02 are in r5, the closest validators to the prover complex: the prover polls node01's RPC.
+  default = ["r5", "r5", "r2", "r2", "r3", "r3", "r3"]
   validation {
-    condition     = length(var.validator_slots) >= 4 && alltrue([for s in var.validator_slots : contains(["r1", "r2", "r3", "r4"], s)])
-    error_message = "Need at least 4 validators, each in slot r1..r4."
+    condition     = length(var.validator_slots) >= 4 && alltrue([for s in var.validator_slots : contains(["r1", "r2", "r3", "r4", "r5"], s)])
+    error_message = "Need at least 4 validators, each in slot r1..r5."
   }
 }
 
@@ -116,6 +118,10 @@ provider "aws" {
   alias  = "r4"
   region = var.regions.r4
 }
+provider "aws" {
+  alias  = "r5"
+  region = var.regions.r5
+}
 
 locals {
   public_key = trimspace(file(pathexpand(var.ssh_public_key_path)))
@@ -129,7 +135,7 @@ locals {
       format("engram-node%02d", i + 1) => { slot = s, instance_type = var.validator_instance_type, volume_gb = 40 }
     },
   )
-  by_slot = { for s in ["r1", "r2", "r3", "r4"] :
+  by_slot = { for s in ["r1", "r2", "r3", "r4", "r5"] :
     s => { for k, v in local.vms : k => { instance_type = v.instance_type, volume_gb = v.volume_gb } if v.slot == s }
   }
 }
@@ -164,6 +170,16 @@ module "r4" {
   vms            = local.by_slot.r4
 }
 
+module "r5" {
+  source         = "./modules/region"
+  providers      = { aws = aws.r5 }
+  slot           = "r5"
+  name_prefix    = var.name_prefix
+  public_key     = local.public_key
+  operator_cidrs = var.operator_cidrs
+  vms            = local.by_slot.r5
+}
+
 module "r3" {
   source         = "./modules/region"
   providers      = { aws = aws.r3 }
@@ -175,8 +191,8 @@ module "r3" {
 }
 
 locals {
-  ips         = merge(module.r1.ips, module.r2.ips, module.r3.ips, module.r4.ips)
-  private_ips = merge(module.r1.private_ips, module.r2.private_ips, module.r3.private_ips, module.r4.private_ips)
+  ips         = merge(module.r1.ips, module.r2.ips, module.r3.ips, module.r4.ips, module.r5.ips)
+  private_ips = merge(module.r1.private_ips, module.r2.private_ips, module.r3.private_ips, module.r4.private_ips, module.r5.private_ips)
 }
 
 output "inventory" {

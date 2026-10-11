@@ -22,9 +22,10 @@ prover01            ZK re-anchoring prover host: prepares the witnesses, submits
 prover-worker01..N  proving workers: each builds one proof at a time (nargo execute and bb prove) for the prover host
 engram-node01..07   engramd + that validator's own Celestia bridge (independent DA observation)
 
-Four regions (slots r1..r4 in the Terraform stack):
-  us-east-1       the prover complex only: prover01 and the workers, no validator
-  us-west-2       infra01 (Bitcoin, celestia-app) and engram-node01, 02
+Five regions (slots r1..r5 in the Terraform stack):
+  us-east-1       the prover complex only: prover01 and the workers
+  us-west-2       the peripheral networks only: infra01 (Bitcoin, celestia-app)
+  us-east-2       engram-node01, 02 (near the prover complex: the prover polls node01's RPC)
   eu-west-1       engram-node03, 04
   ap-southeast-1  engram-node05, 06, 07
 ```
@@ -40,12 +41,14 @@ flowchart LR
       wk["nargo execute + bb prove,<br/>one proof per worker"]
     end
   end
-  subgraph usW["us-west-2"]
+  subgraph usW["us-west-2 (peripheral networks)"]
     subgraph infra["infra01"]
       btc["bitcoind"]
       miner["steady miner"]
       capp["celestia-app"]
     end
+  end
+  subgraph usE2["us-east-2"]
     subgraph n12["engram-node01, 02"]
       ed12["engramd"]
       br12["celestia bridge"]
@@ -90,7 +93,7 @@ flowchart LR
 - **Prover.** `prover01` prepares each segment's witness from `engram-node01`'s RPC, hands the proof to a free worker
   (`prover-worker01..N`, one proof per worker at a time, over SSH on private addresses) and submits the proofs in order as
   transactions; it is not a validator. Prover host and workers share the region `us-east-1` so that their hops stay
-  within a data centre. `engram-node01` is in `us-west-2`, the validator nearest to them. Without workers `prover01`
+  within a data centre. `engram-node01` is in `us-east-2`, the validator nearest to them (about 10–15 ms). Without workers `prover01`
   proves by itself; without a `prover` host in the inventory the prover runs on `infra01` (smaller deployments).
 - **Controller.** Your machine: builds `engramd` and the genesis, runs the playbooks and the experiment scripts.
 - **Time.** `chrony` on every host; block timestamps are medians of validator clocks.
@@ -165,7 +168,7 @@ Everything runs on the controller. Terraform and the AWS CLI share credentials; 
 calls AWS. Regions are the stack defaults (`regions` in `terraform/aws/main.tf`).
 
 ```bash
-export REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1"
+export REGIONS="us-east-1 us-west-2 us-east-2 eu-west-1 ap-southeast-1"
 ```
 
 **1. Account, regions and credentials.** A new "AWS (new)" account starts on the Free plan: one project, one region,
@@ -211,9 +214,9 @@ done
 
 **3. vCPU quota.** "Running On-Demand Standard instances" (`L-1216C47A`) is counted per region and must cover the region's
 VMs: 2 vCPU per validator, 8 for `infra01`, 4 for `prover01` (8 when it proves by itself) and 8 per worker. With the default
-layout: us-east-1 `4 + 8N` (N workers: **20** for N=2, 28 for N=3, 36 for N=4), us-west-2 12 (`infra01` and two
-validators), eu-west-1 4, ap-southeast-1 6. A new account starts at 5 vCPU in most regions, so us-east-1 needs a request
-beyond N=2; the other three regions fit the defaults.
+layout: us-east-1 `4 + 8N` (N workers: **20** for N=2, 28 for N=3, 36 for N=4), us-west-2 8 (`infra01`), us-east-2 4, eu-west-1 4,
+ap-southeast-1 6. A new account starts at 5 vCPU in most regions, so only us-east-1 needs a request beyond N=2; the other
+regions fit the defaults.
 
 ```bash
 for r in $REGIONS; do
@@ -433,7 +436,7 @@ one Bitcoin/Celestia instance, a dedicated prover host.
 
 | Item | Setting |
 |---|---|
-| Hosts | 7 validators in 3 regions (us-west-2, eu-west-1, ap-southeast-1), `infra01` in us-west-2, `prover01` and N workers in us-east-1 (four regions in all) |
+| Hosts | 7 validators in 3 regions (us-east-2, eu-west-1, ap-southeast-1), `infra01` alone in us-west-2, `prover01` and N workers in us-east-1 (five regions in all) |
 | Composite fault | 5 runs, each on a fresh genesis; proof-only recovery, unproven tail 128 blocks. If the prover cannot meet 128, report the bound used; never change it silently |
 | Load | 100 tx/s of small unsigned transactions, Engram against a 7-validator vanilla arm, 3 runs per arm. A load-sensitivity point, not a production workload; 200 tx/s is an optional second point |
 | Single fault | Reported from the composite runs (the lock moment after the DA outage or the checkpoint pause) |
