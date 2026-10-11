@@ -23,6 +23,10 @@ jobs:
           go test ./x/... ./app/... ./cmd/...
       - name: ZK assets match the lock
         run: scripts/verify_zk_assets.sh
+      - name: Prover scheduling (stand-ins for ssh and the chain, no network)
+        run: |
+          scripts/reanchoring_prover/test_remote_prove.sh
+          scripts/reanchoring_prover/test_pipeline.sh
 
   images:
     needs: checks

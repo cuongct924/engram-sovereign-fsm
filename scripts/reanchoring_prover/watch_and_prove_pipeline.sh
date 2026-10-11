@@ -50,10 +50,12 @@ running() { local n=0 s; for s in "${!PID[@]}"; do kill -0 "${PID[$s]}" 2>/dev/n
 
 reset_epoch() {
   local s
-  for s in "${!PID[@]}"; do kill "${PID[$s]}" 2>/dev/null; done
+  # Stop each segment and what it started (remote_prove.sh removes its container on the worker when it gets TERM).
+  for s in "${!PID[@]}"; do pkill -TERM -P "${PID[$s]}" 2>/dev/null; kill -TERM "${PID[$s]}" 2>/dev/null; done
   wait 2>/dev/null
   PID=()
   prev=""
+  rm -rf "$PIPELINE_STATE"/lock.* "$PIPELINE_STATE"/w*
   rm -f "$PIPELINE_STATE"/seg*.stageA "$PIPELINE_STATE"/seg*.done "$PIPELINE_STATE"/seg*.failed
 }
 
@@ -92,7 +94,7 @@ while [ "$i" -lt "$MAX_CHECKS" ]; do
       avail=$(echo "$OUT" | grep '^height=' | awk -F'[= ]' -v m="$min" '$2 >= m' | wc -l | tr -d ' ')
       echo "[$(date -u +%H:%M:%S)] check $i: $avail headers beyond $((min - 1)), in flight $(running), submitted $submitted, failed $failed"
       if [ "$avail" -ge "$MIN_BATCH" ]; then
-        "$SCRIPT_DIR/prove_segment.sh" "$next" "$prev" &
+        "${PROVE_SEGMENT:-$SCRIPT_DIR/prove_segment.sh}" "$next" "$prev" &
         PID[$next]=$!
         echo "[pipeline] segment $next started (follows ${prev:-chain checkpoint})"
         prev=$next

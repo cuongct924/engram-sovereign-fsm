@@ -369,6 +369,9 @@ submit), and the total. The total is `L` on a sequential prover's last line.
 | 65–110 s | 105–175 | the bound of 128 is not safe: report the tail, or redeploy the prover with `-e prover_pipeline=true -e prover_provers=2` (3 or 4 if needed; about 7.5 GB per proof) |
 | > 110 s | > 175 | stop and report; the bound cannot hold |
 
+The scheduling (one proof per worker, the order of submissions, cancelling and restarting after a failure) is tested without a cloud by
+`scripts/reanchoring_prover/test_remote_prove.sh` and `test_pipeline.sh`, which also run in CI.
+
 On a shared 10-core workstation `L` is about 117 s (the prover competes with the chain); alone on it the proving steps take
 about 55 s. Report `L` and the host type with every recovery result.
 
