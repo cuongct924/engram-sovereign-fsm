@@ -45,8 +45,6 @@ celestia_namespace_id: engramda01
 
 # --- Paths ---
 engram_repo_dir: "{{ playbook_dir }}/../.."
-# go.mod's `replace github.com/cometbft/cometbft => ../engram-consensus-core` (CLAUDE.md).
-cometbft_fork_dir: "{{ engram_repo_dir }}/../engram-consensus-core"
 generated_dir: "{{ playbook_dir }}/../.generated"
 remote_base: /opt/engram
 

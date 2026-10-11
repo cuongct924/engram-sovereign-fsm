@@ -16,13 +16,6 @@
       >= 4 validators whose node_index values are 1..N with no gaps (see inventory/example.yml).
     quiet: true
 
-- name: Check the CometBFT fork checkout exists (go.mod replace target)
-  ansible.builtin.stat:
-    path: "{{ cometbft_fork_dir }}"
-  register: fork
-  failed_when: not fork.stat.exists
-  changed_when: false
-
 - name: Create the generated directory
   ansible.builtin.file:
     path: "{{ generated_dir }}"

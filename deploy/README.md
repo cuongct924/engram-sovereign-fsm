@@ -101,7 +101,6 @@ Terraform is optional: Ansible only needs an inventory, so any cloud, bare metal
 On the controller (also where the experiment scripts run):
 
 - Go, `ansible-core` >= 2.15, `tar`, Docker, and Terraform >= 1.5 if you use the stacks.
-- The `engram-consensus-core` fork checked out next to this repo (`go.mod`'s `replace`), or set `cometbft_fork_dir`.
 - An SSH key pair. Hosts: Ubuntu 22.04/24.04 or Debian 12, amd64, public IPv4.
 
 | Host | vCPU / RAM | Why |
@@ -112,22 +111,38 @@ On the controller (also where the experiment scripts run):
 
 ## Build the images
 
-Nothing is built on a VM. `bin/build-push-images.sh` builds the two images (`engram-node`, with `engramd` and the pinned
-`bb`, and `engram-reanchoring-prover`) for `linux/amd64` on the controller and pushes them to Docker Hub tagged with the
-commit; hosts only pull. Bitcoin, `celestia-app` and the bridges come from their public registries.
+Nothing is built on a VM, and nothing outside this repository is needed: `go.mod` pins the CometBFT fork
+(`engram-consensus-core`) to a commit, and the Dockerfiles check the `bb` and `nargo` downloads against pinned SHA-256
+hashes. `bin/build-push-images.sh` builds the two images (`engram-node`, with `engramd` and the pinned `bb`, and
+`engram-reanchoring-prover`) for `linux/amd64` and pushes them to Docker Hub tagged with the commit; hosts only pull.
+Bitcoin, `celestia-app` and the bridges come from their public registries.
+
+**Build on a native `amd64` machine.** Under emulation (an Apple Silicon Mac) the `amd64` `bb` and `nargo` crash with
+SIGILL, so the build fails. Use either:
+
+- **CI (no cost, nothing to set up on a machine).** `.github/workflows/images.yml` builds and pushes both images on an
+  `amd64` runner. Add the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token with write
+  access to the two repositories), then run the workflow from the Actions tab or push a tag named `release-*`. The run
+  summary lists the image digests and the commits.
+- **Any amd64 machine**, or a remote builder (`docker buildx create --name amd64 ssh://user@host`, then `BUILDER=amd64`):
 
 ```bash
 docker login
 export DOCKERHUB_USER=<your Docker Hub user>
 deploy/bin/build-push-images.sh              # prints: export ENGRAM_IMAGE_TAG=<commit>
+```
+
+Then, for the playbooks:
+
+```bash
 export ENGRAM_IMAGE_TAG=<that commit>        # the playbooks refuse to run without it and DOCKERHUB_USER
 export DOCKERHUB_TOKEN=<read-only token>     # only for a private repository
 ```
 
-The script refuses to build when tracked files differ from the commit (`ALLOW_DIRTY=1` overrides) and records the
-`engram-consensus-core` commit; `CHECK_ONLY=1` only lints the Dockerfiles. On an Apple Silicon controller the build runs
-under `amd64` emulation and is slow (the prover image compiles three Noir circuits); use any amd64 machine if it fails.
-Record both commits with the results.
+The script refuses to build when tracked files differ from the commit (`ALLOW_DIRTY=1` overrides) and prints the
+`engram-consensus-core` commit it contains; `CHECK_ONLY=1` only lints the Dockerfiles; `PLATFORM=linux/arm64` builds
+natively on Apple Silicon for local checks. Record both commits with the results. `scripts/verify_zk_assets.sh` checks
+that the embedded verifier and verification keys match `x/sovereignty/keeper/zk_assets/ASSETS.lock`.
 
 ## AWS setup
 
@@ -438,7 +453,7 @@ input means stop and ask.
 | Images pushed | `docker manifest inspect $DOCKERHUB_USER/engram-node:$ENGRAM_IMAGE_TAG` and the same for `engram-reanchoring-prover` |
 | `BITCOIN_RPC_PASSWORD` exported | `test -n "$BITCOIN_RPC_PASSWORD"` |
 | `terraform.tfvars` with `operator_cidrs` = this machine | `curl -s https://checkip.amazonaws.com` against the file |
-| `engram-consensus-core` at the Docker-run commit | `git -C ../engram-consensus-core rev-parse --short HEAD` |
+| `engram-consensus-core` pinned to the Docker-run commit | the pseudo-version in `go.mod`'s `replace` line ends with `493a20121caa` |
 | Tools | `terraform version`, `ansible --version`, `go version`, `docker info` |
 | `terraform validate` and `terraform plan` reviewed before `apply` | the plan shows 9 instances, 3 key pairs, 3 security groups |
 | Controller awake and online for the whole run | `caffeinate -dims` on macOS |
