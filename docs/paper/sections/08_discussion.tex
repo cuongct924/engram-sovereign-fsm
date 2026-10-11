@@ -298,6 +298,7 @@ A static down threshold of 4 or more suppresses flapping & Live three-phase and 
   height from zero, so the certified DA health stays failed until it catches up (more
   than half an hour at a chain of about 7{,}400 heights); persisting the height would
   remove this, and the prototype does not (Appendix~\ref{app:envelope}).
+  \item \emph{Source of the wide-area overhead.} At 100\,tx/s on Testbed~B Engram's block interval is 1.9 times vanilla's, while on one host empty vote extensions add nothing measurable. The sensor reads inside \texttt{ExtendVote}, which cross regions on Testbed~B, fit this but were not isolated: vanilla with empty vote extensions on Testbed~B was not run.
   \item \emph{Load range.} Load was offered at up to 500\,tx/s on one host, and at 100\,tx/s alone on seven machines in three regions
   (Section~\ref{subsec:rq4}). Above 100\,tx/s Engram's latency grows and its
   FSM can leave \textsc{Anchored}; neither system saturated, and no throughput
