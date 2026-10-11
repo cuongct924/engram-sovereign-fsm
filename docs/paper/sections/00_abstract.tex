@@ -17,11 +17,10 @@ validator-verified zero-knowledge recovery proof over all but a bounded unproven
 of the interval (the prototype also has an optional heuristic that can stand in for
 the proof, which the proof-only runs disable). A layered TLA+ specification
 passes bounded model checking at the Tendermint-style and FSM layers
-(\resFSMStatesM{} distinct states in the largest run), and each of five ablations
-reproduces the violation it predicts; the refinement of the composed layer to the
+(\resFSMStatesM{} distinct states in the largest run), and in each of five ablations the invariant that guards the removed mechanism fails; the refinement of the composed layer to the
 abstract consensus object remains open.
 
-On a seven-validator testbed with live Bitcoin and Celestia networks, a composite
+On a seven-validator testbed with Bitcoin regtest and Celestia networks, a composite
 fault repeated five times left the chain committing blocks through a full
 \textsc{Sovereign}$\to$\textsc{Recovering}$\to$\textsc{Anchored} cycle with
 complete AppHash agreement. Under a checkpoint pause, a DA outage and both,
