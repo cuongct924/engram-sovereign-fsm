@@ -61,6 +61,7 @@ services:
       CELESTIA_NAMESPACE_ID: {{ celestia_namespace_id }}
       ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
       ENGRAM_MODE: {{ engram_mode }}
+      ENGRAM_SENSOR_MODE: "{{ sensor_mode | default('snapshot') }}"
     profiles: [engramd]
 
 volumes:

@@ -43,6 +43,11 @@ func envMillis(name string, def time.Duration) time.Duration {
 // "before" arm of the critical-path experiment.
 func syncSensorsFromEnv() bool { return os.Getenv("ENGRAM_SENSOR_MODE") == "sync" }
 
+// emptySensorsFromEnv reports whether ENGRAM_SENSOR_MODE=empty makes ExtendVote sign an
+// all-zero observation without reading any sensor: the cost of the vote-extension mechanism
+// alone, a baseline arm for the critical-path experiment, never a production setting.
+func emptySensorsFromEnv() bool { return os.Getenv("ENGRAM_SENSOR_MODE") == "empty" }
+
 // readerObs is what the reader loop measures over RPC.
 type readerObs struct {
 	btcReachable bool

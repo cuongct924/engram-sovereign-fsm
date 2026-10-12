@@ -47,7 +47,7 @@ import (
 // instead of touching a live sensor again. byzantineBehavior (E8 only, "" on
 // every real validator) lets a colluding node sign a false observation.
 func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.ExtendVoteHandler {
-	snap, syncMode := newSensorSnapshotCache(), syncSensorsFromEnv()
+	snap, syncMode, emptyMode := newSensorSnapshotCache(), syncSensorsFromEnv(), emptySensorsFromEnv()
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 		// ExtendVote runs before this validator can send its precommit, so its
 		// duration is on every height's critical path; RQ4 reads this line.
@@ -56,7 +56,9 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string
 			fmt.Printf("engramd: extend_vote height=%d ms=%.1f\n", req.Height, float64(time.Since(started).Microseconds())/1000)
 		}()
 		var metrics *types.PeripheralMetrics
-		if s != nil && !syncMode && hasLiveSources(s) {
+		if emptyMode {
+			metrics = &types.PeripheralMetrics{}
+		} else if s != nil && !syncMode && hasLiveSources(s) {
 			// RPC runs in sensor_snapshot.go's background loops; this path
 			// only composes the latest observations.
 			var err error

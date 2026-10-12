@@ -85,3 +85,18 @@ func TestExtendVoteSnapshot_BoundedUnderStalledRPC_StaleReadsDegradedThenRecover
 		return m.BtcGap < k.Params.SovereignThreshold
 	}, 40*time.Second, 50*time.Millisecond)
 }
+
+func TestExtendVoteEmptyMode_SignsZeroObservationWithoutReadingSensors(t *testing.T) {
+	t.Setenv("ENGRAM_SENSOR_MODE", "empty")
+	k, ctx := newVoteExtTestKeeperCtx(t)
+	ctx = ctx.WithBlockHeight(10)
+	src := &slowBTC{delay: 30 * time.Second}
+	src.stall.Store(true)
+	s := &Sensors{BTC: sensors.NewBTCSensor(), DA: sensors.NewDASensor(), P2P: sensors.NewP2PSensor()}
+	s.BTC.SetSource(src)
+	handler := NewExtendVoteHandler(k, s, "")
+
+	m, d := extendOnce(t, func() (*abci.ResponseExtendVote, error) { return handler(ctx, &abci.RequestExtendVote{Height: 10}) })
+	require.Less(t, d, 100*time.Millisecond)
+	require.True(t, proto.Equal(&types.PeripheralMetrics{}, m))
+}
