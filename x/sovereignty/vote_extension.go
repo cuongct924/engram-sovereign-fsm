@@ -57,7 +57,10 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string
 		}()
 		var metrics *types.PeripheralMetrics
 		if emptyMode {
-			metrics = &types.PeripheralMetrics{}
+			var err error
+			if metrics, err = emptyModeMetrics(ctx, s, req.Height); err != nil {
+				return nil, err
+			}
 		} else if s != nil && !syncMode && hasLiveSources(s) {
 			// RPC runs in sensor_snapshot.go's background loops; this path
 			// only composes the latest observations.

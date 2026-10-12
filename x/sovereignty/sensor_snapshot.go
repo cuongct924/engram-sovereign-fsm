@@ -43,8 +43,8 @@ func envMillis(name string, def time.Duration) time.Duration {
 // "before" arm of the critical-path experiment.
 func syncSensorsFromEnv() bool { return os.Getenv("ENGRAM_SENSOR_MODE") == "sync" }
 
-// emptySensorsFromEnv reports whether ENGRAM_SENSOR_MODE=empty makes ExtendVote sign an
-// all-zero observation without reading any sensor: the cost of the vote-extension mechanism
+// emptySensorsFromEnv reports whether ENGRAM_SENSOR_MODE=empty makes ExtendVote sign a constant
+// healthy observation without any Bitcoin/Celestia read: the cost of the vote-extension mechanism
 // alone, a baseline arm for the critical-path experiment, never a production setting.
 func emptySensorsFromEnv() bool { return os.Getenv("ENGRAM_SENSOR_MODE") == "empty" }
 
@@ -270,4 +270,24 @@ func snapshotMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors, c *sensorSna
 	fmt.Printf("engramd: sensor_snapshot height=%d btc_gap=%d anchor_reverification_failed=%t da_gap=%d da_failed=%t attestation_failed=%t active_anchors=%d clean_peers=%d churn_rate=%d avg_tenure=%d peer_latency=%d snapshot_degraded=%t\n",
 		ctx.BlockHeight(), m.BtcGap, m.IsAnchorReverificationFailed, m.DaGap, m.IsDasFailed, m.IsAttestationFailed, m.ActiveAnchors, m.CleanPeers, m.PeerChurnRate, m.AvgPeerTenure, m.PeerLatency, degraded)
 	return m, degraded, nil
+}
+
+// emptyModeMetrics is the observation of the "empty" arm: no RPC and no sensor state, only the
+// block height. DA is reported verified and contiguous up to the previous block (an all-zero DA
+// receipt is rejected by ProcessProposal once the chain is healthy); Bitcoin stays at zero gap.
+// The P2P part is the same local read the snapshot path makes, so the two arms differ only in RPC.
+func emptyModeMetrics(ctx sdk.Context, s *Sensors, height int64) (*types.PeripheralMetrics, error) {
+	m := &types.PeripheralMetrics{}
+	if s != nil && s.P2P != nil {
+		p2p, err := s.P2P.GetSnapshot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		m.SubnetDiversity, m.ActiveAnchors, m.CleanPeers = p2p.SubnetDiversity, p2p.ActiveAnchors, p2p.CleanPeers
+		m.PeerChurnRate, m.AvgPeerTenure, m.PeerLatency = p2p.ChurnRate, p2p.AvgTenure, p2p.Latency
+	}
+	if height > 1 {
+		m.DaVerifiedHeight, m.DaContiguousHeight = uint64(height-1), uint64(height-1)
+	}
+	return m, nil
 }

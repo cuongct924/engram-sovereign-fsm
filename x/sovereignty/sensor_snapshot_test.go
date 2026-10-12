@@ -86,7 +86,7 @@ func TestExtendVoteSnapshot_BoundedUnderStalledRPC_StaleReadsDegradedThenRecover
 	}, 40*time.Second, 50*time.Millisecond)
 }
 
-func TestExtendVoteEmptyMode_SignsZeroObservationWithoutReadingSensors(t *testing.T) {
+func TestExtendVoteEmptyMode_SignsConstantHealthyObservationWithoutReadingSensors(t *testing.T) {
 	t.Setenv("ENGRAM_SENSOR_MODE", "empty")
 	k, ctx := newVoteExtTestKeeperCtx(t)
 	ctx = ctx.WithBlockHeight(10)
@@ -98,5 +98,9 @@ func TestExtendVoteEmptyMode_SignsZeroObservationWithoutReadingSensors(t *testin
 
 	m, d := extendOnce(t, func() (*abci.ResponseExtendVote, error) { return handler(ctx, &abci.RequestExtendVote{Height: 10}) })
 	require.Less(t, d, 100*time.Millisecond)
-	require.True(t, proto.Equal(&types.PeripheralMetrics{}, m))
+	require.Zero(t, m.BtcGap)
+	require.Zero(t, m.DaGap)
+	require.False(t, m.IsDasFailed)
+	require.EqualValues(t, 9, m.DaVerifiedHeight)
+	require.EqualValues(t, 9, m.DaContiguousHeight)
 }
