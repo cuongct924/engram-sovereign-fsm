@@ -10,6 +10,8 @@ import (
 
 	"cosmossdk.io/collections/colltest"
 
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -187,4 +189,31 @@ func TestPruneHeaderHistoryUpTo_RemovesPrefixKeepsLater(t *testing.T) {
 		_, err := k.HeaderHistory.Get(ctx, h)
 		require.NoError(t, err, "height %d is past the new checkpoint and must survive", h)
 	}
+}
+
+// A proof whose public inputs do not match tracked state is rejected by the
+// binding checks before any UltraHonk verification is spent on it.
+func TestSubmitRecoveryProof_BindingMismatchRejectedBeforeVerification(t *testing.T) {
+	srv, ctx := newTestMsgServer(t)
+	sctx := sdk.NewContext(nil, cmtproto.Header{Height: 7}, false, nil).WithContext(ctx)
+	require.NoError(t, srv.LastAnchoredRoot.Set(sctx, make([]byte, 32)))
+	require.NoError(t, srv.LastAnchoredHeight.Set(sctx, 3))
+
+	inputs := make([]byte, 224)
+	inputs[0] = 0xff // rt_last differs from the tracked root
+	_, err := srv.SubmitRecoveryProof(sctx, &types.MsgSubmitRecoveryProofRequest{ZkProof: []byte("garbage"), PublicInputs: inputs})
+	require.ErrorIs(t, err, types.ErrInvalidZKProof)
+	require.Zero(t, srv.verifyCount, "no verification may be spent on a proof that fails the cheap bindings")
+}
+
+func TestAllowProofVerify_CapsPerBlockAndResetsNextBlock(t *testing.T) {
+	srv, ctx := newTestMsgServer(t)
+	at := func(h int64) context.Context {
+		return sdk.NewContext(nil, cmtproto.Header{Height: h}, false, nil).WithContext(ctx)
+	}
+	for i := 0; i < maxProofVerifiesPerBlock; i++ {
+		require.True(t, srv.allowProofVerify(at(5)))
+	}
+	require.False(t, srv.allowProofVerify(at(5)))
+	require.True(t, srv.allowProofVerify(at(6)))
 }

@@ -152,9 +152,9 @@ leaf proofs costs `n` x 19.8 ms and one aggregate costs 20.2 ms for any `L <= 10
   proofs plus one ~26-29 s aggregation (+22% at L=1024, +49% at L=512).
 - No benefit for `L <= 256`: a single leaf proof is submitted, and the chain rejects an aggregate
   claiming `count <= 256` (it is verified against the leaf VK).
-- Every chunk boundary needs a witnessable commit: `build-boundary-witness` fails when the commit
-  at a boundary height has `round != 0` (`build_vote_sign_bytes` supports round 0 only), which now
-  also applies to the interior boundaries of a multi-chunk interval.
+- Every chunk boundary needs a witnessable commit. The leaf circuit takes the commit's round as a
+  private witness and signs it into the precommit bytes (round 0 omits the field, as in proto3), so a
+  boundary that committed in round 1 or 2 is witnessable; `round_tests.sh` covers accept and reject cases.
 - Aggregate soundness is tested by `circuit/reanchoring_aggregator/negative_tests.sh` (12 witnesses:
   reversed or repeated chunks, wrong count/`rt_new`/first height/validator set, a height gap, a
   different validator set in chunk 2, padding extension, `n_real` out of range).

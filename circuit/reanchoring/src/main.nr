@@ -129,11 +129,13 @@ fn encode_varint_u64<let MAX: u32>(v: Field) -> BoundedVec<u8, MAX> {
 }
 
 // build_vote_sign_bytes reconstructs the bytes a CometBFT validator
-// ed25519-signs for a Precommit (types.VoteSignBytes); round==0 only, a
-// documented scope limit. chain_id is a compile-time constant, not a
+// ed25519-signs for a Precommit (types.VoteSignBytes) at the commit's actual
+// round: proto3 omits a zero round, so round 0 has no field 3 and round r>0
+// carries sfixed64 field 3. chain_id is a compile-time constant, not a
 // witness value, so a colluding subset can't replay a vote from another chain.
 fn build_vote_sign_bytes<let MAX_LEN: u32, let MAX_TS_LEN: u32>(
     height: u64,
+    round: u64,
     block_hash: [u8; 32],
     ps_total: u32,
     ps_hash: [u8; 32],
@@ -152,6 +154,16 @@ fn build_vote_sign_bytes<let MAX_LEN: u32, let MAX_TS_LEN: u32>(
     for _ in 0..8 {
         body.push((h % 256) as u8);
         h /= 256;
+    }
+
+    // field 3: round, sfixed64 (little-endian), wiretype 1; omitted when 0
+    if round != 0 {
+        body.push(0x19);
+        let mut r = round;
+        for _ in 0..8 {
+            body.push((r % 256) as u8);
+            r /= 256;
+        }
     }
 
     // field 4: block_id (embedded CanonicalBlockID), wiretype 2
@@ -206,6 +218,9 @@ struct ValidatorSetWitness {
 // BoundaryBlockWitness is the per-block signature data for one of the
 // interval's two boundary blocks.
 struct BoundaryBlockWitness {
+    // The round this block actually committed in. Private: any round in which
+    // >=2/3 signed this (height, block_hash) is a valid commit of it.
+    round: u64,
     ps_total: u32,
     ps_hash: [u8; 32],
     // Per-validator, NOT shared: each validator signs the same
@@ -237,6 +252,7 @@ fn verify_boundary_block(
         // BoundaryBlockWitness.timestamp_content's doc.
         let message: BoundedVec<u8, 160> = build_vote_sign_bytes(
             height,
+            block.round,
             block_hash,
             block.ps_total,
             block.ps_hash,
@@ -470,6 +486,7 @@ fn test_boundary_fixture() -> (ValidatorSetWitness, [u8; 32], BoundaryBlockWitne
         [one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content, one_timestamp_content];
 
     let block = BoundaryBlockWitness {
+        round: 0,
         ps_total: 1,
         ps_hash,
         timestamp_content,

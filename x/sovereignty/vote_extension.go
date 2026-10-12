@@ -47,6 +47,7 @@ import (
 // instead of touching a live sensor again. byzantineBehavior (E8 only, "" on
 // every real validator) lets a colluding node sign a false observation.
 func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string) sdk.ExtendVoteHandler {
+	snap, syncMode := newSensorSnapshotCache(), syncSensorsFromEnv()
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 		// ExtendVote runs before this validator can send its precommit, so its
 		// duration is on every height's critical path; RQ4 reads this line.
@@ -54,12 +55,22 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string
 		defer func() {
 			fmt.Printf("engramd: extend_vote height=%d ms=%.1f\n", req.Height, float64(time.Since(started).Microseconds())/1000)
 		}()
-		if err := RefreshMetrics(ctx, k, s); err != nil {
-			return nil, err
-		}
-		metrics, err := k.Metrics.Get(ctx)
-		if err != nil {
-			metrics = &types.PeripheralMetrics{}
+		var metrics *types.PeripheralMetrics
+		if s != nil && !syncMode && hasLiveSources(s) {
+			// RPC runs in sensor_snapshot.go's background loops; this path
+			// only composes the latest observations.
+			var err error
+			if metrics, _, err = snapshotMetrics(ctx, k, s, snap); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := RefreshMetrics(ctx, k, s); err != nil {
+				return nil, err
+			}
+			var err error
+			if metrics, err = k.Metrics.Get(ctx); err != nil {
+				metrics = &types.PeripheralMetrics{}
+			}
 		}
 		if byzantineBehavior != "" {
 			metrics = applyByzantineObservation(byzantineBehavior, metrics)
@@ -70,6 +81,10 @@ func NewExtendVoteHandler(k *keeper.Keeper, s *Sensors, byzantineBehavior string
 		}
 		return &abci.ResponseExtendVote{VoteExtension: ext}, nil
 	}
+}
+
+func hasLiveSources(s *Sensors) bool {
+	return s.BTC.Source() != nil || s.DA.Source() != nil || s.Anchor != nil || s.DAPublisher != nil
 }
 
 // NewVerifyVoteExtensionHandler only checks that a vote extension decodes

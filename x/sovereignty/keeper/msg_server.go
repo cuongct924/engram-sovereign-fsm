@@ -5,12 +5,18 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"sync"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 )
 
 type MsgServerImpl struct {
 	*Keeper
+
+	verifyMu     sync.Mutex
+	verifyHeight int64
+	verifyCount  int
 }
 
 func NewMsgServerImpl(k *Keeper) types.MsgServer {
@@ -48,12 +54,7 @@ func (k *MsgServerImpl) SubmitForcedTx(ctx context.Context, msg *types.MsgSubmit
 // via ZK-Proof of Recovery); if valid it advances the rolling checkpoint and latches
 // RealProofSubmittedHeight -- never sets FSMState directly, only refreshReanchoringProofValid does.
 func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgSubmitRecoveryProofRequest) (*types.MsgSubmitRecoveryProofResponse, error) {
-	// 1. Verify proof math against the circuit's embedded verification key.
-	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
-		return nil, types.ErrInvalidZKProof
-	}
-
-	// 2. Bind rt_last/rt_new/count/boundary public inputs to tracked state so a proof can't be
+	// 1. Bind rt_last/rt_new/count/boundary public inputs to tracked state so a proof can't be
 	// replayed against unrelated history or claim fewer headers than it covers. Public-input
 	// layout (circuit/reanchoring/src/main.nr): rt_last, rt_new, count, first_height,
 	// first/last_block_hash, validator_set_hash -- 7x32B fields, matching bb's layout.
@@ -102,6 +103,17 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	}
 	trackedValidatorSetHash, err := k.ValidatorSetHash.Get(ctx)
 	if err != nil || !bytes.Equal(validatorSetHash, types.ReduceToField(trackedValidatorSetHash)) {
+		return nil, types.ErrInvalidZKProof
+	}
+
+	// 2. Verify proof math against the circuit's embedded verification key. Last on purpose:
+	// the bindings above are store lookups, the verification is ~20 ms of UltraHonk, so a proof
+	// whose inputs do not match tracked state is rejected without paying for it. With no fee or
+	// signature on this tx, at most maxProofVerifiesPerBlock proofs are verified per block.
+	if !k.allowProofVerify(ctx) {
+		return nil, types.ErrInvalidZKProof
+	}
+	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
 		return nil, types.ErrInvalidZKProof
 	}
 
@@ -221,4 +233,25 @@ func (k *Keeper) LatestTrackedHeader(ctx context.Context) (uint64, types.Recover
 		}
 	}
 	return best.Key, best.Value, nil
+}
+
+// maxProofVerifiesPerBlock bounds the UltraHonk verifications one block can spend on
+// SubmitRecoveryProof; a legitimate recovery needs one (a few with aggregation).
+const maxProofVerifiesPerBlock = 8
+
+// allowProofVerify counts verifications per block height in memory. The count follows the block's
+// transaction order, so every validator reaches the same decision when it executes the block.
+func (k *MsgServerImpl) allowProofVerify(ctx context.Context) bool {
+	sctx, ok := ctx.Value(sdk.SdkContextKey).(sdk.Context)
+	if !ok {
+		return true
+	}
+	h := sctx.BlockHeight()
+	k.verifyMu.Lock()
+	defer k.verifyMu.Unlock()
+	if k.verifyHeight != h {
+		k.verifyHeight, k.verifyCount = h, 0
+	}
+	k.verifyCount++
+	return k.verifyCount <= maxProofVerifiesPerBlock
 }

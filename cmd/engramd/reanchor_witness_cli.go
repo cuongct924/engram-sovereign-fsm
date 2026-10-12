@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"os"
@@ -165,14 +166,6 @@ func buildBoundaryBlockWitness(ctx context.Context, client *rpchttp.HTTP, height
 	if commit == nil {
 		return "", fmt.Errorf("commit is nil at height %d", height)
 	}
-	// build_vote_sign_bytes only supports round==0 precommits, a documented
-	// circuit scope limit -- a real round-skip makes this height unwitnessable.
-	if commit.Round != 0 {
-		return "", fmt.Errorf(
-			"commit.Round=%d at height %d, but the circuit only supports round==0 precommits "+
-				"(build_vote_sign_bytes's doc) -- cannot build a witness for this height",
-			commit.Round, height)
-	}
 	if len(commit.Signatures) != numValidators {
 		return "", fmt.Errorf("commit has %d signatures, expected %d", len(commit.Signatures), numValidators)
 	}
@@ -223,7 +216,7 @@ func buildBoundaryBlockWitness(ctx context.Context, client *rpchttp.HTTP, height
 		// BoundaryBlockWitness.timestamp_content doc).
 		protoVote := vote.ToProto()
 		signBytes := types.VoteSignBytes(chainID, protoVote)
-		tsContent, err := extractTimestampContent(signBytes, chainID)
+		tsContent, err := extractTimestampContent(signBytes, chainID, uint64(commit.Round))
 		if err != nil {
 			return "", fmt.Errorf("validator %d sign-bytes: %w", i, err)
 		}
@@ -252,6 +245,7 @@ func buildBoundaryBlockWitness(ctx context.Context, client *rpchttp.HTTP, height
 	}
 
 	var b strings.Builder
+	fmt.Fprintf(&b, "round = \"%d\"\n", commit.Round)
 	fmt.Fprintf(&b, "ps_total = \"%d\"\n", ps_total)
 	fmt.Fprintf(&b, "ps_hash = [%s]\n", byteArrayToml(psHashBytes))
 	fmt.Fprintf(&b, "signed = [%s]\n", boolArrayToml(signed[:]))
@@ -320,7 +314,7 @@ func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 // matching main.nr's build_vote_sign_bytes field layout exactly. Errors
 // instead of silently misparsing if any tag or the trailing chain_id
 // doesn't match what's expected.
-func extractTimestampContent(signBytes []byte, chainID string) ([]byte, error) {
+func extractTimestampContent(signBytes []byte, chainID string, round uint64) ([]byte, error) {
 	pos := 0
 	// outer varint length prefix
 	_, n, err := readVarint(signBytes, pos)
@@ -341,11 +335,21 @@ func extractTimestampContent(signBytes []byte, chainID string) ([]byte, error) {
 	}
 	pos += 9
 
-	// field 4: block_id, tag 0x22 (length-delimited). A 0x19 here would
-	// mean field3(round) is present, i.e. round != 0 -- a consistency check,
-	// the caller already verified commit.Round==0.
+	// field 3: round, tag 0x19, sfixed64 -- present exactly when round != 0
+	// (proto3 omits a zero value); its value must be the commit's round.
+	if round != 0 {
+		if pos+9 > len(signBytes) || signBytes[pos] != 0x19 {
+			return nil, fmt.Errorf("expected field3(round) tag 0x19 at offset %d for round %d", pos, round)
+		}
+		if got := binary.LittleEndian.Uint64(signBytes[pos+1 : pos+9]); got != round {
+			return nil, fmt.Errorf("sign-bytes carry round %d, commit round is %d", got, round)
+		}
+		pos += 9
+	}
+
+	// field 4: block_id, tag 0x22 (length-delimited).
 	if pos >= len(signBytes) || signBytes[pos] != 0x22 {
-		return nil, fmt.Errorf("expected field4(block_id) tag 0x22 at offset %d, got %#x (round!=0?)", pos, signBytes[pos])
+		return nil, fmt.Errorf("expected field4(block_id) tag 0x22 at offset %d, got %#x ", pos, signBytes[pos])
 	}
 	pos++
 	blockIDLen, n, err := readVarint(signBytes, pos)

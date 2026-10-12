@@ -193,6 +193,21 @@ func globalStateRoot(g int) []byte {
 	return types.ReduceToField(big.NewInt(int64(1000 + g)).Bytes())
 }
 
+// fixtureRound is the round the synthetic precommits are signed in (ENGRAM_FIXTURE_ROUND, default 0);
+// fixtureClaimedRound is the round the witness claims, equal unless ENGRAM_FIXTURE_CLAIM_ROUND forges a mismatch.
+func fixtureRound() uint64 {
+	r, _ := strconv.ParseUint(os.Getenv("ENGRAM_FIXTURE_ROUND"), 10, 32)
+	return r
+}
+
+func fixtureClaimedRound() uint64 {
+	if v := os.Getenv("ENGRAM_FIXTURE_CLAIM_ROUND"); v != "" {
+		r, _ := strconv.ParseUint(v, 10, 32)
+		return r
+	}
+	return fixtureRound()
+}
+
 // heightBlockHash is the chunk-mode block hash: a pure function of height, so a block that is
 // one chunk's last boundary and the next chunk's neighbour is signed identically wherever it appears.
 func heightBlockHash(height uint64) []byte {
@@ -227,7 +242,7 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 	protoVote := &cmtproto.Vote{
 		Type:   cmtproto.PrecommitType,
 		Height: int64(height),
-		Round:  0,
+		Round:  int32(fixtureRound()),
 		BlockID: cmtproto.BlockID{
 			Hash: blockHash,
 			PartSetHeader: cmtproto.PartSetHeader{
@@ -238,7 +253,7 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 		Timestamp: ts,
 	}
 	signBytes := cmttypes.VoteSignBytes(chainID, protoVote)
-	tsContent, err := extractTimestampContent(signBytes, chainID)
+	tsContent, err := extractTimestampContent(signBytes, chainID, fixtureRound())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "extracting timestamp content:", err)
 		os.Exit(1)
@@ -278,6 +293,7 @@ func buildBoundaryBlockWitness(height uint64, blockHash []byte, privs []cmted255
 	}
 
 	var b []byte
+	b = append(b, []byte(fmt.Sprintf("round = \"%d\"\n", fixtureClaimedRound()))...)
 	b = append(b, []byte(fmt.Sprintf("ps_total = \"%d\"\n", psTotal))...)
 	b = append(b, []byte(fmt.Sprintf("ps_hash = [%s]\n", byteArrayToml(psHash)))...)
 	b = append(b, []byte(fmt.Sprintf("signed = [%s]\n", boolArrayToml(signed)))...)
@@ -325,7 +341,7 @@ func decompressEd25519(compressed []byte) (xLE, yLE [32]byte, err error) {
 // extractTimestampContent walks a real types.VoteSignBytes(chainID, vote)
 // output tag-by-tag to pull out the Timestamp submessage's content bytes --
 // identical to cmd/engramd/reanchor_witness_cli.go's version.
-func extractTimestampContent(signBytes []byte, chainID string) ([]byte, error) {
+func extractTimestampContent(signBytes []byte, chainID string, round uint64) ([]byte, error) {
 	pos := 0
 	_, n, err := readVarint(signBytes, pos)
 	if err != nil {
@@ -340,6 +356,12 @@ func extractTimestampContent(signBytes []byte, chainID string) ([]byte, error) {
 		return nil, fmt.Errorf("expected field2(height) tag 0x11 at offset %d", pos)
 	}
 	pos += 9
+	if round != 0 {
+		if pos+9 > len(signBytes) || signBytes[pos] != 0x19 {
+			return nil, fmt.Errorf("expected field3(round) tag 0x19 at offset %d", pos)
+		}
+		pos += 9
+	}
 	if pos >= len(signBytes) || signBytes[pos] != 0x22 {
 		return nil, fmt.Errorf("expected field4(block_id) tag 0x22 at offset %d", pos)
 	}
