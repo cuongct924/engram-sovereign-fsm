@@ -33,15 +33,15 @@ its height, and with it the replicated state; and (M3)
 chain has verified, covering the \textsc{Sovereign} interval except at most
 $T$ trailing blocks (the unproven tail, \texttt{MaxUnprovenTailBlocks}; the heuristic that can stand in for the proof is disabled), and a DA backfill certificate for the whole
 interval. If a withdrawal commits in block $B_h$, then
-$P_{\text{agree}}$ holds, the state at $h$ is \textsc{Anchored} or
-\textsc{Suspicious}, and there are Engram heights $c_s$ and $c_a \geq h - \tau_{\text{DA}}$ such
+$P_{\text{agree}}$ and $P_{\text{admit}}$ hold (the state at $h$ is \textsc{Anchored} or
+\textsc{Suspicious}), and $P_{\text{assure}}$ holds: there are Engram heights $c_s$ and $c_a \geq h - \tau_{\text{DA}}$ such
 that $P_{\text{settle}}(c_s)$ and $P_{\text{avail}}(c_a)$ hold, where the
 checkpoint that settles $c_s$ lags the certified Bitcoin tip by at most
 $\tau_{\text{BTC}}$ Bitcoin blocks. Every height up to $\min(c_s, c_a)$ is
-settled and available, including every \textsc{Sovereign} interval that
-precedes $B_h$.}
+settled and available. A \textsc{Sovereign} interval is covered only to the
+extent that this prefix reaches it.}
 
-\emph{Proof.} $P_{\text{agree}}$ follows from $\operatorname{wt}(B) < W/3$. By (M1), the state
+\emph{Proof.} $P_{\text{agree}}$ follows from $\operatorname{wt}(B) < W/3$. By (M1), $P_{\text{admit}}$ holds and the state
 at $h$ is \textsc{Anchored} or \textsc{Suspicious}. In the transition
 function $\delta$, \textsc{Suspicious} is entered only from
 \textsc{Anchored}, and \textsc{Sovereign} is left only through
@@ -57,14 +57,17 @@ $K_{\text{DEEP\_FINALITY}}$ for some $c_s$; by (M2) it
 commits the chain through $c_s$, so rewriting the prefix up to $c_s$
 requires a deeper reorganization, which is excluded. The DA receipt in $B_h$
 attests data availability up to some $c_a \geq h - \tau_{\text{DA}}$, and the DA layer
-is honest. $\square$
+is honest, which gives $P_{\text{assure}}$. $\square$
 
 \textbf{Scope of Theorem~\ref{thm:withdrawal}.} The theorem is a safety
 property of the committed history: it constrains which blocks may contain a
 withdrawal. It does not bound what a withdrawal depends on. Settlement is
 guaranteed only through $c_s$ and availability only through $c_a$, whereas a
-withdrawal may depend on state created inside the exposure window after them,
-and the prototype records no dependency height for a withdrawal. Asset-level
+withdrawal may depend on state created after them, including state inside a
+\textsc{Sovereign} interval that the checkpoint does not yet cover. The
+prototype records no dependency height for a withdrawal, so the theorem
+separates admission ($P_{\text{admit}}$) from assurance about a prefix
+($P_{\text{assure}}$); it is not a guarantee of asset safety. Asset-level
 safety would add the condition that every withdrawal depends only on state at
 heights up to $\min(c_s, c_a)$; the theorem does not establish it. Liveness
 comes from relaxing the receipt checks in \textsc{Sovereign}; the property a

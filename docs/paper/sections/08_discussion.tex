@@ -38,8 +38,9 @@ the chain sees the layer return.
 
 The analysis of the cost of griefing is in Appendix~\ref{app:extended}.
 
-\textbf{Exposure before the circuit breaker locks.} Withdrawals lock when the
-FSM reaches \textsc{Sovereign}, so the exposure is the time from the start of a
+\textbf{Exposure before the circuit breaker locks.} Withdrawals lock only after
+the detection conditions hold and the FSM reaches \textsc{Sovereign}; the lock
+does not start at the onset of the fault. The exposure is the time from the start of a
 fault to that point, and the number of withdrawals that can commit in it is at
 most the number of Engram blocks in the window times what one block can hold.
 The window is set by the thresholds, which count Bitcoin blocks for a Bitcoin
@@ -52,7 +53,7 @@ be about 1{,}900, and nothing but block capacity limits a faster sender.
 
 The exposure table (Table~\ref{tab:exposure}) is in Appendix~\ref{app:extended}.
 
-The testbed conversion is a scaling of the measured time. A model of the
+The 47--62 minute figures are a model and a scaling of testbed times to mainnet block cadence; no deployment on Bitcoin mainnet was run. The testbed conversion is a scaling of the measured time. A model of the
 checkpoint cycle, validated against the testbed, puts the lock at 47--50 minutes at
 mainnet cadence, below the 62 minutes of the plain conversion, so the two bracket
 it. The same model shows that the healthy gap already touches the

@@ -93,7 +93,7 @@ which is why withdrawals are locked in that state
 \subsection{Security Goals by Mode}
 \label{subsec:security-semantics}
 
-We state what each FSM state guarantees, using four properties of the
+We state what each FSM state guarantees, using five properties of the
 committed chain $B_1, \dots, B_h$. A \emph{prefix} $B_1, \dots, B_c$ is the
 chain up to height $c \leq h$.
 \begin{itemize}
@@ -108,10 +108,14 @@ chain up to height $c \leq h$.
   \item $P_{\text{avail}}(c)$: the block data of every height up to $c$ is
   retrievable from the DA layer. Assumption: the DA layer is honest and the
   data was published.
-  \item $P_{\text{exit}}$: a withdrawal commits only against a chain whose
-  settled and available prefix is the one the withdrawal depends on, up to
-  the receipt tolerance defined below. It is enforced by the circuit
-  breaker.
+  \item $P_{\text{admit}}$: no committed block in \textsc{Sovereign} or
+  \textsc{Recovering} contains a withdrawal-marked transaction. It is enforced
+  by the circuit breaker.
+  \item $P_{\text{assure}}$: when a withdrawal commits at height $h$, there
+  are heights $c_s$ and $c_a$ with $P_{\text{settle}}(c_s)$ and
+  $P_{\text{avail}}(c_a)$ (receipt tolerances below). It concludes only for the
+  prefix up to $\min(c_s, c_a)$. It says nothing about state after that
+  prefix, and the prototype does not record which heights a withdrawal depends on.
 \end{itemize}
 
 Table~\ref{tab:mode-security} lists which properties hold in each state.
@@ -151,6 +155,6 @@ height at least $b_h - \tau_{\text{BTC}}$, and a DA receipt that attests
 availability up to Engram height $c_a \geq h - \tau_{\text{DA}}$.
 
 Theorem~\ref{thm:withdrawal} (Section~\ref{subsec:analytical}) states the conditions under which
-a committed withdrawal satisfies $P_{\text{exit}}$. Section~\ref{sec:protocol}
+a committed withdrawal satisfies $P_{\text{admit}}$ and $P_{\text{assure}}$. Section~\ref{sec:protocol}
 defines the mechanisms, and Section~\ref{sec:formal} states and checks the
 properties.

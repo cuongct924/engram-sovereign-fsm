@@ -31,8 +31,8 @@ circuit has 3{,}002{,}299 gates and proves in 25.7--29.5\,s using about 5.2\,GB,
 against 3{,}234{,}226 gates, 30.0--31.5\,s, and 5.7--5.9\,GB for a leaf. Total
 proving time rises by 49\% at $L{=}512$ and 22\% at $L{=}1024$. Chunk proofs
 were produced sequentially; proving them in parallel was not measured. Every
-chunk boundary height needs a round-zero commit, so a round skip at an interior
-boundary prevents building that chunk's witness.
+chunk boundary height needs a witness for the round in which that block committed,
+which the leaf circuit accepts for any round.
 
 The aggregator rejects each of eleven malformed witnesses: reversed or repeated
 chunks, a wrong total count, final root, first height, or validator-set hash,
