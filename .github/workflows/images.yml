@@ -2,11 +2,27 @@ name: images
 
 # Builds the two images the cluster runs on a native linux/amd64 runner and pushes them to Docker Hub, tagged with the commit.
 # Needs the repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a Docker Hub access token with write access to the two repositories).
-# Run it from the Actions tab (workflow_dispatch) or push a tag named release-*.
+# Runs on every push to main that changes code, the circuit, a prover script or the build (not docs, results, specs or deploy
+# playbooks), from the Actions tab (workflow_dispatch), or on a tag named release-*.
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "spec/**"
+      - "**.md"
+      - "scripts/**/results*/**"
+      - "scripts/e*/**"
+      - "deploy/ansible/**"
+      - "deploy/terraform/**"
+      - "**.pdf"
+      - "**.png"
     tags: ["release-*"]
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
