@@ -94,6 +94,8 @@ func run() int {
 			Poll:                      time.Duration(envInt("POLL_INTERVAL_S", 2)) * time.Second,
 			MinBatch:                  envInt("MIN_BATCH", 1),
 			MaxChecks:                 envInt("MAX_CHECKS", 0),
+			BoundaryRetries:           envInt("BOUNDARY_RETRIES", 0),
+			ControlDir:                os.Getenv("PROVER_CONTROL_DIR"),
 			WitnessPublishMinInterval: time.Duration(envInt("WITNESS_PUBLISH_MIN_INTERVAL_S", 120)) * time.Second,
 			Logf: func(f string, a ...any) {
 				fmt.Printf("[%s] "+f+"\n", append([]any{time.Now().UTC().Format("15:04:05")}, a...)...)

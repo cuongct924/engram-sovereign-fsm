@@ -273,8 +273,9 @@ func snapshotMetrics(ctx sdk.Context, k *keeper.Keeper, s *Sensors, c *sensorSna
 }
 
 // emptyModeMetrics is the observation of the "empty" arm: no RPC and no sensor state, only the
-// block height. DA is reported verified and contiguous up to the previous block (an all-zero DA
-// receipt is rejected by ProcessProposal once the chain is healthy); Bitcoin stays at zero gap.
+// block height. DA is reported verified and contiguous up to this block: the proposal of the next
+// height is built from these extensions and an empty DA receipt (height 0, no attestation) is
+// rejected by ProcessProposal, which stalled the chain at height 2. Bitcoin stays at zero gap.
 // The P2P part is the same local read the snapshot path makes, so the two arms differ only in RPC.
 func emptyModeMetrics(ctx sdk.Context, s *Sensors, height int64) (*types.PeripheralMetrics, error) {
 	m := &types.PeripheralMetrics{}
@@ -286,8 +287,8 @@ func emptyModeMetrics(ctx sdk.Context, s *Sensors, height int64) (*types.Periphe
 		m.SubnetDiversity, m.ActiveAnchors, m.CleanPeers = p2p.SubnetDiversity, p2p.ActiveAnchors, p2p.CleanPeers
 		m.PeerChurnRate, m.AvgPeerTenure, m.PeerLatency = p2p.ChurnRate, p2p.AvgTenure, p2p.Latency
 	}
-	if height > 1 {
-		m.DaVerifiedHeight, m.DaContiguousHeight = uint64(height-1), uint64(height-1)
+	if height > 0 {
+		m.DaVerifiedHeight, m.DaContiguousHeight = uint64(height), uint64(height)
 	}
 	return m, nil
 }

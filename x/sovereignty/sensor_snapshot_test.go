@@ -7,6 +7,8 @@ import (
 	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cuongct220020/engram-sovereign-fsm/x/da"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/keeper/sensors"
 	"github.com/cuongct220020/engram-sovereign-fsm/x/sovereignty/types"
 	"github.com/stretchr/testify/require"
@@ -101,6 +103,22 @@ func TestExtendVoteEmptyMode_SignsConstantHealthyObservationWithoutReadingSensor
 	require.Zero(t, m.BtcGap)
 	require.Zero(t, m.DaGap)
 	require.False(t, m.IsDasFailed)
-	require.EqualValues(t, 9, m.DaVerifiedHeight)
-	require.EqualValues(t, 9, m.DaContiguousHeight)
+	require.EqualValues(t, 10, m.DaVerifiedHeight)
+	require.EqualValues(t, 10, m.DaContiguousHeight)
+}
+
+// The proposal of height h+1 is built from the extensions of height h, and ProcessProposal rejects an empty DA receipt in every state that
+// requires one (a stall at height 2 in the first live run of the empty arm). The receipt of the empty observation must pass at every height.
+func TestEmptyModeObservationPassesTheDAReceiptCheckOfTheNextProposal(t *testing.T) {
+	p := types.DefaultParams()
+	for _, h := range []int64{1, 2, 10, 5000} {
+		m, err := emptyModeMetrics(sdk.Context{}, nil, h)
+		require.NoError(t, err)
+		receipt := da.Receipt{PublishedBlockHeight: m.DaVerifiedHeight, Attestation: m.DaVerifiedHeight > 0}
+		for _, state := range []string{types.StateAnchored, types.StateRecovering, types.StateSovereign} {
+			require.Truef(t, da.VerifyReceipt(receipt, state, types.IsDAHealthy(m, p), uint64(h+1), p.DAThreshold, 0),
+				"height %d, state %s: receipt %+v rejected", h, state, receipt)
+		}
+		require.True(t, types.IsDAHealthy(m, p))
+	}
 }

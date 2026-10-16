@@ -24,6 +24,7 @@ type fakeChain struct {
 	submitted []string // "first-last"
 	rejected  []string
 	badLast   func(uint64) bool
+	roundOf   func(uint64) int // commit round of a block, nil: the witness carries no round lines
 	published int32
 }
 
@@ -52,7 +53,11 @@ func (c *fakeChain) BoundaryWitness(_ context.Context, first, last uint64) (stri
 	if c.badLast != nil && c.badLast(last) {
 		return "", fmt.Errorf("no round-0 commit at %d", last)
 	}
-	return fmt.Sprintf("first_height = \"%d\"\nlast_height = \"%d\"\n\n[first_block]\nh = \"x\"\n", first, last), nil
+	w := fmt.Sprintf("first_height = \"%d\"\nlast_height = \"%d\"\n\n[first_block]\nh = \"x\"\n", first, last)
+	if c.roundOf != nil {
+		w += fmt.Sprintf("round = \"%d\"\n\n[last_block]\nround = \"%d\"\n", c.roundOf(first), c.roundOf(last))
+	}
+	return w, nil
 }
 
 func (c *fakeChain) Tip(context.Context) uint64 {
@@ -314,5 +319,66 @@ func TestSSHPoolCancelRemovesTheContainer(t *testing.T) {
 	}
 	if _, err := pool.Prove(context.Background(), "segY", nil); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("worker not reusable or error lost: %v", err)
+	}
+}
+
+func TestBoundaryRoundsReadsBothTables(t *testing.T) {
+	w := "first_height = \"5\"\n\n[validators]\nx = \"1\"\n\n[first_block]\nround = \"0\"\nps_total = \"1\"\n\n[last_block]\nround = \"2\"\n"
+	if f, l := BoundaryRounds(w); f != 0 || l != 2 {
+		t.Fatalf("rounds %d, %d", f, l)
+	}
+	if f, l := BoundaryRounds("[first_block]\nh = \"x\"\n"); f != -1 || l != -1 {
+		t.Fatalf("a table without a round line must give -1, got %d, %d", f, l)
+	}
+}
+
+func TestPipelineEndsOnlyAtTheWantedCommitRound(t *testing.T) {
+	ch := newFakeChain(10 * time.Millisecond)
+	ch.roundOf = func(h uint64) int {
+		if h%5 == 0 {
+			return 2
+		}
+		return 0
+	}
+	cfg := baseCfg()
+	cfg.ControlDir = t.TempDir()
+	if err := os.WriteFile(cfg.ControlDir+"/want_round", []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := runPipeline(t, ch, &fakeProver{d: 100 * time.Millisecond}, cfg)
+	ch.mu.Lock()
+	defer ch.mu.Unlock()
+	if len(ch.rejected) != 0 || st.Submitted < 2 {
+		t.Fatalf("rejected %v, submitted %v, stats %+v", ch.rejected, ch.submitted, st)
+	}
+	for _, s := range ch.submitted {
+		last, _ := strconv.Atoi(strings.Split(s, "-")[1])
+		if last%5 != 0 {
+			t.Fatalf("a segment ends at %d, which did not commit in round 2", last)
+		}
+	}
+}
+
+func TestPipelineArchivesAndHoldsTheProofWhileTheHoldFileExists(t *testing.T) {
+	ch := newFakeChain(10 * time.Millisecond)
+	cfg := baseCfg()
+	cfg.Provers, cfg.MaxChecks = 1, 150
+	cfg.ControlDir = t.TempDir()
+	hold := cfg.ControlDir + "/hold"
+	if err := os.WriteFile(hold, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = os.Remove(hold)
+	}()
+	start := time.Now()
+	st, _ := runPipeline(t, ch, &fakeProver{d: 20 * time.Millisecond}, cfg)
+	if st.Submitted < 1 || time.Since(start) < 300*time.Millisecond {
+		t.Fatalf("the first proof was submitted while the hold file existed: %+v after %v", st, time.Since(start))
+	}
+	ents, _ := os.ReadDir(cfg.ControlDir + "/archive")
+	if len(ents) < 3 {
+		t.Fatalf("expected the proof, public inputs and DA height archived, got %d files", len(ents))
 	}
 }

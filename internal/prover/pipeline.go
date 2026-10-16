@@ -16,6 +16,7 @@ type Config struct {
 	Poll                      time.Duration // how often the scheduler looks at the chain
 	MinBatch                  int           // headers that must wait before a segment starts
 	BoundaryRetries           int           // times a segment may end one header earlier when its last block has no usable commit
+	ControlDir                string        // test control (empty: off), read again for every segment: see Control
 	WitnessPublishMinInterval time.Duration // the audit trail goes to Celestia at most this often (one shared bridge account)
 	MaxChecks                 int           // stop after this many polls (0: run until the context ends)
 	Logf                      func(format string, args ...any)
@@ -257,19 +258,35 @@ func (p *Pipeline) runSegment(ctx context.Context, s *segment) error {
 		headers = headers[:NMax]
 	}
 
-	// The boundary block of the segment's end needs a round-0 commit: when it has none the segment ends one header earlier.
+	// The segment ends at a block whose commit the witness builder can read (any round); when it cannot, or when the test control
+	// WantRound asks for another round, the segment ends one header earlier. Every such step is logged with its reason.
 	var boundary string
+	var firstRound, lastRound, dropped int
+	ctl := ReadControl(cfg.ControlDir)
+	retries := cfg.BoundaryRetries
+	if ctl.WantRound > 0 && retries < 64 {
+		retries = 64 // a given round is rare among the blocks of an interval
+	}
 	for attempt := 0; ; attempt++ {
 		last := headers[len(headers)-1].Height
 		boundary, err = p.Chain.BoundaryWitness(ctx, minHeight, last)
 		if err == nil {
+			firstRound, lastRound = BoundaryRounds(boundary)
+			if ctl.WantRound > 0 && lastRound != ctl.WantRound {
+				err = fmt.Errorf("the last block committed in round %d, the test wants round %d", lastRound, ctl.WantRound)
+			}
+		}
+		if err == nil {
 			break
 		}
-		if attempt >= cfg.BoundaryRetries || len(headers) <= 1 {
-			return fmt.Errorf("no boundary block with a usable commit within %d headers of the end: %w", cfg.BoundaryRetries, err)
+		if attempt >= retries || len(headers) <= 1 {
+			return fmt.Errorf("no boundary block with a usable commit within %d headers of the end: %w", retries, err)
 		}
+		cfg.Logf("segment %d: boundary at height %d unusable (%v), ending the segment one header earlier", s.id, last, err)
 		headers = headers[:len(headers)-1]
+		dropped++
 	}
+	cfg.Logf("segment %d: boundary blocks first=%d (round %d) last=%d (round %d), %d header(s) dropped from the end", s.id, headers[0].Height, firstRound, headers[len(headers)-1].Height, lastRound, dropped)
 	tBoundary := time.Now()
 
 	linked, rtNew, err := p.Linker.Link(ctx, rtLast, headers)
@@ -312,6 +329,17 @@ func (p *Pipeline) runSegment(ctx context.Context, s *segment) error {
 	}
 	if err := os.WriteFile(pubPath, proof.PublicInputs, 0o600); err != nil {
 		return err
+	}
+	if cfg.ControlDir != "" {
+		if err := archiveProof(filepath.Join(cfg.ControlDir, "archive"), s.id, last, proofPath, pubPath, daHeight); err != nil {
+			cfg.Logf("segment %d: the proof could not be archived: %v", s.id, err)
+		}
+		if HoldRequested(cfg.ControlDir) {
+			cfg.Logf("segment %d: proof for heights %d-%d is ready, holding the submission while %s/hold exists", s.id, headers[0].Height, last, cfg.ControlDir)
+			if !waitWhileHeld(ctx.Done(), cfg.ControlDir) {
+				return ctx.Err()
+			}
+		}
 	}
 	if err := p.Chain.Submit(ctx, proofPath, pubPath, daHeight); err != nil {
 		return fmt.Errorf("submission rejected: %w", err)
