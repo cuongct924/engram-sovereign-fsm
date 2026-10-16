@@ -59,7 +59,7 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	// layout (circuit/reanchoring/src/main.nr): rt_last, rt_new, count, first_height,
 	// first/last_block_hash, validator_set_hash -- 7x32B fields, matching bb's layout.
 	if len(msg.PublicInputs) != 224 {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "public_inputs_length")
 	}
 	rtLast, rtNew := msg.PublicInputs[0:32], msg.PublicInputs[32:64]
 	count := binary.BigEndian.Uint32(msg.PublicInputs[92:96])
@@ -70,18 +70,18 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 
 	trackedLast, err := k.LastAnchoredRoot.Get(ctx)
 	if err != nil || !bytes.Equal(rtLast, trackedLast) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "rt_last")
 	}
 	lastAnchoredHeight, err := k.LastAnchoredHeight.Get(ctx)
 	if err != nil {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "last_anchored_height_missing")
 	}
 	newCheckpointHeight, found, err := k.findHeaderByAccumulator(ctx, rtNew)
 	if err != nil || !found {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "rt_new_not_found")
 	}
 	if uint64(count) != newCheckpointHeight-lastAnchoredHeight {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "count")
 	}
 
 	// 2b. Boundary-block binding (circuit/README.md's Scope section): the proof's claimed
@@ -91,19 +91,19 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	// first_height is lastAnchoredHeight+1 (the interval's first real WithdrawLocked block) --
 	// lastAnchoredHeight itself is the pre-interval ANCHORED block, which has no BlockHashByHeight entry.
 	if uint64(firstHeight) != lastAnchoredHeight+1 {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "first_height")
 	}
 	trackedFirstBlockHash, err := k.BlockHashByHeight.Get(ctx, uint64(firstHeight))
 	if err != nil || !bytes.Equal(firstBlockHash, types.ReduceToField(trackedFirstBlockHash)) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "first_block_hash")
 	}
 	trackedLastBlockHash, err := k.BlockHashByHeight.Get(ctx, newCheckpointHeight)
 	if err != nil || !bytes.Equal(lastBlockHash, types.ReduceToField(trackedLastBlockHash)) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "last_block_hash")
 	}
 	trackedValidatorSetHash, err := k.ValidatorSetHash.Get(ctx)
 	if err != nil || !bytes.Equal(validatorSetHash, types.ReduceToField(trackedValidatorSetHash)) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "validator_set_hash")
 	}
 
 	// 2. Verify proof math against the circuit's embedded verification key. Last on purpose:
@@ -111,10 +111,10 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	// whose inputs do not match tracked state is rejected without paying for it. With no fee or
 	// signature on this tx, at most maxProofVerifiesPerBlock proofs are verified per block.
 	if !k.allowProofVerify(ctx) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "verify_cap_per_block")
 	}
 	if !k.VerifyZKProof(msg.ZkProof, msg.PublicInputs) {
-		return nil, types.ErrInvalidZKProof
+		return nil, rejectProof(ctx, "ultrahonk_verify")
 	}
 
 	// 3. Advance the checkpoint and prune covered headers. Latch is set last
@@ -141,6 +141,19 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 		_ = k.RecoveryProofDAHeights.Set(ctx, newCheckpointHeight, msg.DaCelestiaHeight)
 	}
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
+}
+
+// rejectProof returns ErrInvalidZKProof and logs which check refused the proof (the error itself is the same for every
+// check). Logging only: no state or consensus effect.
+func rejectProof(ctx context.Context, check string) error {
+	sctx, ok := ctx.(sdk.Context)
+	if !ok {
+		sctx, ok = ctx.Value(sdk.SdkContextKey).(sdk.Context)
+	}
+	if ok && sctx.Logger() != nil {
+		sctx.Logger().Info("recovery proof rejected", "check", check)
+	}
+	return types.ErrInvalidZKProof
 }
 
 // findHeaderByAccumulator matches rt_new by content (not the tip) against a tracked header's
