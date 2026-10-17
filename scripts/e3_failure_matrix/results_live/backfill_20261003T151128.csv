@@ -1,0 +1,2 @@
+outage_s,anchored_height,interval_blocks,liars,no_backfill_validators,recovering_height,seconds_heal_to_recovering,seconds_in_recovering,seconds_to_sovereign,sovereign_height,trial,verify_heights,verify_match_pct,verify_published_pct
+120,436,67,0,3,401,6.3,42.7,42.6,334,1,67,100.0,100.0

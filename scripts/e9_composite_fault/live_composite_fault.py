@@ -36,7 +36,7 @@ from cluster import CLUSTER  # noqa: E402
 from logger import sample_all_nodes, write_csv, NODE_RPC_PORTS, stop_all_da_bridges, start_all_da_bridges  # noqa: E402
 from sensor_log_scraper import scrape_sensor_snapshots, nearest_timestamp  # noqa: E402
 
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results_live")
+RESULTS_DIR = os.environ.get("ENGRAM_E9_RESULTS_DIR") or os.path.join(os.path.dirname(__file__), "results_live")
 BITCOIN_NODE = "bitcoin-node01"
 ALL_NODES = list(NODE_RPC_PORTS.keys())
 

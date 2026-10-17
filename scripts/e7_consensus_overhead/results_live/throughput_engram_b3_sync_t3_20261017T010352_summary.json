@@ -1,0 +1,83 @@
+{
+  "arm": "engram",
+  "tag": "b3_sync_t3",
+  "duration_s": 60.0,
+  "payload_bytes": 32,
+  "senders": 64,
+  "cells": {
+    "100.0": {
+      "n": 1,
+      "achieved_offered_tx_s": {
+        "mean": 100.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "committed_tx_s": {
+        "mean": 100.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "committed_over_offered": {
+        "mean": 1.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p50_s": {
+        "mean": 3.868901014328003,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p95_s": {
+        "mean": 5.803902864456177,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "latency_p99_s": {
+        "mean": 6.281266927719116,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "extend_vote_ms_mean": {
+        "mean": 937.44,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "extend_vote_ms_p95": {
+        "mean": 2012.7,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "rounds_per_height": {
+        "mean": 1.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "share_anchored": {
+        "mean": 0.038,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "mempool_max": {
+        "mean": 466.0,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "validator_cpu_pct_max": {
+        "mean": 13.05,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "block_interval_s": {
+        "mean": 2.870523296869718,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "tx_per_block": {
+        "mean": 222.37037037037038,
+        "stdev": 0.0,
+        "ci95": 0.0
+      },
+      "saturated_runs": 0
+    }
+  }
+}

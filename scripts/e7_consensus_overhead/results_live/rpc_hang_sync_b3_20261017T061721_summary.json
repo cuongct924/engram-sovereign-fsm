@@ -1,0 +1,92 @@
+{
+  "arm": "sync",
+  "image_tag": "3fe656dce021",
+  "hang_s": 240,
+  "recovered_after_s": 30.8,
+  "marks": {
+    "baseline_end": {
+      "t_s": 60.0,
+      "height": 156
+    },
+    "hang_start": {
+      "t_s": 60.5,
+      "height": 156
+    },
+    "hang_end": {
+      "t_s": 305.5,
+      "height": 236
+    },
+    "resume": {
+      "t_s": 309.3,
+      "height": 236
+    },
+    "end": {
+      "t_s": 340.1,
+      "height": 249
+    }
+  },
+  "phases": {
+    "baseline": {
+      "heights": [
+        133,
+        156
+      ],
+      "blocks": 24,
+      "duration_s": 54.9,
+      "block_interval_s": 2.289,
+      "extend_vote_ms_mean": 896.66,
+      "extend_vote_ms_p95": 1221.9,
+      "extend_vote_ms_max": 2285.6,
+      "extend_vote_samples": 168,
+      "fsm_state_samples": {
+        "ANCHORED": 84
+      }
+    },
+    "hang": {
+      "heights": [
+        157,
+        236
+      ],
+      "blocks": 80,
+      "duration_s": 238.3,
+      "block_interval_s": 2.979,
+      "extend_vote_ms_mean": 1613.85,
+      "extend_vote_ms_p95": 1719.3,
+      "extend_vote_ms_max": 1779.2,
+      "extend_vote_samples": 560,
+      "fsm_state_samples": {
+        "ANCHORED": 3,
+        "SOVEREIGN": 221
+      }
+    },
+    "recovery": {
+      "heights": [
+        237,
+        249
+      ],
+      "blocks": 13,
+      "duration_s": 25.6,
+      "block_interval_s": 1.965,
+      "extend_vote_ms_mean": 977.63,
+      "extend_vote_ms_p95": 1613.1,
+      "extend_vote_ms_max": 2290.6,
+      "extend_vote_samples": 91,
+      "fsm_state_samples": {
+        "SOVEREIGN": 11,
+        "RECOVERING": 19,
+        "ANCHORED": 12
+      }
+    }
+  },
+  "stale_check": {
+    "heights": [
+      161,
+      236
+    ],
+    "snapshot_lines": 0,
+    "btc_gap_zero_lines": 0,
+    "degraded_lines": 0,
+    "btc_gap_values": [],
+    "note": "sync arm prints no sensor_snapshot lines"
+  }
+}

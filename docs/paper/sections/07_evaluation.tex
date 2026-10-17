@@ -197,12 +197,17 @@ $\pm$12.0\,s), against 3\,s in the first run; most of that time is the cost of
 the recovery proof. In one run two of the seven validators fell back from
 \textsc{Recovering} to \textsc{Sovereign} for 2\,s before returning.
 We then ran the sequence five times on the cloud testbed (Testbed~B, Appendix~\ref{app:setup}): seven validators in three
-regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain, with the times defined as above. In two of the five runs most validators were in \textsc{Suspicious}
-during the first seconds, before the first fault, so those runs did not start from a clean \textsc{Anchored}. In all five runs the height advanced throughout (from 151--188 to 250--290), the validators agreed on the AppHash at every
-sampled height (zero divergent heights; 13--29 RPC errors per run, timeouts of the sampler over the wide-area links), and the chain ended in
-\textsc{Anchored}. It reached \textsc{Sovereign} 241--291\,s after the start (mean 271.4\,s, 95\% CI $\pm$23.4\,s, Student $t$), and
-\textsc{Recovering} began 335--358\,s in (mean 343.6\,s, $\pm$11.0\,s) and lasted 83--104\,s (mean 96.4\,s, $\pm$10.8\,s; until every validator reported \textsc{Anchored}). Each run had between one and five changes of a validator from \textsc{Recovering} back to \textsc{Sovereign} before
-the chain returned to \textsc{Anchored}. The two testbeds differ in block rate, hardware and in how the sensors see the faults, so their times are not comparable and are not pooled.
+regions, proof-only recovery with a tail bound of 128 and two proving workers, each run on a freshly deployed chain, at commit \texttt{3fe656dce021}, in which the sensor reads run in background loops and \texttt{ExtendVote} composes the latest result
+(Section~\ref{sec:protocol}), with the times defined as above.
+
+All five runs started with every validator in \textsc{Anchored} and none showed \textsc{Suspicious}. The height advanced throughout (from 218--228 to 461--494), the
+validators agreed on the AppHash at every sampled height (zero divergent heights, zero RPC errors), and the chain ended in \textsc{Anchored}.
+The median validator left \textsc{Anchored} 33--77\,s after the start (mean 45.2\,s, 95\% CI $\pm$22.6\,s), against a Bitcoin delay injected at 20\,s and the bridges stopped at 94--96\,s; this is the time of the first departure from \textsc{Anchored}
+because the passage through \textsc{Sovereign} to \textsc{Recovering} can be shorter than the sampling tick of about 3\,s. In every run six or seven validators fell back from \textsc{Recovering} to \textsc{Sovereign} (the first fall-back of the median validator at 62--104\,s),
+between 6 and 13 times in total per run. The Bitcoin delay was removed at 297--315\,s and the bridges were restarted at 301--319\,s. The median validator entered \textsc{Recovering} for the last time at 314--331\,s, and every validator reported \textsc{Anchored} 23--62\,s later (mean 40.5\,s, $\pm$21.8\,s), at 345--385\,s after the start.
+The \texttt{ExtendVote} calls of the five runs (25{,}526 calls) had a median of 0.1\,ms in each of the three regions and a maximum of 10.6\,ms.
+Each of the five runs logged two proofs rejected at submission by the chain, one within 40\,s of the start and one 368--418\,s after the start, when the chain had already returned to \textsc{Anchored}; recovery completed through the other segments (see Section~\ref{subsec:rq3} for a logged case). All 44 segments the prover logged had both boundary blocks in round 0, with no retry.
+Five runs per measure, so the intervals are descriptive.
 The seven-scenario sweep (Fig.~\ref{fig:s1-s7}) is in Appendix~\ref{app:extended}.
 
 \subsection{RQ3: Hysteresis and Recovery}
@@ -236,9 +241,44 @@ mostly the wait for the prover's batch of 256 headers and its build time, not
 the 68--73 blocks of the outage interval. The bound must therefore exceed the proving
 latency measured in blocks, and the blocks of that tail are protected by
 consensus alone. No block of these intervals was committed in a round other than
-0. The RQ2 trials above and the repeated composite runs use proof-only recovery
-with the bound of 128; the first composite run, the seven-scenario runs and the
+0. The RQ2 trials above and the repeated composite runs on Testbed~A use proof-only recovery
+with the bound of 128, as do all runs on Testbed~B (the composite, load, hung-RPC, window, delay and boundary-round runs); the first composite run, the seven-scenario runs and the
 data-availability runs used the fallback.
+
+\textbf{Recovery with a boundary block committed after round 0.} On Testbed~B (proof-only recovery, tail bound 128, seven validators in three regions) we ran three recoveries from \textsc{Sovereign} on one chain, and repeated the three on a second, freshly deployed chain (Table~\ref{tab:round-recovery}; first run at commit \texttt{fe419f406c46}, second at \texttt{ee271a1c6b2b}, which adds a log line for an accepted proof). Each froze the Bitcoin daemon and stopped the seven Celestia bridges until every validator reported \textsc{Sovereign}, then restored both until every validator reported \textsc{Recovering}. In the second and third recovery two validators adjacent in the proposer rotation were stopped; five of seven keep the quorum, and a height whose first proposer was one of them commits in round 1 or 2. A control file made the prover end a segment only at a block that committed in the wanted round, and hold the finished proof; the prover dropped five headers from the end and retried before it found such a block. While the proof was held we submitted mutated copies of it, then released it.
+
+\begin{table}[tbp]
+\caption{Recoveries on Testbed~B with the last boundary block committed in round 0, 1 and 2; each cell gives the first run, then the second (commit rounds read from the chain's \texttt{/commit} for the first and last block of the proof). The recovery with round 0 is the control, with no validator stopped. ``Not informative'': the repeated transaction was byte-identical to the prover's and the mempool answered it.}
+\label{tab:round-recovery}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+ & \textbf{Round 0} & \textbf{Round 1} & \textbf{Round 2} \\
+\midrule
+Heights covered by the held proof & 235--251 / 231--246 & 416--457 / 431--464 & 590--617 / 603--638 \\
+Commit round of first / last block & 0 / 0 in both & 0 / 1 in both & 0 / 2 in both \\
+Audit-trail pointer on Celestia (height) & none / 62 & 92 / 92 & 121 / 121 \\
+Held proof logged as accepted by a validator & not logged / yes & not logged / yes & not logged / yes \\
+Seven validators \textsc{Anchored} afterwards & yes / yes & yes / yes & yes / yes \\
+Mutated proofs rejected (of 7) & 7 / 7 & 7 / 7 & 7 / 7 \\
+Same proof submitted again & not informative / rejected & rejected / rejected & rejected / rejected \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The chain accepted each held proof and all seven validators returned to \textsc{Anchored}; the chain stayed in \textsc{Recovering} while the proof was held. In the first run the acceptance follows from the prover's count of accepted proofs, from the absence of a failure logged for the segment and from the rejection of the repeated proof; in the second a validator logged the acceptance with the heights of the proof.
+
+Seven mutations of each proof were rejected: a changed $rt_{\text{last}}$, first-block hash, last-block hash, validator-set hash, count or first height, each by its own check before the UltraHonk verification (the validator log names the check), and a changed proof byte by the verification itself. Submitting an accepted proof again was rejected in the chain's handler, at the $rt_{\text{last}}$ check where the validator log named it, in every recovery except the first control, where the repeated transaction was byte-identical to the prover's and the mempool answered it, so that case does not test the chain.
+
+A burst of 24 proofs that pass the binding checks but fail verification, sent in the control recovery, was met by the limit of eight verifications per block: in the first run 13 were refused by the limit and 11 were verified and rejected, in the second 8 and 16 (the number verified depends on how many blocks the burst spans).
+
+A wrong claimed round and a signing power below two thirds cannot be tested on the chain, because no proof exists for them: the circuit does not satisfy its constraints, and the tests of the circuit cover them (Section~\ref{sec:protocol}).
+
+There were two recoveries per round, on two chains. An earlier attempt of the same procedure (two recoveries, rounds 1 and 2, commit \texttt{3fe656dce021}) is not reported: in both, the proof that the prover held was refused when it was released, and in the first the chain had fallen back to \textsc{Sovereign} during the hold. Its harness mutated the newest instead of the oldest held proof, could not tell a repeated transaction from one that reached the handler, and recorded no check names, so the cause of the refusals was not established; the two runs reported here followed it, with the harness and the log corrected.
+
+A segment queued behind the accepted one was rejected after the chain returned to \textsc{Anchored} (in the first recovery, the log of the validators ends with a rejection by the $rt_{\text{new}}$ check), which is consistent with the pruning of the interval's headers on the return and with the two proofs rejected in each composite run above; we did not isolate it.
+
 \textbf{The prover on Testbed~B.} The proving experiment was repeated on the cloud testbed
 (Appendix~\ref{app:setup}) with the paper's parameters (Table~\ref{tab:fsm-params}): proof-only recovery and a tail bound of 128. The
 prover host handed each proof to one of $N$ worker machines, each building one proof at a time, for $N{=}1,2,3,4$.
@@ -300,16 +340,48 @@ The certificate-scaling measurements (Table~\ref{tab:cert-scaling}) and the anal
 
 The load sweep up to 500\,tx/s on one host (Table~\ref{tab:throughput}) is in Appendix~\ref{app:extended}; on one host Engram's latency grows with load where vanilla's does not.
 
-\textbf{Load on separate machines.} On Testbed~B, where each validator has its own machine, we offered 100\,tx/s for 60\,s to Engram and
-to vanilla CometBFT on three freshly deployed clusters each, with the load generator on the operator's machine, outside the cloud (its round trip to
-the validators and a queueing term that grows with the block interval enter the latency, so only the block interval is independent of the client). Both committed every offered transaction and neither saturated; the busiest validator
-used 28\% of its CPU for Engram and 23\% for vanilla. Engram's block interval was $2.78 \pm 0.15$\,s against $1.44 \pm 0.02$\,s, and the median, 95th and
-99th percentile latencies were $3.96 \pm 0.41$, $5.49 \pm 0.81$ and $6.08 \pm 0.79$\,s against $2.83 \pm 0.12$, $3.78 \pm 0.25$ and
-$4.06 \pm 0.39$\,s (mean $\pm$ 95\% Student-$t$ interval over the three deployments, one 60\,s measurement each). The intervals of the two systems do not overlap,
-so the cost of the extension is larger on the wide-area network than the single-host figures suggest. With three deployments per arm the comparison is descriptive: every Engram deployment has a longer block interval than every vanilla one, but an exact test of three against three cannot give $p$ below 0.1, and the busiest-validator CPU was $27.9 \pm 13.3$\% against $23.2 \pm 2.6$\%. CPU does not explain it, and the empty vote extensions of the single-host
-arm (Table~\ref{tab:overhead}) cost nothing measurable, so the extra round itself is not the likely source: at the round trips of Table~\ref{tab:testbedB} (46--207\,ms)
-it adds well under the 1.3\,s observed. The validators' logs of the five composite runs on Testbed~B, which ran the same binary on the same machines, show where the time goes:
-each validator's \texttt{ExtendVote}, which reads the Bitcoin and Celestia nodes in another region, took a median of 0.36\,s in us-east-2, 0.82\,s in eu-west-1 and 1.22\,s in ap-southeast-1
-(500 logged calls over five runs; maxima 0.74, 1.57 and 2.29\,s). A precommit quorum of five of seven validators cannot be reached without a validator of ap-southeast-1, so the slowest quorum member waits about 1.2\,s per block,
-which fits the 1.3\,s by which Engram's block interval exceeds vanilla's. This is an observation from the composite runs, not from the load runs, and no run isolates it: vanilla with empty vote extensions on Testbed~B was not run.
-We did not record the FSM state during these measurements and do not report how long the chain stayed in \textsc{Anchored}.
+\begin{table}[tbp]
+\caption{Load of 100\,tx/s for 60\,s on Testbed~B (mean $\pm$ 95\% Student-$t$ interval over three freshly deployed chains per column, one measurement each). Vanilla ran at commit \texttt{6e010cd} on 12 October; the other three columns at commit \texttt{3fe656d} on 16--17 October. ``Empty ext.'' signs a constant healthy observation without reading any sensor; ``sync'' reads the Bitcoin and Celestia nodes inside \texttt{ExtendVote}; ``snapshot'' composes the latest background reading. The share in \textsc{Anchored} is the fraction of the samples of one validator's FSM state during the measurement.}
+\label{tab:testbedb-load}
+\centering
+\footnotesize
+\input{results/testbedb_load_table}
+\end{table}
+
+\textbf{Load on separate machines.} On Testbed~B, where each validator has its own machine, we offered 100\,tx/s for 60\,s to four configurations on three freshly deployed chains each (Table~\ref{tab:testbedb-load}), with the load generator on the operator's machine, outside the cloud: vanilla CometBFT, which does not run the vote-extension code; vanilla's code with an empty vote extension on every vote and a constant healthy observation (empty); Engram with the sensor reads inside \texttt{ExtendVote} (sync); and Engram with background sensor reads (snapshot). The client's round trip to the validators and a queueing term that grows with the block interval enter the latency, so only the block interval is independent of the client. Every configuration committed every offered transaction in every deployment, with one round per height.
+
+The block interval was $1.433 \pm 0.027$\,s for vanilla, $1.447 \pm 0.023$\,s for empty, $1.453 \pm 0.030$\,s for snapshot and $2.773 \pm 0.209$\,s for sync. The mean \texttt{ExtendVote} time was $924 \pm 31$\,ms for sync and $0.12 \pm 0.01$\,ms for snapshot ($0.01$\,ms for empty). The 95th-percentile latency was $3.61 \pm 0.02$\,s for vanilla, $3.63 \pm 0.10$\,s for snapshot and $5.49 \pm 0.80$\,s for sync. For empty it was 3.65 and 3.67\,s in two deployments and 10.14\,s in the first, whose block interval (1.446\,s), rounds per height and committed rate were those of the others; we did not find the cause of that one deployment, and its busiest validator used 50\% of its CPU against 26\% in the other two. With three deployments per column the comparison is descriptive.
+
+The FSM did not stay in \textsc{Anchored} in every deployment. With sync the share of samples in \textsc{Anchored} was 0.50, 0.15 and 0.04 (\textsc{Suspicious} in all three, and \textsc{Recovering} and \textsc{Sovereign} in the third); with snapshot it was 0.85, 1.00 and 0.92 (\textsc{Suspicious} in two); with empty it was 1.00 by construction. The latency of the sync column is therefore the latency of a chain that spent most of the measurement outside \textsc{Anchored}, and a run at this load does not say how long a chain stays in \textsc{Anchored}. The busiest validator used 13--50\% of its CPU in all four configurations, with no relation to the configuration.
+
+Two readings follow. First, the empty configuration has the block interval of vanilla, so the extra vote-extension round does not account for the interval of sync on this network. Second, the interval of snapshot is that of vanilla as well, which is consistent with the sensor reads inside \texttt{ExtendVote} being the cause: a precommit quorum of five of seven cannot form without a validator of ap-southeast-1, and the \texttt{ExtendVote} of sync has to cross to the Bitcoin and Celestia nodes in us-west-2. The runs do not report \texttt{ExtendVote} per region and do not isolate that effect.
+
+\textbf{Slow and hung Bitcoin RPC.} We froze the Bitcoin daemon with \texttt{docker pause} for 240\,s on a chain in \textsc{Anchored}, so that every validator's connection opened and every request waited. Table~\ref{tab:testbedb-hang} gives the two builds. With inline reads, \texttt{ExtendVote} took $1.61$\,s on average during the freeze (maximum 1.78\,s), twice the 800\,ms bound of one RPC call, which fits a read that chains two calls, and the block interval rose from 2.39 to 2.98\,s. With background reads it stayed at $0.06$\,ms (maximum 0.6\,ms) and the interval was 1.42\,s, that of the healthy phase. Both chains kept committing, left \textsc{Anchored} for \textsc{Sovereign} and returned to \textsc{Anchored} 30.8\,s (inline) and 27.6\,s (background) after the daemon resumed. The background build reported a Bitcoin gap of 8 (the worst case, the sovereign threshold) in all 1{,}106 snapshot lines after the freeze took hold, and none with a gap of 0: a frozen layer was not reported as healthy. The freshness flag was never raised in this test, because each call returns within its 800\,ms bound and the background reader therefore always delivered a fresh reading of \emph{unreachable}; the branch for a reading older than the window is covered by a unit test and by the window sweep below. One run per build.
+
+\begin{table}[tbp]
+\caption{Hung Bitcoin RPC on Testbed~B (daemon frozen for 240\,s, one run per build, no transaction load). Block intervals from the sampled heights; states are shares of the samples of all seven validators.}
+\label{tab:testbedb-hang}
+\centering
+\scriptsize
+\resizebox{\linewidth}{!}{\input{results/testbedb_hang_table}}
+\end{table}
+
+\textbf{\texttt{ExtendVote} against injected delay.} To vary the latency of the Bitcoin RPC instead of freezing it, \texttt{tc netem} added a fixed delay to every response that left the Bitcoin host, for 90\,s per value (0, 100, 300 and 500\,ms; Table~\ref{tab:testbedb-latency}), on a freshly deployed chain of each build and with no transaction load. With inline reads the mean \texttt{ExtendVote} time rose from 0.87\,s to 1.64, 3.09 and 4.65\,s, about 7.5\,ms for each millisecond of delay, and the block interval from 2.54 to 3.32, 4.43 and 5.82\,s. With background reads the mean was 0.06--0.07\,ms at every value (maxima 0.3--1.9\,ms) and the block interval 1.36--1.65\,s. At 500\,ms the added delay and the round trip to the Bitcoin host exceeded the 800\,ms bound of one call, and the background build reported the layer as failed: its validators left \textsc{Anchored} for \textsc{Sovereign} and \textsc{Recovering} (79\% of the samples in \textsc{Recovering}), while the validators with inline reads were in \textsc{Suspicious} for 61\% of the samples. One 90\,s window per value and build, with 11--50 blocks per window; the intervals are descriptive, and samples that failed are not counted in the states.
+
+\begin{table}[tbp]
+\caption{\texttt{ExtendVote} time and block interval against the delay added to every Bitcoin RPC response (Testbed~B, 90\,s per value, one chain per build, no transaction load). The interval is the span of the highest sampled height over the window after the first 15\,s.}
+\label{tab:testbedb-latency}
+\centering
+\scriptsize
+\resizebox{\linewidth}{!}{\input{results/testbedb_latency_table}}
+\end{table}
+
+\textbf{Freshness window.} We repeated the hung-RPC test with the window of the snapshot rule set to 1, 2, 5 and 10\,s (\texttt{ENGRAM\_SENSOR\_MAX\_AGE\_MS}; Table~\ref{tab:testbedb-maxage}), each on a freshly deployed chain, with 60\,s healthy and 240\,s frozen. In none of the four runs did a validator report a Bitcoin gap of 0 while the daemon was frozen (0 of 4{,}508 snapshot lines), and \texttt{ExtendVote} took 0.06\,ms on average in each. The flag that marks a stale or missing reading was raised in the frozen phase only with the window of 1\,s (9 of 1{,}148 lines) and in the healthy phase only with that window (4 of 301 lines); with 2, 5 and 10\,s it was never raised. The reader loop runs every 0.5\,s and one call may wait 0.8\,s, so a window of 1\,s can be shorter than the age of the latest reading, and from 2\,s on it was not in these runs. The time to return to \textsc{Anchored} after the daemon resumed was 42.1, 29.0, 38.8 and 27.6\,s, with no order in the window. In the healthy phase the FSM was in \textsc{Suspicious} for 21, 17, 19 and 0\% of the samples, which the flag does not explain (it was raised in none of the lines of the 2 and 5\,s runs); we did not isolate the cause. One run per window. The run with 5\,s repeats the test of the previous paragraphs with the same settings (27.6\,s; flag never raised).
+
+\begin{table}[tbp]
+\caption{Hung Bitcoin RPC with the freshness window of the snapshot rule set to 1, 2, 5 and 10\,s (Testbed~B, one freshly deployed chain per window, daemon frozen for 240\,s). ``Degraded'' counts the \texttt{sensor\_snapshot} lines that carry the flag for a missing or stale reading; ``healthy reads'' counts the lines of the frozen phase that report a Bitcoin gap of 0.}
+\label{tab:testbedb-maxage}
+\centering
+\scriptsize
+\resizebox{\linewidth}{!}{\input{results/testbedb_maxage_table}}
+\end{table}

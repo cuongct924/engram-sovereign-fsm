@@ -1,0 +1,134 @@
+{
+  "sync": {
+    "source": "rpc_latency_sync_b4_20261017T105036_summary.json",
+    "windows": {
+      "0": {
+        "blocks": 28,
+        "interval_s": 2.54,
+        "ev_mean": 865.89,
+        "ev_p95": 1200.1,
+        "ev_max": 2230.2,
+        "ev_n": 217,
+        "states": {
+          "ANCHORED": 77,
+          "SUSPICIOUS": 28
+        },
+        "failed_samples": 0,
+        "degraded": 0,
+        "snapshot_lines": 0
+      },
+      "100": {
+        "blocks": 22,
+        "interval_s": 3.32,
+        "ev_mean": 1644.33,
+        "ev_p95": 2833.4,
+        "ev_max": 3538.8,
+        "ev_n": 182,
+        "states": {
+          "ANCHORED": 83,
+          "failed sample": 1
+        },
+        "failed_samples": 2,
+        "degraded": 0,
+        "snapshot_lines": 0
+      },
+      "300": {
+        "blocks": 14,
+        "interval_s": 4.43,
+        "ev_mean": 3087.39,
+        "ev_p95": 4584.3,
+        "ev_max": 6134.2,
+        "ev_n": 119,
+        "states": {
+          "ANCHORED": 34,
+          "failed sample": 8
+        },
+        "failed_samples": 10,
+        "degraded": 0,
+        "snapshot_lines": 0
+      },
+      "500": {
+        "blocks": 11,
+        "interval_s": 5.82,
+        "ev_mean": 4646.79,
+        "ev_p95": 8507.8,
+        "ev_max": 8924.8,
+        "ev_n": 91,
+        "states": {
+          "SUSPICIOUS": 22,
+          "failed sample": 13,
+          "ANCHORED": 14
+        },
+        "failed_samples": 15,
+        "degraded": 0,
+        "snapshot_lines": 0
+      }
+    }
+  },
+  "snapshot": {
+    "source": "rpc_latency_snapshot_b4_20261017T111316_summary.json",
+    "windows": {
+      "0": {
+        "blocks": 47,
+        "interval_s": 1.45,
+        "ev_mean": 0.07,
+        "ev_p95": 0.1,
+        "ev_max": 0.3,
+        "ev_n": 357,
+        "states": {
+          "SUSPICIOUS": 14,
+          "ANCHORED": 84
+        },
+        "failed_samples": 0,
+        "degraded": 0,
+        "snapshot_lines": 357
+      },
+      "100": {
+        "blocks": 50,
+        "interval_s": 1.36,
+        "ev_mean": 0.06,
+        "ev_p95": 0.1,
+        "ev_max": 0.3,
+        "ev_n": 378,
+        "states": {
+          "ANCHORED": 96,
+          "failed sample": 2
+        },
+        "failed_samples": 2,
+        "degraded": 0,
+        "snapshot_lines": 378
+      },
+      "300": {
+        "blocks": 40,
+        "interval_s": 1.65,
+        "ev_mean": 0.06,
+        "ev_p95": 0.1,
+        "ev_max": 1.9,
+        "ev_n": 3023,
+        "states": {
+          "failed sample": 3,
+          "ANCHORED": 81
+        },
+        "failed_samples": 7,
+        "degraded": 7,
+        "snapshot_lines": 3023
+      },
+      "500": {
+        "blocks": 50,
+        "interval_s": 1.42,
+        "ev_mean": 0.06,
+        "ev_p95": 0.1,
+        "ev_max": 0.4,
+        "ev_n": 350,
+        "states": {
+          "ANCHORED": 16,
+          "SOVEREIGN": 6,
+          "RECOVERING": 83
+        },
+        "failed_samples": 0,
+        "degraded": 2,
+        "snapshot_lines": 350
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "1000": {
+    "source": "rpc_hang_snapshot_age1000_20261017T094203_summary.json",
+    "baseline_lines": 301,
+    "baseline_degraded": 4,
+    "hang_lines": 1148,
+    "hang_degraded": 9,
+    "hang_btc_gap_zero": 0,
+    "ev_mean": 0.06,
+    "ev_max": 0.4,
+    "recovered_after_s": 42.1
+  },
+  "2000": {
+    "source": "rpc_hang_snapshot_age2000_20261017T100339_summary.json",
+    "baseline_lines": 308,
+    "baseline_degraded": 0,
+    "hang_lines": 1141,
+    "hang_degraded": 0,
+    "hang_btc_gap_zero": 0,
+    "ev_mean": 0.06,
+    "ev_max": 0.7,
+    "recovered_after_s": 29.0
+  },
+  "5000": {
+    "source": "rpc_hang_snapshot_age5000_20261017T113356_summary.json",
+    "baseline_lines": 301,
+    "baseline_degraded": 0,
+    "hang_lines": 1127,
+    "hang_degraded": 0,
+    "hang_btc_gap_zero": 0,
+    "ev_mean": 0.06,
+    "ev_max": 2.0,
+    "recovered_after_s": 38.8
+  },
+  "10000": {
+    "source": "rpc_hang_snapshot_age10000_20261017T102636_summary.json",
+    "baseline_lines": 294,
+    "baseline_degraded": 0,
+    "hang_lines": 1092,
+    "hang_degraded": 0,
+    "hang_btc_gap_zero": 0,
+    "ev_mean": 0.06,
+    "ev_max": 0.4,
+    "recovered_after_s": 27.6
+  }
+}

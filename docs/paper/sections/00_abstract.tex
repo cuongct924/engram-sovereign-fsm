@@ -13,7 +13,7 @@ evaluates it. In the degraded modes the chain keeps producing blocks, relaxes th
 receipt requirement of the failed layer and excludes withdrawal-marked
 transactions. It returns to \textsc{Anchored} only after hysteresis, DA backfill of the
 degraded interval and a validator-verified recovery proof over all but a bounded
-unproven tail. A layered TLA+ specification passes bounded model checking at two
+unproven tail; on seven machines in three regions this recovery completed, in two runs each, with the last boundary block committed in round 1 and in round 2. A layered TLA+ specification passes bounded model checking at two
 layers (\resFSMStatesM{} distinct states in the largest run); the refinement of the
 composed layer remains open. On a seven-validator testbed with Bitcoin regtest and
 Celestia, Engram kept \resRQTwoEngram{} of its healthy block rate under a checkpoint
@@ -22,7 +22,7 @@ validator kept \resRQTwoOob{} and one that reads them through vote extensions st
 committing \resInBandHalt\,s after the fault began and did not resume. A composite
 fault repeated five times, on one host and on seven machines in three regions, ended in
 \textsc{Anchored} with complete AppHash agreement. The block interval grows by
-\resOverheadPct{} on one host (95\% interval \resOverheadCI{}) and is 1.9 times
-vanilla's at 100\,tx/s across regions. The price is the detection delay: \resExposure{}
+\resOverheadPct{} on one host (95\% interval \resOverheadCI{}) and, at 100\,tx/s across three regions, is 1.9 times
+vanilla's when the validators read the sensors inside \texttt{ExtendVote} and 1.01 times with background sensor reads. The price is the detection delay: \resExposure{}
 withdrawal-marked transactions committed before the lock (40--125\,s on the testbed,
 47--62\,min when converted to mainnet Bitcoin cadence by a model, not measured on mainnet), and none after it.

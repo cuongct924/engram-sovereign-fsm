@@ -25,6 +25,7 @@ import csv
 import http.client
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -52,6 +53,17 @@ def generate_txs(count: int, prefix: str, payload_bytes: int) -> list:
 def endpoint(node: str) -> str:
     """host:port of a validator's RPC on this deployment (the Docker testnet or the multi-host cluster)."""
     return f"{CLUSTER.rpc_host(node)}:{CLUSTER.rpc_port(node)}"
+
+
+EXTEND_RE = re.compile(r"extend_vote height=(\d+) ms=([0-9.]+)")
+
+
+def extend_vote_ms(lo: int, hi: int) -> list:
+    """ExtendVote durations of every validator for heights lo..hi, from the engramd logs (x/sovereignty/vote_extension.go)."""
+    out = []
+    for n in CLUSTER.nodes:
+        out += [float(ms) for h, ms in EXTEND_RE.findall(CLUSTER.logs(n)) if lo <= int(h) <= hi]
+    return out
 
 
 def agree(wait_s: float = 60.0) -> str:
@@ -158,6 +170,7 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
     in_window = [k for k, t in sent_at.items() if k in w.seen and w.seen[k] <= deadline]
     committed_all = [k for k in sent_at if k in w.seen]
     lat = [w.seen[k] - t for k, t in sent_at.items() if k in w.seen]
+    ev = extend_vote_ms(start_height + 1, end_height)
     rows = cm.scan_heights(sample_port, start_height + 1, end_height, skip_cert=(arm == "engram"))
     s = cm.summarize(rows, None)
     sent = max(counters["sent"], 1)
@@ -182,6 +195,7 @@ def run_one(arm: str, rate: float, repeat: int, args) -> dict:
         "mempool_max": max(w.mempool) if w.mempool else None,
         "tx_per_block": s["tx_per_block_mean"], "block_interval_s": s["interval_mean_s"],
         "rounds_per_height": s["rounds_per_height_mean"], "nil_precommits": s["nil_precommits_total"],
+        "extend_vote_ms_mean": round(sum(ev) / len(ev), 2) if ev else None, "extend_vote_ms_p95": rq4.pct(ev, 0.95) if ev else None,
         "share_anchored": round(sum(1 for x in states if x == "ANCHORED") / len(states), 3) if any(states) else None,
         "fsm_states_seen": "|".join(sorted(set(x for x in states if x))),
         "validator_cpu_pct_mean": round(sum(cpu.values()) / len(cpu), 1) if cpu else None,
@@ -250,7 +264,7 @@ def main():
         sel = [x for x in rows if x["nominal_tx_s"] == rate]
         cell = {"n": len(sel)}
         for k in ("achieved_offered_tx_s", "committed_tx_s", "committed_over_offered", "latency_p50_s", "latency_p95_s",
-                  "latency_p99_s", "mempool_max", "validator_cpu_pct_max", "block_interval_s", "tx_per_block"):
+                  "latency_p99_s", "extend_vote_ms_mean", "extend_vote_ms_p95", "rounds_per_height", "share_anchored", "mempool_max", "validator_cpu_pct_max", "block_interval_s", "tx_per_block"):
             vals = [x[k] for x in sel if isinstance(x[k], (int, float))]
             if vals:
                 m = sum(vals) / len(vals)

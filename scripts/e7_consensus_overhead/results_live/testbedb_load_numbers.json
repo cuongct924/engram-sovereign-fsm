@@ -1,0 +1,256 @@
+{
+  "data": {
+    "vanilla": {
+      "block_interval_s": [
+        1.4448964228996863,
+        1.4312211747439403,
+        1.4235475017474248
+      ],
+      "latency_p50_s": [
+        2.6982369422912598,
+        2.697082281112671,
+        2.716158866882324
+      ],
+      "latency_p95_s": [
+        3.613806962966919,
+        3.609532117843628,
+        3.601154088973999
+      ],
+      "latency_p99_s": [
+        3.8400299549102783,
+        3.8654682636260986,
+        3.837399959564209
+      ],
+      "extend_vote_ms_mean": [
+        null,
+        null,
+        null
+      ],
+      "rounds_per_height": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "share_anchored": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "validator_cpu_pct_max": [
+        26.16,
+        21.55,
+        23.59
+      ],
+      "committed_over_offered": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mempool_max": [
+        164.0,
+        157.0,
+        163.0
+      ]
+    },
+    "empty": {
+      "block_interval_s": [
+        1.446251975165473,
+        1.456186991111905,
+        1.4375164950335468
+      ],
+      "latency_p50_s": [
+        3.788106918334961,
+        2.7441391944885254,
+        2.732717990875244
+      ],
+      "latency_p95_s": [
+        10.138994932174683,
+        3.6500868797302246,
+        3.665544271469116
+      ],
+      "latency_p99_s": [
+        10.65860891342163,
+        3.88142991065979,
+        3.8939929008483887
+      ],
+      "extend_vote_ms_mean": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "rounds_per_height": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "share_anchored": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "validator_cpu_pct_max": [
+        49.66,
+        25.58,
+        26.21
+      ],
+      "committed_over_offered": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mempool_max": [
+        162.0,
+        157.0,
+        160.0
+      ]
+    },
+    "sync": {
+      "block_interval_s": [
+        2.728752189212375,
+        2.7210788196987576,
+        2.870523296869718
+      ],
+      "latency_p50_s": [
+        3.7270920276641846,
+        3.615678071975708,
+        3.868901014328003
+      ],
+      "latency_p95_s": [
+        5.4940879344940186,
+        5.159861087799072,
+        5.803902864456177
+      ],
+      "latency_p99_s": [
+        6.957234859466553,
+        6.076223850250244,
+        6.281266927719116
+      ],
+      "extend_vote_ms_mean": [
+        922.49,
+        912.82,
+        937.44
+      ],
+      "rounds_per_height": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "share_anchored": [
+        0.5,
+        0.154,
+        0.038
+      ],
+      "validator_cpu_pct_max": [
+        27.13,
+        21.42,
+        13.05
+      ],
+      "committed_over_offered": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mempool_max": [
+        475.0,
+        440.0,
+        466.0
+      ]
+    },
+    "snapshot": {
+      "block_interval_s": [
+        1.4412063697599016,
+        1.4523853659629822,
+        1.465000166612513
+      ],
+      "latency_p50_s": [
+        2.6756370067596436,
+        2.7509539127349854,
+        2.6791508197784424
+      ],
+      "latency_p95_s": [
+        3.5979561805725098,
+        3.67903208732605,
+        3.6232550144195557
+      ],
+      "latency_p99_s": [
+        3.8377201557159424,
+        3.956601858139038,
+        3.8513269424438477
+      ],
+      "extend_vote_ms_mean": [
+        0.12,
+        0.12,
+        0.11
+      ],
+      "rounds_per_height": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "share_anchored": [
+        0.846,
+        1.0,
+        0.923
+      ],
+      "validator_cpu_pct_max": [
+        22.68,
+        48.72,
+        33.41
+      ],
+      "committed_over_offered": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mempool_max": [
+        192.0,
+        159.0,
+        180.0
+      ]
+    }
+  },
+  "p95_per_deployment": {
+    "vanilla": [
+      3.61,
+      3.61,
+      3.6
+    ],
+    "empty": [
+      10.14,
+      3.65,
+      3.67
+    ],
+    "sync": [
+      5.49,
+      5.16,
+      5.8
+    ],
+    "snapshot": [
+      3.6,
+      3.68,
+      3.62
+    ]
+  },
+  "sources": {
+    "vanilla": [
+      "throughput_vanilla7_b2_vanilla_t1_20261012T224627_summary.json",
+      "throughput_vanilla7_b2_vanilla_t2_20261012T225719_summary.json",
+      "throughput_vanilla7_b2_vanilla_t3_20261012T230733_summary.json"
+    ],
+    "empty": [
+      "throughput_engram_b3_empty_t1_20261016T234241_summary.json",
+      "throughput_engram_b3_empty_t2_20261016T235926_summary.json",
+      "throughput_engram_b3_empty_t3_20261017T001636_summary.json"
+    ],
+    "sync": [
+      "throughput_engram_b3_sync_t1_20261017T003236_summary.json",
+      "throughput_engram_b3_sync_t2_20261017T004805_summary.json",
+      "throughput_engram_b3_sync_t3_20261017T010352_summary.json"
+    ],
+    "snapshot": [
+      "throughput_engram_b3_snapshot_t1_20261017T012051_summary.json",
+      "throughput_engram_b3_snapshot_t2_20261017T013806_summary.json",
+      "throughput_engram_b3_snapshot_t3_20261017T015455_summary.json"
+    ]
+  }
+}

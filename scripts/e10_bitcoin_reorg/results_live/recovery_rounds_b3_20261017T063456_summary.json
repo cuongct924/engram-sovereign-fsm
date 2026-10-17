@@ -1,0 +1,192 @@
+{
+  "image_tag": "3fe656dce021",
+  "cycles": [
+    {
+      "want_round": 1,
+      "sovereign": true,
+      "t_sovereign_s": 24.7,
+      "recovering": true,
+      "stopped_validators": [
+        "engram-node06",
+        "engram-node05"
+      ],
+      "restart_s": 17.0,
+      "boundary_lines": [],
+      "retry_reasons": [],
+      "archived": true,
+      "archive": "seg6_h184",
+      "public_inputs_len": 224,
+      "negatives": [
+        {
+          "test": "wrong_rt_last",
+          "accepted": false,
+          "seconds": 4.39,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_rt_last"
+        },
+        {
+          "test": "wrong_first_block_hash",
+          "accepted": false,
+          "seconds": 3.3,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_first_block_hash"
+        },
+        {
+          "test": "wrong_last_block_hash",
+          "accepted": false,
+          "seconds": 2.8,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_last_block_hash"
+        },
+        {
+          "test": "wrong_validator_set_hash",
+          "accepted": false,
+          "seconds": 2.97,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_validator_set_hash"
+        },
+        {
+          "test": "wrong_count",
+          "accepted": false,
+          "seconds": 3.31,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_count"
+        },
+        {
+          "test": "wrong_first_height",
+          "accepted": false,
+          "seconds": 2.79,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_first_height"
+        },
+        {
+          "test": "tampered_proof_byte",
+          "accepted": false,
+          "seconds": 3.33,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "tampered_proof_byte"
+        }
+      ],
+      "state_after_negatives": [
+        "SOVEREIGN"
+      ],
+      "anchored": true,
+      "t_anchored_s": 186.7,
+      "replay": {
+        "test": "replay_valid_proof",
+        "accepted": false,
+        "seconds": 1.87,
+        "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub"
+      },
+      "prover_log_since_fault": [
+        "[23:28:33] segment 6: proof for heights 157-184 is ready, holding the submission while /control/hold exists",
+        "[23:30:02] segment 6 failed (submission rejected: engramd tx-submit-recovery-proof: exit status 1: Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof",
+        "  engramd tx-submit-recovery-proof [flags]",
+        "      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see publish-recovery-witness)",
+        "  -h, --help                   help for tx-submit-recovery-proof",
+        "rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof): stopping the later ones and restarting from the chain's checkpoint",
+        "[23:30:02] check 122: 51 headers beyond -1, in flight 0, submitted 5, failed 1",
+        "[23:30:02] segment 8: boundary blocks first=233 (round 0) last=283 (round 0), 0 header(s) dropped from the end",
+        "[23:30:41] check 135: 27 headers beyond 283, in flight 1, submitted 5, failed 1",
+        "[23:30:42] segment 9: boundary blocks first=284 (round 0) last=310 (round 0), 0 header(s) dropped from the end",
+        "[23:31:23] check 149: 29 headers beyond 310, in flight 1, submitted 6, failed 1",
+        "[23:31:24] segment 10: boundary blocks first=311 (round 0) last=340 (round 0), 0 header(s) dropped from the end"
+      ]
+    },
+    {
+      "want_round": 2,
+      "sovereign": true,
+      "t_sovereign_s": 210.6,
+      "recovering": true,
+      "stopped_validators": [
+        "engram-node06",
+        "engram-node05"
+      ],
+      "restart_s": 17.4,
+      "boundary_lines": [],
+      "retry_reasons": [],
+      "archived": true,
+      "archive": "seg9_h310",
+      "public_inputs_len": 224,
+      "negatives": [
+        {
+          "test": "wrong_rt_last",
+          "accepted": false,
+          "seconds": 2.85,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_rt_last"
+        },
+        {
+          "test": "wrong_first_block_hash",
+          "accepted": false,
+          "seconds": 2.95,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_first_block_hash"
+        },
+        {
+          "test": "wrong_last_block_hash",
+          "accepted": false,
+          "seconds": 2.95,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_last_block_hash"
+        },
+        {
+          "test": "wrong_validator_set_hash",
+          "accepted": false,
+          "seconds": 2.96,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_validator_set_hash"
+        },
+        {
+          "test": "wrong_count",
+          "accepted": false,
+          "seconds": 3.5,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_count"
+        },
+        {
+          "test": "wrong_first_height",
+          "accepted": false,
+          "seconds": 2.96,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "wrong_first_height"
+        },
+        {
+          "test": "tampered_proof_byte",
+          "accepted": false,
+          "seconds": 2.91,
+          "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub",
+          "mutation": "tampered_proof_byte"
+        }
+      ],
+      "state_after_negatives": [
+        "RECOVERING"
+      ],
+      "anchored": true,
+      "t_anchored_s": 381.0,
+      "replay": {
+        "test": "replay_valid_proof",
+        "accepted": false,
+        "seconds": 1.22,
+        "message": "Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof\nUsage:\n  engramd tx-submit-recovery-proof [flags]\n\nFlags:\n      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see pub"
+      },
+      "prover_log_since_fault": [
+        "[23:31:52] segment 9: proof for heights 284-310 is ready, holding the submission while /control/hold exists",
+        "[23:33:15] segment 9 failed (submission rejected: engramd tx-submit-recovery-proof: exit status 1: Error: rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof",
+        "  engramd tx-submit-recovery-proof [flags]",
+        "      --da-height uint         Celestia height this proof's witness header chain was published at (optional, audit-only, see publish-recovery-witness)",
+        "  -h, --help                   help for tx-submit-recovery-proof",
+        "rejected in DeliverTx: failed to execute message; message index: 0: sovereignty: invalid zk recovery proof): stopping the later ones and restarting from the chain's checkpoint",
+        "[23:33:15] check 186: 55 headers beyond -1, in flight 0, submitted 6, failed 2",
+        "[23:33:15] segment 11: boundary blocks first=351 (round 0) last=405 (round 0), 0 header(s) dropped from the end",
+        "[23:33:54] check 199: 27 headers beyond 405, in flight 1, submitted 6, failed 2",
+        "[23:33:54] segment 12: boundary blocks first=406 (round 0) last=433 (round 0), 0 header(s) dropped from the end",
+        "[23:34:33] check 212: 0 headers beyond 433, in flight 1, submitted 7, failed 2",
+        "[23:34:36] check 213: 0 headers beyond 433, in flight 1, submitted 7, failed 2",
+        "[23:34:39] check 214: 0 headers beyond 433, in flight 1, submitted 7, failed 2",
+        "[23:34:42] check 215: 0 headers beyond 433, in flight 1, submitted 7, failed 2",
+        "[23:34:45] check 216: 0 headers beyond 433, in flight 1, submitted 7, failed 2"
+      ]
+    }
+  ]
+}

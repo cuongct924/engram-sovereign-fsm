@@ -59,7 +59,7 @@ wide-area conditions: seven validators on seven virtual machines in three region
 prover host with its worker machines in a fifth (us-east-1). Round trips between
 regions are 46--207\,ms, and the peer-latency bound of the health sensors is raised to 500\,ms
 (Table~\ref{tab:testbedB}). Results from the two environments are never pooled into
-one number.\fi{}
+one number. The load comparison, the composite faults, the hung-RPC, freshness-window and added-delay tests and the recoveries at boundary rounds 0, 1 and 2 ran on Testbed~B, on a freshly deployed chain for each run or build, with proof-only recovery and a tail bound of 128; the load generator was the operator's computer outside the cloud, and Appendix~\ref{app:setup} gives the commit and the number of runs of each.\fi{}
 Table~\ref{tab:environment} in Appendix~\ref{app:setup} lists the configuration and the versions.
 
 

@@ -1,0 +1,84 @@
+{
+  "arm": "snapshot",
+  "image_tag": "fe419f406c46",
+  "window_s": 90,
+  "windows": [
+    {
+      "delay_ms": 0,
+      "heights": [
+        248,
+        298
+      ],
+      "blocks": 50,
+      "block_interval_s": 1.357,
+      "extend_vote_ms_mean": 0.07,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 0.3,
+      "extend_vote_samples": 357,
+      "fsm_state_samples": {
+        "SUSPICIOUS": 14,
+        "ANCHORED": 84
+      },
+      "snapshot_lines": 357,
+      "snapshot_degraded_lines": 0
+    },
+    {
+      "delay_ms": 100,
+      "heights": [
+        313,
+        366
+      ],
+      "blocks": 53,
+      "block_interval_s": 1.285,
+      "extend_vote_ms_mean": 0.06,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 0.3,
+      "extend_vote_samples": 378,
+      "fsm_state_samples": {
+        "ANCHORED": 96,
+        "": 2
+      },
+      "snapshot_lines": 378,
+      "snapshot_degraded_lines": 0
+    },
+    {
+      "delay_ms": 300,
+      "heights": [
+        -1,
+        432
+      ],
+      "blocks": 433,
+      "block_interval_s": 0.151,
+      "extend_vote_ms_mean": 0.06,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 1.9,
+      "extend_vote_samples": 3023,
+      "fsm_state_samples": {
+        "": 3,
+        "ANCHORED": 81
+      },
+      "snapshot_lines": 3023,
+      "snapshot_degraded_lines": 7
+    },
+    {
+      "delay_ms": 500,
+      "heights": [
+        448,
+        497
+      ],
+      "blocks": 49,
+      "block_interval_s": 1.351,
+      "extend_vote_ms_mean": 0.06,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 0.4,
+      "extend_vote_samples": 350,
+      "fsm_state_samples": {
+        "ANCHORED": 16,
+        "SOVEREIGN": 6,
+        "RECOVERING": 83
+      },
+      "snapshot_lines": 350,
+      "snapshot_degraded_lines": 2
+    }
+  ]
+}

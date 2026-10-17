@@ -1,0 +1,102 @@
+{
+  "arm": "snapshot",
+  "image_tag": "fe419f406c46",
+  "hang_s": 240,
+  "recovered_after_s": 38.8,
+  "marks": {
+    "baseline_end": {
+      "t_s": 61.3,
+      "height": 266
+    },
+    "hang_start": {
+      "t_s": 61.8,
+      "height": 266
+    },
+    "hang_end": {
+      "t_s": 308.8,
+      "height": 436
+    },
+    "resume": {
+      "t_s": 312.5,
+      "height": 436
+    },
+    "end": {
+      "t_s": 351.3,
+      "height": 466
+    }
+  },
+  "phases": {
+    "baseline": {
+      "heights": [
+        224,
+        266
+      ],
+      "blocks": 43,
+      "duration_s": 56.6,
+      "block_interval_s": 1.315,
+      "extend_vote_ms_mean": 0.06,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 0.3,
+      "extend_vote_samples": 301,
+      "fsm_state_samples": {
+        "ANCHORED": 74,
+        "SUSPICIOUS": 17
+      }
+    },
+    "hang": {
+      "heights": [
+        267,
+        436
+      ],
+      "blocks": 170,
+      "duration_s": 237.1,
+      "block_interval_s": 1.395,
+      "extend_vote_ms_mean": 0.06,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 2.0,
+      "extend_vote_samples": 1190,
+      "fsm_state_samples": {
+        "ANCHORED": 2,
+        "SOVEREIGN": 330,
+        "": 4
+      }
+    },
+    "recovery": {
+      "heights": [
+        437,
+        466
+      ],
+      "blocks": 30,
+      "duration_s": 34.4,
+      "block_interval_s": 1.146,
+      "extend_vote_ms_mean": 0.05,
+      "extend_vote_ms_p95": 0.1,
+      "extend_vote_ms_max": 0.3,
+      "extend_vote_samples": 210,
+      "fsm_state_samples": {
+        "": 2,
+        "RECOVERING": 14,
+        "ANCHORED": 26
+      }
+    }
+  },
+  "max_age_ms": 5000,
+  "baseline_check": {
+    "snapshot_lines": 301,
+    "degraded_lines": 0,
+    "note": "degraded lines while the daemon is healthy are false positives of the freshness rule"
+  },
+  "stale_check": {
+    "heights": [
+      276,
+      436
+    ],
+    "snapshot_lines": 1127,
+    "btc_gap_zero_lines": 0,
+    "degraded_lines": 0,
+    "btc_gap_values": [
+      8
+    ],
+    "note": "btc_gap_zero_lines must be 0: a frozen daemon may never read as healthy"
+  }
+}

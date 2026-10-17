@@ -19,7 +19,7 @@ Container runtime & Docker 29.0.1; VM allocation 10 CPUs, 23.4\,GiB RAM \\
 Validators (7) & No CPU or memory limit per container \\
 Consensus core & CometBFT v0.39.3 module path, replaced by the fork
 \texttt{engram-consensus-core} at commit \texttt{493a20121} \\
-Application & Cosmos SDK v0.54.3; this repository at commit \texttt{1c34d994e7ad} for the multi-host runs \\
+Application & Cosmos SDK v0.54.3; this repository at commit \texttt{1c34d994e7ad} for the prover and tail runs on the multi-host testbed and \texttt{3fe656dce021} for its composite, load and hung-RPC runs \\
 Bitcoin & Bitcoin Core v25.0, regtest, two nodes (0.3 CPU, 512\,MB each) \\
 Celestia & celestia-app v1.11.0, private one-validator chain with a block every 11.0\,s (0.5 CPU, 1\,GB); seven celestia-node
 v0.14.1 bridges (0.3 CPU, 512\,MB each) \\
@@ -37,7 +37,7 @@ Section~\ref{subsec:implementation}.
 \end{table}
 
 \begin{table}[H]
-\caption{Testbed~B: hosts and round trips (recorded on 11 October 2026, the day of the runs)}
+\caption{Testbed~B: hosts and round trips (recorded on 11 October 2026)}
 \label{tab:testbedB}
 \centering
 \footnotesize
@@ -72,6 +72,8 @@ Within a region & under 1 \\
 Testbed~A, in images for \texttt{linux/amd64}. The raw record is
 \texttt{scripts/e6\_zk\_reanchoring\_benchmark/results\_live/cloud\_testbed.txt}.
 \end{table}
+
+The round trips were recorded on 11 October. The runs with background sensor reads were made on 16 and 17 October and the vanilla column of the load comparison on 12 October, on freshly created instances of the same types; the round trips were not recorded again.
 
 \subsection*{FSM parameters}
 
@@ -237,9 +239,14 @@ Baselines under peripheral faults (Table~\ref{tab:rq2}) & Live & Three trials pe
 Composite fault, first run & Live & One trial & Fallback \\
 Composite fault, repeats & Live & Five runs, each on a freshly deployed chain & Proof-only, bound 128 \\
 Prover runs with the code's default parameters, Testbed~B & Live & One run each for one and two workers; superseded by the runs with the paper's parameters and not reported & Tail bound 8, heuristic allowed \\
-Composite fault, Testbed~B & Live, seven machines in three regions & Five runs, each on a freshly deployed chain; two did not start from a clean \textsc{Anchored} & Proof-only, bound 128, two workers \\
+Composite fault, Testbed~B & Live, seven machines in three regions & Five runs, each on a freshly deployed chain, all started in \textsc{Anchored} & Proof-only, bound 128, two workers \\
+Hung Bitcoin RPC, Testbed~B & Live & One run per build, daemon frozen for 240\,s & Not the subject \\
+Freshness window of the snapshot rule, Testbed~B & Live & One run per window (1, 2, 5 and 10\,s), daemon frozen for 240\,s & Not the subject \\
+ExtendVote against added delay, Testbed~B & Live & One 90\,s window per delay (0, 100, 300 and 500\,ms) and build, one chain per build & Not the subject \\
+Recovery at boundary rounds 0, 1 and 2, Testbed~B & Live, seven machines in three regions & Two recoveries per round, each set on one freshly deployed chain, with seven mutated proofs and a repeated submission in each, and one burst of 24 proofs per set & Proof-only, bound 128 \\
+Circuit tests of the boundary round and the quorum & In-process (nargo) & Eight cases of a script and ten unit tests, one run & Not applicable \\
 Prover and unproven tail, Testbed~B & Live & One run for each of one to four workers, 15\,min in \textsc{Sovereign} & Proof-only, bound 128 \\
-Load at 100\,tx/s, Testbed~B & Live & Three fresh deployments per arm (Engram, vanilla), one 60\,s measurement each; a deployment whose chain did not reach \textsc{Anchored} is redeployed before measuring & Proof-only, bound 128 (Engram) \\
+Load at 100\,tx/s, Testbed~B & Live & Three fresh deployments per configuration (vanilla, empty, sync, snapshot), one 60\,s measurement each; an Engram chain is measured only after all seven validators report \textsc{Anchored}, and a deployment that did not reach it is not measured & Proof-only, bound 128 (Engram) \\
 Seven-scenario sweep & Live & Seven runs, each on a freshly deployed chain (five on 8 October, two on 10 October with the sensor log kept, same binary) & Fallback \\
 Hysteresis sweep (Table~\ref{tab:hysteresis-down}) & In-process, synthetic & One run per threshold, fixed seed & Not applicable \\
 Hysteresis spot-checks and flapping runs & Live & Single runs per threshold; six three-phase runs; one stationary run & Not the subject \\
