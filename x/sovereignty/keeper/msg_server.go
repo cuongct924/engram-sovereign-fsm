@@ -140,20 +140,26 @@ func (k *MsgServerImpl) SubmitRecoveryProof(ctx context.Context, msg *types.MsgS
 	if msg.DaCelestiaHeight > 0 {
 		_ = k.RecoveryProofDAHeights.Set(ctx, newCheckpointHeight, msg.DaCelestiaHeight)
 	}
+	logProof(ctx, "recovery proof accepted", "first_height", firstHeight, "last_height", newCheckpointHeight, "count", count)
 	return &types.MsgSubmitRecoveryProofResponse{}, nil
 }
 
 // rejectProof returns ErrInvalidZKProof and logs which check refused the proof (the error itself is the same for every
 // check). Logging only: no state or consensus effect.
 func rejectProof(ctx context.Context, check string) error {
+	logProof(ctx, "recovery proof rejected", "check", check)
+	return types.ErrInvalidZKProof
+}
+
+// logProof writes one line to the node log; logging only, no state or consensus effect.
+func logProof(ctx context.Context, msg string, kv ...any) {
 	sctx, ok := ctx.(sdk.Context)
 	if !ok {
 		sctx, ok = ctx.Value(sdk.SdkContextKey).(sdk.Context)
 	}
 	if ok && sctx.Logger() != nil {
-		sctx.Logger().Info("recovery proof rejected", "check", check)
+		sctx.Logger().Info(msg, kv...)
 	}
-	return types.ErrInvalidZKProof
 }
 
 // findHeaderByAccumulator matches rt_new by content (not the tip) against a tracked header's
