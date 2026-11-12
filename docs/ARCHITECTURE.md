@@ -167,9 +167,8 @@ never a shared bridge.
 ## 3. System Architecture
 
 Logical overview of one block height; it shows the control flow and trust boundary, not containers
-or ports. It mirrors the paper's Figure 2 (`docs/images/figure2_system_architecture.drawio`), which
-answers who produces the decision, in what order, and across which trust boundary. The paper's
-Figure 3 (`docs/images/figure3_fsm_transitions.drawio`) is the separate view of the FSM itself: its
+or ports. It mirrors the paper's Figure 2, which answers who produces the decision, in what order,
+and across which trust boundary. The paper's Figure 3 is the separate view of the FSM itself: its
 four states, the transitions between them, and what each state permits. This diagram stops at the
 committed state and does not repeat the transitions.
 
