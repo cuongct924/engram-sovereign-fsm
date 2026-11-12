@@ -1,5 +1,7 @@
 # Engram Sovereign FSM
 
+[![DOI](https://zenodo.org/badge/1183761575.svg)](https://doi.org/10.5281/zenodo.24152432)
+
 A Cosmos SDK + CometBFT prototype implementing **Engram Hybrid Adaptive Consensus** — a modular
 consensus protocol that treats peripheral network health (Bitcoin settlement finality, Celestia
 data availability, peripheral P2P health) as a first-class consensus variable, degrading gracefully into a
@@ -80,6 +82,11 @@ The same experiments run on a multi-host wide-area testnet (7 validator VMs acro
 - [`docs/REPRODUCE.md`](docs/REPRODUCE.md) — pinned inputs (consensus fork, embedded verifier) and how to rebuild the node and images.
 - [`deploy/README.md`](deploy/README.md) — multi-host deployment on AWS or your own hosts.
 - [`circuit/README.md`](circuit/README.md) — ZK re-anchoring circuits: `Proof of Recovery` definition, dynamic padding, opt-in chunk aggregation, benchmarks.
+
+## Citation
+
+Archived on Zenodo: [10.5281/zenodo.24152432](https://doi.org/10.5281/zenodo.24152432) (all versions). The version
+used in the paper is `v1.0-paper`, [10.5281/zenodo.24152433](https://doi.org/10.5281/zenodo.24152433).
 
 ## License
 
