@@ -1,6 +1,6 @@
 ---
 name: "paper-writing"
-description: "Academic writing rules and a pre-submission checklist for computer-science research papers (systems, security, distributed consensus, formal methods). Use whenever drafting, rewriting, reviewing, or polishing text in docs/paper/ (LaTeX sections, abstract, captions, tables, bibliography), when responding to reviewer feedback, or when deciding how strongly a result may be claimed."
+description: "Academic writing rules and a pre-submission checklist for computer-science research papers (systems, security, distributed consensus, formal methods). Use whenever drafting, rewriting, reviewing, or polishing text in the manuscript (../engram-paper, outside the repo; LaTeX sections, abstract, captions, tables, bibliography), when responding to reviewer feedback, or when deciding how strongly a result may be claimed."
 ---
 
 # Writing Computer Science Research Papers
