@@ -121,6 +121,8 @@ deploy/terraform/**/.terraform.lock.hcl
 deploy/terraform/**/*.tfstate
 deploy/terraform/**/*.tfstate.*
 deploy/terraform/**/terraform.tfvars
+deploy/terraform/**/tfplan
+deploy/terraform/**/*.tfplan
 
 # Manuscript sources live outside the repo (../engram-paper, override with PAPER_DIR) and are never pushed, nor are its builds.
 docs/paper/
