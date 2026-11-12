@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: "Engram Hybrid Adaptive Consensus: implementation, TLA+ specification and experiment artifact"
+authors:
+  - family-names: "Đặng"
+    given-names: "Tiến Cường"
+    orcid: "https://orcid.org/0009-0004-7499-6987"
+version: "v1.0-paper"
+date-released: "2026-11-12"
+doi: "10.5281/zenodo.24152432"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24152432"
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: "10.5281/zenodo.24152433"
+    description: "Version v1.0-paper, used in the paper"
+repository-code: "https://github.com/cuongct924/engram-sovereign-fsm"
+license: Apache-2.0
+keywords:
+  - blockchain consensus
+  - CometBFT
+  - TLA+
+  - model checking
+  - zero-knowledge proof
+  - data availability
