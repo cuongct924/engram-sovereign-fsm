@@ -62,6 +62,9 @@ services:
 {% endif %}
       - CELESTIA_BRIDGE_URL=http://celestia-bridge:26658
       - CELESTIA_BRIDGE_AUTH_TOKEN=${CELESTIA_BRIDGE_AUTH_TOKEN:-}
+{% for k, v in (prover_env | default({})).items() %}
+      - {{ k }}={{ v }}
+{% endfor %}
 
 volumes:
   bridge-data:

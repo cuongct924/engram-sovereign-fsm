@@ -62,6 +62,9 @@ services:
       ANCHOR_SUBMISSION_PAUSED_FILE: /tmp/anchor_submission_paused
       ENGRAM_MODE: {{ engram_mode }}
       ENGRAM_SENSOR_MODE: "{{ sensor_mode | default('snapshot') }}"
+{% if sensor_max_age_ms is defined %}
+      ENGRAM_SENSOR_MAX_AGE_MS: "{{ sensor_max_age_ms }}"
+{% endif %}
     profiles: [engramd]
 
 volumes:
