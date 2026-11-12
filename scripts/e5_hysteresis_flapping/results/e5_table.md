@@ -29,6 +29,6 @@
 | 10 | combined_adversarial | yes | 38 | SOVEREIGN | 35 | 1.0% |
 | 20 | stable | yes | 23 | ANCHORED | 0 | 4.3% |
 | 20 | noisy_btc | NO | never | SOVEREIGN | 37 | 0.0% |
-| 20 | noisy_da | yes | 46 | ANCHORED | 3 | 53.9% |
-| 20 | noisy_p2p | yes | 46 | ANCHORED | 3 | 53.9% |
+| 20 | noisy_da | yes | 46 | ANCHORED | 2 | 55.9% |
+| 20 | noisy_p2p | yes | 46 | ANCHORED | 2 | 55.9% |
 | 20 | combined_adversarial | NO | never | SOVEREIGN | 37 | 0.0% |
